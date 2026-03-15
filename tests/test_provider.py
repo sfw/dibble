@@ -52,8 +52,11 @@ class FakeClient:
         self.content = content
         self.stream_parts = stream_parts or []
         self.error = error
+        self.complete_calls = 0
+        self.stream_calls = 0
 
     def complete(self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2):
+        self.complete_calls += 1
         if self.error is not None:
             raise self.error
 
@@ -64,6 +67,7 @@ class FakeClient:
         return Result(self.content or "")
 
     def stream_complete(self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2):
+        self.stream_calls += 1
         if self.error is not None:
             raise self.error
         for part in self.stream_parts:
@@ -280,3 +284,62 @@ def test_provider_stream_fails_over_to_secondary_client(sample_profile, sample_r
 
     assert chunks[0].title == "Secondary"
     assert chunks[-1].done is True
+
+
+def test_provider_opens_circuit_after_repeated_primary_failures(sample_profile, sample_request, sample_route):
+    current_time = {"value": 100.0}
+    primary = FakeClient(error=LLMClientError("primary boom"))
+    secondary = FakeClient(
+        """
+        {
+          "blocks": [
+            {"kind": "summary", "title": "Secondary", "body": "Recovered."},
+            {"kind": "instruction", "title": "Try it", "body": "Use backup."}
+          ]
+        }
+        """
+    )
+    provider = LLMOrchestrationProvider(
+        clients=[("primary", primary), ("secondary", secondary)],
+        fallback_provider=MockLLMProvider(),
+        circuit_breaker_threshold=2,
+        circuit_breaker_cooldown_seconds=30.0,
+        time_provider=lambda: current_time["value"],
+    )
+
+    provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+    provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+    provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+
+    assert primary.complete_calls == 2
+    assert secondary.complete_calls == 3
+
+
+def test_provider_retries_primary_after_circuit_cooldown(sample_profile, sample_request, sample_route):
+    current_time = {"value": 100.0}
+    primary = FakeClient(error=LLMClientError("primary boom"))
+    secondary = FakeClient(
+        """
+        {
+          "blocks": [
+            {"kind": "summary", "title": "Secondary", "body": "Recovered."},
+            {"kind": "instruction", "title": "Try it", "body": "Use backup."}
+          ]
+        }
+        """
+    )
+    provider = LLMOrchestrationProvider(
+        clients=[("primary", primary), ("secondary", secondary)],
+        fallback_provider=MockLLMProvider(),
+        circuit_breaker_threshold=1,
+        circuit_breaker_cooldown_seconds=30.0,
+        time_provider=lambda: current_time["value"],
+    )
+
+    provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+    current_time["value"] = 110.0
+    provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+    current_time["value"] = 131.0
+    provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+
+    assert primary.complete_calls == 2
