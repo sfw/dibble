@@ -29,7 +29,7 @@ class MockLLMProvider:
                 kind="instruction",
                 title=f"{route.intervention_type.value.replace('_', ' ').title()} response",
                 body=(
-                    f"Provide {route.scaffolding_level}-scaffold support for {focus}. "
+                    f"Provide {route.scaffolding_level}-scaffold support for {focus} using {grounding_text}. "
                     f"Honor the learner's pace preference of {profile.learning_preferences.pace_preference.value}. "
                     f"{prompt_fragment}"
                 ),

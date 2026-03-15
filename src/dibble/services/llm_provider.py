@@ -12,7 +12,7 @@ from dibble.models.profile import LearnerProfile
 from dibble.services.content_provider import MockLLMProvider
 from dibble.services.llm_client import LLMClientError, OpenAICompatibleChatClient
 from dibble.services.llm_prompting import build_generation_prompts, build_stream_generation_prompts
-from dibble.services.provider_health import SQLiteProviderHealthStore
+from dibble.services.provider_health import ProviderRoutingSnapshot, SQLiteProviderHealthStore
 from dibble.services.streaming import iter_block_chunks
 
 
@@ -60,6 +60,7 @@ class LLMOrchestrationProvider:
         self.client_states = {name: ClientCircuitState() for name, _ in clients}
         self.health_store = health_store
         self.round_robin_cursor = 0
+        self._hydrate_client_states()
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "LLMOrchestrationProvider":
@@ -264,6 +265,27 @@ class LLMOrchestrationProvider:
         if current is None:
             return observed
         return (current * 0.7) + (observed * 0.3)
+
+    def _hydrate_client_states(self) -> None:
+        if self.health_store is None or not self.clients:
+            return
+
+        snapshots = self.health_store.routing_snapshots(
+            provider_names=[name for name, _ in self.clients],
+        )
+        for snapshot in snapshots:
+            self._apply_routing_snapshot(snapshot)
+
+    def _apply_routing_snapshot(self, snapshot: ProviderRoutingSnapshot) -> None:
+        state = self.client_states.get(snapshot.provider_name)
+        if state is None:
+            return
+
+        state.successful_requests = snapshot.successful_requests
+        state.failed_requests = snapshot.failed_requests
+        state.consecutive_failures = snapshot.consecutive_failures
+        state.average_latency_ms = snapshot.average_latency_ms
+        state.open_until = snapshot.open_until
 
     def _record_health(self, name: str, status: str, **detail: object) -> None:
         if self.health_store is None:

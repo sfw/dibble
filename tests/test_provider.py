@@ -11,6 +11,7 @@ from dibble.services.curriculum_store import SQLiteCurriculumStore
 from dibble.services.llm_client import LLMClientError, OpenAICompatibleChatClient
 from dibble.services.llm_prompting import build_generation_prompts
 from dibble.services.llm_provider import LLMOrchestrationProvider
+from dibble.services.provider_health import SQLiteProviderHealthStore
 from dibble.storage import ensure_database
 from tests.support import build_profile
 
@@ -431,6 +432,140 @@ def test_provider_latency_aware_prefers_faster_healthy_client(sample_profile, sa
     assert third[0].title == "Secondary"
     assert primary.complete_calls == 1
     assert secondary.complete_calls == 2
-    assert third[0].title == "Secondary"
-    assert primary.complete_calls == 1
-    assert secondary.complete_calls == 2
+
+
+def test_provider_hydrates_latency_history_from_health_store(tmp_path, sample_profile, sample_request, sample_route):
+    database_path = str(tmp_path / "provider-latency-history.db")
+    ensure_database(database_path)
+    health_store = SQLiteProviderHealthStore(database_path)
+    clock = {"value": 100.0}
+
+    warm_primary = FakeClient(
+        """
+        {
+          "blocks": [
+            {"kind": "summary", "title": "Primary", "body": "Primary output."},
+            {"kind": "instruction", "title": "Try it", "body": "Use primary."}
+          ]
+        }
+        """,
+        clock=clock,
+        duration_seconds=0.2,
+    )
+    warm_secondary = FakeClient(
+        """
+        {
+          "blocks": [
+            {"kind": "summary", "title": "Secondary", "body": "Secondary output."},
+            {"kind": "instruction", "title": "Try it", "body": "Use secondary."}
+          ]
+        }
+        """,
+        clock=clock,
+        duration_seconds=0.02,
+    )
+    warm_provider = LLMOrchestrationProvider(
+        clients=[("primary", warm_primary), ("secondary", warm_secondary)],
+        fallback_provider=MockLLMProvider(),
+        selection_strategy="latency_aware",
+        time_provider=lambda: clock["value"],
+        health_store=health_store,
+    )
+
+    warm_provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+
+    fresh_primary = FakeClient(
+        """
+        {
+          "blocks": [
+            {"kind": "summary", "title": "Primary", "body": "Primary output."},
+            {"kind": "instruction", "title": "Try it", "body": "Use primary."}
+          ]
+        }
+        """,
+        clock=clock,
+        duration_seconds=0.2,
+    )
+    fresh_secondary = FakeClient(
+        """
+        {
+          "blocks": [
+            {"kind": "summary", "title": "Secondary", "body": "Secondary output."},
+            {"kind": "instruction", "title": "Try it", "body": "Use secondary."}
+          ]
+        }
+        """,
+        clock=clock,
+        duration_seconds=0.02,
+    )
+    hydrated_provider = LLMOrchestrationProvider(
+        clients=[("primary", fresh_primary), ("secondary", fresh_secondary)],
+        fallback_provider=MockLLMProvider(),
+        selection_strategy="latency_aware",
+        time_provider=lambda: clock["value"],
+        health_store=health_store,
+    )
+
+    blocks = hydrated_provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+
+    assert blocks[0].title == "Secondary"
+    assert fresh_primary.complete_calls == 0
+    assert fresh_secondary.complete_calls == 1
+
+
+def test_provider_hydrates_open_circuit_from_health_store(tmp_path, sample_profile, sample_request, sample_route):
+    database_path = str(tmp_path / "provider-circuit-history.db")
+    ensure_database(database_path)
+    health_store = SQLiteProviderHealthStore(database_path)
+    current_time = {"value": 100.0}
+    warm_provider = LLMOrchestrationProvider(
+        clients=[
+            ("primary", FakeClient(error=LLMClientError("primary boom"))),
+            (
+                "secondary",
+                FakeClient(
+                    """
+                    {
+                      "blocks": [
+                        {"kind": "summary", "title": "Secondary", "body": "Recovered."},
+                        {"kind": "instruction", "title": "Try it", "body": "Use backup."}
+                      ]
+                    }
+                    """
+                ),
+            ),
+        ],
+        fallback_provider=MockLLMProvider(),
+        circuit_breaker_threshold=1,
+        circuit_breaker_cooldown_seconds=30.0,
+        time_provider=lambda: current_time["value"],
+        health_store=health_store,
+    )
+
+    warm_provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+
+    fresh_primary = FakeClient(error=LLMClientError("primary still down"))
+    fresh_secondary = FakeClient(
+        """
+        {
+          "blocks": [
+            {"kind": "summary", "title": "Secondary", "body": "Recovered."},
+            {"kind": "instruction", "title": "Try it", "body": "Use backup."}
+          ]
+        }
+        """
+    )
+    hydrated_provider = LLMOrchestrationProvider(
+        clients=[("primary", fresh_primary), ("secondary", fresh_secondary)],
+        fallback_provider=MockLLMProvider(),
+        circuit_breaker_threshold=1,
+        circuit_breaker_cooldown_seconds=30.0,
+        time_provider=lambda: current_time["value"],
+        health_store=health_store,
+    )
+
+    blocks = hydrated_provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+
+    assert blocks[0].title == "Secondary"
+    assert fresh_primary.complete_calls == 0
+    assert fresh_secondary.complete_calls == 1

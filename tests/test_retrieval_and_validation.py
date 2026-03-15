@@ -6,7 +6,7 @@ from dibble.models.profile import LearnerProfile
 from dibble.services.content_validator import ContentValidator
 from dibble.services.curriculum_store import SQLiteCurriculumStore
 from dibble.services.rag_retriever import RAGRetriever
-from dibble.services.validation.text import curriculum_alignment_score
+from dibble.services.validation.text import curriculum_alignment_score, grounding_coverage_score
 from dibble.storage import ensure_database
 from tests.support import build_curriculum_resource, build_profile
 
@@ -131,6 +131,58 @@ def test_curriculum_alignment_score_prefers_grounded_language():
 
     assert strong_score > weak_score
     assert strong_score >= 0.3
+
+
+def test_grounding_coverage_score_tracks_instruction_language():
+    grounding = [
+        GroundingReference(
+            resource_id="CURR-1",
+            title="Equivalent Fractions Foundations",
+            grade_level="5",
+            score=2.0,
+            matched_terms=["equivalent fractions", "fraction models"],
+        )
+    ]
+
+    strong_score = grounding_coverage_score(
+        "Use fraction models to show why equivalent fractions name the same value.",
+        grounding,
+    )
+    weak_score = grounding_coverage_score(
+        "Explain the example from above and try one more problem.",
+        grounding,
+    )
+
+    assert strong_score > weak_score
+    assert strong_score >= 0.2
+
+
+def test_validator_reports_instruction_grounding_gap_when_only_summary_is_grounded():
+    issues = ContentValidator().validate(
+        blocks=[
+            GeneratedBlock(
+                kind="summary",
+                title="Equivalent fractions",
+                body="Equivalent fractions name the same value when fraction models line up.",
+            ),
+            GeneratedBlock(
+                kind="instruction",
+                title="Try this",
+                body="Look at the example above and explain what you notice.",
+            ),
+        ],
+        grounding=[
+            GroundingReference(
+                resource_id="CURR-1",
+                title="Equivalent Fractions Foundations",
+                grade_level="5",
+                score=2.0,
+                matched_terms=["equivalent fractions", "fraction models"],
+            )
+        ],
+    )
+
+    assert issues == ["Instruction blocks do not clearly carry forward the retrieved curriculum language."]
 
 
 def test_validator_reports_reading_level_accessibility_safety_and_math_issues():

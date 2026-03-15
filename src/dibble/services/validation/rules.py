@@ -8,6 +8,7 @@ from dibble.services.validation.math import find_equation_checks
 from dibble.services.validation.text import (
     average_word_length,
     curriculum_alignment_score,
+    grounding_coverage_score,
     infer_target_grade,
     longest_sentence_word_count,
 )
@@ -59,6 +60,31 @@ class CurriculumAlignmentRule:
             return []
 
         return ["Generated content does not clearly reflect the retrieved curriculum grounding."]
+
+
+@dataclass(slots=True)
+class InstructionGroundingCoverageRule:
+    minimum_alignment_score: float = 0.3
+    minimum_coverage_score: float = 0.2
+
+    def validate(self, blocks: list[GeneratedBlock], grounding: list[GroundingReference]) -> list[str]:
+        if not grounding:
+            return []
+
+        instruction_blocks = [block for block in blocks if block.kind == "instruction"]
+        if not instruction_blocks:
+            return []
+
+        combined_text = " ".join(f"{block.title} {block.body}" for block in blocks)
+        if curriculum_alignment_score(combined_text, grounding) < self.minimum_alignment_score:
+            return []
+
+        instruction_text = " ".join(f"{block.title} {block.body}" for block in instruction_blocks)
+        coverage_score = grounding_coverage_score(instruction_text, grounding)
+        if coverage_score >= self.minimum_coverage_score:
+            return []
+
+        return ["Instruction blocks do not clearly carry forward the retrieved curriculum language."]
 
 
 @dataclass(slots=True)

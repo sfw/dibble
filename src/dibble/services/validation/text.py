@@ -101,6 +101,16 @@ def curriculum_alignment_score(text: str, grounding: list[GroundingReference]) -
     return min(score, 1.0)
 
 
+def grounding_coverage_score(text: str, grounding: list[GroundingReference]) -> float:
+    terms = salient_grounding_terms(grounding)
+    if not terms:
+        return 0.0
+
+    normalized_text = text.lower()
+    covered_terms = sum(1 for term in terms if term in normalized_text)
+    return covered_terms / len(terms)
+
+
 def infer_target_grade(grounding: list[GroundingReference]) -> int | None:
     for reference in grounding:
         grade = _parse_grade_value(reference.grade_level)
