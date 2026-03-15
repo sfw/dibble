@@ -72,6 +72,8 @@ def test_observation_endpoint_updates_inferred_state_and_profile(client, student
     state = state_response.json()
     profile = profile_response.json()
     audit_events = audit_response.json()
+    learner_observe_event = next(event for event in audit_events if event["event_type"] == "learner.observe")
+    summary_event = next(event for event in audit_events if event["event_type"] == "learning.run.summary")
 
     assert observed["student_id"] == str(student_id)
     assert observed["observation_count"] == 1
@@ -83,15 +85,17 @@ def test_observation_endpoint_updates_inferred_state_and_profile(client, student
     assert profile["affective_state"]["frustration"] == observed["affective_state"]["frustration"]
     assert profile["cognitive_load"]["total_load"] == observed["cognitive_load"]["total_load"]
     assert profile["metacognitive_state"]["confidence_calibration"] == observed["metacognitive_state"]["confidence_calibration"]
-    assert audit_events[0]["event_type"] == "learner.observe"
-    assert "confidence_calibration" in audit_events[0]["payload"]
-    assert audit_events[0]["payload"]["task_type"] == "assessment"
-    assert audit_events[0]["payload"]["support_level"] == "low"
-    assert audit_events[0]["payload"]["learning_session_id"] == "learn-session-1"
-    assert audit_events[0]["payload"]["generation_id"] == "gen-123"
-    assert audit_events[0]["payload"]["observed_content_type"] == "assessment_probe"
-    assert audit_events[0]["payload"]["target_kc_ids"] == ["KC-1"]
-    assert audit_events[0]["payload"]["target_lo_ids"] == ["LO-1"]
-    assert audit_events[0]["payload"]["state_calibration_signal"] == "negative"
-    assert audit_events[0]["payload"]["state_calibration_applied"] is True
-    assert audit_events[0]["payload"]["state_calibration_run_count"] >= 1
+    assert "confidence_calibration" in learner_observe_event["payload"]
+    assert learner_observe_event["payload"]["task_type"] == "assessment"
+    assert learner_observe_event["payload"]["support_level"] == "low"
+    assert learner_observe_event["payload"]["learning_session_id"] == "learn-session-1"
+    assert learner_observe_event["payload"]["generation_id"] == "gen-123"
+    assert learner_observe_event["payload"]["observed_content_type"] == "assessment_probe"
+    assert learner_observe_event["payload"]["target_kc_ids"] == ["KC-1"]
+    assert learner_observe_event["payload"]["target_lo_ids"] == ["LO-1"]
+    assert learner_observe_event["payload"]["state_calibration_signal"] == "negative"
+    assert learner_observe_event["payload"]["state_calibration_applied"] is True
+    assert learner_observe_event["payload"]["state_calibration_run_count"] >= 1
+    assert summary_event["payload"]["generation_id"] == "gen-123"
+    assert summary_event["payload"]["trigger_event_type"] == "learner.observe"
+    assert summary_event["payload"]["run_summary_score"] is not None

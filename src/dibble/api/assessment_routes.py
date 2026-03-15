@@ -29,7 +29,7 @@ def build_assessment_router(context: ApiContext) -> APIRouter:
         profile_update = services.socratic_profile_updater.apply(profile, request, result, session)
         if profile_update.applied:
             services.profile_store.upsert(profile_update.profile)
-        services.audit_store.append(
+        assessment_audit_event = services.audit_store.append(
             event_type="assessment.socratic",
             status="success",
             student_id=str(request.student_id),
@@ -64,6 +64,7 @@ def build_assessment_router(context: ApiContext) -> APIRouter:
                 ),
             },
         )
+        services.learning_run_summary_recorder.record_from_trigger_event(trigger_event=assessment_audit_event)
         return result
 
     @router.get(

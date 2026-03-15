@@ -180,3 +180,58 @@ def test_router_calibration_signal_service_returns_insufficient_without_matching
     assert signal.signal == "insufficient"
     assert signal.matched_run_count == 0
     assert signal.average_run_outcome_score is None
+
+
+def test_router_calibration_signal_service_prefers_persisted_run_summaries(tmp_path):
+    database_path = str(tmp_path / "router-calibration-summary-events.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = str(uuid4())
+    audit_store.append(
+        event_type="learning.run.summary",
+        status="success",
+        student_id=student_id,
+        payload={
+            "generation_id": "gen-1",
+            "intent": "practice",
+            "learning_session_id": "request-run",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": [],
+            "run_summary_score": 0.86,
+            "run_calibration_signal": "positive",
+            "run_calibration_confidence": 0.82,
+        },
+    )
+    audit_store.append(
+        event_type="learning.run.summary",
+        status="success",
+        student_id=student_id,
+        payload={
+            "generation_id": "gen-2",
+            "intent": "practice",
+            "learning_session_id": "request-run",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": [],
+            "run_summary_score": 0.81,
+            "run_calibration_signal": "positive",
+            "run_calibration_confidence": 0.79,
+        },
+    )
+
+    request = GenerationRequest.model_validate(
+        {
+            "student_id": student_id,
+            "learning_session_id": "request-run",
+            "target_kc_ids": ["KC-1"],
+            "intent": "practice",
+        }
+    )
+    signal = RouterCalibrationSignalService(audit_store=audit_store).signal_for(
+        student_id=request.student_id,
+        request=request,
+    )
+
+    assert signal.signal == "positive"
+    assert signal.matched_run_count == 2
+    assert signal.average_run_outcome_score is not None
+    assert signal.average_run_outcome_score > 0.8

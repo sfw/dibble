@@ -21,6 +21,14 @@ class RouterCalibrationSignalService:
 
     def signal_for(self, *, student_id: UUID, request: GenerationRequest) -> RouteCalibrationSummary:
         events = self.audit_store.list(limit=self.max_events)
+        summary_events = [
+            event
+            for event in events
+            if event.event_type == "learning.run.summary" and event.student_id == student_id
+        ]
+        matched_summaries = self._matched_summary_events(summary_events=summary_events, request=request)
+        if matched_summaries:
+            return self._aggregate_summary_events(matched_summaries)
         generation_events = [event for event in events if event.event_type == "content.generate"]
         observation_events = [
             event for event in events if event.event_type == "learner.observe" and event.student_id == student_id
@@ -79,6 +87,71 @@ class RouterCalibrationSignalService:
             negative_run_rate=negative_run_rate,
         )
 
+    def _matched_summary_events(
+        self,
+        *,
+        summary_events: list[AuditEvent],
+        request: GenerationRequest,
+    ) -> list[AuditEvent]:
+        recent_cutoff = datetime.now(timezone.utc) - timedelta(hours=max(1, self.recency_window_hours))
+        scored_matches: list[tuple[int, float, AuditEvent]] = []
+        for event in summary_events:
+            if event.created_at < recent_cutoff:
+                continue
+            match_tier = self._request_match_tier(request=request, payload=event.payload)
+            match_score = self._request_match_score(request=request, payload=event.payload)
+            if match_tier <= 0 or match_score <= 0.0:
+                continue
+            scored_matches.append((match_tier, match_score, event))
+        if not scored_matches:
+            return []
+        strongest_tier = max(tier for tier, _, _ in scored_matches)
+        latest_by_generation: dict[str, tuple[float, AuditEvent]] = {}
+        for tier, match_score, event in scored_matches:
+            if tier != strongest_tier:
+                continue
+            generation_id = str(event.payload.get("generation_id") or event.payload.get("source_generation_event_id"))
+            current = latest_by_generation.get(generation_id)
+            if current is None or (match_score, event.created_at) > (current[0], current[1].created_at):
+                latest_by_generation[generation_id] = (match_score, event)
+        matched = list(latest_by_generation.values())
+        matched.sort(key=lambda item: (item[0], item[1].created_at), reverse=True)
+        return [event for _, event in matched[: self.max_matched_runs]]
+
+    def _aggregate_summary_events(self, summary_events: list[AuditEvent]) -> RouteCalibrationSummary:
+        average_run_outcome_score = round(
+            sum(float(event.payload.get("run_summary_score", 0.0)) for event in summary_events) / len(summary_events),
+            2,
+        )
+        average_confidence = round(
+            sum(float(event.payload.get("run_calibration_confidence", 0.0)) for event in summary_events)
+            / len(summary_events),
+            2,
+        )
+        positive_run_rate = round(
+            sum(1 for event in summary_events if event.payload.get("run_calibration_signal") == "positive")
+            / len(summary_events),
+            2,
+        )
+        negative_run_rate = round(
+            sum(1 for event in summary_events if event.payload.get("run_calibration_signal") == "negative")
+            / len(summary_events),
+            2,
+        )
+        return RouteCalibrationSummary(
+            signal=self._signal_label(
+                average_run_outcome_score=average_run_outcome_score,
+                average_confidence=average_confidence,
+                positive_run_rate=positive_run_rate,
+                negative_run_rate=negative_run_rate,
+            ),
+            confidence=average_confidence,
+            average_run_outcome_score=average_run_outcome_score,
+            matched_run_count=len(summary_events),
+            positive_run_rate=positive_run_rate,
+            negative_run_rate=negative_run_rate,
+        )
+
     def _matched_generations(
         self,
         *,
@@ -93,8 +166,8 @@ class RouterCalibrationSignalService:
                 continue
             if event.created_at < recent_cutoff:
                 continue
-            match_tier = self._request_match_tier(request=request, generation_event=event)
-            match_score = self._request_match_score(request=request, generation_event=event)
+            match_tier = self._request_match_tier(request=request, payload=event.payload)
+            match_score = self._request_match_score(request=request, payload=event.payload)
             if match_tier <= 0 or match_score <= 0.0:
                 continue
             scored_matches.append((match_tier, match_score, event))
@@ -109,8 +182,7 @@ class RouterCalibrationSignalService:
         strongest_matches.sort(key=lambda item: (item[0], item[1].created_at), reverse=True)
         return [event for _, event in strongest_matches[: self.max_matched_runs]]
 
-    def _request_match_score(self, *, request: GenerationRequest, generation_event: AuditEvent) -> float:
-        payload = generation_event.payload
+    def _request_match_score(self, *, request: GenerationRequest, payload: dict[str, object]) -> float:
         score = 0.0
 
         if request.learning_session_id and payload.get("learning_session_id") == request.learning_session_id:
@@ -127,8 +199,7 @@ class RouterCalibrationSignalService:
 
         return score
 
-    def _request_match_tier(self, *, request: GenerationRequest, generation_event: AuditEvent) -> int:
-        payload = generation_event.payload
+    def _request_match_tier(self, *, request: GenerationRequest, payload: dict[str, object]) -> int:
         if request.learning_session_id and payload.get("learning_session_id") == request.learning_session_id:
             return 3
         if self._overlap_score(request.target_kc_ids, payload.get("target_kc_ids")) > 0.0:

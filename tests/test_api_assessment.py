@@ -25,7 +25,8 @@ def test_socratic_assessment_starts_with_probe_when_no_learner_response(client, 
     assert payload["evaluation"]["evidence_score"] == 0.0
     assert payload["generation_metadata"]["prompt_template_name"] is not None
     assert payload["generated_blocks"]
-    assert audit_response.json()[0]["event_type"] == "assessment.socratic"
+    event_types = [event["event_type"] for event in audit_response.json()]
+    assert "assessment.socratic" in event_types
 
 
 def test_socratic_assessment_detects_grounded_reasoning_in_learner_response(client, student_id):
