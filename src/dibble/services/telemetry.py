@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 
-from dibble.models.telemetry import PromptTemplateUsage, TelemetrySnapshot
+from dibble.models.telemetry import PromptTemplateUsage, SocraticPromptPerformance, TelemetrySnapshot
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
 from dibble.services.provider_health import SQLiteProviderHealthStore
@@ -41,6 +41,17 @@ class TelemetryService:
             for event in socratic_events
             if event.payload.get("evidence_score") is not None
         ]
+        prompt_performance_groups: dict[tuple[str, str | None, str | None], list[object]] = {}
+        for event in socratic_events:
+            template_name = event.payload.get("prompt_template_name")
+            if not template_name:
+                continue
+            key = (
+                str(template_name),
+                str(event.payload.get("prompt_template_variant")) if event.payload.get("prompt_template_variant") else None,
+                str(event.payload.get("prompt_style")) if event.payload.get("prompt_style") else None,
+            )
+            prompt_performance_groups.setdefault(key, []).append(event)
 
         last_event_at = events[0].created_at if events else None
         return TelemetrySnapshot(
@@ -74,8 +85,32 @@ class TelemetryService:
                 PromptTemplateUsage(template_name=name, event_count=count)
                 for name, count in sorted(prompt_template_counts.items())
             ],
+            socratic_prompt_performances=[
+                self._build_socratic_prompt_performance(key, grouped_events)
+                for key, grouped_events in sorted(prompt_performance_groups.items())
+            ],
             provider_statuses=(
                 self.provider_health_store.latest_statuses() if self.provider_health_store is not None else []
             ),
             last_event_at=last_event_at,
+        )
+
+    def _build_socratic_prompt_performance(
+        self,
+        key: tuple[str, str | None, str | None],
+        events,
+    ) -> SocraticPromptPerformance:
+        template_name, template_variant, prompt_style = key
+        event_count = len(events)
+        evidence_scores = [float(event.payload.get("evidence_score", 0.0)) for event in events]
+        demonstrated_events = sum(1 for event in events if event.payload.get("evidence_strength") == "demonstrated")
+        profile_updates = sum(1 for event in events if bool(event.payload.get("profile_update_applied")))
+        return SocraticPromptPerformance(
+            template_name=template_name,
+            template_variant=template_variant,
+            prompt_style=prompt_style,
+            event_count=event_count,
+            average_evidence_score=round(sum(evidence_scores) / event_count, 2) if event_count else 0.0,
+            demonstrated_rate=round(demonstrated_events / event_count, 2) if event_count else 0.0,
+            profile_update_rate=round(profile_updates / event_count, 2) if event_count else 0.0,
         )

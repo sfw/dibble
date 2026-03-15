@@ -45,16 +45,21 @@ class PromptManager:
     def _variant_for(self, *, student_id: UUID, content_type: RequestedContentType) -> str:
         if not self.experiment_enabled:
             return "baseline"
-        supported = {
-            RequestedContentType.micro_explanation,
-            RequestedContentType.worked_example,
-            RequestedContentType.practice_problem,
-        }
-        if content_type not in supported:
+        variants = self._variants_for(content_type)
+        if len(variants) == 1:
             return "baseline"
         key = f"{student_id}:{content_type.value}:{self.library_version}"
-        bucket = int(hashlib.sha256(key.encode("utf-8")).hexdigest()[:8], 16) % 2
-        return ("baseline", "guided_reflection")[bucket]
+        bucket = int(hashlib.sha256(key.encode("utf-8")).hexdigest()[:8], 16) % len(variants)
+        return variants[bucket]
+
+    def _variants_for(self, content_type: RequestedContentType) -> tuple[str, ...]:
+        variant_map = {
+            RequestedContentType.micro_explanation: ("baseline", "guided_reflection"),
+            RequestedContentType.worked_example: ("baseline", "guided_reflection"),
+            RequestedContentType.practice_problem: ("baseline", "guided_reflection"),
+            RequestedContentType.assessment_probe: ("baseline", "causal_probe"),
+        }
+        return variant_map.get(content_type, ("baseline",))
 
     def _system_directives(self, *, content_type: RequestedContentType, variant: str) -> str:
         if content_type == RequestedContentType.worked_example:
@@ -66,6 +71,13 @@ class PromptManager:
             return (
                 "Include at least one practice block and keep the answer-check guidance lightweight."
             )
+        if content_type == RequestedContentType.assessment_probe:
+            if variant == "causal_probe":
+                return (
+                    "Ask for causal reasoning, justification, or a counterexample rather than simple recall. "
+                    "Keep the probe short and discussion-ready."
+                )
+            return "Ask one concise reasoning probe that surfaces the learner's current understanding."
         if variant == "guided_reflection":
             return (
                 "End the instructional sequence with a brief reflection or check-for-understanding prompt."
@@ -77,6 +89,10 @@ class PromptManager:
             return "Show the learner how and why each step works before asking for independent completion."
         if content_type == RequestedContentType.practice_problem:
             return "Use one concrete problem and one short cue rather than multiple unrelated exercises."
+        if content_type == RequestedContentType.assessment_probe:
+            if variant == "causal_probe":
+                return "Favor why/how wording and nearby contrasts so the learner has to explain reasoning, not just answer."
+            return "Use one open-ended question that elicits a short explanation of the learner's thinking."
         if variant == "guided_reflection":
             return "Add one short reflection question that helps the learner explain their reasoning."
         return "Keep the next step actionable and specific."

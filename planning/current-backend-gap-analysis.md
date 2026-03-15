@@ -33,7 +33,7 @@ Legend:
 | Requirement | Status | Notes |
 |---|---|---|
 | `LLM-001` LLM orchestration service | Implemented | Primary/secondary upstreams, failover, circuit breaker, selection strategies |
-| `LLM-002` Prompt framework with versioning/A-B testing | Partial | Prompt registry now selects named templates with version and variant metadata, and observability now includes Socratic evidence aggregates, but experimentation is still minimal and there is no prompt performance loop |
+| `LLM-002` Prompt framework with versioning/A-B testing | Partial | Prompt registry now selects named templates with version and variant metadata for generation and Socratic assessment probes, and observability now includes Socratic evidence aggregates plus per-template/style prompt-performance summaries, but experimentation is still minimal and there is no automated selection loop |
 | `LLM-003` RAG pipeline | Implemented | Hybrid lexical + embedding retriever with persistent embedding cache |
 | `LLM-004` Safety/moderation layer | Partial | Validation and safety rules exist; no dedicated moderation workflow |
 | `LLM-005` Streaming response architecture | Implemented | SSE route plus upstream chat-stream ingestion |
@@ -69,14 +69,14 @@ Based on `planning/4 - revised-spec/implementation-roadmap.md` and `planning/5 -
 2. `ADAPT-003`: evolve the new misconception signals into a richer taxonomy and confidence-calibrated classifier.
 3. `PROF-002` + `PROF-003` + `PROF-005`: replace the new heuristic learner-state inference path with stronger calibrated models trained from real outcome data.
 4. `INFRA-003`: move from explicit warmup requests to anticipatory scheduling and smarter cache invalidation for likely next-step content.
-5. `ADAPT-005` + `LLM-002`: calibrate the new Socratic-to-profile feedback loop against real learner outcomes, then add prompt experimentation and prompt-performance feedback loops.
+5. `ADAPT-005` + `LLM-002`: calibrate the new Socratic-to-profile feedback loop against real learner outcomes, then use the new prompt-performance summaries to drive stronger automated prompt selection.
 
 ## Recommendation
 
 The most coherent next implementation step is now:
 
 - extend the new Socratic-to-profile feedback loop with broader calibration targets so conversational evidence can be trusted across more contexts
-- add prompt-performance tracking on top of the new evidence dimensions so prompt variants can be compared on downstream outcomes
+- use the new prompt-performance tracking on top of the evidence dimensions so prompt variants can be compared and eventually selected on downstream outcomes
 - keep reusing the current generated-content and session stores instead of adding a parallel orchestration layer
 
 That is now more achievable because the Socratic flow no longer relies only on a single last-turn threshold and no longer ends at the assessment response itself. The next coherent step is to calibrate these richer learner-state and conversational signals against downstream outcomes so routing and generation selection rely less on heuristics alone.

@@ -118,6 +118,9 @@ def test_telemetry_snapshot_includes_socratic_assessment_metrics(tmp_path):
             "evidence_score": 0.78,
             "next_action": "advance",
             "profile_update_applied": True,
+            "prompt_style": "transfer_check",
+            "prompt_template_name": "assessment_probe.causal_probe",
+            "prompt_template_variant": "causal_probe",
         },
     )
     audit_store.append(
@@ -128,6 +131,9 @@ def test_telemetry_snapshot_includes_socratic_assessment_metrics(tmp_path):
             "evidence_score": 0.24,
             "next_action": "step_back",
             "profile_update_applied": False,
+            "prompt_style": "scaffolded_step_back",
+            "prompt_template_name": "assessment_probe.baseline",
+            "prompt_template_variant": "baseline",
         },
     )
 
@@ -138,3 +144,6 @@ def test_telemetry_snapshot_includes_socratic_assessment_metrics(tmp_path):
     assert snapshot.socratic_demonstrated_events == 1
     assert snapshot.socratic_step_back_events == 1
     assert snapshot.average_socratic_evidence_score == 0.51
+    assert len(snapshot.socratic_prompt_performances) == 2
+    assert snapshot.socratic_prompt_performances[0].template_name.startswith("assessment_probe.")
+    assert snapshot.socratic_prompt_performances[0].event_count == 1

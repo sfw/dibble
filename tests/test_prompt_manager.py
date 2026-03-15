@@ -39,3 +39,15 @@ def test_prompt_manager_keeps_unspecialized_content_on_baseline():
 
     assert selection.template_variant == "baseline"
     assert selection.template_name == "remedial_micro_module.baseline"
+
+
+def test_prompt_manager_experiments_on_assessment_probes():
+    manager = PromptManager(library_version="1.0", experiment_enabled=True)
+
+    selection = manager.select(
+        student_id=UUID("00000000-0000-0000-0000-000000000123"),
+        content_type=RequestedContentType.assessment_probe,
+    )
+
+    assert selection.template_variant in {"baseline", "causal_probe"}
+    assert selection.template_name.startswith("assessment_probe.")

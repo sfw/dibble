@@ -39,6 +39,16 @@ class PromptTemplateUsage(BaseModel):
     event_count: int = 0
 
 
+class SocraticPromptPerformance(BaseModel):
+    template_name: str
+    template_variant: str | None = None
+    prompt_style: str | None = None
+    event_count: int = 0
+    average_evidence_score: float = 0.0
+    demonstrated_rate: float = 0.0
+    profile_update_rate: float = 0.0
+
+
 class TelemetrySnapshot(BaseModel):
     total_events: int = 0
     decision_events: int = 0
@@ -57,5 +67,6 @@ class TelemetrySnapshot(BaseModel):
     provider_failure_events: int = 0
     provider_circuit_open_events: int = 0
     prompt_template_usages: list[PromptTemplateUsage] = Field(default_factory=list)
+    socratic_prompt_performances: list[SocraticPromptPerformance] = Field(default_factory=list)
     provider_statuses: list[ProviderStatusSnapshot] = Field(default_factory=list)
     last_event_at: datetime | None = None

@@ -574,8 +574,14 @@ def build_router(
                 "updated_help_seeking": (
                     profile_update.help_seeking.value if profile_update.help_seeking is not None else None
                 ),
+                "prompt_style": result.prompt_style.value,
                 "prompt_template_name": (
                     result.generation_metadata.prompt_template_name
+                    if result.generation_metadata is not None
+                    else None
+                ),
+                "prompt_template_variant": (
+                    result.generation_metadata.prompt_template_variant
                     if result.generation_metadata is not None
                     else None
                 ),
