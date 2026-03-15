@@ -6,6 +6,7 @@ from dibble.models.profile import LearnerProfile
 from dibble.services.content_validator import ContentValidator
 from dibble.services.curriculum_store import SQLiteCurriculumStore
 from dibble.services.rag_retriever import RAGRetriever
+from dibble.services.validation.text import curriculum_alignment_score
 from dibble.storage import ensure_database
 from tests.support import build_curriculum_resource, build_profile
 
@@ -106,6 +107,30 @@ def test_validator_reports_missing_curriculum_alignment():
     )
 
     assert issues == ["Generated content does not clearly reflect the retrieved curriculum grounding."]
+
+
+def test_curriculum_alignment_score_prefers_grounded_language():
+    grounding = [
+        GroundingReference(
+            resource_id="CURR-1",
+            title="Equivalent Fractions Foundations",
+            grade_level="5",
+            score=2.0,
+            matched_terms=["equivalent fractions", "fraction models"],
+        )
+    ]
+
+    strong_score = curriculum_alignment_score(
+        "Use fraction models to show why equivalent fractions name the same value.",
+        grounding,
+    )
+    weak_score = curriculum_alignment_score(
+        "Talk about weather systems and write a short paragraph about clouds.",
+        grounding,
+    )
+
+    assert strong_score > weak_score
+    assert strong_score >= 0.3
 
 
 def test_validator_reports_reading_level_accessibility_safety_and_math_issues():

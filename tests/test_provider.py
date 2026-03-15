@@ -48,15 +48,21 @@ class FakeClient:
         *,
         stream_parts: list[str] | None = None,
         error: Exception | None = None,
+        clock: dict[str, float] | None = None,
+        duration_seconds: float = 0.0,
     ) -> None:
         self.content = content
         self.stream_parts = stream_parts or []
         self.error = error
+        self.clock = clock
+        self.duration_seconds = duration_seconds
         self.complete_calls = 0
         self.stream_calls = 0
 
     def complete(self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2):
         self.complete_calls += 1
+        if self.clock is not None:
+            self.clock["value"] += self.duration_seconds
         if self.error is not None:
             raise self.error
 
@@ -68,6 +74,8 @@ class FakeClient:
 
     def stream_complete(self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2):
         self.stream_calls += 1
+        if self.clock is not None:
+            self.clock["value"] += self.duration_seconds
         if self.error is not None:
             raise self.error
         for part in self.stream_parts:
@@ -379,3 +387,50 @@ def test_provider_round_robin_balances_healthy_clients(sample_profile, sample_re
     assert second[0].title == "Secondary"
     assert primary.complete_calls == 1
     assert secondary.complete_calls == 1
+
+
+def test_provider_latency_aware_prefers_faster_healthy_client(sample_profile, sample_request, sample_route):
+    clock = {"value": 100.0}
+    primary = FakeClient(
+        """
+        {
+          "blocks": [
+            {"kind": "summary", "title": "Primary", "body": "Primary output."},
+            {"kind": "instruction", "title": "Try it", "body": "Use primary."}
+          ]
+        }
+        """,
+        clock=clock,
+        duration_seconds=0.2,
+    )
+    secondary = FakeClient(
+        """
+        {
+          "blocks": [
+            {"kind": "summary", "title": "Secondary", "body": "Secondary output."},
+            {"kind": "instruction", "title": "Try it", "body": "Use secondary."}
+          ]
+        }
+        """,
+        clock=clock,
+        duration_seconds=0.02,
+    )
+    provider = LLMOrchestrationProvider(
+        clients=[("primary", primary), ("secondary", secondary)],
+        fallback_provider=MockLLMProvider(),
+        selection_strategy="latency_aware",
+        time_provider=lambda: clock["value"],
+    )
+
+    first = provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+    second = provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+    third = provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+
+    assert first[0].title == "Primary"
+    assert second[0].title == "Secondary"
+    assert third[0].title == "Secondary"
+    assert primary.complete_calls == 1
+    assert secondary.complete_calls == 2
+    assert third[0].title == "Secondary"
+    assert primary.complete_calls == 1
+    assert secondary.complete_calls == 2

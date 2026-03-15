@@ -65,6 +65,42 @@ def contains_grounding_language(text: str, grounding: list[GroundingReference]) 
     return any(term in normalized_text for term in salient_grounding_terms(grounding))
 
 
+def curriculum_alignment_score(text: str, grounding: list[GroundingReference]) -> float:
+    if not grounding:
+        return 0.0
+
+    normalized_text = text.lower()
+    text_words = set(normalize_words(text))
+    terms = salient_grounding_terms(grounding)
+    if not terms:
+        return 0.0
+
+    exact_hits = 0
+    token_hits = 0
+    token_total = 0
+    for term in terms:
+        if term in normalized_text:
+            exact_hits += 1
+
+        term_words = [word for word in normalize_words(term) if word not in _STOPWORDS]
+        if not term_words:
+            continue
+        token_total += len(term_words)
+        token_hits += sum(1 for word in term_words if word in text_words)
+
+    exact_score = exact_hits / len(terms)
+    token_score = (token_hits / token_total) if token_total else 0.0
+
+    matched_phrase_bonus = 0.0
+    matched_terms = [term.lower() for reference in grounding for term in reference.matched_terms]
+    if matched_terms:
+        matched_hits = sum(1 for term in matched_terms if term and term in normalized_text)
+        matched_phrase_bonus = matched_hits / len(matched_terms)
+
+    score = (exact_score * 0.5) + (token_score * 0.35) + (matched_phrase_bonus * 0.15)
+    return min(score, 1.0)
+
+
 def infer_target_grade(grounding: list[GroundingReference]) -> int | None:
     for reference in grounding:
         grade = _parse_grade_value(reference.grade_level)

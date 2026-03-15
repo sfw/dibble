@@ -34,6 +34,9 @@ class LLMProviderConfig:
 class ClientCircuitState:
     consecutive_failures: int = 0
     open_until: float | None = None
+    successful_requests: int = 0
+    failed_requests: int = 0
+    average_latency_ms: float | None = None
 
 
 class LLMOrchestrationProvider:
@@ -117,16 +120,17 @@ class LLMOrchestrationProvider:
         prompts = build_generation_prompts(profile, request, route, grounding_titles)
 
         for name, client in self._iter_candidate_clients():
+            started_at = self.time_provider()
             try:
                 completion = client.complete(
                     system_prompt=prompts.system_prompt,
                     user_prompt=prompts.user_prompt,
                 )
                 blocks = self._parse_blocks(completion.content)
-                self._record_success(name)
+                self._record_success(name, latency_ms=(self.time_provider() - started_at) * 1000.0)
                 return blocks
             except (LLMClientError, LLMProviderError):
-                self._record_failure(name)
+                self._record_failure(name, latency_ms=(self.time_provider() - started_at) * 1000.0)
                 continue
 
         return self._fallback(profile, request, route, grounding_titles, "LLM call failed.")
@@ -145,6 +149,7 @@ class LLMOrchestrationProvider:
         prompts = build_stream_generation_prompts(profile, request, route, grounding_titles)
         for name, client in self._iter_candidate_clients():
             parser = StreamingChunkParser()
+            started_at = self.time_provider()
             try:
                 for delta in client.stream_complete(
                     system_prompt=prompts.system_prompt,
@@ -155,10 +160,10 @@ class LLMOrchestrationProvider:
 
                 for chunk in parser.flush():
                     yield chunk
-                self._record_success(name)
+                self._record_success(name, latency_ms=(self.time_provider() - started_at) * 1000.0)
                 return
             except (LLMClientError, LLMProviderError):
-                self._record_failure(name)
+                self._record_failure(name, latency_ms=(self.time_provider() - started_at) * 1000.0)
                 continue
 
         yield from iter_block_chunks(self._fallback(profile, request, route, grounding_titles, "LLM stream failed."))
@@ -190,26 +195,75 @@ class LLMOrchestrationProvider:
             self.round_robin_cursor = (self.round_robin_cursor + 1) % len(available)
             return iter(ordered)
 
+        if self.selection_strategy == "latency_aware":
+            unexplored: list[tuple[str, OpenAICompatibleChatClient]] = []
+            explored: list[tuple[int, tuple[str, OpenAICompatibleChatClient]]] = []
+
+            for index, item in enumerate(available):
+                state = self.client_states.get(item[0])
+                if state is None or state.average_latency_ms is None:
+                    unexplored.append(item)
+                    continue
+                explored.append((index, item))
+
+            explored.sort(
+                key=lambda item: self._latency_rank(item[1][0], item[0]),
+            )
+            return iter(unexplored + [item[1] for item in explored])
+
         return iter(available)
 
-    def _record_success(self, name: str) -> None:
+    def _record_success(self, name: str, *, latency_ms: float) -> None:
         state = self.client_states.get(name)
         if state is None:
             return
         recovered = state.open_until is not None or state.consecutive_failures > 0
         state.consecutive_failures = 0
         state.open_until = None
-        self._record_health(name, "success" if not recovered else "circuit_recovered")
+        state.successful_requests += 1
+        state.average_latency_ms = self._smoothed_latency(state.average_latency_ms, latency_ms)
+        self._record_health(
+            name,
+            "success" if not recovered else "circuit_recovered",
+            latency_ms=round(latency_ms, 2),
+            average_latency_ms=round(state.average_latency_ms, 2),
+        )
 
-    def _record_failure(self, name: str) -> None:
+    def _record_failure(self, name: str, *, latency_ms: float) -> None:
         state = self.client_states.get(name)
         if state is None:
             return
         state.consecutive_failures += 1
-        self._record_health(name, "failure", consecutive_failures=state.consecutive_failures)
+        state.failed_requests += 1
+        state.average_latency_ms = self._smoothed_latency(state.average_latency_ms, latency_ms)
+        self._record_health(
+            name,
+            "failure",
+            consecutive_failures=state.consecutive_failures,
+            latency_ms=round(latency_ms, 2),
+            average_latency_ms=round(state.average_latency_ms, 2),
+        )
         if state.consecutive_failures >= self.circuit_breaker_threshold:
             state.open_until = self.time_provider() + self.circuit_breaker_cooldown_seconds
             self._record_health(name, "circuit_open", open_until=state.open_until)
+
+    def _latency_rank(self, name: str, original_index: int) -> tuple[float, float, int]:
+        state = self.client_states.get(name)
+        if state is None:
+            return (-1.0, float("inf"), original_index)
+
+        total_requests = state.successful_requests + state.failed_requests
+        if total_requests == 0:
+            return (-1.0, float("inf"), original_index)
+
+        success_rate = (state.successful_requests / total_requests) if total_requests else 1.0
+        latency = state.average_latency_ms if state.average_latency_ms is not None else float("inf")
+        return (-success_rate, latency, original_index)
+
+    def _smoothed_latency(self, current: float | None, observed: float) -> float:
+        if current is None:
+            return observed
+        return (current * 0.7) + (observed * 0.3)
 
     def _record_health(self, name: str, status: str, **detail: object) -> None:
         if self.health_store is None:

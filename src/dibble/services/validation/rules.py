@@ -7,7 +7,7 @@ from dibble.models.generation import GeneratedBlock, GroundingReference
 from dibble.services.validation.math import find_equation_checks
 from dibble.services.validation.text import (
     average_word_length,
-    contains_grounding_language,
+    curriculum_alignment_score,
     infer_target_grade,
     longest_sentence_word_count,
 )
@@ -45,6 +45,8 @@ class LengthGuardrailRule:
 
 @dataclass(slots=True)
 class CurriculumAlignmentRule:
+    minimum_alignment_score: float = 0.3
+
     def validate(self, blocks: list[GeneratedBlock], grounding: list[GroundingReference]) -> list[str]:
         if not grounding:
             return []
@@ -52,7 +54,8 @@ class CurriculumAlignmentRule:
             return []
 
         combined_text = " ".join(f"{block.title} {block.body}" for block in blocks)
-        if contains_grounding_language(combined_text, grounding):
+        score = curriculum_alignment_score(combined_text, grounding)
+        if score >= self.minimum_alignment_score:
             return []
 
         return ["Generated content does not clearly reflect the retrieved curriculum grounding."]
