@@ -19,6 +19,7 @@ class LLMProviderError(RuntimeError):
 
 @dataclass(slots=True)
 class LLMProviderConfig:
+    name: str
     api_base: str
     api_key: str | None
     model: str | None
@@ -30,33 +31,50 @@ class LLMOrchestrationProvider:
     def __init__(
         self,
         *,
-        client: OpenAICompatibleChatClient | None,
+        clients: list[tuple[str, OpenAICompatibleChatClient]],
         fallback_provider: MockLLMProvider | None = None,
     ) -> None:
-        self.client = client
+        self.clients = clients
         self.fallback_provider = fallback_provider
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "LLMOrchestrationProvider":
-        config = LLMProviderConfig(
-            api_base=settings.llm_api_base,
-            api_key=settings.llm_api_key,
-            model=settings.llm_model,
-            timeout_seconds=settings.llm_timeout_seconds,
-            allow_mock_fallback=settings.llm_allow_mock_fallback,
-        )
-        fallback_provider = MockLLMProvider() if config.allow_mock_fallback else None
+        configs = [
+            LLMProviderConfig(
+                name="primary",
+                api_base=settings.llm_api_base,
+                api_key=settings.llm_api_key,
+                model=settings.llm_model,
+                timeout_seconds=settings.llm_timeout_seconds,
+                allow_mock_fallback=settings.llm_allow_mock_fallback,
+            ),
+            LLMProviderConfig(
+                name="secondary",
+                api_base=settings.llm_secondary_api_base or settings.llm_api_base,
+                api_key=settings.llm_secondary_api_key,
+                model=settings.llm_secondary_model,
+                timeout_seconds=settings.llm_secondary_timeout_seconds or settings.llm_timeout_seconds,
+                allow_mock_fallback=settings.llm_allow_mock_fallback,
+            ),
+        ]
+        fallback_provider = MockLLMProvider() if settings.llm_allow_mock_fallback else None
+        clients: list[tuple[str, OpenAICompatibleChatClient]] = []
+        for config in configs:
+            if not config.api_key or not config.model:
+                continue
+            clients.append(
+                (
+                    config.name,
+                    OpenAICompatibleChatClient(
+                        api_base=config.api_base,
+                        api_key=config.api_key,
+                        model=config.model,
+                        timeout_seconds=config.timeout_seconds,
+                    ),
+                )
+            )
 
-        if not config.api_key or not config.model:
-            return cls(client=None, fallback_provider=fallback_provider)
-
-        client = OpenAICompatibleChatClient(
-            api_base=config.api_base,
-            api_key=config.api_key,
-            model=config.model,
-            timeout_seconds=config.timeout_seconds,
-        )
-        return cls(client=client, fallback_provider=fallback_provider)
+        return cls(clients=clients, fallback_provider=fallback_provider)
 
     def generate(
         self,
@@ -65,19 +83,22 @@ class LLMOrchestrationProvider:
         route: AdaptiveRouteDecision,
         grounding_titles: list[str],
     ) -> list[GeneratedBlock]:
-        if self.client is None:
+        if not self.clients:
             return self._fallback(profile, request, route, grounding_titles, "LLM client not configured.")
 
         prompts = build_generation_prompts(profile, request, route, grounding_titles)
 
-        try:
-            completion = self.client.complete(
-                system_prompt=prompts.system_prompt,
-                user_prompt=prompts.user_prompt,
-            )
-            return self._parse_blocks(completion.content)
-        except (LLMClientError, LLMProviderError):
-            return self._fallback(profile, request, route, grounding_titles, "LLM call failed.")
+        for _, client in self.clients:
+            try:
+                completion = client.complete(
+                    system_prompt=prompts.system_prompt,
+                    user_prompt=prompts.user_prompt,
+                )
+                return self._parse_blocks(completion.content)
+            except (LLMClientError, LLMProviderError):
+                continue
+
+        return self._fallback(profile, request, route, grounding_titles, "LLM call failed.")
 
     def stream_generate(
         self,
@@ -86,24 +107,28 @@ class LLMOrchestrationProvider:
         route: AdaptiveRouteDecision,
         grounding_titles: list[str],
     ) -> Iterator[GeneratedBlockChunk]:
-        if self.client is None:
+        if not self.clients:
             yield from iter_block_chunks(self._fallback(profile, request, route, grounding_titles, "LLM client not configured."))
             return
 
         prompts = build_stream_generation_prompts(profile, request, route, grounding_titles)
-        parser = StreamingChunkParser()
-        try:
-            for delta in self.client.stream_complete(
-                system_prompt=prompts.system_prompt,
-                user_prompt=prompts.user_prompt,
-            ):
-                for chunk in parser.push(delta):
-                    yield chunk
+        for _, client in self.clients:
+            parser = StreamingChunkParser()
+            try:
+                for delta in client.stream_complete(
+                    system_prompt=prompts.system_prompt,
+                    user_prompt=prompts.user_prompt,
+                ):
+                    for chunk in parser.push(delta):
+                        yield chunk
 
-            for chunk in parser.flush():
-                yield chunk
-        except (LLMClientError, LLMProviderError):
-            yield from iter_block_chunks(self._fallback(profile, request, route, grounding_titles, "LLM stream failed."))
+                for chunk in parser.flush():
+                    yield chunk
+                return
+            except (LLMClientError, LLMProviderError):
+                continue
+
+        yield from iter_block_chunks(self._fallback(profile, request, route, grounding_titles, "LLM stream failed."))
 
     def _fallback(
         self,

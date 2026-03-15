@@ -85,7 +85,7 @@ def test_prompt_builder_mentions_grounding_and_preferences(sample_profile, sampl
 
 def test_provider_uses_llm_output_when_response_is_valid(sample_profile, sample_request, sample_route):
     provider = LLMOrchestrationProvider(
-        client=FakeClient(
+        clients=[("primary", FakeClient(
             """
             {
               "blocks": [
@@ -94,7 +94,7 @@ def test_provider_uses_llm_output_when_response_is_valid(sample_profile, sample_
               ]
             }
             """
-        ),
+        ))],
         fallback_provider=MockLLMProvider(),
     )
 
@@ -111,7 +111,7 @@ def test_provider_uses_llm_output_when_response_is_valid(sample_profile, sample_
 
 def test_provider_falls_back_to_mock_when_llm_call_fails(sample_profile, sample_request, sample_route):
     provider = LLMOrchestrationProvider(
-        client=FakeClient(error=LLMClientError("boom")),
+        clients=[("primary", FakeClient(error=LLMClientError("boom")))],
         fallback_provider=MockLLMProvider(),
     )
 
@@ -182,13 +182,13 @@ def test_chat_client_streams_openai_compatible_sse_chunks():
 
 def test_provider_streams_upstream_ndjson_chunks(sample_profile, sample_request, sample_route):
     provider = LLMOrchestrationProvider(
-        client=FakeClient(
+        clients=[("primary", FakeClient(
             stream_parts=[
                 '{"block_index":0,"kind":"summary","title":"Focus","body_delta":"Equivalent fractions ","done":false}\n',
                 '{"block_index":0,"kind":"summary","title":"Focus","body_delta":"name the same amount.","done":true}\n',
                 '{"block_index":1,"kind":"instruction","title":"Try it","body_delta":"Compare 1/2 and 2/4.","done":true}\n',
             ]
-        ),
+        ))],
         fallback_provider=MockLLMProvider(),
     )
 
@@ -218,4 +218,65 @@ def test_plugin_loader_passes_settings_to_provider_factory(tmp_path):
     plugins = build_generation_plugins(settings, curriculum_store=curriculum_store)
 
     assert isinstance(plugins.provider, LLMOrchestrationProvider)
-    assert plugins.provider.client is not None
+    assert plugins.provider.clients
+
+
+def test_provider_fails_over_to_secondary_client(sample_profile, sample_request, sample_route):
+    provider = LLMOrchestrationProvider(
+        clients=[
+            ("primary", FakeClient(error=LLMClientError("primary boom"))),
+            (
+                "secondary",
+                FakeClient(
+                    """
+                    {
+                      "blocks": [
+                        {"kind": "summary", "title": "Secondary", "body": "Fallback model answered."},
+                        {"kind": "instruction", "title": "Try it", "body": "Use the secondary provider output."}
+                      ]
+                    }
+                    """
+                ),
+            ),
+        ],
+        fallback_provider=MockLLMProvider(),
+    )
+
+    blocks = provider.generate(
+        sample_profile,
+        sample_request,
+        sample_route,
+        ["Equivalent Fractions Foundations"],
+    )
+
+    assert blocks[0].title == "Secondary"
+
+
+def test_provider_stream_fails_over_to_secondary_client(sample_profile, sample_request, sample_route):
+    provider = LLMOrchestrationProvider(
+        clients=[
+            ("primary", FakeClient(error=LLMClientError("primary boom"))),
+            (
+                "secondary",
+                FakeClient(
+                    stream_parts=[
+                        '{"block_index":0,"kind":"summary","title":"Secondary","body_delta":"Fallback ","done":false}\n',
+                        '{"block_index":0,"kind":"summary","title":"Secondary","body_delta":"streamed output.","done":true}\n',
+                    ]
+                ),
+            ),
+        ],
+        fallback_provider=MockLLMProvider(),
+    )
+
+    chunks = list(
+        provider.stream_generate(
+            sample_profile,
+            sample_request,
+            sample_route,
+            ["Equivalent Fractions Foundations"],
+        )
+    )
+
+    assert chunks[0].title == "Secondary"
+    assert chunks[-1].done is True

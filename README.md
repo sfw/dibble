@@ -10,7 +10,7 @@ This repository now includes a working MVP backend slice for the revised adaptiv
 - Adaptive routing service with curriculum/safety guardrails plus Thompson-style action selection for step-back, reteach, targeted practice, and stretch decisions
 - Retrieval-grounded generation pipeline split into retriever, router, provider, and validator services
 - Default retriever now uses a persistent SQLite-backed embedding index plus lexical/metadata scoring for better free-text curriculum matching
-- Default provider now supports an OpenAI-compatible chat completion endpoint with automatic mock fallback when no model credentials are configured
+- Default provider now supports an OpenAI-compatible chat completion endpoint with secondary-provider failover and automatic mock fallback when no model credentials are configured
 - Default validation now checks for missing grounding, missing instructional content, weak curriculum alignment, grade-band readability risk, accessibility density, unsafe language, and simple math errors
 - Adaptive decision and generation endpoints now write audit events and expose simple local observability metrics
 - Streaming generation is available over server-sent events for incremental `start`, `delta`, and `complete` delivery, and can consume real upstream OpenAI-compatible chat streams when configured
@@ -84,10 +84,14 @@ export DIBBLE_LLM_API_BASE=https://api.openai.com/v1
 export DIBBLE_LLM_API_KEY=...
 export DIBBLE_LLM_MODEL=...
 export DIBBLE_LLM_TIMEOUT_SECONDS=20
+export DIBBLE_LLM_SECONDARY_API_BASE=https://api.openai.com/v1
+export DIBBLE_LLM_SECONDARY_API_KEY=...
+export DIBBLE_LLM_SECONDARY_MODEL=...
+export DIBBLE_LLM_SECONDARY_TIMEOUT_SECONDS=20
 export DIBBLE_LLM_ALLOW_MOCK_FALLBACK=true
 ```
 
-If `DIBBLE_LLM_API_KEY` or `DIBBLE_LLM_MODEL` is unset, the default provider falls back to the deterministic mock provider so local development and tests continue to work offline. When configured, the stream endpoint can consume upstream OpenAI-compatible chat SSE deltas and translate NDJSON chunk output into Dibble block-stream events. The stream endpoint emits server-sent events named `start`, `delta`, and `complete`.
+If the primary LLM provider fails, the default provider can fail over to the configured secondary provider before falling back to the deterministic mock provider for local development. When configured, the stream endpoint can consume upstream OpenAI-compatible chat SSE deltas and translate NDJSON chunk output into Dibble block-stream events. The stream endpoint emits server-sent events named `start`, `delta`, and `complete`.
 
 Embedding settings for the default retriever:
 
@@ -122,4 +126,4 @@ When auth is enabled, all API routes except `GET /health` require a valid key in
 1. Replace or augment SQLite with production persistence such as Redis/PostgreSQL or Redis/Cassandra.
 2. Replace the SQLite embedding cache with a production vector store and background indexing pipeline while keeping the retriever plugin contract stable.
 3. Add prompt versioning, richer generation metadata, and provider failover on top of the LLM orchestration layer.
-4. Add richer curriculum alignment scoring, domain-specific validators, stronger session management like issuer rotation and per-device controls, and production-grade upstream provider failover.
+4. Add richer curriculum alignment scoring, domain-specific validators, stronger session management like issuer rotation and per-device controls, and provider health/circuit-breaker behavior on top of the new failover chain.

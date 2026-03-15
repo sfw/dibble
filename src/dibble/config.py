@@ -18,6 +18,10 @@ class Settings:
     llm_model: str | None = None
     llm_timeout_seconds: float = 20.0
     llm_allow_mock_fallback: bool = True
+    llm_secondary_api_base: str | None = None
+    llm_secondary_api_key: str | None = None
+    llm_secondary_model: str | None = None
+    llm_secondary_timeout_seconds: float | None = None
     embedding_api_base: str = "https://api.openai.com/v1"
     embedding_api_key: str | None = None
     embedding_model: str | None = None
@@ -65,6 +69,14 @@ def get_settings() -> Settings:
         llm_model=os.getenv("DIBBLE_LLM_MODEL"),
         llm_timeout_seconds=float(os.getenv("DIBBLE_LLM_TIMEOUT_SECONDS", "20.0")),
         llm_allow_mock_fallback=_get_bool_env("DIBBLE_LLM_ALLOW_MOCK_FALLBACK", True),
+        llm_secondary_api_base=os.getenv("DIBBLE_LLM_SECONDARY_API_BASE"),
+        llm_secondary_api_key=os.getenv("DIBBLE_LLM_SECONDARY_API_KEY"),
+        llm_secondary_model=os.getenv("DIBBLE_LLM_SECONDARY_MODEL"),
+        llm_secondary_timeout_seconds=(
+            float(os.getenv("DIBBLE_LLM_SECONDARY_TIMEOUT_SECONDS"))
+            if os.getenv("DIBBLE_LLM_SECONDARY_TIMEOUT_SECONDS")
+            else None
+        ),
         embedding_api_base=os.getenv("DIBBLE_EMBEDDING_API_BASE", "https://api.openai.com/v1"),
         embedding_api_key=os.getenv("DIBBLE_EMBEDDING_API_KEY") or os.getenv("DIBBLE_LLM_API_KEY"),
         embedding_model=os.getenv("DIBBLE_EMBEDDING_MODEL"),
