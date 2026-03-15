@@ -47,6 +47,8 @@ env UV_CACHE_DIR=.uv-cache uv run pytest
 - `GET /api/learners`
 - `PUT /api/learners/{student_id}/profile`
 - `GET /api/learners/{student_id}/profile`
+- `POST /api/learners/{student_id}/observations`
+- `GET /api/learners/{student_id}/state`
 - `GET /api/learners/{student_id}/summary`
 - `PUT /api/curriculum/resources/{resource_id}`
 - `GET /api/curriculum/resources`
@@ -135,7 +137,7 @@ When auth is enabled, all API routes except `GET /health` require a valid key in
 
 Generated responses now include `generation_id` plus `generation_metadata` with validation status, quality score, provider provenance, latency, and cache-hit state. The `v2` generation routes wrap that response in a `GeneratedContent` record so the API contract aligns more closely with the revised handoff package.
 
-Knowledge Components are now first-class persisted entities with prerequisite links, and the remedial trigger uses that graph plus misconception signals to step back through weaker prerequisite KCs before returning to the requested target. Remediation responses now include the detected misconception signals and rationale in `request_context`, and audit logs capture the same planning metadata.
+Knowledge Components are now first-class persisted entities with prerequisite links, and the remedial trigger uses that graph plus misconception signals to step back through weaker prerequisite KCs before returning to the requested target. Remediation responses now include the detected misconception signals and rationale in `request_context`, and audit logs capture the same planning metadata. The learner API also now accepts observed interaction signals and infers affective state plus cognitive load back into the stored profile.
 
 ## Suggested Next Build Steps
 

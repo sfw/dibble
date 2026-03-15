@@ -22,11 +22,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             services.curriculum_store,
             services.knowledge_component_store,
             services.audit_store,
+            services.observation_store,
             services.auth_service,
             services.telemetry_service,
             services.router_plugin,
             services.generation_engine,
             services.remediation_planner,
+            services.state_inference_service,
         )
     )
     return app

@@ -19,6 +19,7 @@ from dibble.models.generation import (
     GenerationStreamEvent,
     RemedialTriggerRequest,
 )
+from dibble.models.observations import InferredLearnerState, LearnerObservationCreate
 from dibble.models.profile import LearnerProfile, LearnerProfileV2, ProfileSummary
 from dibble.models.telemetry import AuditEvent, TelemetrySnapshot
 from dibble.plugins.contracts import RouterPlugin
@@ -32,8 +33,10 @@ from dibble.services.auth import (
 from dibble.services.curriculum_store import SQLiteCurriculumStore
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
+from dibble.services.observation_store import SQLiteObservationStore
 from dibble.services.profile_store import SQLiteProfileStore
 from dibble.services.remediation_planner import RemediationPlanner
+from dibble.services.state_inference import LearnerStateInferenceService
 from dibble.services.streaming import encode_sse_event
 from dibble.services.telemetry import TelemetryService
 
@@ -43,11 +46,13 @@ def build_router(
     curriculum_store: SQLiteCurriculumStore,
     knowledge_component_store: SQLiteKnowledgeComponentStore,
     audit_store: SQLiteAuditStore,
+    observation_store: SQLiteObservationStore,
     auth_service: AuthService,
     telemetry_service: TelemetryService,
     router_service: RouterPlugin,
     generation_engine: GenerationEngine,
     remediation_planner: RemediationPlanner,
+    state_inference_service: LearnerStateInferenceService,
 ) -> APIRouter:
     router = APIRouter()
     api_router = APIRouter(prefix="/api")
@@ -193,6 +198,63 @@ def build_router(
     @api_router.get("/learners", response_model=list[str], dependencies=deps("viewer"))
     def list_profiles() -> list[str]:
         return profile_store.list_ids()
+
+    @api_router.post(
+        "/learners/{student_id}/observations",
+        response_model=InferredLearnerState,
+        dependencies=deps("editor"),
+    )
+    def observe_learner_state(student_id: UUID, observation: LearnerObservationCreate) -> InferredLearnerState:
+        profile = profile_store.get(student_id)
+        if profile is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
+
+        observation_store.append(student_id=str(student_id), observation=observation)
+        recent_observations = observation_store.list_recent(student_id=str(student_id))
+        inferred_state = state_inference_service.infer(student_id=student_id, observations=recent_observations)
+        updated_profile = profile.model_copy(
+            update={
+                "affective_state": inferred_state.affective_state,
+                "cognitive_load": inferred_state.cognitive_load,
+                "updated_at": inferred_state.last_observation_at or profile.updated_at,
+            }
+        )
+        profile_store.upsert(updated_profile)
+        audit_store.append(
+            event_type="learner.observe",
+            status="success",
+            student_id=str(student_id),
+            payload={
+                "observation_count": inferred_state.observation_count,
+                "response_time_ms": observation.response_time_ms,
+                "hints_used": observation.hints_used,
+                "error_count": observation.error_count,
+                "engagement": inferred_state.affective_state.engagement.value,
+                "frustration": inferred_state.affective_state.frustration.value,
+                "total_load": inferred_state.cognitive_load.total_load,
+            },
+        )
+        return inferred_state
+
+    @api_router.get(
+        "/learners/{student_id}/state",
+        response_model=InferredLearnerState,
+        dependencies=deps("viewer"),
+    )
+    def get_inferred_learner_state(student_id: UUID) -> InferredLearnerState:
+        profile = profile_store.get(student_id)
+        if profile is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
+        observations = observation_store.list_recent(student_id=str(student_id))
+        if observations:
+            return state_inference_service.infer(student_id=student_id, observations=observations)
+        return InferredLearnerState(
+            student_id=student_id,
+            affective_state=profile.affective_state,
+            cognitive_load=profile.cognitive_load,
+            observation_count=0,
+            last_observation_at=None,
+        )
 
     @api_router.get(
         "/learners/{student_id}/summary",

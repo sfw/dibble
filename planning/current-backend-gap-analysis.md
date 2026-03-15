@@ -42,8 +42,8 @@ Legend:
 | `GEN-004` Remedial micro-module creation | Partial | Remedial trigger now steps through prerequisite KCs, but misconception classification and richer module assembly are still shallow |
 | `GEN-005` Multi-modal synthesis | Missing | No diagram, interactive, simulation, or code generation layer |
 | `PROF-001` Cognitive trait assessment | Partial | Profile schema stores traits, but no assessment or inference pipeline populates them |
-| `PROF-002` Affective state detection | Partial | Profile schema stores affective signals, but no classifier or inference API exists |
-| `PROF-003` Real-time cognitive load estimation | Partial | Load is stored and used by the router, but not inferred dynamically from behavior |
+| `PROF-002` Affective state detection | Partial | Observation-driven inference now updates affective state, but the logic is still heuristic rather than a richer classifier |
+| `PROF-003` Real-time cognitive load estimation | Partial | Observation-driven load inference now updates the profile, but it is still heuristic and not calibrated by domain/task type |
 | `PROF-004` KC granularity | Partial | KC mastery exists in the profile and there is now a persisted KC graph, but taxonomy depth and mastery migration are still limited |
 | `PROF-005` Metacognitive tracking | Missing | No dedicated confidence-calibration or help-seeking tracking model yet |
 | `ADAPT-001` Thompson Sampling router | Implemented | Thompson-style policy with safety constraints is in the production path |
@@ -64,18 +64,18 @@ Legend:
 
 Based on `planning/4 - revised-spec/implementation-roadmap.md` and `planning/5 - dev-handoff-revised-spec/requirements-traceability.csv`, the strongest next backend slices are:
 
-1. `PROF-002` + `PROF-003`: infer affective state and cognitive load from observable events instead of relying on preloaded profile values.
-2. `INFRA-003`: extend the new cache into true pre-generation and warmup flows for anticipated remedial content.
-3. `GEN-002` + `GEN-003`: deepen practice-problem and worked-example generation beyond the current prompt specialization.
-4. `PROF-004`: expand the KC graph from a persistence/API layer into broader taxonomy coverage and mastery migration support.
-5. `ADAPT-003`: evolve the new misconception signals into a richer taxonomy and confidence-calibrated classifier.
+1. `INFRA-003`: extend the new cache into true pre-generation and warmup flows for anticipated remedial content.
+2. `GEN-002` + `GEN-003`: deepen practice-problem and worked-example generation beyond the current prompt specialization.
+3. `PROF-004`: expand the KC graph from a persistence/API layer into broader taxonomy coverage and mastery migration support.
+4. `ADAPT-003`: evolve the new misconception signals into a richer taxonomy and confidence-calibrated classifier.
+5. `PROF-002` + `PROF-003`: replace the new heuristic inference path with stronger calibrated models and task-aware features.
 
 ## Recommendation
 
 The most coherent next implementation step is now:
 
-- infer affective state and cognitive load from observed behavior
-- feed those inferred states into the existing router and remediation planner
-- record that inference trail in observability and audit metadata
+- add proactive pre-generation and warmup for common remedial/problem-generation requests
+- reuse the current generated-content entity and cache metadata instead of adding a parallel cache layer
+- expose cache effectiveness in observability
 
-That would extend the current structural and remediation work into a more genuinely adaptive runtime system.
+That would improve runtime responsiveness while building directly on the unified generation path that already exists.

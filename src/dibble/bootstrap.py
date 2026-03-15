@@ -12,9 +12,11 @@ from dibble.services.generation_engine import GenerationEngine
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
 from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
 from dibble.services.misconception_detector import MisconceptionDetector
+from dibble.services.observation_store import SQLiteObservationStore
 from dibble.services.provider_health import SQLiteProviderHealthStore
 from dibble.services.profile_store import SQLiteProfileStore
 from dibble.services.remediation_planner import RemediationPlanner
+from dibble.services.state_inference import LearnerStateInferenceService
 from dibble.services.telemetry import TelemetryService
 from dibble.storage import ensure_database
 
@@ -26,10 +28,12 @@ class ApplicationServices:
     knowledge_component_store: SQLiteKnowledgeComponentStore
     audit_store: SQLiteAuditStore
     generated_content_store: SQLiteGeneratedContentStore
+    observation_store: SQLiteObservationStore
     auth_service: AuthService
     telemetry_service: TelemetryService
     generation_engine: GenerationEngine
     remediation_planner: RemediationPlanner
+    state_inference_service: LearnerStateInferenceService
     router_plugin: object
 
 
@@ -41,6 +45,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     knowledge_component_store = SQLiteKnowledgeComponentStore(settings.database_path)
     audit_store = SQLiteAuditStore(settings.database_path)
     generated_content_store = SQLiteGeneratedContentStore(settings.database_path)
+    observation_store = SQLiteObservationStore(settings.database_path)
     provider_health_store = SQLiteProviderHealthStore(settings.database_path)
     auth_service = AuthService.from_settings(
         settings,
@@ -59,6 +64,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         knowledge_component_store,
         MisconceptionDetector(knowledge_component_store),
     )
+    state_inference_service = LearnerStateInferenceService()
 
     return ApplicationServices(
         profile_store=profile_store,
@@ -66,9 +72,11 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         knowledge_component_store=knowledge_component_store,
         audit_store=audit_store,
         generated_content_store=generated_content_store,
+        observation_store=observation_store,
         auth_service=auth_service,
         telemetry_service=TelemetryService(audit_store, provider_health_store),
         generation_engine=generation_engine,
         remediation_planner=remediation_planner,
+        state_inference_service=state_inference_service,
         router_plugin=plugins.router,
     )

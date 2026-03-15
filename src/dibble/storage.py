@@ -86,6 +86,15 @@ CREATE TABLE IF NOT EXISTS generated_content (
 );
 """
 
+OBSERVATION_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS learner_observations (
+    observation_id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+"""
+
 
 def ensure_database(database_path: str) -> None:
     path = Path(database_path)
@@ -101,4 +110,5 @@ def ensure_database(database_path: str) -> None:
         connection.execute(PROVIDER_HEALTH_TABLE_SQL)
         connection.execute(AUTH_SESSION_TABLE_SQL)
         connection.execute(GENERATED_CONTENT_TABLE_SQL)
+        connection.execute(OBSERVATION_TABLE_SQL)
         connection.commit()
