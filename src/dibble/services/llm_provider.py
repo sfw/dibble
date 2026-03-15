@@ -9,7 +9,7 @@ from dibble.models.generation import AdaptiveRouteDecision, GeneratedBlock, Gene
 from dibble.models.profile import LearnerProfile
 from dibble.services.content_provider import MockLLMProvider
 from dibble.services.llm_client import LLMClientError, OpenAICompatibleChatClient
-from dibble.services.llm_prompting import build_generation_prompts
+from dibble.services.llm_prompting import build_generation_prompts, build_stream_generation_prompts
 from dibble.services.streaming import iter_block_chunks
 
 
@@ -86,7 +86,24 @@ class LLMOrchestrationProvider:
         route: AdaptiveRouteDecision,
         grounding_titles: list[str],
     ) -> Iterator[GeneratedBlockChunk]:
-        return iter_block_chunks(self.generate(profile, request, route, grounding_titles))
+        if self.client is None:
+            yield from iter_block_chunks(self._fallback(profile, request, route, grounding_titles, "LLM client not configured."))
+            return
+
+        prompts = build_stream_generation_prompts(profile, request, route, grounding_titles)
+        parser = StreamingChunkParser()
+        try:
+            for delta in self.client.stream_complete(
+                system_prompt=prompts.system_prompt,
+                user_prompt=prompts.user_prompt,
+            ):
+                for chunk in parser.push(delta):
+                    yield chunk
+
+            for chunk in parser.flush():
+                yield chunk
+        except (LLMClientError, LLMProviderError):
+            yield from iter_block_chunks(self._fallback(profile, request, route, grounding_titles, "LLM stream failed."))
 
     def _fallback(
         self,
@@ -126,3 +143,40 @@ class LLMOrchestrationProvider:
         if len(lines) >= 2 and lines[0].startswith("```") and lines[-1].startswith("```"):
             return "\n".join(lines[1:-1]).strip()
         return value
+
+
+class StreamingChunkParser:
+    def __init__(self) -> None:
+        self.buffer = ""
+
+    def push(self, delta: str) -> list[GeneratedBlockChunk]:
+        self.buffer += delta
+        chunks: list[GeneratedBlockChunk] = []
+
+        while "\n" in self.buffer:
+            line, self.buffer = self.buffer.split("\n", 1)
+            parsed = self._parse_line(line)
+            if parsed is not None:
+                chunks.append(parsed)
+
+        return chunks
+
+    def flush(self) -> list[GeneratedBlockChunk]:
+        parsed = self._parse_line(self.buffer)
+        self.buffer = ""
+        return [parsed] if parsed is not None else []
+
+    def _parse_line(self, line: str) -> GeneratedBlockChunk | None:
+        stripped = line.strip()
+        if not stripped:
+            return None
+
+        try:
+            payload = json.loads(stripped)
+        except json.JSONDecodeError as exc:
+            raise LLMProviderError("Streamed LLM output was not valid NDJSON.") from exc
+
+        try:
+            return GeneratedBlockChunk.model_validate(payload)
+        except Exception as exc:  # pragma: no cover
+            raise LLMProviderError("Streamed LLM chunk did not match the Dibble schema.") from exc

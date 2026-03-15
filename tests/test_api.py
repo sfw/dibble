@@ -287,6 +287,60 @@ def test_auth_can_issue_and_accept_bearer_tokens(tmp_path):
     assert me_response.json()["principal_id"] == "editor-user"
 
 
+def test_refresh_rotates_tokens_and_old_refresh_token_stops_working(tmp_path):
+    settings = Settings(
+        database_path=str(tmp_path / "dibble-refresh.db"),
+        auth_enabled=True,
+        auth_principals=("editor-key:editor-user:editor",),
+        auth_token_secret="super-secret",
+        auth_token_ttl_seconds=900,
+        auth_refresh_ttl_seconds=1800,
+    )
+    app = create_app(settings)
+
+    with TestClient(app) as client:
+        issued = client.post("/api/v1/auth/token", headers={"X-API-Key": "editor-key"}).json()
+        refreshed = client.post(
+            "/api/v1/auth/token/refresh",
+            json={"refresh_token": issued["refresh_token"]},
+        )
+        stale_refresh = client.post(
+            "/api/v1/auth/token/refresh",
+            json={"refresh_token": issued["refresh_token"]},
+        )
+
+    assert refreshed.status_code == 200
+    assert refreshed.json()["refresh_token"] != issued["refresh_token"]
+    assert stale_refresh.status_code == 401
+
+
+def test_revocation_invalidates_existing_bearer_session(tmp_path):
+    settings = Settings(
+        database_path=str(tmp_path / "dibble-revoke.db"),
+        auth_enabled=True,
+        auth_principals=("editor-key:editor-user:editor",),
+        auth_token_secret="super-secret",
+        auth_token_ttl_seconds=900,
+        auth_refresh_ttl_seconds=1800,
+    )
+    app = create_app(settings)
+
+    with TestClient(app) as client:
+        issued = client.post("/api/v1/auth/token", headers={"X-API-Key": "editor-key"}).json()
+        revoke = client.post(
+            "/api/v1/auth/token/revoke",
+            headers={"Authorization": f"Bearer {issued['access_token']}"},
+            json={},
+        )
+        me_response = client.get(
+            "/api/v1/auth/me",
+            headers={"Authorization": f"Bearer {issued['access_token']}"},
+        )
+
+    assert revoke.status_code == 200
+    assert me_response.status_code == 401
+
+
 def test_generation_falls_back_when_no_curriculum_grounding(client, student_id):
     client.put(
         f"/api/v1/profiles/{student_id}",

@@ -42,8 +42,15 @@ def sample_route():
 
 
 class FakeClient:
-    def __init__(self, content: str | None = None, *, error: Exception | None = None) -> None:
+    def __init__(
+        self,
+        content: str | None = None,
+        *,
+        stream_parts: list[str] | None = None,
+        error: Exception | None = None,
+    ) -> None:
         self.content = content
+        self.stream_parts = stream_parts or []
         self.error = error
 
     def complete(self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2):
@@ -55,6 +62,12 @@ class FakeClient:
                 self.content = content
 
         return Result(self.content or "")
+
+    def stream_complete(self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2):
+        if self.error is not None:
+            raise self.error
+        for part in self.stream_parts:
+            yield part
 
 
 def test_prompt_builder_mentions_grounding_and_preferences(sample_profile, sample_request, sample_route):
@@ -146,6 +159,50 @@ def test_chat_client_parses_openai_compatible_payload():
     assert completion.content.startswith('{"blocks"')
     assert captured["url"] == "https://example.test/v1/chat/completions"
     assert captured["payload"]["model"] == "demo-model"
+
+
+def test_chat_client_streams_openai_compatible_sse_chunks():
+    def stream_transport(url, payload, headers, timeout):
+        assert payload["stream"] is True
+        yield 'data: {"choices":[{"delta":{"content":"hello "}}]}\n'
+        yield 'data: {"choices":[{"delta":{"content":"world"}}]}\n'
+        yield "data: [DONE]\n"
+
+    client = OpenAICompatibleChatClient(
+        api_base="https://example.test/v1",
+        api_key="secret",
+        model="demo-model",
+        stream_transport=stream_transport,
+    )
+
+    parts = list(client.stream_complete(system_prompt="sys", user_prompt="usr"))
+
+    assert parts == ["hello ", "world"]
+
+
+def test_provider_streams_upstream_ndjson_chunks(sample_profile, sample_request, sample_route):
+    provider = LLMOrchestrationProvider(
+        client=FakeClient(
+            stream_parts=[
+                '{"block_index":0,"kind":"summary","title":"Focus","body_delta":"Equivalent fractions ","done":false}\n',
+                '{"block_index":0,"kind":"summary","title":"Focus","body_delta":"name the same amount.","done":true}\n',
+                '{"block_index":1,"kind":"instruction","title":"Try it","body_delta":"Compare 1/2 and 2/4.","done":true}\n',
+            ]
+        ),
+        fallback_provider=MockLLMProvider(),
+    )
+
+    chunks = list(
+        provider.stream_generate(
+            sample_profile,
+            sample_request,
+            sample_route,
+            ["Equivalent Fractions Foundations"],
+        )
+    )
+
+    assert [chunk.kind for chunk in chunks] == ["summary", "summary", "instruction"]
+    assert chunks[-1].done is True
 
 
 def test_plugin_loader_passes_settings_to_provider_factory(tmp_path):

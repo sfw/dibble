@@ -41,6 +41,19 @@ CREATE TABLE IF NOT EXISTS curriculum_resource_embeddings (
 );
 """
 
+AUTH_SESSION_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS auth_sessions (
+    session_id TEXT PRIMARY KEY,
+    principal_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    refresh_token_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    access_expires_at TEXT NOT NULL,
+    refresh_expires_at TEXT NOT NULL,
+    revoked_at TEXT
+);
+"""
+
 
 def ensure_database(database_path: str) -> None:
     path = Path(database_path)
@@ -52,4 +65,5 @@ def ensure_database(database_path: str) -> None:
         connection.execute(CURRICULUM_TABLE_SQL)
         connection.execute(AUDIT_TABLE_SQL)
         connection.execute(EMBEDDING_TABLE_SQL)
+        connection.execute(AUTH_SESSION_TABLE_SQL)
         connection.commit()

@@ -60,3 +60,21 @@ def build_generation_prompts(
         "Generate 2 or 3 blocks that are specific, age-appropriate, and grounded in the listed curriculum context."
     )
     return GenerationPrompts(system_prompt=system_prompt, user_prompt=user_prompt)
+
+
+def build_stream_generation_prompts(
+    profile: LearnerProfile,
+    request: GenerationRequest,
+    route: AdaptiveRouteDecision,
+    grounding_titles: list[str],
+) -> GenerationPrompts:
+    prompts = build_generation_prompts(profile, request, route, grounding_titles)
+    return GenerationPrompts(
+        system_prompt=(
+            "You are streaming adaptive learning content for Dibble. "
+            "Return NDJSON only, one JSON object per line, with fields "
+            '{"block_index":0,"kind":"summary","title":"...","body_delta":"...","done":true}. '
+            "Emit one or more lines per block, preserve block_index ordering, and never wrap output in markdown fences."
+        ),
+        user_prompt=prompts.user_prompt,
+    )

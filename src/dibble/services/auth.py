@@ -6,10 +6,12 @@ import hmac
 import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 from dibble.config import Settings
 from dibble.models.auth import AuthIdentity, AuthSession, AuthToken, AuthTokenClaims
 from dibble.services.access_control import allows_role
+from dibble.services.auth_sessions import SQLiteAuthSessionStore, StoredAuthSession
 
 
 class AuthenticationError(RuntimeError):
@@ -39,9 +41,16 @@ class AuthService:
     token_secret: str | None = None
     token_issuer: str = "dibble"
     token_ttl_seconds: int = 3600
+    refresh_ttl_seconds: int = 604800
+    session_store: SQLiteAuthSessionStore | None = None
 
     @classmethod
-    def from_settings(cls, settings: Settings) -> "AuthService":
+    def from_settings(
+        cls,
+        settings: Settings,
+        *,
+        session_store: SQLiteAuthSessionStore | None = None,
+    ) -> "AuthService":
         return cls(
             enabled=settings.auth_enabled,
             principals=_build_principals(settings),
@@ -49,6 +58,8 @@ class AuthService:
             token_secret=settings.auth_token_secret,
             token_issuer=settings.auth_token_issuer,
             token_ttl_seconds=settings.auth_token_ttl_seconds,
+            refresh_ttl_seconds=settings.auth_refresh_ttl_seconds,
+            session_store=session_store,
         )
 
     def authenticate(self, provided_key: str | None) -> AuthIdentity:
@@ -88,17 +99,42 @@ class AuthService:
             raise TokenConfigurationError("Bearer token issuance requires DIBBLE_AUTH_TOKEN_SECRET.")
 
         now = datetime.now(timezone.utc)
-        expires_at = now + timedelta(seconds=self.token_ttl_seconds)
-        claims = AuthTokenClaims(
+        session_id = str(uuid4())
+        access_expires_at = now + timedelta(seconds=self.token_ttl_seconds)
+        refresh_expires_at = now + timedelta(seconds=self.refresh_ttl_seconds)
+        access_claims = AuthTokenClaims(
             sub=identity.principal_id,
             role=identity.role,
+            sid=session_id,
+            jti=str(uuid4()),
+            typ="access",
             iat=int(now.timestamp()),
-            exp=int(expires_at.timestamp()),
+            exp=int(access_expires_at.timestamp()),
             iss=self.token_issuer,
         )
-        token = self._encode_token(claims)
+        refresh_claims = AuthTokenClaims(
+            sub=identity.principal_id,
+            role=identity.role,
+            sid=session_id,
+            jti=str(uuid4()),
+            typ="refresh",
+            iat=int(now.timestamp()),
+            exp=int(refresh_expires_at.timestamp()),
+            iss=self.token_issuer,
+        )
+        token = self._encode_token(access_claims)
+        refresh_token = self._encode_token(refresh_claims)
+        self._store_session(
+            session_id=session_id,
+            identity=identity,
+            refresh_token=refresh_token,
+            created_at=now,
+            access_expires_at=access_expires_at,
+            refresh_expires_at=refresh_expires_at,
+        )
         return AuthToken(
             access_token=token,
+            refresh_token=refresh_token,
             expires_in=self.token_ttl_seconds,
             identity=AuthIdentity(
                 principal_id=identity.principal_id,
@@ -109,6 +145,9 @@ class AuthService:
 
     def authenticate_bearer_token(self, token: str) -> AuthSession:
         claims = self._decode_token(token)
+        if claims.typ != "access":
+            raise AuthenticationError("Bearer token must be an access token.")
+        self._assert_session_active(claims.sid)
         authenticated_at = datetime.fromtimestamp(claims.iat, tz=timezone.utc)
         expires_at = datetime.fromtimestamp(claims.exp, tz=timezone.utc)
         return AuthSession(
@@ -117,9 +156,81 @@ class AuthService:
                 role=claims.role,
                 auth_scheme="bearer",
             ),
+            session_id=claims.sid,
             authenticated_at=authenticated_at,
             expires_at=expires_at,
         )
+
+    def refresh_session(self, refresh_token: str) -> AuthToken:
+        claims = self._decode_token(refresh_token)
+        if claims.typ != "refresh":
+            raise AuthenticationError("Refresh requires a refresh token.")
+
+        session = self._get_session(claims.sid)
+        if session.revoked_at is not None:
+            raise AuthenticationError("Session has been revoked.")
+        if session.refresh_token_hash != self._hash_token(refresh_token):
+            raise AuthenticationError("Refresh token is no longer active.")
+        if session.principal_id != claims.sub or session.role != claims.role:
+            raise AuthenticationError("Refresh token session does not match the current principal.")
+
+        identity = AuthIdentity(principal_id=claims.sub, role=claims.role, auth_scheme="bearer")
+        now = datetime.now(timezone.utc)
+        access_expires_at = now + timedelta(seconds=self.token_ttl_seconds)
+        refresh_expires_at = now + timedelta(seconds=self.refresh_ttl_seconds)
+        access_claims = AuthTokenClaims(
+            sub=identity.principal_id,
+            role=identity.role,
+            sid=claims.sid,
+            jti=str(uuid4()),
+            typ="access",
+            iat=int(now.timestamp()),
+            exp=int(access_expires_at.timestamp()),
+            iss=self.token_issuer,
+        )
+        refresh_claims = AuthTokenClaims(
+            sub=identity.principal_id,
+            role=identity.role,
+            sid=claims.sid,
+            jti=str(uuid4()),
+            typ="refresh",
+            iat=int(now.timestamp()),
+            exp=int(refresh_expires_at.timestamp()),
+            iss=self.token_issuer,
+        )
+        access_token = self._encode_token(access_claims)
+        rotated_refresh_token = self._encode_token(refresh_claims)
+        self._store_session(
+            session_id=claims.sid,
+            identity=identity,
+            refresh_token=rotated_refresh_token,
+            created_at=datetime.fromisoformat(session.created_at),
+            access_expires_at=access_expires_at,
+            refresh_expires_at=refresh_expires_at,
+        )
+        return AuthToken(
+            access_token=access_token,
+            refresh_token=rotated_refresh_token,
+            expires_in=self.token_ttl_seconds,
+            identity=identity,
+        )
+
+    def revoke_session(self, *, refresh_token: str | None = None, bearer_token: str | None = None) -> None:
+        if refresh_token:
+            claims = self._decode_token(refresh_token)
+            if claims.typ != "refresh":
+                raise AuthenticationError("Revocation refresh token is invalid.")
+            session_id = claims.sid
+        elif bearer_token:
+            claims = self._decode_token(bearer_token)
+            session_id = claims.sid
+        else:
+            raise AuthenticationError("No token was provided for revocation.")
+
+        self._assert_session_active(session_id)
+        if self.session_store is None:
+            raise AuthenticationError("Session revocation is unavailable.")
+        self.session_store.revoke(session_id, revoked_at=datetime.now(timezone.utc).isoformat())
 
     def _encode_token(self, claims: AuthTokenClaims) -> str:
         header = {"alg": "HS256", "typ": "JWT"}
@@ -161,6 +272,49 @@ class AuthService:
         if claims.exp < now:
             raise AuthenticationError("Bearer token has expired.")
         return claims
+
+    def _store_session(
+        self,
+        *,
+        session_id: str,
+        identity: AuthIdentity,
+        refresh_token: str,
+        created_at: datetime,
+        access_expires_at: datetime,
+        refresh_expires_at: datetime,
+    ) -> None:
+        if self.session_store is None:
+            raise TokenConfigurationError("Bearer token sessions require a session store.")
+        self.session_store.upsert(
+            StoredAuthSession(
+                session_id=session_id,
+                principal_id=identity.principal_id,
+                role=identity.role,
+                refresh_token_hash=self._hash_token(refresh_token),
+                created_at=created_at.isoformat(),
+                access_expires_at=access_expires_at.isoformat(),
+                refresh_expires_at=refresh_expires_at.isoformat(),
+            )
+        )
+
+    def _get_session(self, session_id: str) -> StoredAuthSession:
+        if self.session_store is None:
+            raise AuthenticationError("Session storage is unavailable.")
+        session = self.session_store.get(session_id)
+        if session is None:
+            raise AuthenticationError("Session was not found.")
+        return session
+
+    def _assert_session_active(self, session_id: str) -> None:
+        session = self._get_session(session_id)
+        if session.revoked_at is not None:
+            raise AuthenticationError("Session has been revoked.")
+        refresh_expiry = datetime.fromisoformat(session.refresh_expires_at)
+        if refresh_expiry < datetime.now(timezone.utc):
+            raise AuthenticationError("Session has expired.")
+
+    def _hash_token(self, token: str) -> str:
+        return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def _build_principals(settings: Settings) -> tuple[ApiKeyPrincipal, ...]:

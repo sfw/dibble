@@ -13,9 +13,9 @@ This repository now includes a working MVP backend slice for the revised adaptiv
 - Default provider now supports an OpenAI-compatible chat completion endpoint with automatic mock fallback when no model credentials are configured
 - Default validation now checks for missing grounding, missing instructional content, weak curriculum alignment, grade-band readability risk, accessibility density, unsafe language, and simple math errors
 - Adaptive decision and generation endpoints now write audit events and expose simple local observability metrics
-- Streaming generation is available over server-sent events for incremental `start`, `delta`, and `complete` delivery
+- Streaming generation is available over server-sent events for incremental `start`, `delta`, and `complete` delivery, and can consume real upstream OpenAI-compatible chat streams when configured
 - Optional principal-based API key auth with `viewer`/`editor`/`admin` roles can protect every endpoint except `GET /health`
-- Signed bearer tokens can be minted from authenticated principals for request-scoped sessions
+- Signed bearer tokens can be minted, refreshed, and revoked for request-scoped sessions
 - Dynamic plugin loading for router, retriever, provider, and validator factories
 - API tests covering routing, persistence, retrieval, generation, and fallback behavior
 
@@ -53,6 +53,8 @@ env UV_CACHE_DIR=.uv-cache uv run pytest
 - `POST /api/v1/adaptive/generate/stream`
 - `GET /api/v1/auth/me`
 - `POST /api/v1/auth/token`
+- `POST /api/v1/auth/token/refresh`
+- `POST /api/v1/auth/token/revoke`
 - `GET /api/v1/audit/events`
 - `GET /api/v1/observability/metrics`
 
@@ -85,8 +87,7 @@ export DIBBLE_LLM_TIMEOUT_SECONDS=20
 export DIBBLE_LLM_ALLOW_MOCK_FALLBACK=true
 ```
 
-If `DIBBLE_LLM_API_KEY` or `DIBBLE_LLM_MODEL` is unset, the default provider falls back to the deterministic mock provider so local development and tests continue to work offline.
-The stream endpoint currently emits server-sent events named `start`, `delta`, and `complete`.
+If `DIBBLE_LLM_API_KEY` or `DIBBLE_LLM_MODEL` is unset, the default provider falls back to the deterministic mock provider so local development and tests continue to work offline. When configured, the stream endpoint can consume upstream OpenAI-compatible chat SSE deltas and translate NDJSON chunk output into Dibble block-stream events. The stream endpoint emits server-sent events named `start`, `delta`, and `complete`.
 
 Embedding settings for the default retriever:
 
@@ -111,13 +112,14 @@ export DIBBLE_AUTH_HEADER_NAME=X-API-Key
 export DIBBLE_AUTH_TOKEN_SECRET=replace-me
 export DIBBLE_AUTH_TOKEN_ISSUER=dibble
 export DIBBLE_AUTH_TOKEN_TTL_SECONDS=3600
+export DIBBLE_AUTH_REFRESH_TTL_SECONDS=604800
 ```
 
-When auth is enabled, all API routes except `GET /health` require a valid key in the configured header. If `DIBBLE_AUTH_PRINCIPALS` is set, keys resolve to named principals and roles. Route access is split so viewers can read, editors can mutate/generate, and admins can access audit and observability endpoints. If `DIBBLE_AUTH_TOKEN_SECRET` is set, authenticated principals can exchange API-key access for a signed bearer token via `POST /api/v1/auth/token`.
+When auth is enabled, all API routes except `GET /health` require a valid key in the configured header. If `DIBBLE_AUTH_PRINCIPALS` is set, keys resolve to named principals and roles. Route access is split so viewers can read, editors can mutate/generate, and admins can access audit and observability endpoints. If `DIBBLE_AUTH_TOKEN_SECRET` is set, authenticated principals can exchange API-key access for signed bearer tokens via `POST /api/v1/auth/token`, rotate them with `POST /api/v1/auth/token/refresh`, and revoke sessions with `POST /api/v1/auth/token/revoke`.
 
 ## Suggested Next Build Steps
 
 1. Replace or augment SQLite with production persistence such as Redis/PostgreSQL or Redis/Cassandra.
 2. Replace the SQLite embedding cache with a production vector store and background indexing pipeline while keeping the retriever plugin contract stable.
 3. Add prompt versioning, richer generation metadata, and provider failover on top of the LLM orchestration layer.
-4. Add richer curriculum alignment scoring, domain-specific validators, refresh/revocation on top of bearer sessions, and a true upstream streaming provider implementation.
+4. Add richer curriculum alignment scoring, domain-specific validators, stronger session management like issuer rotation and per-device controls, and production-grade upstream provider failover.

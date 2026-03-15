@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
-from dibble.models.auth import AuthIdentity, AuthToken
+from dibble.models.auth import AuthIdentity, AuthRefreshRequest, AuthRevokeRequest, AuthToken
 from dibble.models.curriculum import CurriculumResource, CurriculumResourceUpsert
 from dibble.models.generation import AdaptiveRouteDecision, GenerationRequest, GenerationResponse, GenerationStreamEvent
 from dibble.models.profile import LearnerProfile, ProfileSummary
@@ -117,6 +117,47 @@ def build_router(
             payload={"principal_id": identity.principal_id, "role": identity.role},
         )
         return token
+
+    @router.post("/api/v1/auth/token/refresh", response_model=AuthToken)
+    def refresh_access_token(payload: AuthRefreshRequest) -> AuthToken:
+        try:
+            token = auth_service.refresh_session(payload.refresh_token)
+        except (AuthenticationError, TokenConfigurationError) as exc:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+
+        audit_store.append(
+            event_type="auth.token",
+            status="refreshed",
+            payload={
+                "principal_id": token.identity.principal_id,
+                "role": token.identity.role,
+            },
+        )
+        return token
+
+    @router.post("/api/v1/auth/token/revoke")
+    def revoke_access_token(
+        payload: AuthRevokeRequest | None = None,
+        authorization: str | None = Header(default=None, alias="Authorization"),
+    ) -> dict[str, str]:
+        bearer_token = None
+        if authorization and authorization.lower().startswith("bearer "):
+            bearer_token = authorization[7:].strip()
+
+        try:
+            auth_service.revoke_session(
+                refresh_token=payload.refresh_token if payload is not None else None,
+                bearer_token=bearer_token,
+            )
+        except AuthenticationError as exc:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+
+        audit_store.append(
+            event_type="auth.token",
+            status="revoked",
+            payload={"mode": "refresh" if payload and payload.refresh_token else "bearer"},
+        )
+        return {"status": "revoked"}
 
     @protected_router.put("/api/v1/profiles/{student_id}", response_model=LearnerProfile, dependencies=deps("editor"))
     def upsert_profile(student_id: UUID, profile: LearnerProfile) -> LearnerProfile:
