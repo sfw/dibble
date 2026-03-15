@@ -93,7 +93,7 @@ def select_content_type(
     default_type = resolve_content_type(request)
     if (
         default_type == RequestedContentType.micro_explanation
-        and route.intervention_type.value in {"step_back", "reteach"}
+        and route.delivery_mode.value != "blended"
         and (
             profile.metacognitive_state.help_seeking in {SignalLevel.medium, SignalLevel.high}
             or profile.cognitive_load.total_load >= 0.7
@@ -126,8 +126,7 @@ def select_worked_example_fading(
     route: AdaptiveRouteDecision,
 ) -> WorkedExampleFading:
     if (
-        route.scaffolding_level == "high"
-        or profile.cognitive_load.total_load >= 0.75
+        profile.cognitive_load.total_load >= 0.75
         or profile.affective_state.frustration in {SignalLevel.medium, SignalLevel.high}
     ):
         return WorkedExampleFading.full

@@ -50,7 +50,7 @@ Legend:
 | `ADAPT-002` Within-session adaptation | Partial | Streaming generation exists, but there is no continuous state-updating adaptive loop |
 | `ADAPT-003` Misconception detection/classification | Partial | Rule-based misconception signals now guide remediation planning, but there is no richer classifier or taxonomy yet |
 | `ADAPT-004` Automatic step-back intervention | Implemented | Router and generation path support step-back content generation |
-| `ADAPT-005` Conversational/Socratic assessment | Partial | A persisted Socratic assessment flow now generates short probes, stores multi-turn session state, and heuristically scores learner responses, but it still lacks richer discourse modeling and calibrated evidence scoring |
+| `ADAPT-005` Conversational/Socratic assessment | Partial | A persisted Socratic assessment flow now generates short probes, stores multi-turn session state, and applies a simple turn policy with heuristic evidence scoring, but it still lacks richer discourse modeling and calibrated evidence scoring |
 | `API-001` `POST /api/content/generate` | Implemented | Current unified generation endpoint returns persisted generated-content metadata |
 | `API-002` `POST /api/remedial/trigger` | Partial | Implemented as a lightweight wrapper; deeper remedial orchestration still missing |
 | `API-003` `GET /api/learners/{id}/profile` | Implemented | Current unified learner-profile endpoint returns the extended dimensions |
@@ -68,7 +68,7 @@ Based on `planning/4 - revised-spec/implementation-roadmap.md` and `planning/5 -
 2. `ADAPT-003`: evolve the new misconception signals into a richer taxonomy and confidence-calibrated classifier.
 3. `PROF-002` + `PROF-003` + `PROF-005`: replace the new heuristic learner-state inference path with stronger calibrated models trained from real outcome data.
 4. `INFRA-003`: move from explicit warmup requests to anticipatory scheduling and smarter cache invalidation for likely next-step content.
-5. `ADAPT-005` + `LLM-002`: deepen the new Socratic assessment flow with better evidence scoring, calibrated turn policy, and prompt experimentation.
+5. `ADAPT-005` + `LLM-002`: deepen the new Socratic assessment flow with better evidence scoring, outcome-calibrated turn policy, and prompt experimentation.
 
 ## Recommendation
 

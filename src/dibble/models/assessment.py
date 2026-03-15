@@ -36,6 +36,13 @@ class SocraticNextAction(str, Enum):
     advance = "advance"
 
 
+class SocraticPromptStyle(str, Enum):
+    diagnostic = "diagnostic"
+    clarification = "clarification"
+    scaffolded_step_back = "scaffolded_step_back"
+    transfer_check = "transfer_check"
+
+
 class SocraticMessage(BaseModel):
     role: SocraticMessageRole
     text: str = Field(min_length=1)
@@ -44,6 +51,8 @@ class SocraticMessage(BaseModel):
 class SocraticTurnRecord(BaseModel):
     turn_id: str
     prompt: str
+    prompt_style: SocraticPromptStyle
+    policy_rationale: str
     learner_response: str | None = None
     evaluation: "SocraticAssessmentEvaluation"
     created_at: datetime = Field(default_factory=utc_now)
@@ -85,6 +94,8 @@ class SocraticAssessmentResponse(BaseModel):
     student_id: UUID
     turn_id: str
     prompt: str
+    prompt_style: SocraticPromptStyle
+    policy_rationale: str
     evaluation: SocraticAssessmentEvaluation
     route: AdaptiveRouteDecision
     grounding: list[GroundingReference] = Field(default_factory=list)

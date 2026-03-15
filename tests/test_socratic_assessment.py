@@ -95,6 +95,7 @@ def test_socratic_assessment_requests_probe_without_learner_response(tmp_path):
     )
 
     assert result.prompt == "How do you know 1/2 and 2/4 are equal?"
+    assert result.prompt_style.value == "diagnostic"
     assert result.evaluation.next_action.value == "ask_probe"
     assert result.session_id is not None
     assert len(result.conversation_history) == 1
@@ -143,6 +144,7 @@ def test_socratic_assessment_advances_when_response_is_grounded(tmp_path):
 
     assert result.evaluation.evidence_strength.value == "demonstrated"
     assert result.evaluation.next_action.value == "advance"
+    assert result.prompt_style.value == "diagnostic"
     assert "equivalent" in result.evaluation.matched_terms
 
 
@@ -199,3 +201,14 @@ def test_socratic_assessment_reuses_persisted_session_history(tmp_path):
     assert len(second_result.conversation_history) >= 3
     assert stored_session is not None
     assert len(stored_session.turns) == 2
+
+    third_result = service.assess(
+        profile,
+        SocraticAssessmentRequest(
+            student_id=student_id,
+            session_id=first_result.session_id,
+        ),
+    )
+
+    assert third_result.prompt_style.value == "transfer_check"
+    assert stored_session.turns[0].prompt_style.value == "diagnostic"

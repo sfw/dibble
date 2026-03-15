@@ -19,6 +19,7 @@ def test_socratic_assessment_starts_with_probe_when_no_learner_response(client, 
     payload = response.json()
     assert payload["session_id"] is not None
     assert "?" in payload["prompt"]
+    assert payload["prompt_style"] == "diagnostic"
     assert payload["evaluation"]["evidence_strength"] == "insufficient"
     assert payload["evaluation"]["next_action"] == "ask_probe"
     assert payload["generation_metadata"]["prompt_template_name"] is not None
@@ -43,6 +44,7 @@ def test_socratic_assessment_detects_grounded_reasoning_in_learner_response(clie
 
     assert response.status_code == 200
     payload = response.json()
+    assert payload["prompt_style"] == "diagnostic"
     assert payload["evaluation"]["evidence_strength"] == "demonstrated"
     assert payload["evaluation"]["next_action"] == "advance"
     assert "equivalent" in payload["evaluation"]["matched_terms"]
@@ -79,6 +81,18 @@ def test_socratic_assessment_session_persists_across_turns(client, student_id):
     second_payload = second_response.json()
     session_payload = session_response.json()
     assert second_payload["session_id"] == session_id
+    assert second_payload["prompt_style"] == "diagnostic"
     assert len(second_payload["conversation_history"]) >= 2
     assert len(session_payload["turns"]) == 2
     assert session_payload["turns"][1]["learner_response"] is not None
+
+    third_response = client.post(
+        "/api/assessments/socratic",
+        json={
+            "student_id": str(student_id),
+            "session_id": session_id,
+        },
+    )
+
+    assert third_response.status_code == 200
+    assert third_response.json()["prompt_style"] == "transfer_check"

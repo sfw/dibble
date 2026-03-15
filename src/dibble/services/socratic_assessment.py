@@ -13,6 +13,7 @@ from dibble.models.assessment import (
     SocraticMessage,
     SocraticMessageRole,
     SocraticNextAction,
+    SocraticPromptStyle,
     SocraticTurnRecord,
 )
 from dibble.models.generation import GenerationRequest
@@ -32,13 +33,14 @@ class SocraticAssessmentService:
     def assess(self, profile: LearnerProfile, request: SocraticAssessmentRequest) -> SocraticAssessmentResponse:
         session = self._load_or_create_session(request)
         conversation_history = self._merged_history(session, request)
+        prompt_style, policy_rationale = self._turn_policy(session, request)
         generation_request = GenerationRequest(
             student_id=request.student_id,
             target_kc_ids=session.target_kc_ids,
             target_lo_ids=session.target_lo_ids,
             intent="assessment",
             requested_content_type="assessment_probe",
-            learner_prompt=self._build_assessment_prompt(request, conversation_history),
+            learner_prompt=self._build_assessment_prompt(request, conversation_history, prompt_style, policy_rationale),
             curriculum_context=session.curriculum_context,
         )
         response = self.generation_engine.generate(profile, generation_request)
@@ -56,6 +58,8 @@ class SocraticAssessmentService:
                     SocraticTurnRecord(
                         turn_id=turn_id,
                         prompt=prompt,
+                        prompt_style=prompt_style,
+                        policy_rationale=policy_rationale,
                         learner_response=request.learner_response,
                         evaluation=evaluation,
                     ),
@@ -70,6 +74,8 @@ class SocraticAssessmentService:
             student_id=request.student_id,
             turn_id=turn_id,
             prompt=prompt,
+            prompt_style=prompt_style,
+            policy_rationale=policy_rationale,
             evaluation=evaluation,
             route=response.route,
             grounding=response.grounding,
@@ -116,6 +122,8 @@ class SocraticAssessmentService:
         self,
         request: SocraticAssessmentRequest,
         conversation_history: list[SocraticMessage],
+        prompt_style: SocraticPromptStyle,
+        policy_rationale: str,
     ) -> str:
         history_text = " ".join(f"{item.role.value}: {item.text}" for item in conversation_history[-6:])
         confidence_text = (
@@ -123,15 +131,68 @@ class SocraticAssessmentService:
             if request.learner_confidence is not None
             else ""
         )
+        if prompt_style == SocraticPromptStyle.scaffolded_step_back:
+            return (
+                "Ask one short scaffolded step-back question that targets a prerequisite idea before returning to the main concept. "
+                f"Policy rationale: {policy_rationale}. Recent conversation: {history_text or 'none'}.{confidence_text}"
+            )
+        if prompt_style == SocraticPromptStyle.clarification:
+            return (
+                "Ask one short clarification question that helps the learner explain their reasoning more precisely. "
+                f"Policy rationale: {policy_rationale}. Recent conversation: {history_text or 'none'}.{confidence_text}"
+            )
+        if prompt_style == SocraticPromptStyle.transfer_check:
+            return (
+                "Ask one short transfer question that checks whether the learner can apply the idea in a nearby example. "
+                f"Policy rationale: {policy_rationale}. Recent conversation: {history_text or 'none'}.{confidence_text}"
+            )
         if request.learner_response:
             return (
                 "Ask one short Socratic follow-up question that checks reasoning, not recall only. "
-                f"The learner previously answered: {request.learner_response}.{confidence_text} "
+                f"The learner previously answered: {request.learner_response}. Policy rationale: {policy_rationale}.{confidence_text} "
                 f"Recent conversation: {history_text or 'none'}"
             )
         return (
             "Ask one short open-ended diagnostic question that reveals reasoning about the target concept. "
-            f"Recent conversation: {history_text or 'none'}.{confidence_text}"
+            f"Policy rationale: {policy_rationale}. Recent conversation: {history_text or 'none'}.{confidence_text}"
+        )
+
+    def _turn_policy(
+        self,
+        session: SocraticAssessmentSession,
+        request: SocraticAssessmentRequest,
+    ) -> tuple[SocraticPromptStyle, str]:
+        if not session.turns and not request.learner_response:
+            return (
+                SocraticPromptStyle.diagnostic,
+                "Start with an open probe so the system can observe the learner's current reasoning without over-scaffolding.",
+            )
+
+        last_turn = session.turns[-1] if session.turns else None
+        if last_turn is None:
+            return (
+                SocraticPromptStyle.diagnostic,
+                "Begin with a broad diagnostic prompt because there is no prior turn history yet.",
+            )
+
+        if last_turn.evaluation.next_action == SocraticNextAction.step_back:
+            return (
+                SocraticPromptStyle.scaffolded_step_back,
+                "The previous turn showed insufficient grounded evidence, so the next prompt should step back to prerequisite reasoning.",
+            )
+        if last_turn.evaluation.next_action == SocraticNextAction.clarify:
+            return (
+                SocraticPromptStyle.clarification,
+                "The learner showed partial understanding, so the next prompt should clarify and refine their explanation.",
+            )
+        if last_turn.evaluation.next_action == SocraticNextAction.advance:
+            return (
+                SocraticPromptStyle.transfer_check,
+                "The learner demonstrated grounded understanding, so the next prompt should test transfer to a nearby example.",
+            )
+        return (
+            SocraticPromptStyle.diagnostic,
+            "The system needs another open probe before selecting a more targeted conversational move.",
         )
 
     def _extract_prompt(self, blocks) -> str:
