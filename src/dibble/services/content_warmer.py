@@ -4,12 +4,12 @@ from dataclasses import dataclass
 
 from dibble.models.generation import ContentWarmResult, GenerationRequest
 from dibble.services.generation_engine import GenerationEngine
-from dibble.services.profile_store import SQLiteProfileStore
+from dibble.services.protocols import ProfileStore
 
 
 @dataclass(slots=True)
 class ContentWarmer:
-    profile_store: SQLiteProfileStore
+    profile_store: ProfileStore
     generation_engine: GenerationEngine
 
     def warm(self, requests: list[GenerationRequest]) -> ContentWarmResult:

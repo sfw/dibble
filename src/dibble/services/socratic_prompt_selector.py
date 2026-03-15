@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from dibble.services.audit_store import SQLiteAuditStore
+from dibble.services.protocols import AuditStore
 
 
 @dataclass(slots=True)
 class SocraticPromptSelector:
-    audit_store: SQLiteAuditStore
+    audit_store: AuditStore
     min_samples_per_variant: int = 2
     max_events: int = 500
 

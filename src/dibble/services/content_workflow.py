@@ -13,11 +13,10 @@ from dibble.models.generation import (
 )
 from dibble.models.profile import LearnerProfile
 from dibble.plugins.contracts import RouterPlugin
-from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.generation_modes import build_generation_mode_plan
-from dibble.services.profile_store import SQLiteProfileStore
+from dibble.services.protocols import AuditStore, ProfileStore
 from dibble.services.remediation_planner import RemediationPlanner
 
 
@@ -29,12 +28,12 @@ class LearnerProfileNotFoundError(LookupError):
 
 @dataclass(slots=True)
 class ContentWorkflowService:
-    profile_store: SQLiteProfileStore
+    profile_store: ProfileStore
     router: RouterPlugin
     generation_engine: GenerationEngine
     content_warmer: ContentWarmer
     remediation_planner: RemediationPlanner
-    audit_store: SQLiteAuditStore
+    audit_store: AuditStore
 
     def decide_route(self, request: GenerationRequest) -> AdaptiveRouteDecision:
         profile = self._load_profile(request.student_id)

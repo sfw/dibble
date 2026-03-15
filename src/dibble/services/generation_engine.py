@@ -19,7 +19,7 @@ from dibble.models.generation import (
 from dibble.models.profile import LearnerProfile
 from dibble.plugins.contracts import ProviderPlugin, RetrieverPlugin, RouterPlugin, ValidatorPlugin
 from dibble.services.generation_modes import build_generation_mode_plan
-from dibble.services.generated_content_store import SQLiteGeneratedContentStore
+from dibble.services.protocols import GeneratedContentStore
 
 
 class GenerationEngine:
@@ -29,7 +29,7 @@ class GenerationEngine:
         router: RouterPlugin,
         provider: ProviderPlugin,
         validator: ValidatorPlugin,
-        generated_content_store: SQLiteGeneratedContentStore | None = None,
+        generated_content_store: GeneratedContentStore | None = None,
         cache_ttl_seconds: int = 3600,
         time_provider=monotonic,
     ) -> None:

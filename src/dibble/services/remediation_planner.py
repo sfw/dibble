@@ -4,8 +4,8 @@ from dataclasses import dataclass
 
 from dibble.models.generation import MisconceptionSignal
 from dibble.models.profile import LearnerProfile
-from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
 from dibble.services.misconception_detector import MisconceptionDetector
+from dibble.services.protocols import KnowledgeComponentStore
 
 
 @dataclass(slots=True)
@@ -19,7 +19,7 @@ class RemediationPlan:
 class RemediationPlanner:
     def __init__(
         self,
-        knowledge_component_store: SQLiteKnowledgeComponentStore,
+        knowledge_component_store: KnowledgeComponentStore,
         misconception_detector: MisconceptionDetector,
     ) -> None:
         self.knowledge_component_store = knowledge_component_store

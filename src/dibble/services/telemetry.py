@@ -8,18 +8,16 @@ from dibble.models.telemetry import (
     SocraticPromptPerformance,
     TelemetrySnapshot,
 )
-from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.generation_prompt_outcomes import GenerationPromptOutcomeScorer
-from dibble.services.generated_content_store import SQLiteGeneratedContentStore
-from dibble.services.provider_health import SQLiteProviderHealthStore
+from dibble.services.protocols import AuditStore, GeneratedContentStore, ProviderHealthStore
 
 
 class TelemetryService:
     def __init__(
         self,
-        audit_store: SQLiteAuditStore,
-        generated_content_store: SQLiteGeneratedContentStore | None = None,
-        provider_health_store: SQLiteProviderHealthStore | None = None,
+        audit_store: AuditStore,
+        generated_content_store: GeneratedContentStore | None = None,
+        provider_health_store: ProviderHealthStore | None = None,
     ) -> None:
         self.audit_store = audit_store
         self.generated_content_store = generated_content_store

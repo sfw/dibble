@@ -17,15 +17,15 @@ from dibble.models.assessment import (
 from dibble.models.generation import GenerationRequest
 from dibble.models.profile import LearnerProfile
 from dibble.services.generation_engine import GenerationEngine
+from dibble.services.protocols import SocraticSessionStore
 from dibble.services.socratic_evidence import SocraticEvidenceScorer
 from dibble.services.socratic_policy import SocraticTurnPolicy
-from dibble.services.socratic_session_store import SQLiteSocraticSessionStore
 
 
 @dataclass(slots=True)
 class SocraticAssessmentService:
     generation_engine: GenerationEngine
-    session_store: SQLiteSocraticSessionStore
+    session_store: SocraticSessionStore
     evidence_scorer: SocraticEvidenceScorer
     turn_policy: SocraticTurnPolicy
 

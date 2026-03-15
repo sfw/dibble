@@ -2,14 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Protocol
-from uuid import UUID
 
 from fastapi import Depends, Header, HTTPException, Request, status
 
 from dibble.models.auth import AuthIdentity
-from dibble.models.profile import LearnerProfile
 from dibble.plugins.contracts import RouterPlugin
-from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.auth import (
     AuthService,
     AuthenticationError,
@@ -17,25 +14,28 @@ from dibble.services.auth import (
 )
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.content_workflow import ContentWorkflowService
-from dibble.services.curriculum_store import SQLiteCurriculumStore
 from dibble.services.generation_engine import GenerationEngine
-from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
-from dibble.services.observation_store import SQLiteObservationStore
-from dibble.services.profile_store import SQLiteProfileStore
+from dibble.services.protocols import (
+    AuditStore,
+    CurriculumStore,
+    KnowledgeComponentStore,
+    ObservationStore,
+    ProfileStore,
+    SocraticSessionStore,
+)
 from dibble.services.remediation_planner import RemediationPlanner
 from dibble.services.socratic_assessment import SocraticAssessmentService
 from dibble.services.socratic_profile_update import SocraticProfileUpdater
-from dibble.services.socratic_session_store import SQLiteSocraticSessionStore
 from dibble.services.state_inference import LearnerStateInferenceService
 from dibble.services.telemetry import TelemetryService
 
 
 class ApiServices(Protocol):
-    profile_store: SQLiteProfileStore
-    curriculum_store: SQLiteCurriculumStore
-    knowledge_component_store: SQLiteKnowledgeComponentStore
-    audit_store: SQLiteAuditStore
-    observation_store: SQLiteObservationStore
+    profile_store: ProfileStore
+    curriculum_store: CurriculumStore
+    knowledge_component_store: KnowledgeComponentStore
+    audit_store: AuditStore
+    observation_store: ObservationStore
     auth_service: AuthService
     telemetry_service: TelemetryService
     router_plugin: RouterPlugin
@@ -45,7 +45,7 @@ class ApiServices(Protocol):
     remediation_planner: RemediationPlanner
     socratic_assessment_service: SocraticAssessmentService
     socratic_profile_updater: SocraticProfileUpdater
-    socratic_session_store: SQLiteSocraticSessionStore
+    socratic_session_store: SocraticSessionStore
     state_inference_service: LearnerStateInferenceService
 
 

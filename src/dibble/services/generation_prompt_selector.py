@@ -3,13 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from dibble.models.generation import RequestedContentType
-from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.generation_prompt_outcomes import GenerationPromptOutcomeScorer
+from dibble.services.protocols import AuditStore
 
 
 @dataclass(slots=True)
 class GenerationPromptSelector:
-    audit_store: SQLiteAuditStore
+    audit_store: AuditStore
     min_samples_per_variant: int = 2
     max_events: int = 500
     outcome_scorer: GenerationPromptOutcomeScorer = field(default_factory=GenerationPromptOutcomeScorer)

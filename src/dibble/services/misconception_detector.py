@@ -4,7 +4,7 @@ import re
 
 from dibble.models.generation import MisconceptionSignal
 from dibble.models.profile import LearnerProfile
-from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
+from dibble.services.protocols import KnowledgeComponentStore
 
 
 _WORD_PATTERN = re.compile(r"[A-Za-z0-9']+")
@@ -33,7 +33,7 @@ def _normalize_terms(value: str) -> set[str]:
 
 
 class MisconceptionDetector:
-    def __init__(self, knowledge_component_store: SQLiteKnowledgeComponentStore) -> None:
+    def __init__(self, knowledge_component_store: KnowledgeComponentStore) -> None:
         self.knowledge_component_store = knowledge_component_store
 
     def detect(
