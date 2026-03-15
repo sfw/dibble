@@ -262,6 +262,31 @@ def test_auth_exposes_identity_and_rbac(tmp_path, student_id):
     assert allowed_audit.status_code == 200
 
 
+def test_auth_can_issue_and_accept_bearer_tokens(tmp_path):
+    settings = Settings(
+        database_path=str(tmp_path / "dibble-token.db"),
+        auth_enabled=True,
+        auth_principals=("editor-key:editor-user:editor",),
+        auth_token_secret="super-secret",
+        auth_token_ttl_seconds=900,
+    )
+    app = create_app(settings)
+
+    with TestClient(app) as client:
+        token_response = client.post("/api/v1/auth/token", headers={"X-API-Key": "editor-key"})
+        me_response = client.get(
+            "/api/v1/auth/me",
+            headers={"Authorization": f"Bearer {token_response.json()['access_token']}"},
+        )
+
+    assert token_response.status_code == 200
+    assert token_response.json()["token_type"] == "bearer"
+    assert token_response.json()["identity"]["principal_id"] == "editor-user"
+    assert me_response.status_code == 200
+    assert me_response.json()["auth_scheme"] == "bearer"
+    assert me_response.json()["principal_id"] == "editor-user"
+
+
 def test_generation_falls_back_when_no_curriculum_grounding(client, student_id):
     client.put(
         f"/api/v1/profiles/{student_id}",

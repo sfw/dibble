@@ -5,14 +5,19 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
-from dibble.models.auth import AuthIdentity
+from dibble.models.auth import AuthIdentity, AuthToken
 from dibble.models.curriculum import CurriculumResource, CurriculumResourceUpsert
 from dibble.models.generation import AdaptiveRouteDecision, GenerationRequest, GenerationResponse, GenerationStreamEvent
 from dibble.models.profile import LearnerProfile, ProfileSummary
 from dibble.models.telemetry import AuditEvent, TelemetrySnapshot
 from dibble.plugins.contracts import RouterPlugin
 from dibble.services.audit_store import SQLiteAuditStore
-from dibble.services.auth import AuthService, AuthenticationError, AuthorizationError
+from dibble.services.auth import (
+    AuthService,
+    AuthenticationError,
+    AuthorizationError,
+    TokenConfigurationError,
+)
 from dibble.services.curriculum_store import SQLiteCurriculumStore
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.profile_store import SQLiteProfileStore
@@ -36,9 +41,18 @@ def build_router(
         async def dependency(
             request: Request,
             api_key: str | None = Header(default=None, alias=auth_service.header_name),
+            authorization: str | None = Header(default=None, alias="Authorization"),
         ) -> AuthIdentity:
+            bearer_token = None
+            if authorization and authorization.lower().startswith("bearer "):
+                bearer_token = authorization[7:].strip()
             try:
-                identity = auth_service.authorize(api_key, allowed_roles=tuple(allowed_roles) or ("viewer",))
+                session = auth_service.authorize(
+                    provided_key=api_key,
+                    bearer_token=bearer_token,
+                    allowed_roles=tuple(allowed_roles) or ("viewer",),
+                )
+                identity = session.identity
                 request.state.auth_identity = identity
                 return identity
             except AuthenticationError as exc:
@@ -86,6 +100,23 @@ def build_router(
         if identity is None:
             return auth_service.authenticate(None)
         return identity
+
+    @protected_router.post("/api/v1/auth/token", response_model=AuthToken, dependencies=deps("viewer"))
+    def issue_access_token(request: Request) -> AuthToken:
+        identity = getattr(request.state, "auth_identity", None)
+        if identity is None:
+            return auth_service.issue_token(auth_service.authenticate(None))
+        try:
+            token = auth_service.issue_token(identity)
+        except TokenConfigurationError as exc:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+
+        audit_store.append(
+            event_type="auth.token",
+            status="issued",
+            payload={"principal_id": identity.principal_id, "role": identity.role},
+        )
+        return token
 
     @protected_router.put("/api/v1/profiles/{student_id}", response_model=LearnerProfile, dependencies=deps("editor"))
     def upsert_profile(student_id: UUID, profile: LearnerProfile) -> LearnerProfile:

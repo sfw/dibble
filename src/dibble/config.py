@@ -28,6 +28,9 @@ class Settings:
     auth_api_keys: tuple[str, ...] = ()
     auth_principals: tuple[str, ...] = ()
     auth_header_name: str = "X-API-Key"
+    auth_token_secret: str | None = None
+    auth_token_issuer: str = "dibble"
+    auth_token_ttl_seconds: int = 3600
 
 
 def _get_bool_env(name: str, default: bool) -> bool:
@@ -71,4 +74,7 @@ def get_settings() -> Settings:
         auth_api_keys=_get_csv_env("DIBBLE_AUTH_API_KEYS"),
         auth_principals=_get_csv_env("DIBBLE_AUTH_PRINCIPALS"),
         auth_header_name=os.getenv("DIBBLE_AUTH_HEADER_NAME", "X-API-Key"),
+        auth_token_secret=os.getenv("DIBBLE_AUTH_TOKEN_SECRET"),
+        auth_token_issuer=os.getenv("DIBBLE_AUTH_TOKEN_ISSUER", "dibble"),
+        auth_token_ttl_seconds=int(os.getenv("DIBBLE_AUTH_TOKEN_TTL_SECONDS", "3600")),
     )
