@@ -557,6 +557,7 @@ def build_router(
                 "target_kc_ids": request.target_kc_ids,
                 "target_lo_ids": request.target_lo_ids,
                 "evidence_strength": result.evaluation.evidence_strength.value,
+                "evidence_score": result.evaluation.evidence_score,
                 "next_action": result.evaluation.next_action.value,
                 "matched_term_count": len(result.evaluation.matched_terms),
                 "prompt_template_name": (

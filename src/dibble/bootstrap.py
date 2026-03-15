@@ -18,6 +18,8 @@ from dibble.services.provider_health import SQLiteProviderHealthStore
 from dibble.services.profile_store import SQLiteProfileStore
 from dibble.services.remediation_planner import RemediationPlanner
 from dibble.services.socratic_assessment import SocraticAssessmentService
+from dibble.services.socratic_evidence import SocraticEvidenceScorer
+from dibble.services.socratic_policy import SocraticTurnPolicy
 from dibble.services.socratic_session_store import SQLiteSocraticSessionStore
 from dibble.services.state_inference import LearnerStateInferenceService
 from dibble.services.telemetry import TelemetryService
@@ -73,8 +75,9 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     )
     socratic_assessment_service = SocraticAssessmentService(
         generation_engine=generation_engine,
-        curriculum_store=curriculum_store,
         session_store=socratic_session_store,
+        evidence_scorer=SocraticEvidenceScorer(curriculum_store),
+        turn_policy=SocraticTurnPolicy(),
     )
     state_inference_service = LearnerStateInferenceService()
     content_warmer = ContentWarmer(profile_store, generation_engine)

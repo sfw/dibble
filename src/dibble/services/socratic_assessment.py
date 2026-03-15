@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from dibble.models.assessment import (
@@ -9,43 +9,48 @@ from dibble.models.assessment import (
     SocraticAssessmentRequest,
     SocraticAssessmentResponse,
     SocraticAssessmentSession,
-    SocraticEvidenceStrength,
     SocraticMessage,
     SocraticMessageRole,
-    SocraticNextAction,
     SocraticPromptStyle,
     SocraticTurnRecord,
 )
 from dibble.models.generation import GenerationRequest
 from dibble.models.profile import LearnerProfile
-from dibble.services.curriculum_store import SQLiteCurriculumStore
 from dibble.services.generation_engine import GenerationEngine
-from dibble.services.retrieval.text import salient_tokens
+from dibble.services.socratic_evidence import SocraticEvidenceScorer
+from dibble.services.socratic_policy import SocraticTurnPolicy
 from dibble.services.socratic_session_store import SQLiteSocraticSessionStore
 
 
 @dataclass(slots=True)
 class SocraticAssessmentService:
     generation_engine: GenerationEngine
-    curriculum_store: SQLiteCurriculumStore
     session_store: SQLiteSocraticSessionStore
+    evidence_scorer: SocraticEvidenceScorer
+    turn_policy: SocraticTurnPolicy
 
     def assess(self, profile: LearnerProfile, request: SocraticAssessmentRequest) -> SocraticAssessmentResponse:
         session = self._load_or_create_session(request)
+        evaluation = self.evidence_scorer.evaluate(session, request)
         conversation_history = self._merged_history(session, request)
-        prompt_style, policy_rationale = self._turn_policy(session, request)
+        policy_decision = self.turn_policy.decide(session, request, evaluation)
         generation_request = GenerationRequest(
             student_id=request.student_id,
             target_kc_ids=session.target_kc_ids,
             target_lo_ids=session.target_lo_ids,
             intent="assessment",
             requested_content_type="assessment_probe",
-            learner_prompt=self._build_assessment_prompt(request, conversation_history, prompt_style, policy_rationale),
+            learner_prompt=self._build_assessment_prompt(
+                request=request,
+                conversation_history=conversation_history,
+                prompt_style=policy_decision.prompt_style,
+                policy_rationale=policy_decision.rationale,
+                evaluation=evaluation,
+            ),
             curriculum_context=session.curriculum_context,
         )
         response = self.generation_engine.generate(profile, generation_request)
         prompt = self._extract_prompt(response.blocks)
-        evaluation = self._evaluate_response(request, response)
         generation_metadata = response.generation_metadata
         turn_id = str(uuid4())
         updated_history = list(conversation_history)
@@ -58,8 +63,8 @@ class SocraticAssessmentService:
                     SocraticTurnRecord(
                         turn_id=turn_id,
                         prompt=prompt,
-                        prompt_style=prompt_style,
-                        policy_rationale=policy_rationale,
+                        prompt_style=policy_decision.prompt_style,
+                        policy_rationale=policy_decision.rationale,
                         learner_response=request.learner_response,
                         evaluation=evaluation,
                     ),
@@ -74,8 +79,8 @@ class SocraticAssessmentService:
             student_id=request.student_id,
             turn_id=turn_id,
             prompt=prompt,
-            prompt_style=prompt_style,
-            policy_rationale=policy_rationale,
+            prompt_style=policy_decision.prompt_style,
+            policy_rationale=policy_decision.rationale,
             evaluation=evaluation,
             route=response.route,
             grounding=response.grounding,
@@ -120,10 +125,12 @@ class SocraticAssessmentService:
 
     def _build_assessment_prompt(
         self,
+        *,
         request: SocraticAssessmentRequest,
         conversation_history: list[SocraticMessage],
         prompt_style: SocraticPromptStyle,
         policy_rationale: str,
+        evaluation: SocraticAssessmentEvaluation,
     ) -> str:
         history_text = " ".join(f"{item.role.value}: {item.text}" for item in conversation_history[-6:])
         confidence_text = (
@@ -131,68 +138,35 @@ class SocraticAssessmentService:
             if request.learner_confidence is not None
             else ""
         )
+        evidence_text = (
+            f" Evidence score: {evaluation.evidence_score:.2f}. "
+            f"Current evidence strength: {evaluation.evidence_strength.value}. "
+            f"Evaluation rationale: {evaluation.rationale}"
+        )
         if prompt_style == SocraticPromptStyle.scaffolded_step_back:
             return (
                 "Ask one short scaffolded step-back question that targets a prerequisite idea before returning to the main concept. "
-                f"Policy rationale: {policy_rationale}. Recent conversation: {history_text or 'none'}.{confidence_text}"
+                f"Policy rationale: {policy_rationale}.{evidence_text} Recent conversation: {history_text or 'none'}.{confidence_text}"
             )
         if prompt_style == SocraticPromptStyle.clarification:
             return (
                 "Ask one short clarification question that helps the learner explain their reasoning more precisely. "
-                f"Policy rationale: {policy_rationale}. Recent conversation: {history_text or 'none'}.{confidence_text}"
+                f"Policy rationale: {policy_rationale}.{evidence_text} Recent conversation: {history_text or 'none'}.{confidence_text}"
             )
         if prompt_style == SocraticPromptStyle.transfer_check:
             return (
                 "Ask one short transfer question that checks whether the learner can apply the idea in a nearby example. "
-                f"Policy rationale: {policy_rationale}. Recent conversation: {history_text or 'none'}.{confidence_text}"
+                f"Policy rationale: {policy_rationale}.{evidence_text} Recent conversation: {history_text or 'none'}.{confidence_text}"
             )
         if request.learner_response:
             return (
                 "Ask one short Socratic follow-up question that checks reasoning, not recall only. "
-                f"The learner previously answered: {request.learner_response}. Policy rationale: {policy_rationale}.{confidence_text} "
-                f"Recent conversation: {history_text or 'none'}"
+                f"The learner previously answered: {request.learner_response}. "
+                f"Policy rationale: {policy_rationale}.{evidence_text}{confidence_text} Recent conversation: {history_text or 'none'}"
             )
         return (
             "Ask one short open-ended diagnostic question that reveals reasoning about the target concept. "
-            f"Policy rationale: {policy_rationale}. Recent conversation: {history_text or 'none'}.{confidence_text}"
-        )
-
-    def _turn_policy(
-        self,
-        session: SocraticAssessmentSession,
-        request: SocraticAssessmentRequest,
-    ) -> tuple[SocraticPromptStyle, str]:
-        if not session.turns and not request.learner_response:
-            return (
-                SocraticPromptStyle.diagnostic,
-                "Start with an open probe so the system can observe the learner's current reasoning without over-scaffolding.",
-            )
-
-        last_turn = session.turns[-1] if session.turns else None
-        if last_turn is None:
-            return (
-                SocraticPromptStyle.diagnostic,
-                "Begin with a broad diagnostic prompt because there is no prior turn history yet.",
-            )
-
-        if last_turn.evaluation.next_action == SocraticNextAction.step_back:
-            return (
-                SocraticPromptStyle.scaffolded_step_back,
-                "The previous turn showed insufficient grounded evidence, so the next prompt should step back to prerequisite reasoning.",
-            )
-        if last_turn.evaluation.next_action == SocraticNextAction.clarify:
-            return (
-                SocraticPromptStyle.clarification,
-                "The learner showed partial understanding, so the next prompt should clarify and refine their explanation.",
-            )
-        if last_turn.evaluation.next_action == SocraticNextAction.advance:
-            return (
-                SocraticPromptStyle.transfer_check,
-                "The learner demonstrated grounded understanding, so the next prompt should test transfer to a nearby example.",
-            )
-        return (
-            SocraticPromptStyle.diagnostic,
-            "The system needs another open probe before selecting a more targeted conversational move.",
+            f"Policy rationale: {policy_rationale}.{evidence_text} Recent conversation: {history_text or 'none'}.{confidence_text}"
         )
 
     def _extract_prompt(self, blocks) -> str:
@@ -203,65 +177,3 @@ class SocraticAssessmentService:
             if block.kind in {"instruction", "practice"}:
                 return f"{block.body.strip()} What do you notice?"
         return "What makes you think that?"
-
-    def _evaluate_response(self, request: SocraticAssessmentRequest, response) -> SocraticAssessmentEvaluation:
-        if not request.learner_response:
-            return SocraticAssessmentEvaluation(
-                evidence_strength=SocraticEvidenceStrength.insufficient,
-                inferred_mastery=0.0,
-                matched_terms=[],
-                rationale="No learner response was provided yet, so the next step is to ask an open diagnostic question.",
-                next_action=SocraticNextAction.ask_probe,
-            )
-
-        learner_terms = set(salient_tokens(request.learner_response))
-        expected_terms = self._expected_terms(request, response)
-        matched_terms = sorted(learner_terms & expected_terms)
-        expected_count = max(3, len(expected_terms))
-        overlap_ratio = len(matched_terms) / expected_count
-        reasoning_cues = {"because", "so", "therefore", "since", "means"}
-        has_reasoning = any(cue in request.learner_response.lower() for cue in reasoning_cues)
-
-        if overlap_ratio >= 0.14 and has_reasoning:
-            return SocraticAssessmentEvaluation(
-                evidence_strength=SocraticEvidenceStrength.demonstrated,
-                inferred_mastery=0.74,
-                matched_terms=matched_terms,
-                rationale="The learner used several curriculum-aligned terms and connected them with an explicit reasoning cue.",
-                next_action=SocraticNextAction.advance,
-            )
-        if overlap_ratio >= 0.1 or has_reasoning:
-            return SocraticAssessmentEvaluation(
-                evidence_strength=SocraticEvidenceStrength.emerging,
-                inferred_mastery=0.52,
-                matched_terms=matched_terms,
-                rationale="The learner showed partial conceptual language or reasoning, but still needs a clarifying follow-up.",
-                next_action=SocraticNextAction.clarify,
-            )
-        return SocraticAssessmentEvaluation(
-            evidence_strength=SocraticEvidenceStrength.insufficient,
-            inferred_mastery=0.28,
-            matched_terms=matched_terms,
-            rationale="The learner response did not yet show enough grounded concept language to demonstrate understanding.",
-            next_action=SocraticNextAction.step_back,
-        )
-
-    def _expected_terms(self, request: SocraticAssessmentRequest, response) -> set[str]:
-        terms = set()
-        for value in request.curriculum_context:
-            terms.update(salient_tokens(value))
-        for value in request.target_kc_ids + request.target_lo_ids:
-            terms.update(salient_tokens(value))
-        for grounding in response.grounding:
-            terms.update(salient_tokens(grounding.title))
-            terms.update(token.lower() for token in grounding.matched_terms)
-            resource = self.curriculum_store.get(grounding.resource_id)
-            if resource is not None:
-                terms.update(salient_tokens(resource.title))
-                terms.update(salient_tokens(resource.body))
-                for tag in resource.tags:
-                    terms.update(salient_tokens(tag))
-        for block in response.blocks:
-            terms.update(salient_tokens(block.title))
-            terms.update(salient_tokens(block.body))
-        return terms

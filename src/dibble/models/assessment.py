@@ -48,6 +48,14 @@ class SocraticMessage(BaseModel):
     text: str = Field(min_length=1)
 
 
+class SocraticEvidenceDimensions(BaseModel):
+    lexical_alignment: float = Field(default=0.0, ge=0.0, le=1.0)
+    reasoning_signal: float = Field(default=0.0, ge=0.0, le=1.0)
+    confidence_alignment: float = Field(default=0.5, ge=0.0, le=1.0)
+    progression_signal: float = Field(default=0.5, ge=0.0, le=1.0)
+    misconception_risk: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
 class SocraticTurnRecord(BaseModel):
     turn_id: str
     prompt: str
@@ -83,6 +91,8 @@ class SocraticAssessmentRequest(BaseModel):
 
 class SocraticAssessmentEvaluation(BaseModel):
     evidence_strength: SocraticEvidenceStrength
+    evidence_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    evidence_dimensions: SocraticEvidenceDimensions = Field(default_factory=SocraticEvidenceDimensions)
     inferred_mastery: float = Field(ge=0.0, le=1.0)
     matched_terms: list[str] = Field(default_factory=list)
     rationale: str

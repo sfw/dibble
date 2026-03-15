@@ -19,6 +19,7 @@ The biggest remaining gaps are no longer basic plumbing. They are adaptive intel
 - true learner-state inference rather than manually supplied profile fields
 - KC prerequisite graphs and misconception classification
 - richer remedial generation and deeper generation-template selection beyond the current specialized modes
+- richer Socratic/conversational calibration loops and prompt-performance feedback
 - proactive pre-generation beyond the current explicit warmup endpoint
 
 ## Requirement Snapshot
@@ -50,7 +51,7 @@ Legend:
 | `ADAPT-002` Within-session adaptation | Partial | Streaming generation exists, but there is no continuous state-updating adaptive loop |
 | `ADAPT-003` Misconception detection/classification | Partial | Rule-based misconception signals now guide remediation planning, but there is no richer classifier or taxonomy yet |
 | `ADAPT-004` Automatic step-back intervention | Implemented | Router and generation path support step-back content generation |
-| `ADAPT-005` Conversational/Socratic assessment | Partial | A persisted Socratic assessment flow now generates short probes, stores multi-turn session state, and applies a simple turn policy with heuristic evidence scoring, but it still lacks richer discourse modeling and calibrated evidence scoring |
+| `ADAPT-005` Conversational/Socratic assessment | Partial | A persisted Socratic assessment flow now scores the current learner response with modular evidence dimensions, stores multi-turn session state, and chooses follow-up prompt style with an outcome-aware turn policy, but it still lacks richer discourse modeling, prompt experimentation, and calibration against real learner outcomes |
 | `API-001` `POST /api/content/generate` | Implemented | Current unified generation endpoint returns persisted generated-content metadata |
 | `API-002` `POST /api/remedial/trigger` | Partial | Implemented as a lightweight wrapper; deeper remedial orchestration still missing |
 | `API-003` `GET /api/learners/{id}/profile` | Implemented | Current unified learner-profile endpoint returns the extended dimensions |
@@ -68,14 +69,14 @@ Based on `planning/4 - revised-spec/implementation-roadmap.md` and `planning/5 -
 2. `ADAPT-003`: evolve the new misconception signals into a richer taxonomy and confidence-calibrated classifier.
 3. `PROF-002` + `PROF-003` + `PROF-005`: replace the new heuristic learner-state inference path with stronger calibrated models trained from real outcome data.
 4. `INFRA-003`: move from explicit warmup requests to anticipatory scheduling and smarter cache invalidation for likely next-step content.
-5. `ADAPT-005` + `LLM-002`: deepen the new Socratic assessment flow with better evidence scoring, outcome-calibrated turn policy, and prompt experimentation.
+5. `ADAPT-005` + `LLM-002`: connect the stronger Socratic evidence signals to real learner outcomes, then add prompt experimentation and prompt-performance feedback loops.
 
 ## Recommendation
 
 The most coherent next implementation step is now:
 
-- deepen problem and worked-example generation into first-class generation modes
-- keep reusing the current generated-content entity and cache metadata instead of adding a parallel cache layer
-- let the router and remediation planner choose among richer instructional formats rather than only a generic prompt path
+- connect Socratic session outcomes back into learner-state updates or router inputs so conversational evidence affects later delivery decisions
+- add prompt-performance tracking on top of the new evidence dimensions so prompt variants can be compared on downstream outcomes
+- keep reusing the current generated-content and session stores instead of adding a parallel orchestration layer
 
-That is now partially in place. The most coherent next step is to calibrate the new learner-state signals, then connect them more directly to routing and generation selection so those richer modes are chosen using stronger evidence instead of heuristics alone.
+That is now more achievable because the Socratic flow no longer relies only on a single last-turn threshold. The next coherent step is to calibrate these richer learner-state and conversational signals against downstream outcomes so routing and generation selection rely less on heuristics alone.

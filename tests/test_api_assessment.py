@@ -22,6 +22,7 @@ def test_socratic_assessment_starts_with_probe_when_no_learner_response(client, 
     assert payload["prompt_style"] == "diagnostic"
     assert payload["evaluation"]["evidence_strength"] == "insufficient"
     assert payload["evaluation"]["next_action"] == "ask_probe"
+    assert payload["evaluation"]["evidence_score"] == 0.0
     assert payload["generation_metadata"]["prompt_template_name"] is not None
     assert payload["generated_blocks"]
     assert audit_response.json()[0]["event_type"] == "assessment.socratic"
@@ -44,9 +45,10 @@ def test_socratic_assessment_detects_grounded_reasoning_in_learner_response(clie
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["prompt_style"] == "diagnostic"
+    assert payload["prompt_style"] == "transfer_check"
     assert payload["evaluation"]["evidence_strength"] == "demonstrated"
     assert payload["evaluation"]["next_action"] == "advance"
+    assert payload["evaluation"]["evidence_score"] >= 0.62
     assert "equivalent" in payload["evaluation"]["matched_terms"]
 
 
@@ -81,7 +83,7 @@ def test_socratic_assessment_session_persists_across_turns(client, student_id):
     second_payload = second_response.json()
     session_payload = session_response.json()
     assert second_payload["session_id"] == session_id
-    assert second_payload["prompt_style"] == "diagnostic"
+    assert second_payload["prompt_style"] == "transfer_check"
     assert len(second_payload["conversation_history"]) >= 2
     assert len(session_payload["turns"]) == 2
     assert session_payload["turns"][1]["learner_response"] is not None

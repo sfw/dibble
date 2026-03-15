@@ -11,6 +11,8 @@ from dibble.models.generation import (
 )
 from dibble.models.profile import LearnerProfile
 from dibble.services.socratic_assessment import SocraticAssessmentService
+from dibble.services.socratic_evidence import SocraticEvidenceScorer
+from dibble.services.socratic_policy import SocraticTurnPolicy
 from dibble.services.socratic_session_store import SQLiteSocraticSessionStore
 from dibble.storage import ensure_database
 from tests.support import build_profile
@@ -20,17 +22,33 @@ from tests.support import build_profile
 class FakeCurriculumResource:
     resource_id: str
     title: str
+    learning_objective_ids: list[str]
+    knowledge_component_ids: list[str]
     body: str
     tags: list[str]
 
 
 class FakeCurriculumStore:
+    def list(self):
+        return [
+            FakeCurriculumResource(
+                resource_id="CURR-1",
+                title="Equivalent Fractions Foundations",
+                learning_objective_ids=["LO-1"],
+                knowledge_component_ids=["KC-1"],
+                body="Equivalent fractions name the same amount with fraction models.",
+                tags=["equivalent fractions", "fractions"],
+            )
+        ]
+
     def get(self, resource_id: str):
         if resource_id != "CURR-1":
             return None
         return FakeCurriculumResource(
             resource_id="CURR-1",
             title="Equivalent Fractions Foundations",
+            learning_objective_ids=["LO-1"],
+            knowledge_component_ids=["KC-1"],
             body="Equivalent fractions name the same amount with fraction models.",
             tags=["equivalent fractions", "fractions"],
         )
@@ -49,8 +67,9 @@ def build_service(tmp_path, response: GenerationResponse) -> SocraticAssessmentS
     ensure_database(database_path)
     return SocraticAssessmentService(
         generation_engine=FakeGenerationEngine(response),
-        curriculum_store=FakeCurriculumStore(),
         session_store=SQLiteSocraticSessionStore(database_path),
+        evidence_scorer=SocraticEvidenceScorer(FakeCurriculumStore()),
+        turn_policy=SocraticTurnPolicy(),
     )
 
 
@@ -97,6 +116,7 @@ def test_socratic_assessment_requests_probe_without_learner_response(tmp_path):
     assert result.prompt == "How do you know 1/2 and 2/4 are equal?"
     assert result.prompt_style.value == "diagnostic"
     assert result.evaluation.next_action.value == "ask_probe"
+    assert result.evaluation.evidence_score == 0.0
     assert result.session_id is not None
     assert len(result.conversation_history) == 1
 
@@ -144,7 +164,8 @@ def test_socratic_assessment_advances_when_response_is_grounded(tmp_path):
 
     assert result.evaluation.evidence_strength.value == "demonstrated"
     assert result.evaluation.next_action.value == "advance"
-    assert result.prompt_style.value == "diagnostic"
+    assert result.prompt_style.value == "transfer_check"
+    assert result.evaluation.evidence_score >= 0.62
     assert "equivalent" in result.evaluation.matched_terms
 
 
