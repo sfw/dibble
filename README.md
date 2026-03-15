@@ -1,1 +1,99 @@
+# Dibble
 
+This repository now includes a working MVP backend slice for the revised adaptive learning platform.
+
+## What Exists
+
+- FastAPI application in `src/dibble/`
+- SQLite-backed persistence for learner profiles and curriculum resources
+- Learner profile model aligned to the revised spec's richer profile design
+- Adaptive routing service with curriculum/safety guardrails plus Thompson-style action selection for step-back, reteach, targeted practice, and stretch decisions
+- Retrieval-grounded generation pipeline split into retriever, router, provider, and validator services
+- Default retriever now uses a persistent SQLite-backed embedding index plus lexical/metadata scoring for better free-text curriculum matching
+- Default provider now supports an OpenAI-compatible chat completion endpoint with automatic mock fallback when no model credentials are configured
+- Default validation now checks for missing grounding, missing instructional content, weak curriculum alignment, grade-band readability risk, accessibility density, unsafe language, and simple math errors
+- Dynamic plugin loading for router, retriever, provider, and validator factories
+- API tests covering routing, persistence, retrieval, generation, and fallback behavior
+
+## Run It
+
+Install dependencies:
+
+```bash
+env UV_CACHE_DIR=.uv-cache uv sync --group dev
+```
+
+Start the API:
+
+```bash
+env UV_CACHE_DIR=.uv-cache uv run uvicorn dibble.main:app --reload
+```
+
+Run tests:
+
+```bash
+env UV_CACHE_DIR=.uv-cache uv run pytest
+```
+
+## Current Endpoints
+
+- `GET /health`
+- `GET /api/v1/profiles`
+- `PUT /api/v1/profiles/{student_id}`
+- `GET /api/v1/profiles/{student_id}`
+- `GET /api/v1/profiles/{student_id}/summary`
+- `PUT /api/v1/curriculum/resources/{resource_id}`
+- `GET /api/v1/curriculum/resources`
+- `POST /api/v1/adaptive/decide`
+- `POST /api/v1/adaptive/generate`
+
+## Persistence
+
+The app uses SQLite by default and stores data in `dibble.db`.
+
+You can override the database path with:
+
+```bash
+export DIBBLE_DATABASE_PATH=/path/to/dibble.db
+```
+
+Plugin factories can also be overridden:
+
+```bash
+export DIBBLE_ROUTER_PLUGIN=dibble.plugins.defaults.router:build
+export DIBBLE_RETRIEVER_PLUGIN=dibble.plugins.defaults.retriever:build
+export DIBBLE_PROVIDER_PLUGIN=dibble.plugins.defaults.provider:build
+export DIBBLE_VALIDATOR_PLUGIN=dibble.plugins.defaults.validator:build
+```
+
+LLM orchestration settings for the default provider:
+
+```bash
+export DIBBLE_LLM_API_BASE=https://api.openai.com/v1
+export DIBBLE_LLM_API_KEY=...
+export DIBBLE_LLM_MODEL=...
+export DIBBLE_LLM_TIMEOUT_SECONDS=20
+export DIBBLE_LLM_ALLOW_MOCK_FALLBACK=true
+```
+
+If `DIBBLE_LLM_API_KEY` or `DIBBLE_LLM_MODEL` is unset, the default provider falls back to the deterministic mock provider so local development and tests continue to work offline.
+
+Embedding settings for the default retriever:
+
+```bash
+export DIBBLE_EMBEDDING_API_BASE=https://api.openai.com/v1
+export DIBBLE_EMBEDDING_API_KEY=...
+export DIBBLE_EMBEDDING_MODEL=...
+export DIBBLE_EMBEDDING_DIMENSIONS=256
+export DIBBLE_EMBEDDING_TIMEOUT_SECONDS=15
+export DIBBLE_EMBEDDING_ALLOW_LOCAL_FALLBACK=true
+```
+
+If `DIBBLE_EMBEDDING_API_KEY` or `DIBBLE_EMBEDDING_MODEL` is unset, the default retriever uses a deterministic local embedder and stores resource vectors in SQLite for offline development.
+
+## Suggested Next Build Steps
+
+1. Replace or augment SQLite with production persistence such as Redis/PostgreSQL or Redis/Cassandra.
+2. Replace the SQLite embedding cache with a production vector store and background indexing pipeline while keeping the retriever plugin contract stable.
+3. Add prompt versioning, richer generation metadata, and provider failover on top of the LLM orchestration layer.
+4. Add richer curriculum alignment scoring, domain-specific validators, severity levels, authentication, audit logging, observability, and streaming responses.

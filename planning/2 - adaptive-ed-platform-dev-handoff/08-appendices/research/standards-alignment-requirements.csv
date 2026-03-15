@@ -1,0 +1,33 @@
+Standard_Type,Standard_ID,Domain,Grade_Band,Description,Prerequisite_Standards,Progression_Next,Alignment_Notes
+CCSS Math,CCSS.MATH.CONTENT.K.CC.A.1,Counting and Cardinality,K,Count to 100 by ones and tens,None,"K.CC.A.2,K.CC.A.3",Foundation for number sense
+CCSS Math,CCSS.MATH.CONTENT.K.CC.A.2,Counting and Cardinality,K,Count forward from given number,K.CC.A.1,K.CC.A.3,Prerequisite: counting sequence
+CCSS Math,CCSS.MATH.CONTENT.1.OA.A.1,Operations and Algebraic Thinking,1,Add/subtract within 20 (word problems),K.OA.A.2,"1.OA.A.2,2.OA.A.1",Prerequisite: basic addition
+CCSS Math,CCSS.MATH.CONTENT.2.NBT.B.5,Number and Operations in Base Ten,2,Fluently add/subtract within 100,1.NBT.C.4,"2.NBT.B.6,3.NBT.A.2",Prerequisite: place value
+CCSS Math,CCSS.MATH.CONTENT.3.NF.A.1,Number and Operations - Fractions,3,Understand fractions as parts of whole,2.G.A.3,"3.NF.A.2,4.NF.B.3",Prerequisite: equal partitioning
+CCSS Math,CCSS.MATH.CONTENT.4.NF.B.3,Number and Operations - Fractions,4,Add/subtract fractions with like denominators,"3.NF.A.1,3.NF.A.2","4.NF.B.4,5.NF.A.1",Prerequisite: fraction understanding
+CCSS Math,CCSS.MATH.CONTENT.5.NF.A.1,Number and Operations - Fractions,5,Add/subtract fractions with unlike denominators,4.NF.B.3,"5.NF.A.2,6.NS.A.1",Prerequisite: like denominator operations
+CCSS Math,CCSS.MATH.CONTENT.6.RP.A.1,Ratios and Proportional Relationships,6,Understand ratio concepts,5.NF.B.3,"6.RP.A.2,6.RP.A.3",Prerequisite: fraction comparison
+CCSS Math,CCSS.MATH.CONTENT.7.EE.A.1,Expressions and Equations,7,Apply properties of operations to linear expressions,6.EE.A.3,"7.EE.A.2,8.EE.C.7",Prerequisite: variable expressions
+CCSS Math,CCSS.MATH.CONTENT.8.F.A.1,Functions,8,"Define, evaluate, compare functions",7.EE.B.4,"8.F.A.2,8.F.A.3",Prerequisite: linear equations
+CCSS ELA,CCSS.ELA-LITERACY.RL.K.1,Reading: Literature,K,Ask/answer questions about key details,None,RL.1.1,Foundation: comprehension
+CCSS ELA,CCSS.ELA-LITERACY.RL.1.1,Reading: Literature,1,Ask/answer questions about key details,RL.K.1,RL.2.1,Prerequisite: detail identification
+CCSS ELA,CCSS.ELA-LITERACY.RI.2.1,Reading: Informational Text,2,"Ask/answer questions (who, what, where, when, why, how)",RI.1.1,RI.3.1,Prerequisite: question types
+CCSS ELA,CCSS.ELA-LITERACY.RL.3.3,Reading: Literature,3,Describe characters and their actions,RL.2.3,RL.4.3,Prerequisite: character identification
+CCSS ELA,CCSS.ELA-LITERACY.W.4.1,Writing,4,Write opinion pieces with reasons,W.3.1,W.5.1,Prerequisite: opinion writing
+CCSS ELA,CCSS.ELA-LITERACY.L.5.1,Language,5,Conventions of standard English grammar,L.4.1,L.6.1,Prerequisite: basic grammar
+NGSS,K-PS2-1,Physical Science,K,Forces and motion effects,None,"K-PS2-2,3-PS2-1",Foundation: physical interactions
+NGSS,3-PS2-1,Physical Science,3,Balanced and unbalanced forces,"K-PS2-1,2-PS1-1","3-PS2-2,5-PS2-1",Prerequisite: force concepts
+NGSS,5-PS2-1,Physical Science,5,Gravitational force,3-PS2-1,"MS-PS2-4,MS-ESS1-2",Prerequisite: force understanding
+NGSS,MS-PS2-4,Physical Science,Middle,Gravitational interactions,5-PS2-1,HS-PS2-4,Prerequisite: gravitational force
+NGSS,3-LS1-1,Life Science,3,Life cycles,1-LS3-1,"3-LS1-2,4-LS1-1",Prerequisite: living things
+NGSS,4-LS1-1,Life Science,4,Animal structures and functions,3-LS1-1,"4-LS1-2,MS-LS1-3",Prerequisite: organism structures
+NGSS,MS-LS1-3,Life Science,Middle,Cell structure and function,4-LS1-1,"MS-LS1-2,HS-LS1-2",Prerequisite: structure-function
+NGSS,5-ESS1-1,Earth and Space Science,5,Sun brightness and star distance,5-PS2-1,MS-ESS1-3,Prerequisite: space systems
+NGSS,MS-ESS1-3,Earth and Space Science,Middle,Solar system and universe scale,"5-ESS1-1,5-ESS1-2",HS-ESS1-4,Prerequisite: space scale
+State Variant,TEKS.K.2.A,Texas Math,K,Count forward and backward to at least 20,None,TEKS.1.2.A,Texas-specific counting
+State Variant,TEKS.1.2.A,Texas Math,1,Recognize quantities without counting (subitizing),TEKS.K.2.A,TEKS.2.2.A,Prerequisite: counting
+State Variant,VA.MG.K.1,Virginia Math,K,Count forward to 100,None,VA.MG.1.1,Virginia-specific sequence
+Regulatory,COPPA.13,COPPA,K-12,Verifiable parental consent for under 13,FERPA.School,COPPA.Disclosure,Age verification required
+Regulatory,FERPA.School,FERPA,K-12,School official exception requirements,State.Contract,FERPA.Parent,DPA required
+Regulatory,WCAG.2.1.AA,Accessibility,K-12,WCAG 2.1 Level AA compliance,WCAG.2.1.A,WCAG.2.2.AA,April 2026-2027 deadline
+Regulatory,SOPIPA,State Privacy,K-12,California student data protection,FERPA.School,State.Contract,No targeted ads

@@ -1,0 +1,47 @@
+ID,File/Module,Change Type,Priority,Effort Estimate,Dependencies,Description,Status,Complexity
+MIG-001,src/services/llm_orchestrator.py,Create,P1,2 weeks,None,New LLM routing service with multi-provider support,Pending,High
+MIG-002,src/services/rag_retriever.py,Create,P1,1 week,Vector store setup,RAG retrieval pipeline for curriculum grounding,Pending,Medium
+MIG-003,src/services/prompt_manager.py,Create,P1,1 week,None,Prompt versioning and template management,Pending,Medium
+MIG-004,src/services/content_validator.py,Create,P1,2 weeks,Generation engine,Safety and quality validation layer,Pending,Medium
+MIG-005,src/models/knowledge_component.py,Create,P1,1 week,None,KC data model with prerequisite relationships,Pending,Medium
+MIG-006,src/models/extended_profile.py,Create,P1,1 week,None,Extended learner profile (cognitive; affective),Pending,Medium
+MIG-007,src/engines/thompson_sampler.py,Create,P1,3 weeks,Extended profile,Contextual Thompson Sampling router,Pending,Medium
+MIG-008,src/engines/generation_engine.py,Create,P2,4 weeks,LLM orchestrator + RAG,Content generation pipeline,Pending,Medium
+MIG-009,src/engines/affective_classifier.py,Create,P2,3 weeks,Extended profile,Real-time affective state detection,Pending,Medium
+MIG-010,src/api/generation_routes.py,Create,P2,2 weeks,Generation engine,v2 API endpoints for content generation,Pending,Medium
+MIG-011,src/repositories/vector_store.py,Create,P2,1 week,Vector store,ChromaDB/Pinecone repository,Pending,Medium
+MIG-012,src/engines/bkt_engine.py,Modify,P1,3 weeks,KC model,Extend to KC-level granularity,Pending,Medium
+MIG-013,src/api/router.py,Modify,P2,2 weeks,Generation routes,Add v2 endpoints and streaming support,Pending,Medium
+MIG-014,src/api/recommendations.py,Modify,P2,2 weeks,Thompson sampler,Integrate new router alongside optimizer,Pending,Medium
+MIG-015,src/api/state.py,Modify,P2,1 week,Extended profile,Add v2 profile endpoints,Pending,Medium
+MIG-016,src/models/bkt.py,Modify,P1,1 week,KC model,Add optional KC reference,Pending,Medium
+MIG-017,src/models/requests.py,Modify,P2,3 days,None,Add generation request schemas,Pending,Medium
+MIG-018,src/models/responses.py,Modify,P2,3 days,None,Add generation response schemas,Pending,Medium
+MIG-019,src/config.py,Modify,P1,1 week,None,Add LLM and vector store configuration,Pending,Medium
+MIG-020,config.yaml,Modify,P1,3 days,None,Add new infrastructure settings,Pending,Medium
+MIG-021,docker-compose.yml,Modify,P1,1 week,None,Add ChromaDB and LLM proxy services,Pending,Medium
+MIG-022,src/repositories/knowledge_state.py,Modify,P2,1 week,KC model,Add KC-level state operations,Pending,Medium
+MIG-023,src/services/event_publisher.py,Modify,P3,3 days,None,Add generation event publishing,Pending,Medium
+MIG-024,src/utils/errors.py,Modify,P3,2 days,None,Add generation-specific errors,Pending,Medium
+MIG-025,pyproject.toml,Modify,P1,2 days,None,Add LLM SDK dependencies,Pending,Medium
+MIG-026,tests/test_generation.py,Create,P2,1 week,Generation engine,Unit tests for generation pipeline,Pending,Medium
+MIG-027,tests/test_thompson_sampler.py,Create,P2,1 week,Thompson sampler,Unit tests for router,Pending,Medium
+MIG-028,tests/test_affective.py,Create,P2,1 week,Affective classifier,Unit tests for affective detection,Pending,Medium
+MIG-029,tests/test_kc_migration.py,Create,P2,1 week,KC model,Test KC decomposition logic,Pending,Medium
+MIG-030,tests/test_extended_profile.py,Create,P2,1 week,Extended profile,Test profile v2 endpoints,Pending,Medium
+MIG-031,prompts/templates/,Create,P2,3 days,None,Prompt template directory,Pending,Medium
+MIG-032,prompts/versions/,Create,P2,3 days,Prompt manager,Prompt versioning directory,Pending,Medium
+MIG-033,src/engines/sm2_scheduler.py,No Change,N/A,N/A,N/A,Preserve existing implementation,Complete,Medium
+MIG-034,src/services/circuit_breaker.py,No Change,N/A,N/A,N/A,Reuse for LLM calls; configuration only,Complete,Medium
+MIG-035,src/utils/logging.py,No Change,N/A,N/A,N/A,No changes required,Complete,Medium
+MIG-036,Database: knowledge_components,Migration,P1,4 weeks,KC taxonomy,Create KC table and populate,Pending,Medium
+MIG-037,Database: learner_profile_extended,Migration,P1,2 weeks,Extended profile model,Create extended profile table,Pending,Medium
+MIG-038,Database: generated_content,Migration,P2,1 week,Generation engine,Create audit table for generated content,Pending,Medium
+MIG-039,Database: student_knowledge_state,Migration,P1,2 weeks,KC model,Alter table for KC support,Pending,Medium
+MIG-040,Data: LO to KC mapping,Migration,P1,6 weeks,Expert validation,Develop KC taxonomy for top 50 LOs,Pending,Medium
+MIG-041,Data: Historical mastery migration,Migration,P2,3 weeks,KC mapping,Transform LO mastery to KC estimates,Pending,Medium
+MIG-042,Infrastructure: Vector store,Setup,P1,1 week,None,Provision ChromaDB/Pinecone cluster,Pending,Medium
+MIG-043,Infrastructure: LLM gateway,Setup,P1,1 week,None,Deploy LiteLLM or custom gateway,Pending,Medium
+MIG-044,Infrastructure: GPU expansion,Setup,P2,2 weeks,None,Expand Triton cluster for LLM inference,Pending,Medium
+MIG-045,Integration: OpenAI/Anthropic,Setup,P1,3 days,LLM gateway,Configure commercial LLM API access,Pending,Medium
+MIG-046,Documentation: API v2 spec,Create,P2,1 week,Generation routes,Document new endpoints and schemas,Pending,Medium

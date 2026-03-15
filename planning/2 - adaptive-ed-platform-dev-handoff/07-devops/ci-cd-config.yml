@@ -1,0 +1,325 @@
+# Jenkins CI/CD Pipeline Configuration
+# Multi-stage pipeline for Adaptive K-12 Learning Platform
+
+pipeline:
+  agent: kubernetes
+  
+  # =============================================================================
+  # STAGES
+  # =============================================================================
+  stages:
+    - name: "Checkout"
+      steps:
+        - git clone https://github.com/platform-edu/adaptive-learning-platform.git
+        - git checkout ${BRANCH_NAME}
+        
+    - name: "Static Analysis"
+      parallel:
+        - name: "Frontend Lint"
+          steps:
+            - cd frontend/web
+            - npm ci
+            - npm run lint
+            - npm run type-check
+            
+        - name: "Backend Lint"
+          steps:
+            - cd backend
+            - pip install flake8 black mypy
+            - flake8 src/
+            - black --check src/
+            - mypy src/
+            
+        - name: "Security Scan"
+          steps:
+            - bandit -r backend/src/
+            - npm audit --audit-level high
+            - trivy fs --severity HIGH,CRITICAL .
+            
+    - name: "Unit Tests"
+      parallel:
+        - name: "Frontend Tests"
+          steps:
+            - cd frontend/web
+            - npm ci
+            - npm run test:unit -- --coverage
+            - publishCoverage:
+                pattern: "coverage/lcov.info"
+                minimum: 80
+                
+        - name: "Backend Tests"
+          steps:
+            - cd backend
+            - pip install -r requirements-dev.txt
+            - pytest --cov=src --cov-report=xml
+            - publishCoverage:
+                pattern: "coverage.xml"
+                minimum: 85
+                
+        - name: "ML Tests"
+          steps:
+            - cd ml
+            - pip install -r requirements.txt
+            - pytest tests/
+            
+    - name: "Build & Package"
+      parallel:
+        - name: "Build Docker Images"
+          steps:
+            - docker build -t ${REGISTRY}/api-gateway:${BUILD_NUMBER} backend/api-gateway/
+            - docker build -t ${REGISTRY}/web-frontend:${BUILD_NUMBER} frontend/web/
+            - docker build -t ${REGISTRY}/personalization:${BUILD_NUMBER} backend/personalization-engine/
+            - docker build -t ${REGISTRY}/assessment:${BUILD_NUMBER} backend/assessment-engine/
+            - docker build -t ${REGISTRY}/analytics:${BUILD_NUMBER} backend/analytics/
+            
+        - name: "Package ML Models"
+          steps:
+            - cd ml/models
+            - python export_models.py --version ${BUILD_NUMBER}
+            - docker build -t ${REGISTRY}/ml-inference:${BUILD_NUMBER} -f Dockerfile.inference .
+            
+    - name: "Integration Tests"
+      steps:
+        - docker-compose -f docker-compose.test.yml up -d
+        - sleep 30  # Wait for services
+        - pytest tests/integration/ -v
+        - docker-compose -f docker-compose.test.yml down -v
+        
+    - name: "E2E Tests"
+      steps:
+        - docker-compose -f docker-compose.e2e.yml up -d
+        - cd e2e
+        - npm ci
+        - npx cypress run
+        - docker-compose -f docker-compose.e2e.yml down -v
+        
+    - name: "Performance Tests"
+      when: "branch == 'main' || branch =~ 'release/*'"
+      steps:
+        - docker-compose -f docker-compose.perf.yml up -d
+        - k6 run tests/performance/load-test.js
+        - k6 run tests/performance/stress-test.js
+        - docker-compose -f docker-compose.perf.yml down -v
+        
+    - name: "Security Scan Images"
+      steps:
+        - trivy image ${REGISTRY}/api-gateway:${BUILD_NUMBER}
+        - trivy image ${REGISTRY}/web-frontend:${BUILD_NUMBER}
+        - trivy image ${REGISTRY}/personalization:${BUILD_NUMBER}
+        
+    - name: "Deploy to Staging"
+      when: "branch == 'develop'"
+      steps:
+        - kubectl config use-context staging
+        - helm upgrade --install adaptive-platform ./helm-chart \
+            --namespace staging \
+            --set image.tag=${BUILD_NUMBER} \
+            --set environment=staging
+        - kubectl rollout status deployment/api-gateway -n staging
+        
+    - name: "Smoke Tests Staging"
+      when: "branch == 'develop'"
+      steps:
+        - sleep 30
+        - curl -f https://staging.platform.edu/health
+        - pytest tests/smoke/ -v
+        
+    - name: "Deploy to Production"
+      when: "branch == 'main'"
+      steps:
+        - input:
+            message: "Deploy to production?"
+            submitter: "platform-leads"
+            
+        - kubectl config use-context production
+        - helm upgrade --install adaptive-platform ./helm-chart \
+            --namespace production \
+            --set image.tag=${BUILD_NUMBER} \
+            --set environment=production
+            
+        - kubectl rollout status deployment/api-gateway -n production
+        
+    - name: "Smoke Tests Production"
+      when: "branch == 'main'"
+      steps:
+        - sleep 30
+        - curl -f https://platform.edu/health
+        - pytest tests/smoke/ -v --env=production
+        
+    - name: "Tag Release"
+      when: "branch == 'main'"
+      steps:
+        - git tag -a v${BUILD_NUMBER} -m "Release ${BUILD_NUMBER}"
+        - git push origin v${BUILD_NUMBER}
+
+  # =============================================================================
+  # POST-BUILD
+  # =============================================================================
+  post:
+    always:
+      - cleanWs()
+      - notifySlack:
+          channel: "#builds"
+          message: "Build ${BUILD_NUMBER} completed"
+          
+    success:
+      - notifySlack:
+          channel: "#deployments"
+          message: "✅ Deployment successful: ${BUILD_NUMBER}"
+          
+    failure:
+      - notifySlack:
+          channel: "#alerts"
+          message: "❌ Build failed: ${BUILD_NUMBER}"
+          color: "danger"
+          
+    unstable:
+      - notifySlack:
+          channel: "#alerts"
+          message: "⚠️ Build unstable: ${BUILD_NUMBER}"
+
+  # =============================================================================
+  # ENVIRONMENT VARIABLES
+  # =============================================================================
+  environment:
+    REGISTRY: "registry.platform.edu"
+    DOCKER_BUILDKIT: "1"
+    COMPOSE_DOCKER_CLI_BUILD: "1"
+    
+  # =============================================================================
+  # CREDENTIALS
+  # =============================================================================
+  credentials:
+    - id: "docker-registry"
+      type: "usernamePassword"
+    - id: "kube-config-staging"
+      type: "file"
+    - id: "kube-config-production"
+      type: "file"
+    - id: "slack-token"
+      type: "secretText"
+
+---
+# GitHub Actions Alternative (provided for teams preferring GHA)
+
+name: Adaptive Platform CI/CD
+
+on:
+  push:
+    branches: [main, develop, 'release/*']
+  pull_request:
+    branches: [main, develop]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: platform-edu
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component: [frontend, backend-api, backend-personalization, ml-models]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        if: matrix.component == 'frontend'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Setup Python
+        if: matrix.component != 'frontend'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Run linting
+        run: |
+          if [ "${{ matrix.component }}" = "frontend" ]; then
+            cd frontend/web && npm ci && npm run lint
+          else
+            cd backend && pip install flake8 && flake8 src/
+          fi
+          
+      - name: Run tests
+        run: |
+          if [ "${{ matrix.component }}" = "frontend" ]; then
+            cd frontend/web && npm run test:unit -- --coverage
+          else
+            cd backend && pytest --cov=src --cov-report=xml
+          fi
+          
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage.xml,./frontend/web/coverage/lcov.info
+
+  build:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Login to Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/api-gateway
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/web-frontend
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/personalization
+            
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-staging:
+    needs: build
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        
+      - name: Deploy to staging
+        run: |
+          kubectl set image deployment/api-gateway \
+            api-gateway=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/api-gateway:${{ github.sha }}
+          kubectl rollout status deployment/api-gateway
+
+  deploy-production:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy to production
+        run: |
+          kubectl set image deployment/api-gateway \
+            api-gateway=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/api-gateway:${{ github.sha }}
+          kubectl rollout status deployment/api-gateway

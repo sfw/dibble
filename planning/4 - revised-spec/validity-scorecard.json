@@ -1,0 +1,32 @@
+{
+  "run_id": "run-0df7220beb4f",
+  "status": "completed",
+  "summary": {
+    "analysis_timestamp": "2026-03-14T20:44:56.888712",
+    "counts": {
+      "contradicted": 0,
+      "critical_contradicted": 0,
+      "critical_supported": 0,
+      "critical_total": 0,
+      "extracted": 0,
+      "insufficient_evidence": 0,
+      "pruned": 0,
+      "stale": 0,
+      "supported": 0,
+      "unresolved": 0
+    },
+    "critical_support_ratio": 1.0,
+    "reason_codes": [
+      "infra_verifier_error"
+    ],
+    "source_time_window": {
+      "max": "2026-03-14T20:42:10.779493",
+      "min": "2026-03-14T10:47:40.706690"
+    },
+    "supported_ratio": 1.0,
+    "trust_score": 1.0,
+    "unverified_ratio": 0.0,
+    "verification_report_path": "validity-scorecard.json"
+  },
+  "task_id": "cowork-6d7d0f7d"
+}

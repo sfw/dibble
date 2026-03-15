@@ -1,0 +1,1018 @@
+openapi: 3.0.3
+info:
+  title: Adaptive K-12 Learning Platform API
+  description: |
+    Hybrid REST/GraphQL API for adaptive K-12 learning platform.
+    REST endpoints for CRUD operations, GraphQL for complex queries.
+    Compliant with LTI 1.3, OneRoster, and xAPI standards.
+  version: 1.0.0
+  contact:
+    name: Platform Engineering Team
+    email: api-support@adaptiveplatform.edu
+  license:
+    name: Proprietary
+    url: https://platform.edu/license
+
+servers:
+  - url: https://api.adaptiveplatform.edu/v1
+    description: Production
+  - url: https://staging-api.adaptiveplatform.edu/v1
+    description: Staging
+  - url: http://localhost:8080/v1
+    description: Local Development
+
+tags:
+  - name: Authentication
+    description: Auth endpoints and token management
+  - name: Students
+    description: Student profile and learning data
+  - name: Teachers
+    description: Teacher dashboards and interventions
+  - name: Content
+    description: Content modules and learning objects
+  - name: Personalization
+    description: Recommendations and knowledge state
+  - name: Assessments
+    description: Diagnostic and progress assessments
+  - name: Analytics
+    description: Learning analytics and reporting
+  - name: Parents
+    description: Parent portal access
+
+paths:
+  # Authentication
+  /auth/token:
+    post:
+      tags: [Authentication]
+      summary: Obtain JWT access token
+      operationId: getToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [grant_type, client_id]
+              properties:
+                grant_type:
+                  type: string
+                  enum: [password, refresh_token, authorization_code]
+                client_id:
+                  type: string
+                client_secret:
+                  type: string
+                username:
+                  type: string
+                password:
+                  type: string
+                refresh_token:
+                  type: string
+                code:
+                  type: string
+                device_fingerprint:
+                  type: string
+      responses:
+        '200':
+          description: Token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          description: Invalid credentials
+
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh access token
+      operationId: refreshToken
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: New token pair
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+
+  /auth/revoke:
+    post:
+      tags: [Authentication]
+      summary: Revoke token
+      operationId: revokeToken
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Token revoked
+
+  # Students
+  /students/me:
+    get:
+      tags: [Students]
+      summary: Get current student profile
+      operationId: getStudentProfile
+      security:
+        - bearerAuth: [student:read]
+      responses:
+        '200':
+          description: Student profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Student'
+
+  /students/me/knowledge-state:
+    get:
+      tags: [Students]
+      summary: Get student's knowledge state
+      operationId: getKnowledgeState
+      security:
+        - bearerAuth: [student:read]
+      responses:
+        '200':
+          description: Knowledge state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeState'
+
+  /students/me/progress:
+    get:
+      tags: [Students]
+      summary: Get learning progress
+      operationId: getProgress
+      security:
+        - bearerAuth: [student:read]
+      responses:
+        '200':
+          description: Progress data
+          content:
+            application/json:
+                schema:
+                $ref: '#/components/schemas/Progress'
+
+  /students/me/learning-path:
+    get:
+      tags: [Students]
+      summary: Get personalized learning path
+      operationId: getLearningPath
+      security:
+        - bearerAuth: [student:read]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            maximum: 50
+      responses:
+        '200':
+          description: Learning path
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LearningPathItem'
+
+  # Teachers
+  /teachers/{teacherId}/classes:
+    get:
+      tags: [Teachers]
+      summary: Get teacher's classes
+      operationId: getClasses
+      security:
+        - bearerAuth: [teacher:read]
+      parameters:
+        - name: teacherId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of classes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Class'
+
+  /teachers/{teacherId}/at-risk:
+    get:
+      tags: [Teachers]
+      summary: Get at-risk student alerts
+      operationId: getAtRiskAlerts
+      security:
+        - bearerAuth: [teacher:read]
+      parameters:
+        - name: teacherId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: threshold
+          in: query
+          schema:
+            type: number
+            default: 0.7
+      responses:
+        '200':
+          description: At-risk alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AtRiskAlert'
+
+  /teachers/{teacherId}/interventions:
+    post:
+      tags: [Teachers]
+      summary: Create intervention
+      operationId: createIntervention
+      security:
+        - bearerAuth: [teacher:write]
+      parameters:
+        - name: teacherId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Intervention'
+      responses:
+        '201':
+          description: Intervention created
+
+  # Content
+  /content/modules/{moduleId}:
+    get:
+      tags: [Content]
+      summary: Get content module
+      operationId: getContentModule
+      security:
+        - bearerAuth: [content:read]
+      parameters:
+        - name: moduleId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Content module
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentModule'
+
+  /content/search:
+    get:
+      tags: [Content]
+      summary: Search content
+      operationId: searchContent
+      security:
+        - bearerAuth: [content:read]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: standard
+          in: query
+          schema:
+            type: string
+        - name: grade_band
+          in: query
+          schema:
+            type: string
+            enum: [K-2, 3-5, 6-8, 9-12]
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ContentModule'
+
+  # Personalization
+  /personalization/recommendations:
+    post:
+      tags: [Personalization]
+      summary: Get personalized recommendations
+      operationId: getRecommendations
+      security:
+        - bearerAuth: [student:read]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                student_id:
+                  type: string
+                context:
+                  type: string
+                  enum: [onboarding, daily_session, review, intervention]
+                count:
+                  type: integer
+                  default: 5
+                  maximum: 20
+      responses:
+        '200':
+          description: Recommendations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Recommendation'
+          headers:
+            X-Cache-Hit:
+              schema:
+                type: boolean
+              description: Whether response was cached
+
+  /personalization/knowledge-update:
+    post:
+      tags: [Personalization]
+      summary: Update knowledge state from interaction
+      operationId: updateKnowledgeState
+      security:
+        - bearerAuth: [student:write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InteractionEvent'
+      responses:
+        '200':
+          description: Updated knowledge state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeStateUpdate'
+
+  # Assessments
+  /assessments/diagnostic:
+    post:
+      tags: [Assessments]
+      summary: Start diagnostic assessment
+      operationId: startDiagnostic
+      security:
+        - bearerAuth: [student:read]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                student_id:
+                  type: string
+                subject:
+                  type: string
+      responses:
+        '201':
+          description: Assessment started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentSession'
+
+  /assessments/{assessmentId}/responses:
+    post:
+      tags: [Assessments]
+      summary: Submit assessment response
+      operationId: submitResponse
+      security:
+        - bearerAuth: [student:write]
+      parameters:
+        - name: assessmentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssessmentResponse'
+      responses:
+        '200':
+          description: Response recorded
+
+  /assessments/{assessmentId}/results:
+    get:
+      tags: [Assessments]
+      summary: Get assessment results
+      operationId: getAssessmentResults
+      security:
+        - bearerAuth: [student:read]
+      parameters:
+        - name: assessmentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Assessment results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentResults'
+
+  # Analytics
+  /analytics/class/{classId}/progress:
+    get:
+      tags: [Analytics]
+      summary: Get class progress analytics
+      operationId: getClassProgress
+      security:
+        - bearerAuth: [teacher:read]
+      parameters:
+        - name: classId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Class analytics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassAnalytics'
+
+  # Parents
+  /parents/{parentId}/children:
+    get:
+      tags: [Parents]
+      summary: Get parent's children
+      operationId: getChildren
+      security:
+        - bearerAuth: [parent:read]
+      parameters:
+        - name: parentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of children
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChildSummary'
+
+  /parents/{parentId}/children/{studentId}/progress:
+    get:
+      tags: [Parents]
+      summary: Get child's progress
+      operationId: getChildProgress
+      security:
+        - bearerAuth: [parent:read]
+      parameters:
+        - name: parentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Child progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Progress'
+
+  # GraphQL Endpoint
+  /graphql:
+    post:
+      tags: [GraphQL]
+      summary: GraphQL query endpoint
+      operationId: graphqlQuery
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                variables:
+                  type: object
+                operationName:
+                  type: string
+      responses:
+        '200':
+          description: GraphQL response
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token (15min expiry)
+
+  schemas:
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          default: Bearer
+        expires_in:
+          type: integer
+          description: Seconds until expiry
+        scope:
+          type: string
+
+    Student:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        grade_level:
+          type: integer
+          minimum: 0
+          maximum: 12
+        home_language:
+          type: string
+        accommodations:
+          type: array
+          items:
+            type: string
+            enum: [tts, extended_time, reduced_motion, word_highlighting, high_contrast, font_scale]
+        created_at:
+          type: string
+          format: date-time
+
+    KnowledgeState:
+      type: object
+      properties:
+        student_id:
+          type: string
+        skills:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillMastery'
+        updated_at:
+          type: string
+          format: date-time
+
+    SkillMastery:
+      type: object
+      properties:
+        skill_id:
+          type: string
+        mastery_probability:
+          type: number
+          minimum: 0
+          maximum: 1
+        attempts_count:
+          type: integer
+        last_attempt_at:
+          type: string
+          format: date-time
+
+    Progress:
+      type: object
+      properties:
+        student_id:
+          type: string
+        time_spent_minutes:
+          type: integer
+        skills_mastered:
+          type: integer
+        skills_in_progress:
+          type: integer
+        current_streak_days:
+          type: integer
+        weekly_sessions:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              minutes:
+                type: integer
+              items_completed:
+                type: integer
+
+    LearningPathItem:
+      type: object
+      properties:
+        module_id:
+          type: string
+        lo_id:
+          type: string
+        title:
+          type: string
+        difficulty_tier:
+          type: integer
+          minimum: 1
+          maximum: 5
+        estimated_time_minutes:
+          type: integer
+        prerequisite_ids:
+          type: array
+          items:
+            type: string
+
+    Class:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        subject:
+          type: string
+        grade_level:
+          type: integer
+        student_count:
+          type: integer
+
+    AtRiskAlert:
+      type: object
+      properties:
+        student_id:
+          type: string
+        student_name:
+          type: string
+        risk_score:
+          type: number
+          minimum: 0
+          maximum: 1
+        risk_factors:
+          type: array
+          items:
+            type: string
+        knowledge_gaps:
+          type: array
+          items:
+            type: string
+        last_login_days_ago:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    Intervention:
+      type: object
+      properties:
+        id:
+          type: string
+        student_id:
+          type: string
+        teacher_id:
+          type: string
+        type:
+          type: string
+          enum: [content_review, small_group, accommodation_adjustment, parent_notification, specialist_referral]
+        description:
+          type: string
+        assigned_modules:
+          type: array
+          items:
+            type: string
+        due_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [pending, in_progress, resolved, escalated, no_response]
+
+    ContentModule:
+      type: object
+      properties:
+        content_module_id:
+          type: string
+          format: uuid
+        lo_id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        module_type:
+          type: string
+          enum: [instruction, practice, assessment, review]
+        difficulty_tier:
+          type: integer
+          minimum: 1
+          maximum: 5
+        content:
+          type: object
+        format_variants:
+          type: array
+          items:
+            type: string
+            enum: [text, video, interactive, audio]
+        accessibility_features:
+          type: array
+          items:
+            type: string
+        estimated_time_minutes:
+          type: integer
+        standard_alignment:
+          type: object
+        prerequisite_ids:
+          type: array
+          items:
+            type: string
+        version:
+          type: string
+
+    Recommendation:
+      type: object
+      properties:
+        module_id:
+          type: string
+        lo_id:
+          type: string
+        content_url:
+          type: string
+        difficulty_tier:
+          type: integer
+        scaffolding:
+          type: object
+          properties:
+            hint_level:
+              type: integer
+            worked_example_available:
+              type: boolean
+        estimated_time_minutes:
+          type: integer
+        predicted_success_probability:
+          type: number
+          minimum: 0
+          maximum: 1
+        recommendation_reason:
+          type: string
+
+    InteractionEvent:
+      type: object
+      properties:
+        student_id:
+          type: string
+        module_id:
+          type: string
+        event_type:
+          type: string
+          enum: [content_started, content_completed, answer_submitted, hint_requested, break_taken]
+        timestamp:
+          type: string
+          format: date-time
+        correctness:
+          type: number
+          minimum: 0
+          maximum: 1
+        time_spent_seconds:
+          type: integer
+        response_data:
+          type: object
+
+    KnowledgeStateUpdate:
+      type: object
+      properties:
+        student_id:
+          type: string
+        updated_skills:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillMastery'
+        processing_time_ms:
+          type: integer
+        model_version:
+          type: string
+
+    AssessmentSession:
+      type: object
+      properties:
+        assessment_id:
+          type: string
+        assessment_type:
+          type: string
+          enum: [diagnostic, progress, benchmark]
+        status:
+          type: string
+          enum: [in_progress, completed, abandoned]
+        current_item_number:
+          type: integer
+        total_items:
+          type: integer
+        started_at:
+          type: string
+          format: date-time
+
+    AssessmentResponse:
+      type: object
+      properties:
+        item_id:
+          type: string
+        response:
+          type: object
+        time_spent_seconds:
+          type: integer
+        hint_used:
+          type: boolean
+        confidence_level:
+          type: integer
+          minimum: 1
+          maximum: 5
+
+    AssessmentResults:
+      type: object
+      properties:
+        assessment_id:
+          type: string
+        student_id:
+          type: string
+        status:
+          type: string
+        skills_mastered:
+          type: array
+          items:
+            type: string
+        skills_for_review:
+          type: array
+          items:
+            type: string
+        completed_at:
+          type: string
+          format: date-time
+
+    ClassAnalytics:
+      type: object
+      properties:
+        class_id:
+          type: string
+        total_students:
+          type: integer
+        active_students:
+          type: integer
+        at_risk_count:
+          type: integer
+        average_session_time_minutes:
+          type: number
+        skills_mastery_heatmap:
+          type: object
+
+    ChildSummary:
+      type: object
+      properties:
+        student_id:
+          type: string
+        name:
+          type: string
+        grade_level:
+          type: integer
+        school:
+          type: string
+        current_focus:
+          type: string
+        skills_mastered_this_week:
+          type: integer
+
+  responses:
+    UnauthorizedError:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              message:
+                type: string
+
+    ForbiddenError:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              message:
+                type: string
+
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              message:
+                type: string
+
+    RateLimitError:
+      description: Rate limit exceeded
+      headers:
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+        X-RateLimit-Reset:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              message:
+                type: string
+              retry_after:
+                type: integer
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+
+    LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 20
+        maximum: 100
+
+  examples:
+    StudentExample:
+      summary: Sample student
+      value:
+        id: "stu-123e4567-e89b-12d3-a456-426614174000"
+        email: "student@school.edu"
+        first_name: "Maya"
+        last_name: "Johnson"
+        grade_level: 4
+        home_language: "English"
+        accommodations: ["tts", "extended_time"]
+        created_at: "2026-01-15T08:30:00Z"

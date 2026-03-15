@@ -1,0 +1,40 @@
+Req ID,Requirement Description,Original Req ID,Original Status,Revised Status,Change Type,Effort (Months),Priority,Source Document,Traceability Notes,Severity
+LLM-001,LLM orchestration service with model routing (fast/capable/balanced),REQ-020,Deferred,Required,Added,2,P0,revised-spec/adaptive-learning-architecture.md,Maps to deferred AI tutor (REQ-020); now core infrastructure,Non-Breaking
+LLM-002,Prompt engineering framework with versioning and A/B testing,REQ-020,Deferred,Required,Added,1-2,P0,revised-spec/adaptive-learning-architecture.md,Enables safe LLM deployment; new capability,Non-Breaking
+LLM-003,RAG pipeline for curriculum-grounded generation,REQ-011,Should Have,Required,Enhanced,1-2,P0,revised-spec/adaptive-learning-architecture.md,Extends content authoring (REQ-011) with generative approach,Non-Breaking
+LLM-004,Content safety/moderation layer for K-12 appropriateness,REQ-020,Deferred,Required,Added,2-3,P0,revised-spec/adaptive-learning-architecture.md,Safety requirement for REQ-020 AI tutor implementation,Non-Breaking
+LLM-005,Streaming response architecture for progressive delivery,NFR-006,Should Have,Required,Enhanced,1,P1,revised-spec/adaptive-learning-architecture.md,Addresses latency targets (NFR-006) for generation workload,Non-Breaking
+GEN-001,On-the-fly explanation generation for misconceptions,REQ-003,Must Have,Required,Enhanced,3,P0,revised-spec/gap-analysis.md,Extends remediation (REQ-003) with dynamic generation,Non-Breaking
+GEN-002,Practice problem synthesis with IRT difficulty calibration,REQ-001,Must Have,Required,Enhanced,3,P0,revised-spec/gap-analysis.md,Extends BKT/DKT (REQ-001) with dynamic problem generation,Non-Breaking
+GEN-003,Worked example generation with adaptive fading,REQ-003,Must Have,Required,Enhanced,2,P1,revised-spec/adaptive-learning-architecture.md,Extends worked examples from REQ-003 remediation,Non-Breaking
+GEN-004,Remedial micro-module creation for prerequisite gaps,REQ-003,Must Have,Required,Enhanced,4,P0,revised-spec/gap-analysis.md,Core enhancement to REQ-003 remediation loop,Non-Breaking
+GEN-005,Multi-modal synthesis (diagrams interactives code),REQ-013,Should Have,Required,Enhanced,6,P2,revised-spec/adaptive-learning-architecture.md,Extends enrichment content (REQ-013) with generation,Non-Breaking
+PROF-001,Cognitive trait assessment (working memory processing speed spatial reasoning),N/A,Absent,Required,Added,4,P1,revised-spec/gap-analysis.md,New capability not in original requirements,Non-Breaking
+PROF-002,Affective state detection (engagement frustration confusion flow),N/A,Absent,Required,Added,3-4,P1,revised-spec/gap-analysis.md,New capability not in original requirements,Non-Breaking
+PROF-003,Real-time cognitive load estimation with CLT modeling,N/A,Absent,Required,Added,3-4,P2,revised-spec/gap-analysis.md,New capability not in original requirements,Non-Breaking
+PROF-004,Knowledge Component (KC) granularity below Learning Objectives,REQ-001/REQ-008,LO-level,KC-level,Modified,4-6,P1,revised-spec/adaptive-learning-architecture.md,Decomposes REQ-001 knowledge state and REQ-008 standards alignment,Breaking
+PROF-005,Metacognitive tracking (confidence calibration help-seeking),N/A,Absent,Required,Added,2,P2,revised-spec/adaptive-learning-architecture.md,New capability not in original requirements,Non-Breaking
+ADAPT-001,Contextual Thompson Sampling router replacing multi-objective optimizer,REQ-001,Must Have,Required,Replaced,4-6,P1,revised-spec/adaptive-learning-architecture.md,Replaces personalization engine from REQ-001,Breaking
+ADAPT-002,Within-session real-time adaptation (not just between modules),REQ-001/REQ-002,Must Have,Required,Enhanced,3-4,P0,revised-spec/gap-analysis.md,Extends real-time adaptation (REQ-001) and spaced repetition (REQ-002),Non-Breaking
+ADAPT-003,Misconception detection and classification system,REQ-003,Must Have,Required,Enhanced,4-6,P1,revised-spec/gap-analysis.md,Enhances basic error tracking from REQ-003 mastery loop,Non-Breaking
+ADAPT-004,Automatic 'step back' intervention with dynamic content,REQ-003,Must Have,Required,Modified,3-4,P0,revised-spec/gap-analysis.md,Modifies REQ-003 remediation from selection to generation,Breaking
+ADAPT-005,Conversational/Socratic assessment capability,REQ-020,Deferred,Required,Added,4,P2,revised-spec/adaptive-learning-architecture.md,Implements deferred REQ-020 AI tutor capability,Non-Breaking
+API-001,POST /api/v2/content/generate endpoint,N/A,Absent,Required,Added,1,P0,revised-spec/adaptive-learning-architecture.md,New API for generation capability,Non-Breaking
+API-002,POST /api/v2/remedial/trigger endpoint,REQ-003,Must Have,Required,Enhanced,1,P0,revised-spec/adaptive-learning-architecture.md,New API for enhanced REQ-003 remediation,Non-Breaking
+API-003,GET /api/v2/learners/{id}/profile/v2 with extended dimensions,REQ-007,Must Have,Required,Enhanced,1,P1,revised-spec/adaptive-learning-architecture.md,Extends REQ-007 teacher dashboard profile data,Non-Breaking
+API-004,SSE /api/v2/llm/stream for progressive delivery,N/A,Absent,Required,Added,1,P1,revised-spec/adaptive-learning-architecture.md,New streaming API for generation,Non-Breaking
+DATA-001,KnowledgeComponent entity with prerequisite graph,REQ-001/REQ-008,Must Have,Required,Enhanced,2,P1,revised-spec/adaptive-learning-architecture.md,Decomposes data model from REQ-001 and REQ-008,Non-Breaking
+DATA-002,Extended LearnerProfile with cognitive/affective dimensions,REQ-001/REQ-007,Must Have,Required,Enhanced,2,P1,revised-spec/adaptive-learning-architecture.md,Extends profile from REQ-001 and REQ-007,Non-Breaking
+DATA-003,GeneratedContent entity with quality metadata,N/A,Absent,Required,Added,1,P0,revised-spec/adaptive-learning-architecture.md,New entity for generation tracking,Non-Breaking
+INFRA-001,GPU cluster for LLM inference (separate from DKT),NFR-005,Should Have,Required,Enhanced,2,P0,revised-spec/implementation-roadmap.md,Extends NFR-005 ML infrastructure for LLM,Non-Breaking
+INFRA-002,Vector store (ChromaDB/Pinecone) for RAG,N/A,Absent,Required,Added,1,P0,revised-spec/adaptive-learning-architecture.md,New infrastructure component,Non-Breaking
+INFRA-003,Pre-generation and caching layer,NFR-004,Should Have,Required,Enhanced,2,P1,revised-spec/adaptive-learning-architecture.md,Enhances NFR-004 caching strategy,Non-Breaking
+LSTYLE-001,Learning style detection (VARK/Felder-Silverman),N/A,N/A,N/A,Unchanged,N/A,N/A,Both specs reject per Pashler et al. (2008),Explicitly rejected in both specifications,No Change Required
+SEQ-001,Content sequencing via prerequisite graph,REQ-001,Must Have,Maintained,Unchanged,N/A,N/A,planning/personalization-engine-spec.md,REQ-001 core capability retained,N/A
+SEQ-002,Spaced repetition scheduling (SM2 algorithm),REQ-002,Must Have,Maintained,Unchanged,N/A,N/A,planning/personalization-engine-spec.md,REQ-002 core capability retained,N/A
+SEQ-003,BKT mastery tracking with interpretable thresholds,REQ-001,Must Have,Maintained,Unchanged,N/A,N/A,planning/personalization-engine-spec.md,REQ-001 core capability retained,N/A
+SEQ-004,DKT hidden state for temporal pattern recognition,REQ-001,Must Have,Maintained,Unchanged,N/A,N/A,planning/personalization-engine-spec.md,REQ-001 core capability retained,N/A
+DEP-001,Static content pool as primary content source,REQ-011,Should Have,Deprioritized,Deprioritized,N/A,N/A,revised-spec/implementation-roadmap.md,REQ-011 authoring reduced priority; generation primary,Breaking
+DEP-002,Content authoring workflow for pre-authored modules,REQ-011,Should Have,Deprioritized,Deprioritized,N/A,N/A,revised-spec/architecture-assessment.md,REQ-011 authoring workflow deprecated,Breaking
+MOD-001,Content delivery latency target,NFR-006,Should Have,Modified,Modified,N/A,N/A,revised-spec/gap-analysis.md,NFR-006 latency model adjusted for generation,Non-Breaking
+MOD-002,Learning preference accommodation approach,REQ-004,Should Have,Refined,Refined,N/A,N/A,revised-spec/adaptive-learning-architecture.md,REQ-004 Universal Design refined to evidence-based,Non-Breaking

@@ -1,0 +1,34 @@
+Field_Name,Data_Type,Required,Cardinality,Description,Example_Value,Validation_Rules,Standards_Source,Usage_Context
+content_module_id,UUID,Yes,Single,System-generated unique identifier for the content module,cm-7f8a9b2c-1d2e-3f4a-5b6c-7d8e9f0a1b2c,Must be RFC 4122 compliant UUID,Internal,All
+lo_id,String,Yes,Single,Learning objective identifier linking to Learning Graph node,CCSS.MATH.4.NF.A.1,Must match valid LearningObjective.lo_id in graph,Conceptual Architecture,Personalization Engine
+standard_alignment,JSON,Yes,Multiple,Aligned educational standards with codes and proficiency levels,"{CCSS:[4.NF.A.1] TEKS:[4.2.A] NGSS:[5-PS1-1]}",At least one standard code required,standards-alignment-requirements.csv,Standards Reporting
+title,String,Yes,Single,Human-readable title for teacher/learner display,Understanding Equivalent Fractions,Max 120 characters plain text,Internal,UX Display
+description,Text,Yes,Single,Full learning objective statement addressed by this content,Explain why a fraction a/b is equivalent to a fraction nxa/nxb,Max 2000 characters supports simple HTML,Internal,Teacher Planning
+prerequisite_ids,String[],No,Multiple,Learning objectives that must be mastered before this content,"[3.NF.A.1 3.NF.A.2]",All IDs must exist in Learning Graph,conceptual-architecture.md,Adaptive Sequencing
+difficulty_index,Float,Yes,Single,Calibrated difficulty using IRT (0=easiest; 1=hardest),0.65,Range [0.0 1.0] derived from item response theory,Requirements Backlog REQ-001,Personalization Engine
+difficulty_tier,Integer,Yes,Single,Discrete difficulty level within the learning objective (1-5),3,Range [1 5]: 1=remedial 3=grade-level 5=enrichment,Internal,Content Selection
+cognitive_complexity,Integer,Yes,Single,Webb's Depth of Knowledge level (1-4),2,Range [1 4]: 1=Recall 2=Skill/Concept 3=Strategic Thinking 4=Extended Thinking,learning-science-report.md,Content Sequencing
+cognitive_load_design,JSON,Yes,Single,CLT-informed design parameters for this content,"{element_interactivity:low modality:split-source redundancy:false}",Valid CLT parameter schema required,learning-science-report.md,Delivery Optimization
+content_type,Enum,Yes,Single,Pedagogical purpose of the content,practice_problem,Values: exposition worked_example practice_problem assessment enrichment remediation,Internal,UX Display
+content_format,Enum,Yes,Single,Primary media format for delivery,interactive,Values: interactive video text audio manipulative mixed,Internal,Multimodal Delivery
+modality_variants,UUID[],No,Multiple,Content module IDs offering same objective in different formats,"[cm-abc123 cm-def456]",All referenced modules must share same lo_id,Internal,Universal Design
+learning_type_tags,String[],No,Multiple,Learning modality tags for content discovery - NOT for VARK/MI routing per Pashler et al. 2008,"[visual_representation interactive text_based]",Values from controlled vocabulary: visual_representation audio_narration text_based interactive_manipulative worked_example collaborative,requirements-backlog.csv REQ-019,Content Discovery
+estimated_duration_minutes,Integer,Yes,Single,Typical time for target learner to complete,7,Range [2 30] minutes,User Personas,Session Planning
+mastery_criteria,JSON,Yes,Single,Conditions for marking objective mastered via this content,"{min_correctness:0.8 min_attempts:3 time_threshold_seconds:600}",min_correctness in [0.6 0.95],Requirements Backlog REQ-003,Mastery Gates
+accessibility_features,Enum[],Yes,Multiple,Available accessibility accommodations,"[tts captions dyslexia_font]",Values from controlled vocabulary,regulatory-compliance-report.md,Accommodation Delivery
+language_variants,JSON,No,Multiple,Available language localizations,"{en:cm-en123 es:cm-es123 zh:cm-zh123}",ISO 639-1 codes as keys,User Personas Diego,ELL Support
+cognate_mappings,JSON,No,Multiple,Cross-language cognate pairs for ELL support,"{fraction/fraccion:visual_icon_id}",Required if language_variants present for ELL,Competitive Analysis Gap,ELL Scaffolding
+hint_sequence,JSON,Yes,Single,Progressive hint structure with content references,"[{level:1 text:Hint 1...} {level:2 worked_example_id:cm-we456}]",Max 5 hints escalating specificity,learning-science-report.md,Scaffolding
+assessment_items,UUID[],No,Multiple,Embedded assessment item IDs for mastery verification,"[ai-123 ai-456]",Required if content_type=assessment,Internal,Mastery Verification
+visual_assets,UUID[],No,Multiple,Associated visual media asset IDs,"[img-123 chart-456]",All assets must have alt text per WCAG,regulatory-compliance-report.md,Content Delivery
+audio_assets,UUID[],No,Multiple,Associated audio asset IDs for TTS or narration,"[audio-123]",Required if content_format=audio or accessibility_features includes tts,requirements-backlog.csv REQ-005,Multimodal Delivery
+interactive_elements,JSON,No,Multiple,Interactive component definitions (manipulatives; sims),"{manipulative_type:fraction_bar config:{...}}",Schema validated against component library,Internal,Interactive Delivery
+metadata_version,Integer,Yes,Single,Content schema version for this module,2,Auto-incremented on curriculum updates,This Specification,Version Management
+content_version,String,Yes,Single,Semantic version of the pedagogical content,1.2.3,SemVer format (MAJOR.MINOR.PATCH),This Specification,Version Management
+version_effective_date,Date,Yes,Single,When this version became the default for new assignments,2026-08-01,ISO 8601 date must be in past or present,This Specification,Version Management
+supersedes_content,UUID,No,Single,Previous content module ID this replaces,cm-old789,Must be different content_module_id,This Specification,Migration
+migration_rules,JSON,No,Multiple,Rules for migrating student progress from superseded content,"{progress_transfer:percentage mastery_mapping:equivalent}",Required if supersedes_content present,This Specification,Progress Preservation
+authoring_metadata,JSON,Yes,Single,Creation and modification tracking,"{created_by:author@district.edu created_at:2026-01-15 review_status:approved}",Audit trail for content quality,regulatory-compliance-report.md,Content Governance
+keywords,String[],No,Multiple,Search and discovery tags,"[fractions equivalence visual]",Max 10 tags lowercase no spaces,Internal,Content Discovery
+interoperability_ids,JSON,No,Multiple,External system identifiers (LTI; QTI; LOM),"{qti_id:item-123 lom_catalog:ADL}",Optional integration identifiers,regulatory-compliance-report.md,LMS Integration
+analytics_tags,String[],No,Multiple,Tags for A/B testing and efficacy analysis,"[exp-group-a strategy-worked-example]",Used for controlled experiments,Implementation Roadmap,Efficacy Measurement

@@ -1,0 +1,310 @@
+# Adaptive Learning ML Model Specification
+# Defines DKT, BKT, and hybrid model configurations
+
+models:
+  # =============================================================================
+  # Deep Knowledge Tracing (DKT) - Primary Recommendation Engine
+  # =============================================================================
+  dkt_primary:
+    name: "dkt_v2"
+    version: "2.1.0"
+    architecture: "LSTM"
+    
+    # Model Architecture
+    hidden_size: 256
+    num_layers: 2
+    dropout: 0.3
+    embedding_dim: 128
+    
+    # Input Configuration
+    input_features:
+      - name: "exercise_id"
+        type: "categorical"
+        cardinality: 50000  # Number of unique exercises
+        embedding_dim: 128
+      - name: "correctness"
+        type: "binary"
+        embedding_dim: 32
+      - name: "time_spent"
+        type: "continuous"
+        normalization: "log"
+      - name: "hint_count"
+        type: "categorical"
+        cardinality: 10
+        embedding_dim: 16
+      - name: "attempt_count"
+        type: "categorical"
+        cardinality: 5
+        embedding_dim: 16
+      - name: "student_features"
+        type: "vector"
+        dimension: 64
+        description: "Aggregated student demographics and history"
+    
+    # Output Configuration
+    output:
+      type: "binary_classification"
+      target: "next_correctness"
+      metrics:
+        - "AUC-ROC"
+        - "Accuracy"
+        - "Log-Loss"
+    
+    # Training Configuration
+    training:
+      batch_size: 128
+      sequence_length: 200
+      max_epochs: 100
+      early_stopping_patience: 10
+      learning_rate: 0.001
+      lr_scheduler: "ReduceLROnPlateau"
+      optimizer: "AdamW"
+      weight_decay: 0.01
+      
+    # Inference Configuration
+    inference:
+      batch_size: 512
+      max_sequence_length: 500
+      warm_start_history: 50  # Minimum interactions before prediction
+      
+    # Performance Targets
+    performance:
+      target_auc: 0.85
+      max_latency_ms: 50
+      throughput_rps: 10000
+      
+    # Deployment
+    deployment:
+      runtime: "triton"
+      model_format: "onnx"
+      gpu_memory_mb: 2048
+      quantization: "fp16"
+      
+  # =============================================================================
+  # Bayesian Knowledge Tracing (BKT) - Interpretable Baseline
+  # =============================================================================
+  bkt_baseline:
+    name: "bkt_v1"
+    version: "1.2.0"
+    architecture: "HMM"
+    
+    # BKT Parameters
+    parameters:
+      p_init: 0.25  # Initial knowledge probability
+      p_learn: 0.30  # Probability of learning
+      p_guess: 0.20  # Probability of guessing correctly
+      p_slip: 0.10   # Probability of slipping
+      p_forget: 0.05 # Probability of forgetting
+    
+    # Per-Skill Parameter Fitting
+    skill_parameters:
+      method: "EM"
+      max_iterations: 100
+      convergence_threshold: 1e-6
+      individualize: true
+    
+    # Features
+    features:
+      - skill_id
+      - correctness_history
+      - time_since_last_attempt
+      
+    # Output
+    output:
+      mastery_probability: true
+      predicted_correctness: true
+      
+    # Performance
+    performance:
+      target_auc: 0.75
+      max_latency_ms: 5
+      
+  # =============================================================================
+  # Hybrid DKT+BKT Model
+  # =============================================================================
+  hybrid_dkt_bkt:
+    name: "hybrid_v1"
+    version: "1.0.0"
+    architecture: "Ensemble"
+    
+    ensemble_method: "weighted_average"
+    weights:
+      dkt: 0.7
+      bkt: 0.3
+      
+    dynamic_weighting: true
+    weight_update_frequency: "weekly"
+    
+    # When to use which model
+    routing:
+      cold_start: "bkt"  # <50 interactions
+      warm_start: "dkt"  # ≥50 interactions
+      uncertainty_threshold: 0.3  # Switch if DKT uncertainty > threshold
+      
+    output:
+      combined_mastery: true
+      model_confidence: true
+      explanation: true
+
+  # =============================================================================
+  # Student Risk Prediction (At-Risk Detection)
+  # =============================================================================
+  risk_prediction:
+    name: "at_risk_classifier"
+    version: "1.0.0"
+    architecture: "XGBoost"
+    
+    features:
+      # Knowledge State
+      - avg_mastery_probability
+      - skills_struggling_count
+      - learning_velocity
+      
+      # Engagement
+      - session_frequency
+      - avg_session_duration
+      - time_since_last_login
+      - completion_rate
+      
+      # Performance
+      - recent_accuracy_trend
+      - hint_dependency_rate
+      - avg_attempts_per_question
+      
+      # Demographics
+      - grade_level
+      - accommodation_flags
+      - ell_status
+      
+    target:
+      name: "at_risk_14_day"
+      type: "binary"
+      definition: "Predicted to fall below 60% mastery within 14 days"
+      
+    training:
+      positive_class_weight: 3.0  # Handle class imbalance
+      
+    performance:
+      target_precision: 0.75
+      target_recall: 0.80
+      
+  # =============================================================================
+  # Content Recommendation Model
+  # =============================================================================
+  content_recommender:
+    name: "content_ranking"
+    version: "1.0.0"
+    architecture: "TwoTower"
+    
+    # Student Tower
+    student_tower:
+      input_dim: 256
+      hidden_dims: [512, 256, 128]
+      dropout: 0.3
+      
+    # Content Tower
+    content_tower:
+      input_dim: 256
+      hidden_dims: [512, 256, 128]
+      dropout: 0.3
+      
+    # Training
+    negative_sampling:
+      strategy: "in_batch"
+      num_negatives: 10
+      
+    loss_function: "softmax_cross_entropy"
+    
+    objectives:
+      - name: "engagement"
+        weight: 0.3
+      - name: "learning_gain"
+        weight: 0.5
+      - name: "difficulty_match"
+        weight: 0.2
+
+  # =============================================================================
+  # A/B Testing Configuration
+  # =============================================================================
+  ab_testing:
+    enabled: true
+    traffic_split:
+      control: 0.50
+      treatment: 0.50
+      
+    models_to_compare:
+      - name: "control"
+        model: "bkt_baseline"
+      - name: "treatment"
+        model: "dkt_primary"
+        
+    success_metrics:
+      - name: "learning_efficiency"
+        definition: "skills_mastered / hours_spent"
+        minimum_improvement: 0.10
+      - name: "student_engagement"
+        definition: "sessions_per_week"
+        minimum_improvement: 0.05
+      - name: "teacher_satisfaction"
+        definition: "dashboard_usage_score"
+        minimum_improvement: 0.10
+
+  # =============================================================================
+  # Model Monitoring
+  # =============================================================================
+  monitoring:
+    # Performance Drift
+    drift_detection:
+      enabled: true
+      check_frequency: "daily"
+      metrics:
+        - name: "prediction_distribution"
+          threshold: 0.05  # KS statistic
+        - name: "feature_drift"
+          threshold: 0.10  # PSI
+      
+    # Accuracy Monitoring
+    accuracy_tracking:
+      baseline_window_days: 30
+      comparison_window_days: 7
+      degradation_threshold: 0.05  # Alert if AUC drops >5%
+      
+    # Data Quality
+    data_quality_checks:
+      - missing_rate_threshold: 0.05
+      - outlier_detection: true
+      - schema_validation: true
+      
+    # Alerting
+    alerts:
+      - condition: "auc_roc < 0.80"
+        severity: "critical"
+        notify: ["ml-team@platform.edu", "pager-duty"]
+      - condition: "latency_p95 > 100ms"
+        severity: "warning"
+        notify: ["ml-team@platform.edu"]
+      - condition: "drift_detected"
+        severity: "warning"
+        notify: ["ml-team@platform.edu"]
+
+  # =============================================================================
+  # Fairness & Bias
+  # =============================================================================
+  fairness:
+    protected_attributes:
+      - gender
+      - race_ethnicity
+      - ell_status
+      - iep_status
+      
+    metrics:
+      - demographic_parity
+      - equalized_odds
+      - calibration
+      
+    thresholds:
+      max_disparity: 0.10  # 10% max difference between groups
+      
+    mitigation:
+      strategy: "reweighting"
+      enabled: true
