@@ -24,6 +24,9 @@ class Settings:
     embedding_dimensions: int = 256
     embedding_timeout_seconds: float = 15.0
     embedding_allow_local_fallback: bool = True
+    auth_enabled: bool = False
+    auth_api_keys: tuple[str, ...] = ()
+    auth_header_name: str = "X-API-Key"
 
 
 def _get_bool_env(name: str, default: bool) -> bool:
@@ -38,6 +41,11 @@ def _get_bool_env(name: str, default: bool) -> bool:
         return False
 
     return default
+
+
+def _get_csv_env(name: str) -> tuple[str, ...]:
+    value = os.getenv(name, "")
+    return tuple(part.strip() for part in value.split(",") if part.strip())
 
 
 def get_settings() -> Settings:
@@ -58,4 +66,7 @@ def get_settings() -> Settings:
         embedding_dimensions=int(os.getenv("DIBBLE_EMBEDDING_DIMENSIONS", "256")),
         embedding_timeout_seconds=float(os.getenv("DIBBLE_EMBEDDING_TIMEOUT_SECONDS", "15.0")),
         embedding_allow_local_fallback=_get_bool_env("DIBBLE_EMBEDDING_ALLOW_LOCAL_FALLBACK", True),
+        auth_enabled=_get_bool_env("DIBBLE_AUTH_ENABLED", False),
+        auth_api_keys=_get_csv_env("DIBBLE_AUTH_API_KEYS"),
+        auth_header_name=os.getenv("DIBBLE_AUTH_HEADER_NAME", "X-API-Key"),
     )

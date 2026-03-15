@@ -1,7 +1,10 @@
 import json
 from uuid import uuid4
 
+from fastapi.testclient import TestClient
+
 from dibble.app import create_app
+from dibble.config import Settings
 
 from tests.support import build_curriculum_resource, build_profile
 
@@ -195,6 +198,32 @@ def test_stream_generation_endpoint_emits_sse_events_and_audits(client, student_
     audit_events = audit_response.json()
     assert audit_events[0]["event_type"] == "adaptive.generate.stream"
     assert audit_events[0]["payload"]["generated_block_count"] == 2
+
+
+def test_auth_can_protect_api_endpoints(tmp_path, student_id):
+    settings = Settings(
+        database_path=str(tmp_path / "dibble-auth.db"),
+        auth_enabled=True,
+        auth_api_keys=("secret-key",),
+    )
+    app = create_app(settings)
+
+    with TestClient(app) as client:
+        health_response = client.get("/health")
+        unauthorized = client.get("/api/v1/profiles")
+        authorized = client.put(
+            f"/api/v1/profiles/{student_id}",
+            headers={"X-API-Key": "secret-key"},
+            json=build_profile(student_id),
+        )
+        audit_response = client.get("/api/v1/audit/events", headers={"X-API-Key": "secret-key"})
+
+    assert health_response.status_code == 200
+    assert unauthorized.status_code == 401
+    assert authorized.status_code == 200
+    assert audit_response.status_code == 200
+    assert audit_response.json()[0]["event_type"] == "auth.request"
+    assert audit_response.json()[0]["status"] == "denied"
 
 
 def test_generation_falls_back_when_no_curriculum_grounding(client, student_id):

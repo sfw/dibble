@@ -21,6 +21,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             services.profile_store,
             services.curriculum_store,
             services.audit_store,
+            services.auth_service,
             services.telemetry_service,
             services.router_plugin,
             services.generation_engine,

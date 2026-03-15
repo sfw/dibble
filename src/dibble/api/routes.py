@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
 from dibble.models.curriculum import CurriculumResource, CurriculumResourceUpsert
@@ -11,6 +11,7 @@ from dibble.models.profile import LearnerProfile, ProfileSummary
 from dibble.models.telemetry import AuditEvent, TelemetrySnapshot
 from dibble.plugins.contracts import RouterPlugin
 from dibble.services.audit_store import SQLiteAuditStore
+from dibble.services.auth import AuthService, AuthenticationError
 from dibble.services.curriculum_store import SQLiteCurriculumStore
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.profile_store import SQLiteProfileStore
@@ -22,17 +23,39 @@ def build_router(
     profile_store: SQLiteProfileStore,
     curriculum_store: SQLiteCurriculumStore,
     audit_store: SQLiteAuditStore,
+    auth_service: AuthService,
     telemetry_service: TelemetryService,
     router_service: RouterPlugin,
     generation_engine: GenerationEngine,
 ) -> APIRouter:
     router = APIRouter()
+    protected_router = APIRouter()
+
+    async def require_auth(
+        request: Request,
+        api_key: str | None = Header(default=None, alias=auth_service.header_name),
+    ) -> None:
+        try:
+            auth_service.authorize(api_key)
+        except AuthenticationError as exc:
+            audit_store.append(
+                event_type="auth.request",
+                status="denied",
+                payload={
+                    "path": request.url.path,
+                    "method": request.method,
+                    "header_name": auth_service.header_name,
+                },
+            )
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
 
     @router.get("/health")
     def healthcheck() -> dict[str, str]:
         return {"status": "ok"}
 
-    @router.put("/api/v1/profiles/{student_id}", response_model=LearnerProfile)
+    protected_dependencies = [Depends(require_auth)] if auth_service.enabled else []
+
+    @protected_router.put("/api/v1/profiles/{student_id}", response_model=LearnerProfile, dependencies=protected_dependencies)
     def upsert_profile(student_id: UUID, profile: LearnerProfile) -> LearnerProfile:
         if student_id != profile.student_id:
             raise HTTPException(
@@ -41,25 +64,33 @@ def build_router(
             )
         return profile_store.upsert(profile)
 
-    @router.get("/api/v1/profiles/{student_id}", response_model=LearnerProfile)
+    @protected_router.get("/api/v1/profiles/{student_id}", response_model=LearnerProfile, dependencies=protected_dependencies)
     def get_profile(student_id: UUID) -> LearnerProfile:
         profile = profile_store.get(student_id)
         if profile is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
         return profile
 
-    @router.get("/api/v1/profiles", response_model=list[str])
+    @protected_router.get("/api/v1/profiles", response_model=list[str], dependencies=protected_dependencies)
     def list_profiles() -> list[str]:
         return profile_store.list_ids()
 
-    @router.get("/api/v1/profiles/{student_id}/summary", response_model=ProfileSummary)
+    @protected_router.get(
+        "/api/v1/profiles/{student_id}/summary",
+        response_model=ProfileSummary,
+        dependencies=protected_dependencies,
+    )
     def get_profile_summary(student_id: UUID) -> ProfileSummary:
         profile = profile_store.get(student_id)
         if profile is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
         return ProfileSummary.from_profile(profile)
 
-    @router.put("/api/v1/curriculum/resources/{resource_id}", response_model=CurriculumResource)
+    @protected_router.put(
+        "/api/v1/curriculum/resources/{resource_id}",
+        response_model=CurriculumResource,
+        dependencies=protected_dependencies,
+    )
     def upsert_curriculum_resource(
         resource_id: str,
         resource: CurriculumResourceUpsert,
@@ -71,11 +102,19 @@ def build_router(
             )
         return curriculum_store.upsert(resource)
 
-    @router.get("/api/v1/curriculum/resources", response_model=list[CurriculumResource])
+    @protected_router.get(
+        "/api/v1/curriculum/resources",
+        response_model=list[CurriculumResource],
+        dependencies=protected_dependencies,
+    )
     def list_curriculum_resources() -> list[CurriculumResource]:
         return curriculum_store.list()
 
-    @router.post("/api/v1/adaptive/decide", response_model=AdaptiveRouteDecision)
+    @protected_router.post(
+        "/api/v1/adaptive/decide",
+        response_model=AdaptiveRouteDecision,
+        dependencies=protected_dependencies,
+    )
     def decide_adaptive_route(request: GenerationRequest) -> AdaptiveRouteDecision:
         profile = profile_store.get(request.student_id)
         if profile is None:
@@ -95,7 +134,11 @@ def build_router(
         )
         return decision
 
-    @router.post("/api/v1/adaptive/generate", response_model=GenerationResponse)
+    @protected_router.post(
+        "/api/v1/adaptive/generate",
+        response_model=GenerationResponse,
+        dependencies=protected_dependencies,
+    )
     def generate_adaptive_content(request: GenerationRequest) -> GenerationResponse:
         profile = profile_store.get(request.student_id)
         if profile is None:
@@ -117,7 +160,7 @@ def build_router(
         )
         return response
 
-    @router.post("/api/v1/adaptive/generate/stream")
+    @protected_router.post("/api/v1/adaptive/generate/stream", dependencies=protected_dependencies)
     def stream_adaptive_content(request: GenerationRequest) -> StreamingResponse:
         profile = profile_store.get(request.student_id)
         if profile is None:
@@ -170,13 +213,18 @@ def build_router(
 
         return StreamingResponse(event_stream(), media_type="text/event-stream")
 
-    @router.get("/api/v1/audit/events", response_model=list[AuditEvent])
+    @protected_router.get("/api/v1/audit/events", response_model=list[AuditEvent], dependencies=protected_dependencies)
     def list_audit_events(limit: int = 50) -> list[AuditEvent]:
         safe_limit = max(1, min(limit, 200))
         return audit_store.list(limit=safe_limit)
 
-    @router.get("/api/v1/observability/metrics", response_model=TelemetrySnapshot)
+    @protected_router.get(
+        "/api/v1/observability/metrics",
+        response_model=TelemetrySnapshot,
+        dependencies=protected_dependencies,
+    )
     def get_observability_metrics() -> TelemetrySnapshot:
         return telemetry_service.snapshot()
 
+    router.include_router(protected_router)
     return router
