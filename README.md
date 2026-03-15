@@ -13,6 +13,7 @@ This repository now includes a working MVP backend slice for the revised adaptiv
 - Default provider now supports an OpenAI-compatible chat completion endpoint with secondary-provider failover, circuit-breaker protection, and automatic mock fallback when no model credentials are configured
 - Default validation now checks for missing grounding, missing instructional content, weak curriculum alignment, grade-band readability risk, accessibility density, unsafe language, and simple math errors
 - Adaptive decision and generation endpoints now write audit events and expose simple local observability metrics
+- Observability metrics now include durable provider-health telemetry for upstream failures and circuit-open state
 - Streaming generation is available over server-sent events for incremental `start`, `delta`, and `complete` delivery, and can consume real upstream OpenAI-compatible chat streams when configured
 - Optional principal-based API key auth with `viewer`/`editor`/`admin` roles can protect every endpoint except `GET /health`
 - Signed bearer tokens can be minted, refreshed, and revoked for request-scoped sessions
@@ -128,4 +129,4 @@ When auth is enabled, all API routes except `GET /health` require a valid key in
 1. Replace or augment SQLite with production persistence such as Redis/PostgreSQL or Redis/Cassandra.
 2. Replace the SQLite embedding cache with a production vector store and background indexing pipeline while keeping the retriever plugin contract stable.
 3. Add prompt versioning, richer generation metadata, and provider failover on top of the LLM orchestration layer.
-4. Add richer curriculum alignment scoring, domain-specific validators, stronger session management like issuer rotation and per-device controls, and durable provider-health telemetry on top of the new failover and circuit-breaker chain.
+4. Add richer curriculum alignment scoring, domain-specific validators, stronger session management like issuer rotation and per-device controls, and active failback/load-balancing policies on top of the new provider telemetry.

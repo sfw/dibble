@@ -12,6 +12,7 @@ from dibble.models.profile import LearnerProfile
 from dibble.services.content_provider import MockLLMProvider
 from dibble.services.llm_client import LLMClientError, OpenAICompatibleChatClient
 from dibble.services.llm_prompting import build_generation_prompts, build_stream_generation_prompts
+from dibble.services.provider_health import SQLiteProviderHealthStore
 from dibble.services.streaming import iter_block_chunks
 
 
@@ -44,6 +45,7 @@ class LLMOrchestrationProvider:
         circuit_breaker_threshold: int = 2,
         circuit_breaker_cooldown_seconds: float = 30.0,
         time_provider: Callable[[], float] = monotonic,
+        health_store: SQLiteProviderHealthStore | None = None,
     ) -> None:
         self.clients = clients
         self.fallback_provider = fallback_provider
@@ -51,6 +53,7 @@ class LLMOrchestrationProvider:
         self.circuit_breaker_cooldown_seconds = max(0.0, circuit_breaker_cooldown_seconds)
         self.time_provider = time_provider
         self.client_states = {name: ClientCircuitState() for name, _ in clients}
+        self.health_store = health_store
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "LLMOrchestrationProvider":
@@ -94,6 +97,7 @@ class LLMOrchestrationProvider:
             fallback_provider=fallback_provider,
             circuit_breaker_threshold=settings.llm_circuit_breaker_threshold,
             circuit_breaker_cooldown_seconds=settings.llm_circuit_breaker_cooldown_seconds,
+            health_store=SQLiteProviderHealthStore(settings.database_path),
         )
 
     def generate(
@@ -110,6 +114,7 @@ class LLMOrchestrationProvider:
 
         for name, client in self.clients:
             if not self._is_available(name):
+                self._record_health(name, "circuit_skip")
                 continue
             try:
                 completion = client.complete(
@@ -139,6 +144,7 @@ class LLMOrchestrationProvider:
         prompts = build_stream_generation_prompts(profile, request, route, grounding_titles)
         for name, client in self.clients:
             if not self._is_available(name):
+                self._record_health(name, "circuit_skip")
                 continue
             parser = StreamingChunkParser()
             try:
@@ -173,16 +179,25 @@ class LLMOrchestrationProvider:
         state = self.client_states.get(name)
         if state is None:
             return
+        recovered = state.open_until is not None or state.consecutive_failures > 0
         state.consecutive_failures = 0
         state.open_until = None
+        self._record_health(name, "success" if not recovered else "circuit_recovered")
 
     def _record_failure(self, name: str) -> None:
         state = self.client_states.get(name)
         if state is None:
             return
         state.consecutive_failures += 1
+        self._record_health(name, "failure", consecutive_failures=state.consecutive_failures)
         if state.consecutive_failures >= self.circuit_breaker_threshold:
             state.open_until = self.time_provider() + self.circuit_breaker_cooldown_seconds
+            self._record_health(name, "circuit_open", open_until=state.open_until)
+
+    def _record_health(self, name: str, status: str, **detail: object) -> None:
+        if self.health_store is None:
+            return
+        self.health_store.append(provider_name=name, status=status, detail=detail)
 
     def _fallback(
         self,

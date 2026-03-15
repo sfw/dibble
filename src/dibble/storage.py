@@ -41,6 +41,16 @@ CREATE TABLE IF NOT EXISTS curriculum_resource_embeddings (
 );
 """
 
+PROVIDER_HEALTH_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS provider_health_events (
+    event_id TEXT PRIMARY KEY,
+    provider_name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    detail TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+"""
+
 AUTH_SESSION_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS auth_sessions (
     session_id TEXT PRIMARY KEY,
@@ -65,5 +75,6 @@ def ensure_database(database_path: str) -> None:
         connection.execute(CURRICULUM_TABLE_SQL)
         connection.execute(AUDIT_TABLE_SQL)
         connection.execute(EMBEDDING_TABLE_SQL)
+        connection.execute(PROVIDER_HEALTH_TABLE_SQL)
         connection.execute(AUTH_SESSION_TABLE_SQL)
         connection.commit()
