@@ -168,6 +168,9 @@ class GenerationEngine:
             grounding_count=len(response.grounding),
             provider_name=provider_descriptor.get("provider_name"),
             model_used=provider_descriptor.get("model_used"),
+            prompt_template_name=provider_descriptor.get("prompt_template_name"),
+            prompt_template_version=provider_descriptor.get("prompt_template_version"),
+            prompt_template_variant=provider_descriptor.get("prompt_template_variant"),
             generation_latency_ms=max(0, generation_latency_ms),
             cache_hit=cache_hit,
         )
@@ -231,8 +234,17 @@ class GenerationEngine:
             return {
                 "provider_name": descriptor.get("provider_name"),
                 "model_used": descriptor.get("model_used"),
+                "prompt_template_name": descriptor.get("prompt_template_name"),
+                "prompt_template_version": descriptor.get("prompt_template_version"),
+                "prompt_template_variant": descriptor.get("prompt_template_variant"),
             }
-        return {"provider_name": self.provider.__class__.__name__, "model_used": None}
+        return {
+            "provider_name": self.provider.__class__.__name__,
+            "model_used": None,
+            "prompt_template_name": None,
+            "prompt_template_version": None,
+            "prompt_template_variant": None,
+        }
 
     def _stream_cached_blocks(self, blocks: list[GeneratedBlock]):
         from dibble.models.generation import GeneratedBlockChunk

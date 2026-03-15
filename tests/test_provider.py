@@ -94,6 +94,9 @@ def test_prompt_builder_mentions_grounding_and_preferences(sample_profile, sampl
     assert "Equivalent Fractions Foundations" in prompts.user_prompt
     assert "slower_than_average" in prompts.user_prompt
     assert '"blocks"' in prompts.system_prompt
+    assert prompts.template_name.startswith("remedial_micro_module.")
+    assert prompts.template_version == "1.0"
+    assert prompts.template_variant == "baseline"
 
 
 def test_provider_uses_llm_output_when_response_is_valid(sample_profile, sample_request, sample_route):
@@ -120,6 +123,8 @@ def test_provider_uses_llm_output_when_response_is_valid(sample_profile, sample_
 
     assert [block.kind for block in blocks] == ["summary", "instruction"]
     assert blocks[0].title == "Focus"
+    assert provider.last_used_descriptor["prompt_template_name"].startswith("remedial_micro_module.")
+    assert provider.last_used_descriptor["prompt_template_variant"] == "baseline"
 
 
 def test_provider_falls_back_to_mock_when_llm_call_fails(sample_profile, sample_request, sample_route):

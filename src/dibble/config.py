@@ -25,6 +25,9 @@ class Settings:
     llm_circuit_breaker_threshold: int = 2
     llm_circuit_breaker_cooldown_seconds: float = 30.0
     llm_selection_strategy: str = "ordered"
+    prompt_library_version: str = "1.0"
+    prompt_experiment_enabled: bool = False
+    prompt_variant_override: str | None = None
     embedding_api_base: str = "https://api.openai.com/v1"
     embedding_api_key: str | None = None
     embedding_model: str | None = None
@@ -86,6 +89,9 @@ def get_settings() -> Settings:
             os.getenv("DIBBLE_LLM_CIRCUIT_BREAKER_COOLDOWN_SECONDS", "30.0")
         ),
         llm_selection_strategy=os.getenv("DIBBLE_LLM_SELECTION_STRATEGY", "ordered"),
+        prompt_library_version=os.getenv("DIBBLE_PROMPT_LIBRARY_VERSION", "1.0"),
+        prompt_experiment_enabled=_get_bool_env("DIBBLE_PROMPT_EXPERIMENT_ENABLED", False),
+        prompt_variant_override=os.getenv("DIBBLE_PROMPT_VARIANT"),
         embedding_api_base=os.getenv("DIBBLE_EMBEDDING_API_BASE", "https://api.openai.com/v1"),
         embedding_api_key=os.getenv("DIBBLE_EMBEDDING_API_KEY") or os.getenv("DIBBLE_LLM_API_KEY"),
         embedding_model=os.getenv("DIBBLE_EMBEDDING_MODEL"),

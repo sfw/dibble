@@ -34,6 +34,11 @@ class ProviderStatusSnapshot(BaseModel):
     updated_at: datetime
 
 
+class PromptTemplateUsage(BaseModel):
+    template_name: str
+    event_count: int = 0
+
+
 class TelemetrySnapshot(BaseModel):
     total_events: int = 0
     decision_events: int = 0
@@ -46,5 +51,6 @@ class TelemetrySnapshot(BaseModel):
     fresh_generated_content_entries: int = 0
     provider_failure_events: int = 0
     provider_circuit_open_events: int = 0
+    prompt_template_usages: list[PromptTemplateUsage] = Field(default_factory=list)
     provider_statuses: list[ProviderStatusSnapshot] = Field(default_factory=list)
     last_event_at: datetime | None = None

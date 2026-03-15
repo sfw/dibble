@@ -1,0 +1,82 @@
+from __future__ import annotations
+
+import hashlib
+from dataclasses import dataclass
+from uuid import UUID
+
+from dibble.config import Settings
+from dibble.models.generation import RequestedContentType
+
+
+@dataclass(frozen=True, slots=True)
+class PromptSelection:
+    template_name: str
+    template_version: str
+    template_variant: str
+    system_directives: str
+    user_directives: str
+
+
+@dataclass(slots=True)
+class PromptManager:
+    library_version: str = "1.0"
+    experiment_enabled: bool = False
+    variant_override: str | None = None
+
+    @classmethod
+    def from_settings(cls, settings: Settings) -> "PromptManager":
+        return cls(
+            library_version=settings.prompt_library_version,
+            experiment_enabled=settings.prompt_experiment_enabled,
+            variant_override=settings.prompt_variant_override,
+        )
+
+    def select(self, *, student_id: UUID, content_type: RequestedContentType) -> PromptSelection:
+        variant = self.variant_override or self._variant_for(student_id=student_id, content_type=content_type)
+        template_name = f"{content_type.value}.{variant}"
+        return PromptSelection(
+            template_name=template_name,
+            template_version=self.library_version,
+            template_variant=variant,
+            system_directives=self._system_directives(content_type=content_type, variant=variant),
+            user_directives=self._user_directives(content_type=content_type, variant=variant),
+        )
+
+    def _variant_for(self, *, student_id: UUID, content_type: RequestedContentType) -> str:
+        if not self.experiment_enabled:
+            return "baseline"
+        supported = {
+            RequestedContentType.micro_explanation,
+            RequestedContentType.worked_example,
+            RequestedContentType.practice_problem,
+        }
+        if content_type not in supported:
+            return "baseline"
+        key = f"{student_id}:{content_type.value}:{self.library_version}"
+        bucket = int(hashlib.sha256(key.encode("utf-8")).hexdigest()[:8], 16) % 2
+        return ("baseline", "guided_reflection")[bucket]
+
+    def _system_directives(self, *, content_type: RequestedContentType, variant: str) -> str:
+        if content_type == RequestedContentType.worked_example:
+            return (
+                "Include at least one worked_example block before the instruction block. "
+                "Make the modeled reasoning explicit and concise."
+            )
+        if content_type == RequestedContentType.practice_problem:
+            return (
+                "Include at least one practice block and keep the answer-check guidance lightweight."
+            )
+        if variant == "guided_reflection":
+            return (
+                "End the instructional sequence with a brief reflection or check-for-understanding prompt."
+            )
+        return "Keep the structure simple, grounded, and ready for student delivery."
+
+    def _user_directives(self, *, content_type: RequestedContentType, variant: str) -> str:
+        if content_type == RequestedContentType.worked_example:
+            return "Show the learner how and why each step works before asking for independent completion."
+        if content_type == RequestedContentType.practice_problem:
+            return "Use one concrete problem and one short cue rather than multiple unrelated exercises."
+        if variant == "guided_reflection":
+            return "Add one short reflection question that helps the learner explain their reasoning."
+        return "Keep the next step actionable and specific."

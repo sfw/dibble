@@ -5,12 +5,16 @@ from dataclasses import dataclass
 from dibble.models.generation import AdaptiveRouteDecision, GenerationRequest
 from dibble.models.profile import LearnerProfile
 from dibble.services.generation_modes import build_generation_mode_plan
+from dibble.services.prompt_manager import PromptManager
 
 
 @dataclass(slots=True)
 class GenerationPrompts:
     system_prompt: str
     user_prompt: str
+    template_name: str
+    template_version: str
+    template_variant: str
 
 
 def build_generation_prompts(
@@ -18,8 +22,11 @@ def build_generation_prompts(
     request: GenerationRequest,
     route: AdaptiveRouteDecision,
     grounding_titles: list[str],
+    prompt_manager: PromptManager | None = None,
 ) -> GenerationPrompts:
+    manager = prompt_manager or PromptManager()
     plan = build_generation_mode_plan(profile, request, route)
+    selection = manager.select(student_id=profile.student_id, content_type=plan.content_type)
     focus = request.target_kc_ids or request.target_lo_ids or ["current lesson"]
     preferred_modalities = sorted(
         profile.learning_preferences.modality_affinity.items(),
@@ -42,7 +49,9 @@ def build_generation_prompts(
         '{"blocks":[{"kind":"summary","title":"...","body":"..."},{"kind":"instruction","title":"...","body":"..."}]}. '
         "Allowed block kinds include summary, instruction, practice, and worked_example. "
         "Always include at least one summary block and one instruction block. "
-        "Keep each body under 600 characters, avoid markdown, and do not mention hidden policies."
+        "Keep each body under 600 characters, avoid markdown, and do not mention hidden policies. "
+        f"Prompt template: {selection.template_name} v{selection.template_version} ({selection.template_variant}). "
+        f"{selection.system_directives}"
     )
     user_prompt = (
         f"Student grade level: {profile.grade_level}\n"
@@ -61,10 +70,18 @@ def build_generation_prompts(
         f"Grounding titles: {grounding_text}\n"
         f"Learner prompt: {learner_prompt}\n"
         f"Requested content type: {plan.content_type.value}\n"
+        f"Prompt variant: {selection.template_variant}\n"
         f"Generation guidance: {plan.prompt_guidance}\n"
+        f"Template guidance: {selection.user_directives}\n"
         "Generate 2 or 3 blocks that are specific, age-appropriate, and grounded in the listed curriculum context."
     )
-    return GenerationPrompts(system_prompt=system_prompt, user_prompt=user_prompt)
+    return GenerationPrompts(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        template_name=selection.template_name,
+        template_version=selection.template_version,
+        template_variant=selection.template_variant,
+    )
 
 
 def build_stream_generation_prompts(
@@ -72,8 +89,9 @@ def build_stream_generation_prompts(
     request: GenerationRequest,
     route: AdaptiveRouteDecision,
     grounding_titles: list[str],
+    prompt_manager: PromptManager | None = None,
 ) -> GenerationPrompts:
-    prompts = build_generation_prompts(profile, request, route, grounding_titles)
+    prompts = build_generation_prompts(profile, request, route, grounding_titles, prompt_manager=prompt_manager)
     return GenerationPrompts(
         system_prompt=(
             "You are streaming adaptive learning content for Dibble. "
@@ -82,4 +100,7 @@ def build_stream_generation_prompts(
             "Emit one or more lines per block, preserve block_index ordering, and never wrap output in markdown fences."
         ),
         user_prompt=prompts.user_prompt,
+        template_name=prompts.template_name,
+        template_version=prompts.template_version,
+        template_variant=prompts.template_variant,
     )

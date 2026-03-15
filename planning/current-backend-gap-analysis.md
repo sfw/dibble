@@ -32,7 +32,7 @@ Legend:
 | Requirement | Status | Notes |
 |---|---|---|
 | `LLM-001` LLM orchestration service | Implemented | Primary/secondary upstreams, failover, circuit breaker, selection strategies |
-| `LLM-002` Prompt framework with versioning/A-B testing | Partial | Prompt builders exist; no prompt registry, versioning, or experimentation layer |
+| `LLM-002` Prompt framework with versioning/A-B testing | Partial | Prompt registry now selects named templates with version and variant metadata, but experimentation is still minimal and there is no prompt performance loop |
 | `LLM-003` RAG pipeline | Implemented | Hybrid lexical + embedding retriever with persistent embedding cache |
 | `LLM-004` Safety/moderation layer | Partial | Validation and safety rules exist; no dedicated moderation workflow |
 | `LLM-005` Streaming response architecture | Implemented | SSE route plus upstream chat-stream ingestion |
@@ -68,7 +68,7 @@ Based on `planning/4 - revised-spec/implementation-roadmap.md` and `planning/5 -
 2. `ADAPT-003`: evolve the new misconception signals into a richer taxonomy and confidence-calibrated classifier.
 3. `PROF-002` + `PROF-003` + `PROF-005`: replace the new heuristic learner-state inference path with stronger calibrated models and task-aware features.
 4. `INFRA-003`: move from explicit warmup requests to anticipatory scheduling and smarter cache invalidation for likely next-step content.
-5. `LLM-002`: add prompt versioning and experimentation support on top of the new generation-mode planning layer.
+5. `LLM-002`: deepen prompt experimentation and feedback loops on top of the new versioned prompt registry.
 
 ## Recommendation
 

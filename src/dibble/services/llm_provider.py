@@ -13,6 +13,7 @@ from dibble.services.content_provider import MockLLMProvider
 from dibble.services.llm_client import LLMClientError, OpenAICompatibleChatClient
 from dibble.services.llm_prompting import build_generation_prompts, build_stream_generation_prompts
 from dibble.services.provider_health import ProviderRoutingSnapshot, SQLiteProviderHealthStore
+from dibble.services.prompt_manager import PromptManager
 from dibble.services.streaming import iter_block_chunks
 
 
@@ -51,6 +52,7 @@ class LLMOrchestrationProvider:
         selection_strategy: str = "ordered",
         time_provider: Callable[[], float] = monotonic,
         health_store: SQLiteProviderHealthStore | None = None,
+        prompt_manager: PromptManager | None = None,
     ) -> None:
         self.clients = clients
         self.client_models = client_models or {}
@@ -61,10 +63,14 @@ class LLMOrchestrationProvider:
         self.time_provider = time_provider
         self.client_states = {name: ClientCircuitState() for name, _ in clients}
         self.health_store = health_store
+        self.prompt_manager = prompt_manager or PromptManager()
         self.round_robin_cursor = 0
         self.last_used_descriptor = {
             "provider_name": None,
             "model_used": None,
+            "prompt_template_name": None,
+            "prompt_template_version": None,
+            "prompt_template_variant": None,
         }
         self._hydrate_client_states()
 
@@ -115,6 +121,7 @@ class LLMOrchestrationProvider:
             circuit_breaker_cooldown_seconds=settings.llm_circuit_breaker_cooldown_seconds,
             selection_strategy=settings.llm_selection_strategy,
             health_store=SQLiteProviderHealthStore(settings.database_path),
+            prompt_manager=PromptManager.from_settings(settings),
         )
 
     def generate(
@@ -124,10 +131,15 @@ class LLMOrchestrationProvider:
         route: AdaptiveRouteDecision,
         grounding_titles: list[str],
     ) -> list[GeneratedBlock]:
+        prompts = build_generation_prompts(
+            profile,
+            request,
+            route,
+            grounding_titles,
+            prompt_manager=self.prompt_manager,
+        )
         if not self.clients:
-            return self._fallback(profile, request, route, grounding_titles, "LLM client not configured.")
-
-        prompts = build_generation_prompts(profile, request, route, grounding_titles)
+            return self._fallback(profile, request, route, grounding_titles, prompts, "LLM client not configured.")
 
         for name, client in self._iter_candidate_clients():
             started_at = self.time_provider()
@@ -137,14 +149,14 @@ class LLMOrchestrationProvider:
                     user_prompt=prompts.user_prompt,
                 )
                 blocks = self._parse_blocks(completion.content)
-                self._set_last_used_descriptor(name)
+                self._set_last_used_descriptor(name, prompts)
                 self._record_success(name, latency_ms=(self.time_provider() - started_at) * 1000.0)
                 return blocks
             except (LLMClientError, LLMProviderError):
                 self._record_failure(name, latency_ms=(self.time_provider() - started_at) * 1000.0)
                 continue
 
-        return self._fallback(profile, request, route, grounding_titles, "LLM call failed.")
+        return self._fallback(profile, request, route, grounding_titles, prompts, "LLM call failed.")
 
     def stream_generate(
         self,
@@ -153,11 +165,18 @@ class LLMOrchestrationProvider:
         route: AdaptiveRouteDecision,
         grounding_titles: list[str],
     ) -> Iterator[GeneratedBlockChunk]:
+        prompts = build_stream_generation_prompts(
+            profile,
+            request,
+            route,
+            grounding_titles,
+            prompt_manager=self.prompt_manager,
+        )
         if not self.clients:
-            yield from iter_block_chunks(self._fallback(profile, request, route, grounding_titles, "LLM client not configured."))
+            yield from iter_block_chunks(
+                self._fallback(profile, request, route, grounding_titles, prompts, "LLM client not configured.")
+            )
             return
-
-        prompts = build_stream_generation_prompts(profile, request, route, grounding_titles)
         for name, client in self._iter_candidate_clients():
             parser = StreamingChunkParser()
             started_at = self.time_provider()
@@ -171,14 +190,14 @@ class LLMOrchestrationProvider:
 
                 for chunk in parser.flush():
                     yield chunk
-                self._set_last_used_descriptor(name)
+                self._set_last_used_descriptor(name, prompts)
                 self._record_success(name, latency_ms=(self.time_provider() - started_at) * 1000.0)
                 return
             except (LLMClientError, LLMProviderError):
                 self._record_failure(name, latency_ms=(self.time_provider() - started_at) * 1000.0)
                 continue
 
-        yield from iter_block_chunks(self._fallback(profile, request, route, grounding_titles, "LLM stream failed."))
+        yield from iter_block_chunks(self._fallback(profile, request, route, grounding_titles, prompts, "LLM stream failed."))
 
     def _is_available(self, name: str) -> bool:
         state = self.client_states.get(name)
@@ -303,10 +322,13 @@ class LLMOrchestrationProvider:
             return
         self.health_store.append(provider_name=name, status=status, detail=detail)
 
-    def _set_last_used_descriptor(self, name: str) -> None:
+    def _set_last_used_descriptor(self, name: str, prompts) -> None:
         self.last_used_descriptor = {
             "provider_name": name,
             "model_used": self.client_models.get(name),
+            "prompt_template_name": prompts.template_name,
+            "prompt_template_version": prompts.template_version,
+            "prompt_template_variant": prompts.template_variant,
         }
 
     def _fallback(
@@ -315,17 +337,25 @@ class LLMOrchestrationProvider:
         request: GenerationRequest,
         route: AdaptiveRouteDecision,
         grounding_titles: list[str],
+        prompts,
         reason: str,
     ) -> list[GeneratedBlock]:
         if self.fallback_provider is None:
             raise LLMProviderError(reason)
 
         blocks = self.fallback_provider.generate(profile, request, route, grounding_titles)
-        self.last_used_descriptor = getattr(
+        fallback_descriptor = getattr(
             self.fallback_provider,
             "last_used_descriptor",
             {"provider_name": "fallback", "model_used": None},
         )
+        self.last_used_descriptor = {
+            "provider_name": fallback_descriptor.get("provider_name"),
+            "model_used": fallback_descriptor.get("model_used"),
+            "prompt_template_name": prompts.template_name,
+            "prompt_template_version": prompts.template_version,
+            "prompt_template_variant": prompts.template_variant,
+        }
         return blocks
 
     def _parse_blocks(self, response_text: str) -> list[GeneratedBlock]:

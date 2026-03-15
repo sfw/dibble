@@ -82,7 +82,12 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     audit_store.append(
         event_type="content.generate",
         status="success",
-        payload={"cache_hit": True, "delivery_mode": "generated", "validation_issue_count": 0},
+        payload={
+            "cache_hit": True,
+            "delivery_mode": "generated",
+            "validation_issue_count": 0,
+            "prompt_template_name": "micro_explanation.baseline",
+        },
     )
     audit_store.append(
         event_type="content.warm",
@@ -95,3 +100,5 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     assert snapshot.cache_hit_generations == 1
     assert snapshot.warm_requests == 2
     assert snapshot.generated_content_entries == 0
+    assert snapshot.prompt_template_usages[0].template_name == "micro_explanation.baseline"
+    assert snapshot.prompt_template_usages[0].event_count == 1

@@ -105,6 +105,9 @@ class GenerationMetadata(BaseModel):
     grounding_count: int = Field(default=0, ge=0)
     provider_name: str | None = None
     model_used: str | None = None
+    prompt_template_name: str | None = None
+    prompt_template_version: str | None = None
+    prompt_template_variant: str | None = None
     generation_latency_ms: int = Field(default=0, ge=0)
     cache_hit: bool = False
 

@@ -26,6 +26,9 @@ def test_generation_uses_grounding_and_step_back_route(client, student_id):
     assert payload["generation_id"] is not None
     assert payload["quality"]["validation_passed"] is True
     assert payload["quality"]["cache_hit"] is False
+    assert payload["quality"]["prompt_template_name"] is not None
+    assert payload["quality"]["prompt_template_version"] == "1.0"
+    assert payload["quality"]["prompt_template_variant"] == "baseline"
 
 
 def test_generation_endpoint_returns_generated_content_and_cache_hit(client, student_id):
@@ -267,6 +270,8 @@ def test_metrics_endpoint_summarizes_generation_activity(client, student_id):
     assert payload["generation_events"] == 1
     assert payload["fallback_generations"] == 1
     assert payload["validation_issue_events"] == 1
+    assert payload["prompt_template_usages"][0]["template_name"] is not None
+    assert payload["prompt_template_usages"][0]["event_count"] == 1
 
 
 def test_stream_generation_endpoint_emits_sse_events_and_audits(client, student_id):

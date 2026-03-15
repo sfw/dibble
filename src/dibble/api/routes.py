@@ -404,6 +404,9 @@ def build_router(
                 "validation_passed": metadata.validation_passed,
                 "cache_hit": metadata.cache_hit,
                 "quality_score": metadata.quality_score,
+                "prompt_template_name": metadata.prompt_template_name,
+                "prompt_template_version": metadata.prompt_template_version,
+                "prompt_template_variant": metadata.prompt_template_variant,
             },
         )
         return generated_content
@@ -552,6 +555,21 @@ def build_router(
                                         response.generation_metadata.cache_hit
                                         if response.generation_metadata is not None
                                         else False
+                                    ),
+                                    "prompt_template_name": (
+                                        response.generation_metadata.prompt_template_name
+                                        if response.generation_metadata is not None
+                                        else None
+                                    ),
+                                    "prompt_template_version": (
+                                        response.generation_metadata.prompt_template_version
+                                        if response.generation_metadata is not None
+                                        else None
+                                    ),
+                                    "prompt_template_variant": (
+                                        response.generation_metadata.prompt_template_variant
+                                        if response.generation_metadata is not None
+                                        else None
                                     ),
                                 },
                             )
