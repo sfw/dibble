@@ -1,8 +1,43 @@
+from dibble.services.audit_store import SQLiteAuditStore
+
 from tests.support import build_profile
 
 
-def test_observation_endpoint_updates_inferred_state_and_profile(client, student_id):
+def test_observation_endpoint_updates_inferred_state_and_profile(client, student_id, app_settings):
+    audit_store = SQLiteAuditStore(app_settings.database_path)
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="none", total_load=0.2))
+    audit_store.append(
+        event_type="content.generate",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "intent": "assessment",
+            "generation_id": "gen-123",
+            "learning_session_id": "learn-session-1",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": ["LO-1"],
+            "content_type": "assessment_probe",
+            "prompt_template_name": "assessment_probe.causal_probe",
+            "prompt_template_variant": "causal_probe",
+            "quality_score": 0.8,
+            "validation_passed": True,
+            "grounding_count": 1,
+        },
+    )
+    audit_store.append(
+        event_type="assessment.socratic",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "generation_id": "gen-123",
+            "learning_session_id": "learn-session-1",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": ["LO-1"],
+            "evidence_strength": "insufficient",
+            "evidence_score": 0.22,
+            "profile_update_applied": False,
+        },
+    )
 
     observe_response = client.post(
         f"/api/learners/{student_id}/observations",
@@ -43,6 +78,7 @@ def test_observation_endpoint_updates_inferred_state_and_profile(client, student
     assert observed["affective_state"]["frustration"] in {"medium", "high"}
     assert observed["cognitive_load"]["total_load"] >= 0.5
     assert observed["metacognitive_state"]["help_seeking"] in {"medium", "high"}
+    assert observed["metacognitive_state"]["confidence_calibration"] < 0.8
     assert state["observation_count"] == 1
     assert profile["affective_state"]["frustration"] == observed["affective_state"]["frustration"]
     assert profile["cognitive_load"]["total_load"] == observed["cognitive_load"]["total_load"]
@@ -56,3 +92,6 @@ def test_observation_endpoint_updates_inferred_state_and_profile(client, student
     assert audit_events[0]["payload"]["observed_content_type"] == "assessment_probe"
     assert audit_events[0]["payload"]["target_kc_ids"] == ["KC-1"]
     assert audit_events[0]["payload"]["target_lo_ids"] == ["LO-1"]
+    assert audit_events[0]["payload"]["state_calibration_signal"] == "negative"
+    assert audit_events[0]["payload"]["state_calibration_applied"] is True
+    assert audit_events[0]["payload"]["state_calibration_run_count"] >= 1

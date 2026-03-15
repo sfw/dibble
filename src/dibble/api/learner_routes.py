@@ -46,6 +46,12 @@ def build_learner_router(context: ApiContext) -> APIRouter:
         services.observation_store.append(student_id=str(student_id), observation=observation)
         recent_observations = services.observation_store.list_recent(student_id=str(student_id))
         inferred_state = services.state_inference_service.infer(student_id=student_id, observations=recent_observations)
+        calibration = services.learner_state_calibrator.calibrate(
+            student_id=student_id,
+            observation=observation,
+            inferred_state=inferred_state,
+        )
+        inferred_state = calibration.state
         updated_profile = profile.model_copy(
             update={
                 "affective_state": inferred_state.affective_state,
@@ -76,6 +82,11 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 "total_load": inferred_state.cognitive_load.total_load,
                 "confidence_calibration": inferred_state.metacognitive_state.confidence_calibration,
                 "help_seeking": inferred_state.metacognitive_state.help_seeking.value,
+                "state_calibration_signal": calibration.signal,
+                "state_calibration_confidence": calibration.confidence,
+                "state_calibration_run_count": calibration.matched_run_count,
+                "state_calibration_outcome_score": calibration.average_run_outcome_score,
+                "state_calibration_applied": calibration.applied,
             },
         )
         return inferred_state
@@ -87,7 +98,13 @@ def build_learner_router(context: ApiContext) -> APIRouter:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
         observations = services.observation_store.list_recent(student_id=str(student_id))
         if observations:
-            return services.state_inference_service.infer(student_id=student_id, observations=observations)
+            inferred_state = services.state_inference_service.infer(student_id=student_id, observations=observations)
+            latest_observation = observations[0]
+            return services.learner_state_calibrator.calibrate(
+                student_id=student_id,
+                observation=latest_observation,
+                inferred_state=inferred_state,
+            ).state
         return InferredLearnerState(
             student_id=student_id,
             affective_state=profile.affective_state,

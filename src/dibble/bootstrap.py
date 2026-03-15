@@ -15,6 +15,7 @@ from dibble.services.curriculum_store import SQLiteCurriculumStore
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
 from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
+from dibble.services.learner_state_calibration import LearnerStateCalibrator
 from dibble.services.misconception_detector import MisconceptionDetector
 from dibble.services.observation_store import SQLiteObservationStore
 from dibble.services.provider_health import SQLiteProviderHealthStore
@@ -58,6 +59,7 @@ class ApplicationServices:
     socratic_profile_updater: SocraticProfileUpdater
     socratic_session_store: SocraticSessionStore
     state_inference_service: LearnerStateInferenceService
+    learner_state_calibrator: LearnerStateCalibrator
     router_plugin: RouterPlugin
 
 
@@ -101,6 +103,9 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     )
     socratic_profile_updater = SocraticProfileUpdater()
     state_inference_service = LearnerStateInferenceService()
+    learner_state_calibrator = LearnerStateCalibrator(
+        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+    )
     content_warmer = ContentWarmer(profile_store, generation_engine)
     content_workflow_service = ContentWorkflowService(
         profile_store=profile_store,
@@ -128,5 +133,6 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         socratic_profile_updater=socratic_profile_updater,
         socratic_session_store=socratic_session_store,
         state_inference_service=state_inference_service,
+        learner_state_calibrator=learner_state_calibrator,
         router_plugin=router_plugin,
     )

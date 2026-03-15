@@ -15,6 +15,7 @@ from dibble.services.auth import (
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.content_workflow import ContentWorkflowService
 from dibble.services.generation_engine import GenerationEngine
+from dibble.services.learner_state_calibration import LearnerStateCalibrator
 from dibble.services.protocols import (
     AuditStore,
     CurriculumStore,
@@ -47,6 +48,7 @@ class ApiServices(Protocol):
     socratic_profile_updater: SocraticProfileUpdater
     socratic_session_store: SocraticSessionStore
     state_inference_service: LearnerStateInferenceService
+    learner_state_calibrator: LearnerStateCalibrator
 
 
 @dataclass(slots=True)
