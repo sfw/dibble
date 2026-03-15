@@ -42,10 +42,10 @@ Legend:
 | `GEN-004` Remedial micro-module creation | Partial | Remedial trigger now steps through prerequisite KCs, but misconception classification and richer module assembly are still shallow |
 | `GEN-005` Multi-modal synthesis | Missing | No diagram, interactive, simulation, or code generation layer |
 | `PROF-001` Cognitive trait assessment | Partial | Profile schema stores traits, but no assessment or inference pipeline populates them |
-| `PROF-002` Affective state detection | Partial | Observation-driven inference now updates affective state, but the logic is still heuristic rather than a richer classifier |
-| `PROF-003` Real-time cognitive load estimation | Partial | Observation-driven load inference now updates the profile, but it is still heuristic and not calibrated by domain/task type |
+| `PROF-002` Affective state detection | Partial | Observation-driven inference now updates affective state with task-aware normalization, but the logic is still heuristic rather than a richer classifier |
+| `PROF-003` Real-time cognitive load estimation | Partial | Observation-driven load inference now updates the profile with task-aware normalization, but it remains heuristic rather than calibrated from real outcome data |
 | `PROF-004` KC granularity | Partial | KC mastery exists in the profile and there is now a persisted KC graph, but taxonomy depth and mastery migration are still limited |
-| `PROF-005` Metacognitive tracking | Partial | Observation-driven confidence calibration and help-seeking signals now exist and influence routing/generation selection, but they remain heuristic rather than calibrated |
+| `PROF-005` Metacognitive tracking | Partial | Observation-driven confidence calibration and help-seeking signals now exist, are task-aware, and influence routing/generation selection, but they remain heuristic rather than calibrated |
 | `ADAPT-001` Thompson Sampling router | Implemented | Thompson-style policy with safety constraints is in the production path |
 | `ADAPT-002` Within-session adaptation | Partial | Streaming generation exists, but there is no continuous state-updating adaptive loop |
 | `ADAPT-003` Misconception detection/classification | Partial | Rule-based misconception signals now guide remediation planning, but there is no richer classifier or taxonomy yet |
@@ -66,7 +66,7 @@ Based on `planning/4 - revised-spec/implementation-roadmap.md` and `planning/5 -
 
 1. `PROF-004`: expand the KC graph from a persistence/API layer into broader taxonomy coverage and mastery migration support.
 2. `ADAPT-003`: evolve the new misconception signals into a richer taxonomy and confidence-calibrated classifier.
-3. `PROF-002` + `PROF-003` + `PROF-005`: replace the new heuristic learner-state inference path with stronger calibrated models and task-aware features.
+3. `PROF-002` + `PROF-003` + `PROF-005`: replace the new heuristic learner-state inference path with stronger calibrated models trained from real outcome data.
 4. `INFRA-003`: move from explicit warmup requests to anticipatory scheduling and smarter cache invalidation for likely next-step content.
 5. `LLM-002`: deepen prompt experimentation and feedback loops on top of the new versioned prompt registry.
 

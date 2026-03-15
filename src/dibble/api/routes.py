@@ -235,6 +235,8 @@ def build_router(
                 "response_time_ms": observation.response_time_ms,
                 "hints_used": observation.hints_used,
                 "error_count": observation.error_count,
+                "task_type": observation.task_type.value,
+                "support_level": observation.support_level.value,
                 "engagement": inferred_state.affective_state.engagement.value,
                 "frustration": inferred_state.affective_state.frustration.value,
                 "total_load": inferred_state.cognitive_load.total_load,

@@ -77,3 +77,44 @@ def test_state_inference_tracks_calibrated_confidence_when_performance_matches()
     assert inferred.metacognitive_state.confidence_calibration >= 0.8
     assert inferred.metacognitive_state.help_seeking in {SignalLevel.none, SignalLevel.low}
     assert inferred.metacognitive_state.self_monitoring >= 0.6
+
+
+def test_state_inference_is_task_aware_for_supported_vs_assessment_work():
+    service = LearnerStateInferenceService()
+    student_id = uuid4()
+    worked_example = LearnerObservation(
+        observation_id="obs-1",
+        student_id=student_id,
+        response_time_ms=18000,
+        hints_used=1,
+        error_count=1,
+        pause_count=1,
+        modality_switches=1,
+        completed=True,
+        confidence=0.7,
+        task_type="worked_example",
+        support_level="high",
+        expected_duration_ms=18000,
+    )
+    assessment = LearnerObservation(
+        observation_id="obs-2",
+        student_id=student_id,
+        response_time_ms=18000,
+        hints_used=1,
+        error_count=1,
+        pause_count=1,
+        modality_switches=1,
+        completed=True,
+        confidence=0.7,
+        task_type="assessment",
+        support_level="low",
+        expected_duration_ms=18000,
+    )
+
+    supported = service.infer(student_id=student_id, observations=[worked_example])
+    assessed = service.infer(student_id=student_id, observations=[assessment])
+
+    assert assessed.cognitive_load.total_load > supported.cognitive_load.total_load
+    assert assessed.affective_state.confusion.value in {"low", "medium", "high"}
+    assert assessed.metacognitive_state.help_seeking in {SignalLevel.medium, SignalLevel.high}
+    assert supported.metacognitive_state.help_seeking in {SignalLevel.none, SignalLevel.low}

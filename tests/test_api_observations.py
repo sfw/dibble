@@ -14,6 +14,9 @@ def test_observation_endpoint_updates_inferred_state_and_profile(client, student
             "modality_switches": 2,
             "completed": False,
             "confidence": 0.2,
+            "task_type": "assessment",
+            "support_level": "low",
+            "expected_duration_ms": 18000,
         },
     )
     state_response = client.get(f"/api/learners/{student_id}/state")
@@ -41,3 +44,5 @@ def test_observation_endpoint_updates_inferred_state_and_profile(client, student
     assert profile["metacognitive_state"]["confidence_calibration"] == observed["metacognitive_state"]["confidence_calibration"]
     assert audit_events[0]["event_type"] == "learner.observe"
     assert "confidence_calibration" in audit_events[0]["payload"]
+    assert audit_events[0]["payload"]["task_type"] == "assessment"
+    assert audit_events[0]["payload"]["support_level"] == "low"

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from statistics import mean
 from uuid import UUID
 
 from dibble.models.observations import InferredLearnerState, LearnerObservation
 from dibble.models.profile import AffectiveState, CognitiveLoadState, MetacognitiveState, SignalLevel
+from dibble.services.state_calibration import summarize_observations
 
 
 class LearnerStateInferenceService:
@@ -19,33 +19,72 @@ class LearnerStateInferenceService:
                 last_observation_at=None,
             )
 
-        avg_response_time = mean(item.response_time_ms for item in observations)
-        avg_hints = mean(item.hints_used for item in observations)
-        avg_errors = mean(item.error_count for item in observations)
-        avg_pauses = mean(item.pause_count for item in observations)
-        avg_switches = mean(item.modality_switches for item in observations)
-        completion_rate = mean(1.0 if item.completed else 0.0 for item in observations)
-        avg_confidence = mean(item.confidence for item in observations)
-        performance_estimate = max(0.0, min(completion_rate - (avg_errors * 0.12), 1.0))
+        calibrated = summarize_observations(observations)
 
-        frustration = self._frustration_level(avg_errors, avg_hints, avg_pauses)
-        confusion = self._confusion_level(avg_errors, avg_hints, avg_response_time)
-        engagement = self._engagement_level(completion_rate, avg_pauses, avg_switches, avg_response_time)
-        confidence_calibration = max(0.0, 1.0 - abs(avg_confidence - performance_estimate))
+        frustration = self._frustration_level(
+            calibrated.normalized_error_pressure,
+            calibrated.normalized_hint_pressure,
+            calibrated.normalized_pause_pressure,
+        )
+        confusion = self._confusion_level(
+            calibrated.normalized_error_pressure,
+            calibrated.normalized_hint_pressure,
+            calibrated.normalized_response_time,
+        )
+        engagement = self._engagement_level(
+            calibrated.completion_rate,
+            calibrated.normalized_pause_pressure,
+            calibrated.normalized_switch_pressure,
+            calibrated.normalized_response_time,
+        )
+        confidence_calibration = max(0.0, 1.0 - abs(calibrated.avg_confidence - calibrated.performance_estimate))
         help_seeking_effectiveness = max(
             0.0,
-            min(1.0, 0.3 + (completion_rate * 0.35) + min(avg_hints, 3) * 0.08 - (avg_errors * 0.04)),
+            min(
+                1.0,
+                0.3
+                + (calibrated.completion_rate * 0.35)
+                + min(calibrated.normalized_hint_pressure, 1.5) * 0.08
+                - (calibrated.normalized_error_pressure * 0.06),
+            ),
         )
         self_monitoring = max(
             0.0,
-            min(1.0, 0.25 + (confidence_calibration * 0.4) + (completion_rate * 0.2) - (avg_pauses * 0.04)),
+            min(
+                1.0,
+                0.25
+                + (confidence_calibration * 0.4)
+                + (calibrated.completion_rate * 0.2)
+                - (calibrated.normalized_pause_pressure * 0.06),
+            ),
         )
-        help_seeking = self._help_seeking_level(avg_hints, avg_errors, avg_confidence)
+        help_seeking = self._help_seeking_level(
+            calibrated.normalized_hint_pressure,
+            calibrated.normalized_error_pressure,
+            calibrated.avg_confidence,
+        )
 
-        intrinsic_load = min(1.0, 0.2 + (avg_errors * 0.12) + min(avg_response_time / 40000, 0.25))
-        extraneous_load = min(1.0, 0.15 + (avg_pauses * 0.08) + (avg_switches * 0.07) + (avg_hints * 0.05))
-        germane_load = min(1.0, 0.25 + (completion_rate * 0.35) + (avg_confidence * 0.15))
-        total_load = min(1.0, (intrinsic_load * 0.45) + (extraneous_load * 0.35) + (germane_load * 0.20))
+        intrinsic_load = min(
+            1.0,
+            0.2
+            + (calibrated.normalized_error_pressure * 0.18)
+            + min(calibrated.normalized_response_time * 0.2, 0.25),
+        )
+        extraneous_load = min(
+            1.0,
+            0.15
+            + (calibrated.normalized_pause_pressure * 0.1)
+            + (calibrated.normalized_switch_pressure * 0.08)
+            + (calibrated.normalized_hint_pressure * 0.06),
+        )
+        germane_load = min(1.0, 0.25 + (calibrated.completion_rate * 0.35) + (calibrated.avg_confidence * 0.15))
+        total_load = min(
+            1.0,
+            (intrinsic_load * 0.45)
+            + (extraneous_load * 0.35)
+            + (germane_load * 0.20)
+            + (0.1 if frustration == SignalLevel.high else 0.05 if frustration == SignalLevel.medium else 0.0),
+        )
         capacity_utilization = min(1.0, total_load + (0.1 if frustration in {SignalLevel.medium, SignalLevel.high} else 0.0))
 
         return InferredLearnerState(
@@ -54,7 +93,7 @@ class LearnerStateInferenceService:
                 engagement=engagement,
                 frustration=frustration,
                 confusion=confusion,
-                confidence=round(avg_confidence, 2),
+                confidence=round(calibrated.avg_confidence, 2),
             ),
             cognitive_load=CognitiveLoadState(
                 intrinsic_load=round(intrinsic_load, 2),
@@ -75,21 +114,21 @@ class LearnerStateInferenceService:
 
     def _frustration_level(self, avg_errors: float, avg_hints: float, avg_pauses: float) -> SignalLevel:
         score = (avg_errors * 0.5) + (avg_hints * 0.3) + (avg_pauses * 0.2)
-        if score >= 1.8:
+        if score >= 1.35:
             return SignalLevel.high
-        if score >= 1.0:
+        if score >= 0.8:
             return SignalLevel.medium
-        if score >= 0.4:
+        if score >= 0.3:
             return SignalLevel.low
         return SignalLevel.none
 
     def _confusion_level(self, avg_errors: float, avg_hints: float, avg_response_time: float) -> SignalLevel:
-        score = (avg_errors * 0.45) + (avg_hints * 0.35) + min(avg_response_time / 30000, 0.4)
-        if score >= 1.6:
+        score = (avg_errors * 0.45) + (avg_hints * 0.35) + min(avg_response_time * 0.25, 0.4)
+        if score >= 1.3:
             return SignalLevel.high
-        if score >= 0.9:
+        if score >= 0.7:
             return SignalLevel.medium
-        if score >= 0.35:
+        if score >= 0.25:
             return SignalLevel.low
         return SignalLevel.none
 
@@ -100,7 +139,7 @@ class LearnerStateInferenceService:
         avg_switches: float,
         avg_response_time: float,
     ) -> SignalLevel:
-        score = (completion_rate * 0.6) - (avg_pauses * 0.12) - (avg_switches * 0.08) - min(avg_response_time / 60000, 0.2)
+        score = (completion_rate * 0.6) - (avg_pauses * 0.16) - (avg_switches * 0.1) - min(avg_response_time * 0.15, 0.2)
         if score >= 0.55:
             return SignalLevel.high
         if score >= 0.2:
@@ -111,9 +150,9 @@ class LearnerStateInferenceService:
 
     def _help_seeking_level(self, avg_hints: float, avg_errors: float, avg_confidence: float) -> SignalLevel:
         score = (avg_hints * 0.45) + (avg_errors * 0.15) + ((1.0 - avg_confidence) * 0.4)
-        if score >= 1.7:
+        if score >= 1.25:
             return SignalLevel.high
-        if score >= 0.9:
+        if score >= 0.7:
             return SignalLevel.medium
         if score >= 0.25:
             return SignalLevel.low
