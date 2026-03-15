@@ -16,6 +16,7 @@ from dibble.services.auth import (
     AuthorizationError,
 )
 from dibble.services.content_warmer import ContentWarmer
+from dibble.services.content_workflow import ContentWorkflowService
 from dibble.services.curriculum_store import SQLiteCurriculumStore
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
@@ -40,6 +41,7 @@ class ApiServices(Protocol):
     router_plugin: RouterPlugin
     generation_engine: GenerationEngine
     content_warmer: ContentWarmer
+    content_workflow_service: ContentWorkflowService
     remediation_planner: RemediationPlanner
     socratic_assessment_service: SocraticAssessmentService
     socratic_profile_updater: SocraticProfileUpdater
@@ -103,10 +105,3 @@ class ApiContext:
         if not self.services.auth_service.enabled:
             return []
         return [Depends(self.require_access(*roles))]
-
-
-def missing_profile(student_id: UUID) -> LearnerProfile:
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail=f"Learner profile not found for student_id {student_id}.",
-    )
