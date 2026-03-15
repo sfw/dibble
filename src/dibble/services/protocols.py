@@ -10,6 +10,7 @@ from dibble.models.profile import LearnerProfile
 from dibble.models.telemetry import AuditEvent, ProviderHealthEvent, ProviderStatusSnapshot
 from dibble.services.auth_sessions import StoredAuthSession
 from dibble.services.provider_health import ProviderRoutingSnapshot
+from dibble.services.retrieval.embedding_store import StoredEmbedding
 
 
 class ProfileStore(Protocol):
@@ -53,6 +54,11 @@ class GeneratedContentStore(Protocol):
     def upsert(self, *, cache_key: str, content: GeneratedContent) -> GeneratedContent: ...
     def get_fresh(self, *, cache_key: str) -> GeneratedContent | None: ...
     def stats(self) -> dict[str, int]: ...
+
+
+class EmbeddingStore(Protocol):
+    def get(self, resource_id: str) -> StoredEmbedding | None: ...
+    def upsert(self, *, resource_id: str, vector: list[float], source_updated_at: str) -> StoredEmbedding: ...
 
 
 class ProviderHealthStore(Protocol):

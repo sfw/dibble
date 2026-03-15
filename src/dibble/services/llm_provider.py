@@ -12,10 +12,9 @@ from dibble.models.profile import LearnerProfile
 from dibble.services.content_provider import MockLLMProvider
 from dibble.services.llm_client import LLMClientError, OpenAICompatibleChatClient
 from dibble.services.llm_prompting import build_generation_prompts, build_stream_generation_prompts
-from dibble.services.provider_health import ProviderRoutingSnapshot, SQLiteProviderHealthStore
-from dibble.services.protocols import ProviderHealthStore
+from dibble.services.provider_health import ProviderRoutingSnapshot
+from dibble.services.protocols import AuditStore, ProviderHealthStore
 from dibble.services.prompt_manager import PromptManager
-from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.generation_prompt_selector import GenerationPromptSelector
 from dibble.services.socratic_prompt_selector import SocraticPromptSelector
 from dibble.services.streaming import iter_block_chunks
@@ -42,6 +41,66 @@ class ClientCircuitState:
     successful_requests: int = 0
     failed_requests: int = 0
     average_latency_ms: float | None = None
+
+
+def build_llm_clients(settings: Settings) -> tuple[list[tuple[str, OpenAICompatibleChatClient]], dict[str, str]]:
+    configs = [
+        LLMProviderConfig(
+            name="primary",
+            api_base=settings.llm_api_base,
+            api_key=settings.llm_api_key,
+            model=settings.llm_model,
+            timeout_seconds=settings.llm_timeout_seconds,
+            allow_mock_fallback=settings.llm_allow_mock_fallback,
+        ),
+        LLMProviderConfig(
+            name="secondary",
+            api_base=settings.llm_secondary_api_base or settings.llm_api_base,
+            api_key=settings.llm_secondary_api_key,
+            model=settings.llm_secondary_model,
+            timeout_seconds=settings.llm_secondary_timeout_seconds or settings.llm_timeout_seconds,
+            allow_mock_fallback=settings.llm_allow_mock_fallback,
+        ),
+    ]
+    clients: list[tuple[str, OpenAICompatibleChatClient]] = []
+    client_models: dict[str, str] = {}
+    for config in configs:
+        if not config.api_key or not config.model:
+            continue
+        clients.append(
+            (
+                config.name,
+                OpenAICompatibleChatClient(
+                    api_base=config.api_base,
+                    api_key=config.api_key,
+                    model=config.model,
+                    timeout_seconds=config.timeout_seconds,
+                ),
+            )
+        )
+        client_models[config.name] = config.model
+    return clients, client_models
+
+
+def build_prompt_manager_from_settings(
+    settings: Settings,
+    *,
+    audit_store: AuditStore | None = None,
+) -> PromptManager:
+    selector_store = audit_store if settings.prompt_adaptive_selection_enabled else None
+    return PromptManager.from_settings(
+        settings,
+        generation_prompt_selector=(
+            GenerationPromptSelector(selector_store)
+            if selector_store is not None
+            else None
+        ),
+        socratic_prompt_selector=(
+            SocraticPromptSelector(selector_store)
+            if selector_store is not None
+            else None
+        ),
+    )
 
 
 class LLMOrchestrationProvider:
@@ -79,43 +138,15 @@ class LLMOrchestrationProvider:
         self._hydrate_client_states()
 
     @classmethod
-    def from_settings(cls, settings: Settings) -> "LLMOrchestrationProvider":
-        configs = [
-            LLMProviderConfig(
-                name="primary",
-                api_base=settings.llm_api_base,
-                api_key=settings.llm_api_key,
-                model=settings.llm_model,
-                timeout_seconds=settings.llm_timeout_seconds,
-                allow_mock_fallback=settings.llm_allow_mock_fallback,
-            ),
-            LLMProviderConfig(
-                name="secondary",
-                api_base=settings.llm_secondary_api_base or settings.llm_api_base,
-                api_key=settings.llm_secondary_api_key,
-                model=settings.llm_secondary_model,
-                timeout_seconds=settings.llm_secondary_timeout_seconds or settings.llm_timeout_seconds,
-                allow_mock_fallback=settings.llm_allow_mock_fallback,
-            ),
-        ]
+    def from_settings(
+        cls,
+        settings: Settings,
+        *,
+        health_store: ProviderHealthStore | None = None,
+        prompt_manager: PromptManager | None = None,
+    ) -> "LLMOrchestrationProvider":
         fallback_provider = MockLLMProvider() if settings.llm_allow_mock_fallback else None
-        clients: list[tuple[str, OpenAICompatibleChatClient]] = []
-        client_models: dict[str, str] = {}
-        for config in configs:
-            if not config.api_key or not config.model:
-                continue
-            clients.append(
-                (
-                    config.name,
-                    OpenAICompatibleChatClient(
-                        api_base=config.api_base,
-                        api_key=config.api_key,
-                        model=config.model,
-                        timeout_seconds=config.timeout_seconds,
-                    ),
-                )
-            )
-            client_models[config.name] = config.model
+        clients, client_models = build_llm_clients(settings)
 
         return cls(
             clients=clients,
@@ -124,20 +155,8 @@ class LLMOrchestrationProvider:
             circuit_breaker_threshold=settings.llm_circuit_breaker_threshold,
             circuit_breaker_cooldown_seconds=settings.llm_circuit_breaker_cooldown_seconds,
             selection_strategy=settings.llm_selection_strategy,
-            health_store=SQLiteProviderHealthStore(settings.database_path),
-            prompt_manager=PromptManager.from_settings(
-                settings,
-                generation_prompt_selector=(
-                    GenerationPromptSelector(SQLiteAuditStore(settings.database_path))
-                    if settings.prompt_adaptive_selection_enabled
-                    else None
-                ),
-                socratic_prompt_selector=(
-                    SocraticPromptSelector(SQLiteAuditStore(settings.database_path))
-                    if settings.prompt_adaptive_selection_enabled
-                    else None
-                ),
-            ),
+            health_store=health_store,
+            prompt_manager=prompt_manager or build_prompt_manager_from_settings(settings),
         )
 
     def generate(

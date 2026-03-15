@@ -74,3 +74,22 @@ class SQLiteEmbeddingStore:
             )
             connection.commit()
         return stored
+
+
+class InMemoryEmbeddingStore:
+    def __init__(self) -> None:
+        self._items: dict[str, StoredEmbedding] = {}
+
+    def get(self, resource_id: str) -> StoredEmbedding | None:
+        return self._items.get(resource_id)
+
+    def upsert(self, *, resource_id: str, vector: list[float], source_updated_at: str) -> StoredEmbedding:
+        stored = StoredEmbedding(
+            resource_id=resource_id,
+            vector=list(vector),
+            dimensions=len(vector),
+            source_updated_at=source_updated_at,
+            indexed_at=utc_now_iso(),
+        )
+        self._items[resource_id] = stored
+        return stored

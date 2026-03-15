@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from dibble.config import Settings
+from dibble.plugins.contracts import RouterPlugin
 from dibble.plugins.loader import build_generation_plugins
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.auth import AuthService
@@ -17,6 +18,15 @@ from dibble.services.misconception_detector import MisconceptionDetector
 from dibble.services.observation_store import SQLiteObservationStore
 from dibble.services.provider_health import SQLiteProviderHealthStore
 from dibble.services.profile_store import SQLiteProfileStore
+from dibble.services.protocols import (
+    AuditStore,
+    CurriculumStore,
+    GeneratedContentStore,
+    KnowledgeComponentStore,
+    ObservationStore,
+    ProfileStore,
+    SocraticSessionStore,
+)
 from dibble.services.remediation_planner import RemediationPlanner
 from dibble.services.socratic_assessment import SocraticAssessmentService
 from dibble.services.socratic_evidence import SocraticEvidenceScorer
@@ -30,12 +40,12 @@ from dibble.storage import ensure_database
 
 @dataclass(slots=True)
 class ApplicationServices:
-    profile_store: SQLiteProfileStore
-    curriculum_store: SQLiteCurriculumStore
-    knowledge_component_store: SQLiteKnowledgeComponentStore
-    audit_store: SQLiteAuditStore
-    generated_content_store: SQLiteGeneratedContentStore
-    observation_store: SQLiteObservationStore
+    profile_store: ProfileStore
+    curriculum_store: CurriculumStore
+    knowledge_component_store: KnowledgeComponentStore
+    audit_store: AuditStore
+    generated_content_store: GeneratedContentStore
+    observation_store: ObservationStore
     auth_service: AuthService
     telemetry_service: TelemetryService
     generation_engine: GenerationEngine
@@ -44,9 +54,9 @@ class ApplicationServices:
     remediation_planner: RemediationPlanner
     socratic_assessment_service: SocraticAssessmentService
     socratic_profile_updater: SocraticProfileUpdater
-    socratic_session_store: SQLiteSocraticSessionStore
+    socratic_session_store: SocraticSessionStore
     state_inference_service: LearnerStateInferenceService
-    router_plugin: object
+    router_plugin: RouterPlugin
 
 
 def build_application_services(settings: Settings) -> ApplicationServices:

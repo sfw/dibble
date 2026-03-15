@@ -3,8 +3,8 @@ from __future__ import annotations
 from dibble.models.curriculum import CurriculumResource
 from dibble.models.generation import GenerationRequest, GroundingReference
 from dibble.models.profile import LearnerProfile
-from dibble.services.curriculum_store import SQLiteCurriculumStore
-from dibble.services.retrieval.embedding_store import SQLiteEmbeddingStore
+from dibble.services.protocols import CurriculumStore, EmbeddingStore
+from dibble.services.retrieval.embedding_store import InMemoryEmbeddingStore
 from dibble.services.retrieval.embeddings import Embedder, LocalHashEmbedder, cosine_similarity
 from dibble.services.retrieval.scoring import HybridRetrievalScorer
 
@@ -12,14 +12,14 @@ from dibble.services.retrieval.scoring import HybridRetrievalScorer
 class RAGRetriever:
     def __init__(
         self,
-        curriculum_store: SQLiteCurriculumStore,
+        curriculum_store: CurriculumStore,
         *,
-        embedding_store: SQLiteEmbeddingStore | None = None,
+        embedding_store: EmbeddingStore | None = None,
         embedder: Embedder | None = None,
         scorer: HybridRetrievalScorer | None = None,
     ) -> None:
         self.curriculum_store = curriculum_store
-        self.embedding_store = embedding_store or SQLiteEmbeddingStore(curriculum_store.database_path)
+        self.embedding_store = embedding_store or InMemoryEmbeddingStore()
         self.embedder = embedder or LocalHashEmbedder()
         self.scorer = scorer or HybridRetrievalScorer()
 
