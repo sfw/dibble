@@ -43,6 +43,10 @@ class GenerationPromptSelector:
         downstream_counts: dict[str, int] = {}
         assessment_counts: dict[str, int] = {}
         session_outcome_counts: dict[str, int] = {}
+        run_summary_counts: dict[str, int] = {}
+        positive_run_signal_counts: dict[str, int] = {}
+        negative_run_signal_counts: dict[str, int] = {}
+        run_signal_confidence_totals: dict[str, float] = {}
         observation_trace_counts: dict[str, int] = {}
         assessment_trace_counts: dict[str, int] = {}
         session_generation_depths: dict[str, int] = {}
@@ -68,6 +72,18 @@ class GenerationPromptSelector:
             )
             session_outcome_counts[sample.variant] = session_outcome_counts.get(sample.variant, 0) + (
                 1 if sample.session_outcome_score is not None else 0
+            )
+            run_summary_counts[sample.variant] = run_summary_counts.get(sample.variant, 0) + (
+                1 if sample.run_summary_score is not None else 0
+            )
+            positive_run_signal_counts[sample.variant] = positive_run_signal_counts.get(sample.variant, 0) + (
+                1 if sample.run_calibration_signal == "positive" else 0
+            )
+            negative_run_signal_counts[sample.variant] = negative_run_signal_counts.get(sample.variant, 0) + (
+                1 if sample.run_calibration_signal == "negative" else 0
+            )
+            run_signal_confidence_totals[sample.variant] = (
+                run_signal_confidence_totals.get(sample.variant, 0.0) + sample.run_calibration_confidence
             )
             observation_trace_counts[sample.variant] = (
                 observation_trace_counts.get(sample.variant, 0) + sample.observation_match_count
@@ -96,6 +112,10 @@ class GenerationPromptSelector:
             downstream_rate = downstream_counts.get(variant, 0) / event_count
             assessment_rate = assessment_counts.get(variant, 0) / event_count
             session_outcome_rate = session_outcome_counts.get(variant, 0) / event_count
+            run_summary_rate = run_summary_counts.get(variant, 0) / event_count
+            positive_run_signal_rate = positive_run_signal_counts.get(variant, 0) / event_count
+            negative_run_signal_rate = negative_run_signal_counts.get(variant, 0) / event_count
+            average_run_signal_confidence = run_signal_confidence_totals.get(variant, 0.0) / event_count
             observation_trace_depth = min(1.0, observation_trace_counts.get(variant, 0) / max(1, event_count * 3))
             assessment_trace_depth = min(1.0, assessment_trace_counts.get(variant, 0) / max(1, event_count * 3))
             session_generation_depth = min(1.0, session_generation_depths.get(variant, 0) / max(1, event_count * 2))
@@ -103,9 +123,13 @@ class GenerationPromptSelector:
                 average_outcome
                 + (validation_rate * 0.08)
                 + (grounding_rate * 0.04)
-                + (downstream_rate * 0.06)
+                + (downstream_rate * 0.04)
                 + (assessment_rate * 0.08)
-                + (session_outcome_rate * 0.08)
+                + (session_outcome_rate * 0.06)
+                + (run_summary_rate * 0.08)
+                + (positive_run_signal_rate * 0.08)
+                - (negative_run_signal_rate * 0.08)
+                + (average_run_signal_confidence * 0.06)
                 + (observation_trace_depth * 0.03)
                 + (assessment_trace_depth * 0.05)
                 + (session_generation_depth * 0.04),

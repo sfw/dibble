@@ -12,6 +12,7 @@ class LearningSessionOutcome:
     session_outcome_score: float | None = None
     subsequent_generation_count: int = 0
     outcome_event_count: int = 0
+    outcome_event_ids: tuple[str, ...] = ()
 
 
 @dataclass(slots=True)
@@ -69,10 +70,12 @@ class LearningSessionOutcomeScorer:
             downstream_scores.append(sum(score_assessment_event(event) for event in assessments) / len(assessments))
         if not downstream_scores:
             return LearningSessionOutcome(subsequent_generation_count=len(subsequent_generations))
+        outcome_event_ids = tuple(dict.fromkeys([event.event_id for event in observations + assessments]))
         return LearningSessionOutcome(
             session_outcome_score=round(sum(downstream_scores) / len(downstream_scores), 2),
             subsequent_generation_count=len(subsequent_generations),
             outcome_event_count=len(observations) + len(assessments),
+            outcome_event_ids=outcome_event_ids,
         )
 
     def _later_session_events(

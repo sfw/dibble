@@ -153,6 +153,10 @@ class TelemetryService:
         event_count = len(samples)
         quality_scores = [sample.quality_score for sample in samples]
         composite_scores = [sample.composite_score for sample in samples]
+        run_scores = [sample.run_summary_score for sample in samples if sample.run_summary_score is not None]
+        run_summary_matches = sum(1 for sample in samples if sample.run_summary_score is not None)
+        positive_run_signals = sum(1 for sample in samples if sample.run_calibration_signal == "positive")
+        run_signal_confidence_total = sum(sample.run_calibration_confidence for sample in samples)
         downstream_matches = sum(1 for sample in samples if sample.downstream_observation_score is not None)
         assessment_matches = sum(1 for sample in samples if sample.downstream_assessment_score is not None)
         session_outcome_matches = sum(1 for sample in samples if sample.session_outcome_score is not None)
@@ -166,6 +170,10 @@ class TelemetryService:
             event_count=event_count,
             average_quality_score=round(sum(quality_scores) / event_count, 2) if event_count else 0.0,
             average_composite_outcome=round(sum(composite_scores) / event_count, 2) if event_count else 0.0,
+            average_run_outcome_score=round(sum(run_scores) / len(run_scores), 2) if run_scores else 0.0,
+            average_run_signal_confidence=round(run_signal_confidence_total / event_count, 2) if event_count else 0.0,
+            run_summary_rate=round(run_summary_matches / event_count, 2) if event_count else 0.0,
+            positive_run_signal_rate=round(positive_run_signals / event_count, 2) if event_count else 0.0,
             downstream_observation_rate=round(downstream_matches / event_count, 2) if event_count else 0.0,
             downstream_assessment_rate=round(assessment_matches / event_count, 2) if event_count else 0.0,
             session_outcome_rate=round(session_outcome_matches / event_count, 2) if event_count else 0.0,

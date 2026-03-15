@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from dibble.models.telemetry import AuditEvent
 from dibble.services.generation_outcome_metrics import score_assessment_event, score_observation_event
+from dibble.services.generation_run_summaries import GenerationRunSummaryBuilder
 from dibble.services.generation_trace_linker import GenerationTraceLinker, LinkedTraceEvent
 from dibble.services.learning_session_outcomes import LearningSessionOutcomeScorer
 
@@ -22,28 +23,38 @@ class GenerationPromptOutcomeSample:
     assessment_match_count: int = 0
     session_generation_depth: int = 0
     session_outcome_event_count: int = 0
+    run_summary_score: float | None = None
+    run_calibration_signal: str = "insufficient"
+    run_calibration_confidence: float = 0.0
+    run_direct_source_count: int = 0
+    run_event_count: int = 0
 
     @property
     def composite_score(self) -> float:
-        downstream_scores = [
-            score
-            for score in (
-                self.downstream_observation_score,
-                self.downstream_assessment_score,
-                self.session_outcome_score,
+        downstream_score = self.run_summary_score
+        if downstream_score is None:
+            downstream_scores = [
+                score
+                for score in (
+                    self.downstream_observation_score,
+                    self.downstream_assessment_score,
+                    self.session_outcome_score,
+                )
+                if score is not None
+            ]
+            downstream_score = (
+                round(sum(downstream_scores) / len(downstream_scores), 2) if downstream_scores else None
             )
-            if score is not None
-        ]
-        if not downstream_scores:
+        if downstream_score is None:
             return self.quality_score
-        downstream_average = sum(downstream_scores) / len(downstream_scores)
-        return round((self.quality_score * 0.4) + (downstream_average * 0.6), 2)
+        return round((self.quality_score * 0.4) + (downstream_score * 0.6), 2)
 
 
 @dataclass(slots=True)
 class GenerationPromptOutcomeScorer:
     observation_window_minutes: int = 30
     max_trace_events: int = 3
+    run_summary_builder: GenerationRunSummaryBuilder = field(default_factory=GenerationRunSummaryBuilder)
 
     def score(
         self,
@@ -84,6 +95,11 @@ class GenerationPromptOutcomeScorer:
             candidate_observations=candidate_observations,
             candidate_assessments=candidate_assessments or [],
         )
+        run_summary = self.run_summary_builder.build(
+            linked_observations=linked_observations,
+            linked_assessments=linked_assessments,
+            session_outcome=session_outcome,
+        )
         return GenerationPromptOutcomeSample(
             variant=variant,
             prompt_template_name=prompt_template_name,
@@ -97,6 +113,11 @@ class GenerationPromptOutcomeScorer:
             assessment_match_count=len(linked_assessments),
             session_generation_depth=session_outcome.subsequent_generation_count,
             session_outcome_event_count=session_outcome.outcome_event_count,
+            run_summary_score=run_summary.run_outcome_score,
+            run_calibration_signal=run_summary.calibration_signal,
+            run_calibration_confidence=run_summary.calibration_confidence,
+            run_direct_source_count=run_summary.direct_source_count,
+            run_event_count=run_summary.event_count,
         )
 
     def _aggregate_trace_score(
@@ -105,13 +126,4 @@ class GenerationPromptOutcomeScorer:
         linked_events: list[LinkedTraceEvent],
         event_scorer,
     ) -> float | None:
-        if not linked_events:
-            return None
-        weighted_total = 0.0
-        total_weight = 0.0
-        for linked_event in linked_events:
-            weighted_total += event_scorer(linked_event.event) * linked_event.match_score
-            total_weight += linked_event.match_score
-        if total_weight <= 0.0:
-            return None
-        return round(weighted_total / total_weight, 2)
+        return self.run_summary_builder.trace_score(linked_events=linked_events, event_scorer=event_scorer)

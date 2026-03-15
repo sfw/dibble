@@ -56,6 +56,10 @@ class GenerationPromptPerformance(BaseModel):
     event_count: int = 0
     average_quality_score: float = 0.0
     average_composite_outcome: float = 0.0
+    average_run_outcome_score: float = 0.0
+    average_run_signal_confidence: float = 0.0
+    run_summary_rate: float = 0.0
+    positive_run_signal_rate: float = 0.0
     downstream_observation_rate: float = 0.0
     downstream_assessment_rate: float = 0.0
     session_outcome_rate: float = 0.0

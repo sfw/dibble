@@ -157,6 +157,10 @@ def test_telemetry_snapshot_includes_generation_prompt_outcomes(tmp_path):
     assert performance.template_name == "worked_example.guided_reflection"
     assert performance.content_type == "worked_example"
     assert performance.average_composite_outcome > performance.average_quality_score
+    assert performance.average_run_outcome_score > performance.average_quality_score
+    assert performance.average_run_signal_confidence >= 0.7
+    assert performance.run_summary_rate == 1.0
+    assert performance.positive_run_signal_rate == 1.0
     assert performance.downstream_observation_rate == 1.0
     assert performance.downstream_assessment_rate == 1.0
     assert performance.session_outcome_rate == 0.0
@@ -220,6 +224,8 @@ def test_telemetry_snapshot_includes_cross_generation_session_outcomes(tmp_path)
         if item.template_name == "micro_explanation.guided_reflection"
     )
     assert performance.session_outcome_rate == 1.0
+    assert performance.run_summary_rate == 1.0
+    assert performance.positive_run_signal_rate == 1.0
     assert performance.average_session_generation_depth == 1.0
 
 

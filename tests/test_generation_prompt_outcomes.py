@@ -49,6 +49,9 @@ def test_generation_prompt_outcome_scorer_uses_follow_up_observation(tmp_path):
 
     assert sample.downstream_observation_score is not None
     assert sample.downstream_observation_score > 0.7
+    assert sample.run_summary_score is not None
+    assert sample.run_calibration_signal == "positive"
+    assert sample.run_calibration_confidence >= 0.7
     assert sample.composite_score > sample.quality_score
 
 
@@ -74,6 +77,8 @@ def test_generation_prompt_outcome_scorer_returns_none_without_follow_up_observa
 
     assert sample.downstream_observation_score is None
     assert sample.downstream_assessment_score is None
+    assert sample.run_summary_score is None
+    assert sample.run_calibration_signal == "insufficient"
     assert sample.composite_score == 0.81
 
 
@@ -137,6 +142,7 @@ def test_generation_prompt_outcome_scorer_prefers_exact_generation_link_over_clo
 
     assert sample.downstream_observation_score is not None
     assert sample.downstream_observation_score > 0.7
+    assert sample.run_calibration_signal == "positive"
 
 
 def test_generation_prompt_outcome_scorer_prefers_same_learning_session_when_generation_id_missing(tmp_path):
@@ -199,6 +205,7 @@ def test_generation_prompt_outcome_scorer_prefers_same_learning_session_when_gen
 
     assert sample.downstream_observation_score is not None
     assert sample.downstream_observation_score > 0.75
+    assert sample.run_summary_score is not None
 
 
 def test_generation_prompt_outcome_scorer_uses_same_session_socratic_assessment(tmp_path):
@@ -242,6 +249,8 @@ def test_generation_prompt_outcome_scorer_uses_same_session_socratic_assessment(
 
     assert sample.downstream_assessment_score is not None
     assert sample.downstream_assessment_score > 0.8
+    assert sample.run_summary_score is not None
+    assert sample.run_calibration_signal == "positive"
     assert sample.composite_score > sample.quality_score
 
 
@@ -334,6 +343,8 @@ def test_generation_prompt_outcome_scorer_aggregates_multi_event_session_trace(t
     assert sample.downstream_observation_score > 0.7
     assert sample.downstream_assessment_score is not None
     assert sample.downstream_assessment_score > 0.7
+    assert sample.run_summary_score is not None
+    assert sample.run_event_count == 4
     assert sample.composite_score > sample.quality_score
 
 
@@ -411,4 +422,7 @@ def test_generation_prompt_outcome_scorer_uses_later_same_session_run_outcome(tm
     assert sample.session_outcome_score > 0.75
     assert sample.session_generation_depth == 1
     assert sample.session_outcome_event_count == 2
+    assert sample.run_summary_score is not None
+    assert sample.run_calibration_signal == "positive"
+    assert sample.run_event_count == 2
     assert sample.composite_score > sample.quality_score

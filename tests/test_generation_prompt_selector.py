@@ -387,3 +387,92 @@ def test_generation_prompt_selector_can_prefer_better_cross_generation_session_o
         selector.select_variant(content_type=RequestedContentType.micro_explanation, fallback_variant="baseline")
         == "guided_reflection"
     )
+
+
+def test_generation_prompt_selector_can_prefer_stronger_positive_run_signal(tmp_path):
+    database_path = str(tmp_path / "generation-selector-run-signal.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    selector = GenerationPromptSelector(audit_store=audit_store, min_samples_per_variant=2)
+
+    for suffix in ("1", "2"):
+        student_id = f"00000000-0000-0000-0000-00000000090{suffix}"
+        audit_store.append(
+            event_type="content.generate",
+            status="success",
+            student_id=student_id,
+            payload={
+                "generation_id": f"guided-{suffix}",
+                "learning_session_id": f"guided-signal-{suffix}",
+                "content_type": "worked_example",
+                "prompt_template_name": "worked_example.guided_reflection",
+                "prompt_template_variant": "guided_reflection",
+                "quality_score": 0.78,
+                "validation_passed": True,
+                "grounding_count": 1,
+                "target_kc_ids": ["KC-1"],
+            },
+        )
+        audit_store.append(
+            event_type="learner.observe",
+            status="success",
+            student_id=student_id,
+            payload={
+                "generation_id": f"guided-{suffix}",
+                "learning_session_id": f"guided-signal-{suffix}",
+                "observed_content_type": "worked_example",
+                "task_type": "worked_example",
+                "target_kc_ids": ["KC-1"],
+                "engagement": "high",
+                "frustration": "low",
+                "total_load": 0.22,
+                "confidence_calibration": 0.84,
+                "help_seeking": "low",
+            },
+        )
+        audit_store.append(
+            event_type="assessment.socratic",
+            status="success",
+            student_id=student_id,
+            payload={
+                "learning_session_id": f"guided-signal-{suffix}",
+                "target_kc_ids": ["KC-1"],
+                "evidence_strength": "demonstrated",
+                "evidence_score": 0.86,
+                "profile_update_applied": True,
+            },
+        )
+
+    for suffix in ("1", "2"):
+        student_id = f"00000000-0000-0000-0000-00000000100{suffix}"
+        audit_store.append(
+            event_type="content.generate",
+            status="success",
+            student_id=student_id,
+            payload={
+                "content_type": "worked_example",
+                "prompt_template_name": "worked_example.baseline",
+                "prompt_template_variant": "baseline",
+                "quality_score": 0.82,
+                "validation_passed": True,
+                "grounding_count": 1,
+                "target_kc_ids": ["KC-1"],
+            },
+        )
+        audit_store.append(
+            event_type="learner.observe",
+            status="success",
+            student_id=student_id,
+            payload={
+                "engagement": "medium",
+                "frustration": "medium",
+                "total_load": 0.55,
+                "confidence_calibration": 0.58,
+                "help_seeking": "medium",
+            },
+        )
+
+    assert (
+        selector.select_variant(content_type=RequestedContentType.worked_example, fallback_variant="baseline")
+        == "guided_reflection"
+    )

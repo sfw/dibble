@@ -19,7 +19,7 @@ The biggest remaining gaps are no longer basic plumbing. They are adaptive intel
 - true learner-state inference rather than manually supplied profile fields
 - KC prerequisite graphs and misconception classification
 - richer remedial generation and deeper generation-template selection beyond the current specialized modes
-- richer Socratic/conversational calibration loops and prompt-performance feedback
+- broader router- and learner-model use of the new run-summary calibration signals
 - proactive pre-generation beyond the current explicit warmup endpoint
 
 ## Requirement Snapshot
@@ -33,7 +33,7 @@ Legend:
 | Requirement | Status | Notes |
 |---|---|---|
 | `LLM-001` LLM orchestration service | Implemented | Primary/secondary upstreams, failover, circuit breaker, selection strategies |
-| `LLM-002` Prompt framework with versioning/A-B testing | Partial | Prompt registry now selects named templates with version and variant metadata for generation and Socratic assessment probes, observability now includes Socratic evidence aggregates plus per-template/style prompt-performance summaries, both assessment probes and the main experimented generation families can optionally prefer the stronger recent variant via audit-backed adaptive selection, and generation variants can now incorporate aggregated observation-linked traces, same-session Socratic traces, and later cross-generation session outcomes, but experimentation is still minimal and there is no stronger explicit run-summary or longer-horizon calibration loop |
+| `LLM-002` Prompt framework with versioning/A-B testing | Partial | Prompt registry now selects named templates with version and variant metadata for generation and Socratic assessment probes, observability now includes Socratic evidence aggregates plus per-template/style prompt-performance summaries, both assessment probes and the main experimented generation families can optionally prefer the stronger recent variant via audit-backed adaptive selection, generation variants can now incorporate aggregated observation-linked traces, same-session Socratic traces, and later cross-generation session outcomes, and those traces are now condensed into explicit run-level outcome summaries plus confidence-weighted calibration signals, but experimentation is still minimal and there is no longer-horizon calibration loop |
 | `LLM-003` RAG pipeline | Implemented | Hybrid lexical + embedding retriever with persistent embedding cache |
 | `LLM-004` Safety/moderation layer | Partial | Validation and safety rules exist; no dedicated moderation workflow |
 | `LLM-005` Streaming response architecture | Implemented | SSE route plus upstream chat-stream ingestion |
@@ -51,7 +51,7 @@ Legend:
 | `ADAPT-002` Within-session adaptation | Partial | Streaming generation exists, but there is no continuous state-updating adaptive loop |
 | `ADAPT-003` Misconception detection/classification | Partial | Rule-based misconception signals now guide remediation planning, but there is no richer classifier or taxonomy yet |
 | `ADAPT-004` Automatic step-back intervention | Implemented | Router and generation path support step-back content generation |
-| `ADAPT-005` Conversational/Socratic assessment | Partial | A persisted Socratic assessment flow now scores the current learner response with modular evidence dimensions, stores multi-turn session state, chooses follow-up prompt style with an outcome-aware turn policy, feeds outcomes back into learner-profile mastery and metacognitive state, and can now contribute same-session plus later-session evidence to aggregated generation prompt-calibration traces, but it still lacks richer discourse modeling and broader outcome calibration across full learning traces |
+| `ADAPT-005` Conversational/Socratic assessment | Partial | A persisted Socratic assessment flow now scores the current learner response with modular evidence dimensions, stores multi-turn session state, chooses follow-up prompt style with an outcome-aware turn policy, feeds outcomes back into learner-profile mastery and metacognitive state, and can now contribute same-session plus later-session evidence to explicit generation run summaries and calibration signals, but it still lacks richer discourse modeling and broader outcome calibration across full learning traces |
 | `API-001` `POST /api/content/generate` | Implemented | Current unified generation endpoint returns persisted generated-content metadata |
 | `API-002` `POST /api/remedial/trigger` | Partial | Implemented as a lightweight wrapper; deeper remedial orchestration still missing |
 | `API-003` `GET /api/learners/{id}/profile` | Implemented | Current unified learner-profile endpoint returns the extended dimensions |
@@ -69,14 +69,14 @@ Based on `planning/4 - revised-spec/implementation-roadmap.md` and `planning/5 -
 2. `ADAPT-003`: evolve the new misconception signals into a richer taxonomy and confidence-calibrated classifier.
 3. `PROF-002` + `PROF-003` + `PROF-005`: replace the new heuristic learner-state inference path with stronger calibrated models trained from real outcome data.
 4. `INFRA-003`: move from explicit warmup requests to anticipatory scheduling and smarter cache invalidation for likely next-step content.
-5. `ADAPT-005` + `LLM-002`: carry the new cross-generation session-outcome tracing beyond audit-time heuristics into explicit run summaries and longer-horizon learner-outcome calibration so the Socratic-to-profile feedback loop and adaptive prompt-selection loop can learn from more trustworthy learner outcomes.
+5. `ADAPT-005` + `LLM-002`: promote the new explicit run summaries into broader router feedback and longer-horizon learner-outcome calibration so the Socratic-to-profile feedback loop and adaptive prompt-selection loop can learn across sessions rather than only within local audit windows.
 
 ## Recommendation
 
 The most coherent next implementation step is now:
 
 - extend the new Socratic-to-profile feedback loop with broader calibration targets so conversational evidence can be trusted across more contexts
-- use the new prompt-performance tracking and session-aware observation plus Socratic trace aggregation so the broader adaptive selection loop can be calibrated on richer multi-step downstream outcomes and then promoted into more explicit run-level summaries
+- use the new explicit run-summary signals as a cleaner interface for router feedback and learner-state calibration instead of re-reading raw event windows downstream
 - keep reusing the current generated-content and session stores instead of adding a parallel orchestration layer
 
-That is now more achievable because the Socratic flow no longer relies only on a single last-turn threshold, no longer ends at the assessment response itself, and now feeds into learner-state updates, within-step trace aggregation, and later same-session outcome tracing. The next coherent step is to turn those audit-derived traces into more explicit run-level summaries so routing and generation selection rely less on heuristics alone.
+That is now more achievable because the Socratic flow no longer relies only on a single last-turn threshold, no longer ends at the assessment response itself, and now feeds into learner-state updates, within-step trace aggregation, later same-session outcome tracing, and explicit run-level calibration summaries. The next coherent step is to let those summaries drive more of the router and learner-state calibration path across longer horizons instead of remaining mainly prompt-selection telemetry.
