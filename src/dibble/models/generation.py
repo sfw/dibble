@@ -128,3 +128,15 @@ class RemedialTriggerRequest(BaseModel):
     misconception_description: str
     learner_prompt: str | None = None
     curriculum_context: list[str] = Field(default_factory=list)
+
+
+class ContentWarmRequest(BaseModel):
+    requests: list[GenerationRequest] = Field(default_factory=list)
+
+
+class ContentWarmResult(BaseModel):
+    total_requests: int = Field(default=0, ge=0)
+    cache_hits: int = Field(default=0, ge=0)
+    cache_misses: int = Field(default=0, ge=0)
+    generation_ids: list[str] = Field(default_factory=list)
+    warmed_at: datetime = Field(default_factory=utc_now)

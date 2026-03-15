@@ -14,6 +14,8 @@ from dibble.models.curriculum import (
 )
 from dibble.models.generation import (
     AdaptiveRouteDecision,
+    ContentWarmRequest,
+    ContentWarmResult,
     GeneratedContent,
     GenerationRequest,
     GenerationStreamEvent,
@@ -30,6 +32,7 @@ from dibble.services.auth import (
     AuthorizationError,
     TokenConfigurationError,
 )
+from dibble.services.content_warmer import ContentWarmer
 from dibble.services.curriculum_store import SQLiteCurriculumStore
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
@@ -51,6 +54,7 @@ def build_router(
     telemetry_service: TelemetryService,
     router_service: RouterPlugin,
     generation_engine: GenerationEngine,
+    content_warmer: ContentWarmer,
     remediation_planner: RemediationPlanner,
     state_inference_service: LearnerStateInferenceService,
 ) -> APIRouter:
@@ -402,6 +406,24 @@ def build_router(
             },
         )
         return generated_content
+
+    @api_router.post(
+        "/content/warm",
+        response_model=ContentWarmResult,
+        dependencies=deps("editor"),
+    )
+    def warm_content(request: ContentWarmRequest) -> ContentWarmResult:
+        warmed = content_warmer.warm(request.requests)
+        audit_store.append(
+            event_type="content.warm",
+            status="success",
+            payload={
+                "total_requests": warmed.total_requests,
+                "cache_hits": warmed.cache_hits,
+                "cache_misses": warmed.cache_misses,
+            },
+        )
+        return warmed
 
     @api_router.post(
         "/explanations/generate",

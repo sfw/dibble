@@ -138,3 +138,23 @@ class SQLiteGeneratedContentStore:
                 expires_at,
             ) in rows
         ]
+
+    def stats(self, *, now: datetime | None = None) -> dict[str, int]:
+        comparison_time = now or datetime.now(timezone.utc)
+        with sqlite3.connect(self.database_path) as connection:
+            total_entries = connection.execute(
+                "SELECT count(*) FROM generated_content"
+            ).fetchone()[0]
+            fresh_entries = connection.execute(
+                """
+                SELECT count(*) FROM generated_content
+                WHERE expires_at IS NULL OR expires_at > ?
+                """,
+                (comparison_time.isoformat(),),
+            ).fetchone()[0]
+
+        return {
+            "total_entries": int(total_entries),
+            "fresh_entries": int(fresh_entries),
+            "expired_entries": int(total_entries - fresh_entries),
+        }

@@ -7,6 +7,7 @@ from dibble.plugins.loader import build_generation_plugins
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.auth import AuthService
 from dibble.services.auth_sessions import SQLiteAuthSessionStore
+from dibble.services.content_warmer import ContentWarmer
 from dibble.services.curriculum_store import SQLiteCurriculumStore
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
@@ -32,6 +33,7 @@ class ApplicationServices:
     auth_service: AuthService
     telemetry_service: TelemetryService
     generation_engine: GenerationEngine
+    content_warmer: ContentWarmer
     remediation_planner: RemediationPlanner
     state_inference_service: LearnerStateInferenceService
     router_plugin: object
@@ -65,6 +67,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         MisconceptionDetector(knowledge_component_store),
     )
     state_inference_service = LearnerStateInferenceService()
+    content_warmer = ContentWarmer(profile_store, generation_engine)
 
     return ApplicationServices(
         profile_store=profile_store,
@@ -74,8 +77,9 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         generated_content_store=generated_content_store,
         observation_store=observation_store,
         auth_service=auth_service,
-        telemetry_service=TelemetryService(audit_store, provider_health_store),
+        telemetry_service=TelemetryService(audit_store, generated_content_store, provider_health_store),
         generation_engine=generation_engine,
+        content_warmer=content_warmer,
         remediation_planner=remediation_planner,
         state_inference_service=state_inference_service,
         router_plugin=plugins.router,

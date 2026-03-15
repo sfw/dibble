@@ -40,6 +40,10 @@ class TelemetrySnapshot(BaseModel):
     generation_events: int = 0
     fallback_generations: int = 0
     validation_issue_events: int = 0
+    cache_hit_generations: int = 0
+    warm_requests: int = 0
+    generated_content_entries: int = 0
+    fresh_generated_content_entries: int = 0
     provider_failure_events: int = 0
     provider_circuit_open_events: int = 0
     provider_statuses: list[ProviderStatusSnapshot] = Field(default_factory=list)

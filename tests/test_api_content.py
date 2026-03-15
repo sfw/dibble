@@ -53,6 +53,26 @@ def test_generation_endpoint_returns_generated_content_and_cache_hit(client, stu
     assert second_payload["response"]["generation_metadata"]["cache_hit"] is True
 
 
+def test_content_warm_endpoint_primes_generation_cache(client, student_id):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+
+    request_payload = {
+        "student_id": str(student_id),
+        "target_kc_ids": ["KC-1"],
+        "intent": "remediation",
+        "curriculum_context": ["Equivalent fractions"],
+    }
+
+    warm_response = client.post("/api/content/warm", json={"requests": [request_payload]})
+    generated_response = client.post("/api/content/generate", json=request_payload)
+
+    assert warm_response.status_code == 200
+    assert generated_response.status_code == 200
+    assert warm_response.json()["total_requests"] == 1
+    assert generated_response.json()["quality"]["cache_hit"] is True
+
+
 def test_remedial_trigger_returns_remedial_generated_content(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())

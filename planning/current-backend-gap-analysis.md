@@ -19,7 +19,7 @@ The biggest remaining gaps are no longer basic plumbing. They are adaptive intel
 - true learner-state inference rather than manually supplied profile fields
 - KC prerequisite graphs and misconception classification
 - richer remedial generation and problem/worked-example specialization
-- proactive pre-generation instead of request-time cache reuse only
+- proactive pre-generation beyond the current explicit warmup endpoint
 
 ## Requirement Snapshot
 
@@ -36,7 +36,7 @@ Legend:
 | `LLM-003` RAG pipeline | Implemented | Hybrid lexical + embedding retriever with persistent embedding cache |
 | `LLM-004` Safety/moderation layer | Partial | Validation and safety rules exist; no dedicated moderation workflow |
 | `LLM-005` Streaming response architecture | Implemented | SSE route plus upstream chat-stream ingestion |
-| `GEN-001` On-the-fly explanation generation | Implemented | `v1` and `v2` generation routes produce grounded explanations |
+| `GEN-001` On-the-fly explanation generation | Implemented | Current unified generation routes produce grounded explanations |
 | `GEN-002` Practice problem synthesis | Partial | `intent=practice` is supported, but there is no dedicated problem generator or difficulty calibration |
 | `GEN-003` Worked example generation with fading | Partial | Generic generation exists; no worked-example-specific prompt or fading logic |
 | `GEN-004` Remedial micro-module creation | Partial | Remedial trigger now steps through prerequisite KCs, but misconception classification and richer module assembly are still shallow |
@@ -58,24 +58,24 @@ Legend:
 | `DATA-001` KnowledgeComponent entity and prerequisite graph | Implemented | Persisted KC entity plus prerequisite traversal API and remediation-planner integration |
 | `DATA-002` Extended learner profile | Implemented | Current profile model includes cognitive, affective, load, and preference dimensions |
 | `DATA-003` GeneratedContent entity with quality metadata | Implemented | Persisted generated content plus `generation_metadata` and `GeneratedContent` API envelope |
-| `INFRA-003` Pre-generation and intelligent caching | Partial | Request-time generation cache exists; proactive warming and smarter invalidation do not |
+| `INFRA-003` Pre-generation and intelligent caching | Partial | Request-time generation cache and an explicit warmup endpoint exist; anticipatory scheduling and smarter invalidation do not |
 
 ## Highest-Value Next Gaps
 
 Based on `planning/4 - revised-spec/implementation-roadmap.md` and `planning/5 - dev-handoff-revised-spec/requirements-traceability.csv`, the strongest next backend slices are:
 
-1. `INFRA-003`: extend the new cache into true pre-generation and warmup flows for anticipated remedial content.
-2. `GEN-002` + `GEN-003`: deepen practice-problem and worked-example generation beyond the current prompt specialization.
-3. `PROF-004`: expand the KC graph from a persistence/API layer into broader taxonomy coverage and mastery migration support.
-4. `ADAPT-003`: evolve the new misconception signals into a richer taxonomy and confidence-calibrated classifier.
-5. `PROF-002` + `PROF-003`: replace the new heuristic inference path with stronger calibrated models and task-aware features.
+1. `GEN-002` + `GEN-003`: deepen practice-problem and worked-example generation beyond the current prompt specialization.
+2. `PROF-004`: expand the KC graph from a persistence/API layer into broader taxonomy coverage and mastery migration support.
+3. `ADAPT-003`: evolve the new misconception signals into a richer taxonomy and confidence-calibrated classifier.
+4. `PROF-002` + `PROF-003`: replace the new heuristic inference path with stronger calibrated models and task-aware features.
+5. `INFRA-003`: move from explicit warmup requests to anticipatory scheduling and smarter cache invalidation for likely next-step content.
 
 ## Recommendation
 
 The most coherent next implementation step is now:
 
-- add proactive pre-generation and warmup for common remedial/problem-generation requests
-- reuse the current generated-content entity and cache metadata instead of adding a parallel cache layer
-- expose cache effectiveness in observability
+- deepen problem and worked-example generation into first-class generation modes
+- keep reusing the current generated-content entity and cache metadata instead of adding a parallel cache layer
+- let the router and remediation planner choose among richer instructional formats rather than only a generic prompt path
 
-That would improve runtime responsiveness while building directly on the unified generation path that already exists.
+That would build directly on the unified generation path while closing one of the biggest revised-spec quality gaps still visible in the backend.

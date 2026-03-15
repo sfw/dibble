@@ -27,6 +27,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             services.telemetry_service,
             services.router_plugin,
             services.generation_engine,
+            services.content_warmer,
             services.remediation_planner,
             services.state_inference_service,
         )
