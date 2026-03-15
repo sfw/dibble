@@ -24,6 +24,7 @@ class Settings:
     llm_secondary_timeout_seconds: float | None = None
     llm_circuit_breaker_threshold: int = 2
     llm_circuit_breaker_cooldown_seconds: float = 30.0
+    llm_selection_strategy: str = "ordered"
     embedding_api_base: str = "https://api.openai.com/v1"
     embedding_api_key: str | None = None
     embedding_model: str | None = None
@@ -83,6 +84,7 @@ def get_settings() -> Settings:
         llm_circuit_breaker_cooldown_seconds=float(
             os.getenv("DIBBLE_LLM_CIRCUIT_BREAKER_COOLDOWN_SECONDS", "30.0")
         ),
+        llm_selection_strategy=os.getenv("DIBBLE_LLM_SELECTION_STRATEGY", "ordered"),
         embedding_api_base=os.getenv("DIBBLE_EMBEDDING_API_BASE", "https://api.openai.com/v1"),
         embedding_api_key=os.getenv("DIBBLE_EMBEDDING_API_KEY") or os.getenv("DIBBLE_LLM_API_KEY"),
         embedding_model=os.getenv("DIBBLE_EMBEDDING_MODEL"),

@@ -44,6 +44,7 @@ class LLMOrchestrationProvider:
         fallback_provider: MockLLMProvider | None = None,
         circuit_breaker_threshold: int = 2,
         circuit_breaker_cooldown_seconds: float = 30.0,
+        selection_strategy: str = "ordered",
         time_provider: Callable[[], float] = monotonic,
         health_store: SQLiteProviderHealthStore | None = None,
     ) -> None:
@@ -51,9 +52,11 @@ class LLMOrchestrationProvider:
         self.fallback_provider = fallback_provider
         self.circuit_breaker_threshold = max(1, circuit_breaker_threshold)
         self.circuit_breaker_cooldown_seconds = max(0.0, circuit_breaker_cooldown_seconds)
+        self.selection_strategy = selection_strategy
         self.time_provider = time_provider
         self.client_states = {name: ClientCircuitState() for name, _ in clients}
         self.health_store = health_store
+        self.round_robin_cursor = 0
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "LLMOrchestrationProvider":
@@ -97,6 +100,7 @@ class LLMOrchestrationProvider:
             fallback_provider=fallback_provider,
             circuit_breaker_threshold=settings.llm_circuit_breaker_threshold,
             circuit_breaker_cooldown_seconds=settings.llm_circuit_breaker_cooldown_seconds,
+            selection_strategy=settings.llm_selection_strategy,
             health_store=SQLiteProviderHealthStore(settings.database_path),
         )
 
@@ -112,10 +116,7 @@ class LLMOrchestrationProvider:
 
         prompts = build_generation_prompts(profile, request, route, grounding_titles)
 
-        for name, client in self.clients:
-            if not self._is_available(name):
-                self._record_health(name, "circuit_skip")
-                continue
+        for name, client in self._iter_candidate_clients():
             try:
                 completion = client.complete(
                     system_prompt=prompts.system_prompt,
@@ -142,10 +143,7 @@ class LLMOrchestrationProvider:
             return
 
         prompts = build_stream_generation_prompts(profile, request, route, grounding_titles)
-        for name, client in self.clients:
-            if not self._is_available(name):
-                self._record_health(name, "circuit_skip")
-                continue
+        for name, client in self._iter_candidate_clients():
             parser = StreamingChunkParser()
             try:
                 for delta in client.stream_complete(
@@ -174,6 +172,25 @@ class LLMOrchestrationProvider:
             state.open_until = None
             return True
         return False
+
+    def _iter_candidate_clients(self) -> Iterator[tuple[str, OpenAICompatibleChatClient]]:
+        available: list[tuple[str, OpenAICompatibleChatClient]] = []
+        for name, client in self.clients:
+            if self._is_available(name):
+                available.append((name, client))
+            else:
+                self._record_health(name, "circuit_skip")
+
+        if not available:
+            return iter(())
+
+        if self.selection_strategy == "round_robin":
+            start = self.round_robin_cursor % len(available)
+            ordered = available[start:] + available[:start]
+            self.round_robin_cursor = (self.round_robin_cursor + 1) % len(available)
+            return iter(ordered)
+
+        return iter(available)
 
     def _record_success(self, name: str) -> None:
         state = self.client_states.get(name)

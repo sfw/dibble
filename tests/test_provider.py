@@ -343,3 +343,39 @@ def test_provider_retries_primary_after_circuit_cooldown(sample_profile, sample_
     provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
 
     assert primary.complete_calls == 2
+
+
+def test_provider_round_robin_balances_healthy_clients(sample_profile, sample_request, sample_route):
+    primary = FakeClient(
+        """
+        {
+          "blocks": [
+            {"kind": "summary", "title": "Primary", "body": "Primary output."},
+            {"kind": "instruction", "title": "Try it", "body": "Use primary."}
+          ]
+        }
+        """
+    )
+    secondary = FakeClient(
+        """
+        {
+          "blocks": [
+            {"kind": "summary", "title": "Secondary", "body": "Secondary output."},
+            {"kind": "instruction", "title": "Try it", "body": "Use secondary."}
+          ]
+        }
+        """
+    )
+    provider = LLMOrchestrationProvider(
+        clients=[("primary", primary), ("secondary", secondary)],
+        fallback_provider=MockLLMProvider(),
+        selection_strategy="round_robin",
+    )
+
+    first = provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+    second = provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+
+    assert first[0].title == "Primary"
+    assert second[0].title == "Secondary"
+    assert primary.complete_calls == 1
+    assert secondary.complete_calls == 1
