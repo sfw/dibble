@@ -3,19 +3,26 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
+from fastapi.responses import StreamingResponse
 
 from dibble.models.curriculum import CurriculumResource, CurriculumResourceUpsert
-from dibble.models.generation import AdaptiveRouteDecision, GenerationRequest, GenerationResponse
+from dibble.models.generation import AdaptiveRouteDecision, GenerationRequest, GenerationResponse, GenerationStreamEvent
 from dibble.models.profile import LearnerProfile, ProfileSummary
+from dibble.models.telemetry import AuditEvent, TelemetrySnapshot
 from dibble.plugins.contracts import RouterPlugin
+from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.curriculum_store import SQLiteCurriculumStore
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.profile_store import SQLiteProfileStore
+from dibble.services.streaming import encode_sse_event
+from dibble.services.telemetry import TelemetryService
 
 
 def build_router(
     profile_store: SQLiteProfileStore,
     curriculum_store: SQLiteCurriculumStore,
+    audit_store: SQLiteAuditStore,
+    telemetry_service: TelemetryService,
     router_service: RouterPlugin,
     generation_engine: GenerationEngine,
 ) -> APIRouter:
@@ -73,7 +80,20 @@ def build_router(
         profile = profile_store.get(request.student_id)
         if profile is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
-        return router_service.route(profile, request)
+        decision = router_service.route(profile, request)
+        audit_store.append(
+            event_type="adaptive.decide",
+            status="success",
+            student_id=str(request.student_id),
+            payload={
+                "intent": request.intent.value,
+                "intervention_type": decision.intervention_type.value,
+                "delivery_mode": decision.delivery_mode.value,
+                "scaffolding_level": decision.scaffolding_level,
+                "reason_count": len(decision.reasons),
+            },
+        )
+        return decision
 
     @router.post("/api/v1/adaptive/generate", response_model=GenerationResponse)
     def generate_adaptive_content(request: GenerationRequest) -> GenerationResponse:
@@ -81,6 +101,82 @@ def build_router(
         if profile is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
 
-        return generation_engine.generate(profile, request)
+        response = generation_engine.generate(profile, request)
+        audit_store.append(
+            event_type="adaptive.generate",
+            status="success",
+            student_id=str(request.student_id),
+            payload={
+                "intent": request.intent.value,
+                "intervention_type": response.route.intervention_type.value,
+                "delivery_mode": response.route.delivery_mode.value,
+                "grounding_count": len(response.grounding),
+                "generated_block_count": len(response.blocks),
+                "validation_issue_count": len(response.validation_issues),
+            },
+        )
+        return response
+
+    @router.post("/api/v1/adaptive/generate/stream")
+    def stream_adaptive_content(request: GenerationRequest) -> StreamingResponse:
+        profile = profile_store.get(request.student_id)
+        if profile is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
+
+        def event_stream():
+            try:
+                complete_event: GenerationStreamEvent | None = None
+                for event in generation_engine.stream_generate(profile, request):
+                    if event.event == "complete":
+                        complete_event = event
+                        response = event.response
+                        if response is not None:
+                            audit_store.append(
+                                event_type="adaptive.generate.stream",
+                                status="success",
+                                student_id=str(request.student_id),
+                                payload={
+                                    "intent": request.intent.value,
+                                    "intervention_type": response.route.intervention_type.value,
+                                    "delivery_mode": response.route.delivery_mode.value,
+                                    "grounding_count": len(response.grounding),
+                                    "generated_block_count": len(response.blocks),
+                                    "validation_issue_count": len(response.validation_issues),
+                                },
+                            )
+                    yield encode_sse_event(event)
+
+                if complete_event is None:
+                    audit_store.append(
+                        event_type="adaptive.generate.stream",
+                        status="error",
+                        student_id=str(request.student_id),
+                        payload={"intent": request.intent.value, "detail": "stream ended before completion"},
+                    )
+            except Exception as exc:
+                audit_store.append(
+                    event_type="adaptive.generate.stream",
+                    status="error",
+                    student_id=str(request.student_id),
+                    payload={"intent": request.intent.value, "detail": str(exc)},
+                )
+                yield encode_sse_event(
+                    GenerationStreamEvent(
+                        event="error",
+                        student_id=request.student_id,
+                        validation_issues=[str(exc)],
+                    )
+                )
+
+        return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+    @router.get("/api/v1/audit/events", response_model=list[AuditEvent])
+    def list_audit_events(limit: int = 50) -> list[AuditEvent]:
+        safe_limit = max(1, min(limit, 200))
+        return audit_store.list(limit=safe_limit)
+
+    @router.get("/api/v1/observability/metrics", response_model=TelemetrySnapshot)
+    def get_observability_metrics() -> TelemetrySnapshot:
+        return telemetry_service.snapshot()
 
     return router

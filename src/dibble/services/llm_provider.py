@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from dataclasses import dataclass
 
 from dibble.config import Settings
-from dibble.models.generation import AdaptiveRouteDecision, GeneratedBlock, GenerationRequest
+from dibble.models.generation import AdaptiveRouteDecision, GeneratedBlock, GeneratedBlockChunk, GenerationRequest
 from dibble.models.profile import LearnerProfile
 from dibble.services.content_provider import MockLLMProvider
 from dibble.services.llm_client import LLMClientError, OpenAICompatibleChatClient
 from dibble.services.llm_prompting import build_generation_prompts
+from dibble.services.streaming import iter_block_chunks
 
 
 class LLMProviderError(RuntimeError):
@@ -76,6 +78,15 @@ class LLMOrchestrationProvider:
             return self._parse_blocks(completion.content)
         except (LLMClientError, LLMProviderError):
             return self._fallback(profile, request, route, grounding_titles, "LLM call failed.")
+
+    def stream_generate(
+        self,
+        profile: LearnerProfile,
+        request: GenerationRequest,
+        route: AdaptiveRouteDecision,
+        grounding_titles: list[str],
+    ) -> Iterator[GeneratedBlockChunk]:
+        return iter_block_chunks(self.generate(profile, request, route, grounding_titles))
 
     def _fallback(
         self,

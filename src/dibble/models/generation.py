@@ -61,6 +61,14 @@ class GeneratedBlock(BaseModel):
     body: str
 
 
+class GeneratedBlockChunk(BaseModel):
+    block_index: int
+    kind: str
+    title: str
+    body_delta: str
+    done: bool = False
+
+
 class GenerationResponse(BaseModel):
     student_id: UUID
     generated_at: datetime = Field(default_factory=utc_now)
@@ -70,3 +78,13 @@ class GenerationResponse(BaseModel):
     grounding: list[GroundingReference] = Field(default_factory=list)
     safety_notes: list[str]
     validation_issues: list[str] = Field(default_factory=list)
+
+
+class GenerationStreamEvent(BaseModel):
+    event: str
+    student_id: UUID
+    route: AdaptiveRouteDecision | None = None
+    grounding: list[GroundingReference] = Field(default_factory=list)
+    chunk: GeneratedBlockChunk | None = None
+    validation_issues: list[str] = Field(default_factory=list)
+    response: GenerationResponse | None = None

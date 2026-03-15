@@ -1,7 +1,10 @@
 from __future__ import annotations
 
-from dibble.models.generation import AdaptiveRouteDecision, GeneratedBlock, GenerationRequest
+from collections.abc import Iterator
+
+from dibble.models.generation import AdaptiveRouteDecision, GeneratedBlock, GeneratedBlockChunk, GenerationRequest
 from dibble.models.profile import LearnerProfile
+from dibble.services.streaming import iter_block_chunks
 
 
 class MockLLMProvider:
@@ -32,3 +35,12 @@ class MockLLMProvider:
                 ),
             ),
         ]
+
+    def stream_generate(
+        self,
+        profile: LearnerProfile,
+        request: GenerationRequest,
+        route: AdaptiveRouteDecision,
+        grounding_titles: list[str],
+    ) -> Iterator[GeneratedBlockChunk]:
+        return iter_block_chunks(self.generate(profile, request, route, grounding_titles))

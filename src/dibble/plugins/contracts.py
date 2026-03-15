@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Iterator, Protocol
 
 from dibble.models.generation import (
     AdaptiveRouteDecision,
     GeneratedBlock,
+    GeneratedBlockChunk,
     GenerationRequest,
     GroundingReference,
 )
@@ -33,6 +34,14 @@ class ProviderPlugin(Protocol):
         route: AdaptiveRouteDecision,
         grounding_titles: list[str],
     ) -> list[GeneratedBlock]: ...
+
+    def stream_generate(
+        self,
+        profile: LearnerProfile,
+        request: GenerationRequest,
+        route: AdaptiveRouteDecision,
+        grounding_titles: list[str],
+    ) -> Iterator[GeneratedBlockChunk]: ...
 
 
 class ValidatorPlugin(Protocol):

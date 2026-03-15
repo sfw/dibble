@@ -1,6 +1,14 @@
 from __future__ import annotations
 
-from dibble.models.generation import DeliveryMode, GenerationRequest, GenerationResponse
+from collections.abc import Iterator
+
+from dibble.models.generation import (
+    DeliveryMode,
+    GeneratedBlock,
+    GenerationRequest,
+    GenerationResponse,
+    GenerationStreamEvent,
+)
 from dibble.models.profile import LearnerProfile
 from dibble.plugins.contracts import ProviderPlugin, RetrieverPlugin, RouterPlugin, ValidatorPlugin
 
@@ -22,6 +30,44 @@ class GenerationEngine:
         grounding = self.retriever.retrieve(profile, request)
         route = self.router.route(profile, request)
         blocks = self.provider.generate(profile, request, route, [item.title for item in grounding])
+        return self._build_response(profile, request, route, grounding, blocks)
+
+    def stream_generate(self, profile: LearnerProfile, request: GenerationRequest) -> Iterator[GenerationStreamEvent]:
+        grounding = self.retriever.retrieve(profile, request)
+        route = self.router.route(profile, request)
+        yield GenerationStreamEvent(
+            event="start",
+            student_id=profile.student_id,
+            route=route,
+            grounding=grounding,
+        )
+
+        block_buffers: dict[int, GeneratedBlock] = {}
+        for chunk in self.provider.stream_generate(profile, request, route, [item.title for item in grounding]):
+            current = block_buffers.get(chunk.block_index)
+            if current is None:
+                current = GeneratedBlock(kind=chunk.kind, title=chunk.title, body="")
+                block_buffers[chunk.block_index] = current
+
+            current.body += chunk.body_delta
+            yield GenerationStreamEvent(
+                event="delta",
+                student_id=profile.student_id,
+                chunk=chunk,
+            )
+
+        blocks = [block_buffers[index] for index in sorted(block_buffers)]
+        response = self._build_response(profile, request, route, grounding, blocks)
+        yield GenerationStreamEvent(
+            event="complete",
+            student_id=profile.student_id,
+            route=response.route,
+            grounding=response.grounding,
+            validation_issues=response.validation_issues,
+            response=response,
+        )
+
+    def _build_response(self, profile: LearnerProfile, request: GenerationRequest, route, grounding, blocks: list[GeneratedBlock]) -> GenerationResponse:
         validation_issues = self.validator.validate(blocks, grounding)
 
         if validation_issues and not grounding:

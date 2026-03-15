@@ -12,6 +12,8 @@ This repository now includes a working MVP backend slice for the revised adaptiv
 - Default retriever now uses a persistent SQLite-backed embedding index plus lexical/metadata scoring for better free-text curriculum matching
 - Default provider now supports an OpenAI-compatible chat completion endpoint with automatic mock fallback when no model credentials are configured
 - Default validation now checks for missing grounding, missing instructional content, weak curriculum alignment, grade-band readability risk, accessibility density, unsafe language, and simple math errors
+- Adaptive decision and generation endpoints now write audit events and expose simple local observability metrics
+- Streaming generation is available over server-sent events for incremental `start`, `delta`, and `complete` delivery
 - Dynamic plugin loading for router, retriever, provider, and validator factories
 - API tests covering routing, persistence, retrieval, generation, and fallback behavior
 
@@ -46,6 +48,9 @@ env UV_CACHE_DIR=.uv-cache uv run pytest
 - `GET /api/v1/curriculum/resources`
 - `POST /api/v1/adaptive/decide`
 - `POST /api/v1/adaptive/generate`
+- `POST /api/v1/adaptive/generate/stream`
+- `GET /api/v1/audit/events`
+- `GET /api/v1/observability/metrics`
 
 ## Persistence
 
@@ -77,6 +82,7 @@ export DIBBLE_LLM_ALLOW_MOCK_FALLBACK=true
 ```
 
 If `DIBBLE_LLM_API_KEY` or `DIBBLE_LLM_MODEL` is unset, the default provider falls back to the deterministic mock provider so local development and tests continue to work offline.
+The stream endpoint currently emits server-sent events named `start`, `delta`, and `complete`.
 
 Embedding settings for the default retriever:
 
@@ -96,4 +102,4 @@ If `DIBBLE_EMBEDDING_API_KEY` or `DIBBLE_EMBEDDING_MODEL` is unset, the default 
 1. Replace or augment SQLite with production persistence such as Redis/PostgreSQL or Redis/Cassandra.
 2. Replace the SQLite embedding cache with a production vector store and background indexing pipeline while keeping the retriever plugin contract stable.
 3. Add prompt versioning, richer generation metadata, and provider failover on top of the LLM orchestration layer.
-4. Add richer curriculum alignment scoring, domain-specific validators, severity levels, authentication, audit logging, observability, and streaming responses.
+4. Add richer curriculum alignment scoring, domain-specific validators, severity levels, authentication, and a true upstream streaming provider implementation.
