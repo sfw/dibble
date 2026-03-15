@@ -69,6 +69,7 @@ class SocraticTurnRecord(BaseModel):
 class SocraticAssessmentSession(BaseModel):
     session_id: str
     student_id: UUID
+    learning_session_id: str | None = None
     target_kc_ids: list[str] = Field(default_factory=list)
     target_lo_ids: list[str] = Field(default_factory=list)
     curriculum_context: list[str] = Field(default_factory=list)
@@ -81,6 +82,7 @@ class SocraticAssessmentSession(BaseModel):
 class SocraticAssessmentRequest(BaseModel):
     student_id: UUID
     session_id: str | None = None
+    learning_session_id: str | None = None
     target_kc_ids: list[str] = Field(default_factory=list)
     target_lo_ids: list[str] = Field(default_factory=list)
     curriculum_context: list[str] = Field(default_factory=list)
@@ -102,6 +104,7 @@ class SocraticAssessmentEvaluation(BaseModel):
 class SocraticAssessmentResponse(BaseModel):
     session_id: str
     student_id: UUID
+    learning_session_id: str | None = None
     turn_id: str
     prompt: str
     prompt_style: SocraticPromptStyle

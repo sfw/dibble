@@ -568,6 +568,7 @@ def build_router(
             student_id=str(request.student_id),
             payload={
                 "session_id": result.session_id,
+                "learning_session_id": result.learning_session_id,
                 "generation_id": result.generation_id,
                 "target_kc_ids": request.target_kc_ids,
                 "target_lo_ids": request.target_lo_ids,

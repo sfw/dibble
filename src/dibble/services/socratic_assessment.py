@@ -36,6 +36,7 @@ class SocraticAssessmentService:
         policy_decision = self.turn_policy.decide(session, request, evaluation)
         generation_request = GenerationRequest(
             student_id=request.student_id,
+            learning_session_id=session.learning_session_id,
             target_kc_ids=session.target_kc_ids,
             target_lo_ids=session.target_lo_ids,
             intent="assessment",
@@ -77,6 +78,7 @@ class SocraticAssessmentService:
         return SocraticAssessmentResponse(
             session_id=updated_session.session_id,
             student_id=request.student_id,
+            learning_session_id=updated_session.learning_session_id,
             turn_id=turn_id,
             prompt=prompt,
             prompt_style=policy_decision.prompt_style,
@@ -102,6 +104,7 @@ class SocraticAssessmentService:
         return SocraticAssessmentSession(
             session_id=request.session_id or str(uuid4()),
             student_id=request.student_id,
+            learning_session_id=request.learning_session_id,
             target_kc_ids=request.target_kc_ids,
             target_lo_ids=request.target_lo_ids,
             curriculum_context=request.curriculum_context,

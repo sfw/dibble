@@ -116,6 +116,7 @@ def test_telemetry_snapshot_includes_generation_prompt_outcomes(tmp_path):
         status="success",
         student_id=student_id,
         payload={
+            "learning_session_id": "learn-session-1",
             "content_type": "worked_example",
             "quality_score": 0.78,
             "validation_passed": True,
@@ -129,11 +130,23 @@ def test_telemetry_snapshot_includes_generation_prompt_outcomes(tmp_path):
         status="success",
         student_id=student_id,
         payload={
+            "learning_session_id": "learn-session-1",
             "engagement": "high",
             "frustration": "low",
             "total_load": 0.25,
             "confidence_calibration": 0.82,
             "help_seeking": "low",
+        },
+    )
+    audit_store.append(
+        event_type="assessment.socratic",
+        status="success",
+        student_id=student_id,
+        payload={
+            "learning_session_id": "learn-session-1",
+            "evidence_strength": "demonstrated",
+            "evidence_score": 0.81,
+            "profile_update_applied": True,
         },
     )
 
@@ -145,6 +158,7 @@ def test_telemetry_snapshot_includes_generation_prompt_outcomes(tmp_path):
     assert performance.content_type == "worked_example"
     assert performance.average_composite_outcome > performance.average_quality_score
     assert performance.downstream_observation_rate == 1.0
+    assert performance.downstream_assessment_rate == 1.0
 
 
 def test_telemetry_snapshot_includes_socratic_assessment_metrics(tmp_path):

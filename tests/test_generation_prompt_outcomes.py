@@ -47,8 +47,8 @@ def test_generation_prompt_outcome_scorer_uses_follow_up_observation(tmp_path):
     scorer = GenerationPromptOutcomeScorer()
     sample = scorer.score(generation_event=generation_event, candidate_observations=[observation_event])
 
-    assert sample.downstream_outcome_score is not None
-    assert sample.downstream_outcome_score > 0.7
+    assert sample.downstream_observation_score is not None
+    assert sample.downstream_observation_score > 0.7
     assert sample.composite_score > sample.quality_score
 
 
@@ -72,7 +72,8 @@ def test_generation_prompt_outcome_scorer_returns_none_without_follow_up_observa
 
     sample = GenerationPromptOutcomeScorer().score(generation_event=generation_event, candidate_observations=[])
 
-    assert sample.downstream_outcome_score is None
+    assert sample.downstream_observation_score is None
+    assert sample.downstream_assessment_score is None
     assert sample.composite_score == 0.81
 
 
@@ -134,8 +135,8 @@ def test_generation_prompt_outcome_scorer_prefers_exact_generation_link_over_clo
         candidate_observations=[closer_but_unlinked, exact_match],
     )
 
-    assert sample.downstream_outcome_score is not None
-    assert sample.downstream_outcome_score > 0.7
+    assert sample.downstream_observation_score is not None
+    assert sample.downstream_observation_score > 0.7
 
 
 def test_generation_prompt_outcome_scorer_prefers_same_learning_session_when_generation_id_missing(tmp_path):
@@ -196,5 +197,49 @@ def test_generation_prompt_outcome_scorer_prefers_same_learning_session_when_gen
         candidate_observations=[same_student_wrong_session, same_session],
     )
 
-    assert sample.downstream_outcome_score is not None
-    assert sample.downstream_outcome_score > 0.75
+    assert sample.downstream_observation_score is not None
+    assert sample.downstream_observation_score > 0.75
+
+
+def test_generation_prompt_outcome_scorer_uses_same_session_socratic_assessment(tmp_path):
+    database_path = str(tmp_path / "generation-outcomes-assessment.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = str(uuid4())
+    generation_event = audit_store.append(
+        event_type="content.generate",
+        status="success",
+        student_id=student_id,
+        payload={
+            "learning_session_id": "learn-session-2",
+            "content_type": "micro_explanation",
+            "prompt_template_name": "micro_explanation.guided_reflection",
+            "prompt_template_variant": "guided_reflection",
+            "quality_score": 0.74,
+            "validation_passed": True,
+            "grounding_count": 1,
+            "target_kc_ids": ["KC-1"],
+        },
+    )
+    assessment_event = audit_store.append(
+        event_type="assessment.socratic",
+        status="success",
+        student_id=student_id,
+        payload={
+            "learning_session_id": "learn-session-2",
+            "target_kc_ids": ["KC-1"],
+            "evidence_strength": "demonstrated",
+            "evidence_score": 0.82,
+            "profile_update_applied": True,
+        },
+    )
+
+    sample = GenerationPromptOutcomeScorer().score(
+        generation_event=generation_event,
+        candidate_observations=[],
+        candidate_assessments=[assessment_event],
+    )
+
+    assert sample.downstream_assessment_score is not None
+    assert sample.downstream_assessment_score > 0.8
+    assert sample.composite_score > sample.quality_score

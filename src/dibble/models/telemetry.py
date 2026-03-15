@@ -57,6 +57,7 @@ class GenerationPromptPerformance(BaseModel):
     average_quality_score: float = 0.0
     average_composite_outcome: float = 0.0
     downstream_observation_rate: float = 0.0
+    downstream_assessment_rate: float = 0.0
 
 
 class TelemetrySnapshot(BaseModel):

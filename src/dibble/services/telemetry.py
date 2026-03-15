@@ -45,6 +45,7 @@ class TelemetryService:
         )
         generation_prompt_groups: dict[tuple[str, str | None, str | None], list[object]] = {}
         observation_events = [event for event in events if event.event_type == "learner.observe"]
+        assessment_events = [event for event in events if event.event_type == "assessment.socratic"]
         for event in generation_events:
             template_name = event.payload.get("prompt_template_name")
             if not template_name:
@@ -58,6 +59,7 @@ class TelemetryService:
                 self.generation_outcome_scorer.score(
                     generation_event=event,
                     candidate_observations=observation_events,
+                    candidate_assessments=assessment_events,
                 )
             )
         socratic_evidence_scores = [
@@ -152,7 +154,8 @@ class TelemetryService:
         event_count = len(samples)
         quality_scores = [sample.quality_score for sample in samples]
         composite_scores = [sample.composite_score for sample in samples]
-        downstream_matches = sum(1 for sample in samples if sample.downstream_outcome_score is not None)
+        downstream_matches = sum(1 for sample in samples if sample.downstream_observation_score is not None)
+        assessment_matches = sum(1 for sample in samples if sample.downstream_assessment_score is not None)
         return GenerationPromptPerformance(
             template_name=template_name,
             template_variant=template_variant,
@@ -161,4 +164,5 @@ class TelemetryService:
             average_quality_score=round(sum(quality_scores) / event_count, 2) if event_count else 0.0,
             average_composite_outcome=round(sum(composite_scores) / event_count, 2) if event_count else 0.0,
             downstream_observation_rate=round(downstream_matches / event_count, 2) if event_count else 0.0,
+            downstream_assessment_rate=round(assessment_matches / event_count, 2) if event_count else 0.0,
         )

@@ -34,15 +34,18 @@ class GenerationPromptSelector:
         if not generation_events:
             return fallback_variant
         observation_events = [event for event in events if event.event_type == "learner.observe"]
+        assessment_events = [event for event in events if event.event_type == "assessment.socratic"]
 
         grouped: dict[str, list[float]] = {}
         validation_counts: dict[str, int] = {}
         grounded_counts: dict[str, int] = {}
         downstream_counts: dict[str, int] = {}
+        assessment_counts: dict[str, int] = {}
         for event in generation_events:
             sample = self.outcome_scorer.score(
                 generation_event=event,
                 candidate_observations=observation_events,
+                candidate_assessments=assessment_events,
             )
             grouped.setdefault(sample.variant, []).append(sample.composite_score)
             validation_counts[sample.variant] = validation_counts.get(sample.variant, 0) + (
@@ -52,7 +55,10 @@ class GenerationPromptSelector:
                 1 if sample.grounding_count > 0 else 0
             )
             downstream_counts[sample.variant] = downstream_counts.get(sample.variant, 0) + (
-                1 if sample.downstream_outcome_score is not None else 0
+                1 if sample.downstream_observation_score is not None else 0
+            )
+            assessment_counts[sample.variant] = assessment_counts.get(sample.variant, 0) + (
+                1 if sample.downstream_assessment_score is not None else 0
             )
 
         eligible = {
@@ -70,8 +76,13 @@ class GenerationPromptSelector:
             validation_rate = validation_counts.get(variant, 0) / event_count
             grounding_rate = grounded_counts.get(variant, 0) / event_count
             downstream_rate = downstream_counts.get(variant, 0) / event_count
+            assessment_rate = assessment_counts.get(variant, 0) / event_count
             return (
-                average_outcome + (validation_rate * 0.08) + (grounding_rate * 0.04) + (downstream_rate * 0.08),
+                average_outcome
+                + (validation_rate * 0.08)
+                + (grounding_rate * 0.04)
+                + (downstream_rate * 0.06)
+                + (assessment_rate * 0.08),
                 average_outcome,
                 event_count,
             )

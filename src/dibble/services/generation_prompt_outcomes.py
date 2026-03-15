@@ -24,13 +24,20 @@ class GenerationPromptOutcomeSample:
     quality_score: float
     validation_passed: bool
     grounding_count: int
-    downstream_outcome_score: float | None = None
+    downstream_observation_score: float | None = None
+    downstream_assessment_score: float | None = None
 
     @property
     def composite_score(self) -> float:
-        if self.downstream_outcome_score is None:
+        downstream_scores = [
+            score
+            for score in (self.downstream_observation_score, self.downstream_assessment_score)
+            if score is not None
+        ]
+        if not downstream_scores:
             return self.quality_score
-        return round((self.quality_score * 0.45) + (self.downstream_outcome_score * 0.55), 2)
+        downstream_average = sum(downstream_scores) / len(downstream_scores)
+        return round((self.quality_score * 0.4) + (downstream_average * 0.6), 2)
 
 
 @dataclass(slots=True)
@@ -42,17 +49,23 @@ class GenerationPromptOutcomeScorer:
         *,
         generation_event: AuditEvent,
         candidate_observations: list[AuditEvent],
+        candidate_assessments: list[AuditEvent] | None = None,
     ) -> GenerationPromptOutcomeSample:
         prompt_template_name = str(generation_event.payload.get("prompt_template_name"))
         variant = str(generation_event.payload.get("prompt_template_variant"))
-        downstream = self._match_observation(generation_event=generation_event, observations=candidate_observations)
+        observation_score = self._match_observation(generation_event=generation_event, observations=candidate_observations)
+        assessment_score = self._match_assessment(
+            generation_event=generation_event,
+            assessments=candidate_assessments or [],
+        )
         return GenerationPromptOutcomeSample(
             variant=variant,
             prompt_template_name=prompt_template_name,
             quality_score=float(generation_event.payload.get("quality_score", 0.0)),
             validation_passed=bool(generation_event.payload.get("validation_passed")),
             grounding_count=int(generation_event.payload.get("grounding_count", 0)),
-            downstream_outcome_score=downstream,
+            downstream_observation_score=observation_score,
+            downstream_assessment_score=assessment_score,
         )
 
     def _match_observation(
@@ -76,6 +89,28 @@ class GenerationPromptOutcomeScorer:
         if self._match_score(generation_event, matched) <= 0.0:
             return None
         return round(self._score_observation(matched), 2)
+
+    def _match_assessment(
+        self,
+        *,
+        generation_event: AuditEvent,
+        assessments: list[AuditEvent],
+    ) -> float | None:
+        if generation_event.student_id is None:
+            return None
+        window = timedelta(minutes=max(1, self.observation_window_minutes))
+        candidates = [
+            event
+            for event in assessments
+            if event.student_id == generation_event.student_id
+            and generation_event.created_at <= event.created_at <= generation_event.created_at + window
+        ]
+        if not candidates:
+            return None
+        matched = max(candidates, key=lambda event: self._assessment_match_score(generation_event, event))
+        if self._assessment_match_score(generation_event, matched) <= 0.0:
+            return None
+        return round(self._score_assessment(matched), 2)
 
     def _match_score(self, generation_event: AuditEvent, observation_event: AuditEvent) -> float:
         generation_payload = generation_event.payload
@@ -113,6 +148,34 @@ class GenerationPromptOutcomeScorer:
         score += max(0.0, 1.0 - (time_delta_seconds / max(60.0, self.observation_window_minutes * 60.0)))
         return score
 
+    def _assessment_match_score(self, generation_event: AuditEvent, assessment_event: AuditEvent) -> float:
+        generation_payload = generation_event.payload
+        assessment_payload = assessment_event.payload
+        score = 0.0
+
+        generation_id = generation_payload.get("generation_id")
+        if generation_id and assessment_payload.get("generation_id") == generation_id:
+            score += 4.0
+
+        learning_session_id = generation_payload.get("learning_session_id")
+        if learning_session_id and assessment_payload.get("learning_session_id") == learning_session_id:
+            score += 3.0
+
+        kc_overlap = self._overlap_score(
+            generation_payload.get("target_kc_ids"),
+            assessment_payload.get("target_kc_ids"),
+        )
+        lo_overlap = self._overlap_score(
+            generation_payload.get("target_lo_ids"),
+            assessment_payload.get("target_lo_ids"),
+        )
+        score += kc_overlap * 1.4
+        score += lo_overlap * 1.0
+
+        time_delta_seconds = (assessment_event.created_at - generation_event.created_at).total_seconds()
+        score += max(0.0, 1.0 - (time_delta_seconds / max(60.0, self.observation_window_minutes * 60.0)))
+        return score
+
     def _expected_task_type(self, content_type: object) -> str | None:
         mapping = {
             "micro_explanation": "explanation",
@@ -144,3 +207,14 @@ class GenerationPromptOutcomeScorer:
             + (confidence_score * 0.22)
             + (help_seeking_score * 0.16)
         )
+
+    def _score_assessment(self, assessment_event: AuditEvent) -> float:
+        payload = assessment_event.payload
+        evidence_score = min(max(float(payload.get("evidence_score", 0.0)), 0.0), 1.0)
+        profile_update_score = 1.0 if bool(payload.get("profile_update_applied")) else 0.0
+        strength_score = {
+            "insufficient": 0.2,
+            "emerging": 0.6,
+            "demonstrated": 1.0,
+        }.get(str(payload.get("evidence_strength")), 0.5)
+        return (evidence_score * 0.55) + (strength_score * 0.3) + (profile_update_score * 0.15)
