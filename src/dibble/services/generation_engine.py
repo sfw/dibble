@@ -212,7 +212,11 @@ class GenerationEngine:
     def _cache_key(self, profile: LearnerProfile, request: GenerationRequest, route, grounding) -> str:
         payload = {
             "profile": profile.model_dump(mode="json"),
-            "request": request.model_dump(mode="json"),
+            "request": {
+                key: value
+                for key, value in request.model_dump(mode="json").items()
+                if key != "learning_session_id"
+            },
             "route": route.model_dump(mode="json"),
             "grounding": [item.model_dump(mode="json") for item in grounding],
         }

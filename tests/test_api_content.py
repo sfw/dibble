@@ -56,6 +56,42 @@ def test_generation_endpoint_returns_generated_content_and_cache_hit(client, stu
     assert second_payload["response"]["generation_metadata"]["cache_hit"] is True
 
 
+def test_generation_cache_ignores_learning_session_id(client, student_id):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+
+    first_response = client.post(
+        "/api/content/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "session-a",
+            "target_kc_ids": ["KC-1"],
+            "intent": "remediation",
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    second_response = client.post(
+        "/api/content/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "session-b",
+            "target_kc_ids": ["KC-1"],
+            "intent": "remediation",
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+
+    first_payload = first_response.json()
+    second_payload = second_response.json()
+    assert first_payload["generation_id"] == second_payload["generation_id"]
+    assert second_payload["quality"]["cache_hit"] is True
+    assert first_payload["request_context"]["learning_session_id"] == "session-a"
+    assert second_payload["request_context"]["learning_session_id"] == "session-b"
+
+
 def test_content_warm_endpoint_primes_generation_cache(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())

@@ -53,6 +53,7 @@ class DeliveryMode(str, Enum):
 
 class GenerationRequest(BaseModel):
     student_id: UUID
+    learning_session_id: str | None = None
     target_kc_ids: list[str] = Field(default_factory=list)
     target_lo_ids: list[str] = Field(default_factory=list)
     intent: ContentIntent = ContentIntent.explanation

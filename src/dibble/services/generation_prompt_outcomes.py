@@ -86,6 +86,10 @@ class GenerationPromptOutcomeScorer:
         if generation_id and observation_payload.get("generation_id") == generation_id:
             score += 5.0
 
+        learning_session_id = generation_payload.get("learning_session_id")
+        if learning_session_id and observation_payload.get("learning_session_id") == learning_session_id:
+            score += 3.0
+
         content_type = generation_payload.get("content_type")
         if content_type and observation_payload.get("observed_content_type") == content_type:
             score += 1.5

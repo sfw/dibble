@@ -17,6 +17,7 @@ def test_observation_endpoint_updates_inferred_state_and_profile(client, student
             "task_type": "assessment",
             "support_level": "low",
             "expected_duration_ms": 18000,
+            "learning_session_id": "learn-session-1",
             "generation_id": "gen-123",
             "observed_content_type": "assessment_probe",
             "target_kc_ids": ["KC-1"],
@@ -50,6 +51,7 @@ def test_observation_endpoint_updates_inferred_state_and_profile(client, student
     assert "confidence_calibration" in audit_events[0]["payload"]
     assert audit_events[0]["payload"]["task_type"] == "assessment"
     assert audit_events[0]["payload"]["support_level"] == "low"
+    assert audit_events[0]["payload"]["learning_session_id"] == "learn-session-1"
     assert audit_events[0]["payload"]["generation_id"] == "gen-123"
     assert audit_events[0]["payload"]["observed_content_type"] == "assessment_probe"
     assert audit_events[0]["payload"]["target_kc_ids"] == ["KC-1"]

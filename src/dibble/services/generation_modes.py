@@ -27,6 +27,7 @@ def build_generation_mode_plan(
 ) -> GenerationModePlan:
     content_type, selection_mode, selection_rationale = select_content_type(profile, request, route)
     request_context: dict[str, object] = {
+        "learning_session_id": request.learning_session_id,
         "intent": request.intent.value,
         "target_kc_ids": request.target_kc_ids,
         "target_lo_ids": request.target_lo_ids,

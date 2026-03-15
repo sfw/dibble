@@ -39,6 +39,7 @@ class LearnerObservationCreate(BaseModel):
     task_type: ObservationTaskType = ObservationTaskType.generic
     support_level: ObservationSupportLevel = ObservationSupportLevel.medium
     expected_duration_ms: int | None = Field(default=None, ge=1)
+    learning_session_id: str | None = None
     generation_id: str | None = None
     observed_content_type: str | None = None
     target_kc_ids: list[str] = Field(default_factory=list)

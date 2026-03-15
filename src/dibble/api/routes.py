@@ -248,6 +248,7 @@ def build_router(
                 "error_count": observation.error_count,
                 "task_type": observation.task_type.value,
                 "support_level": observation.support_level.value,
+                "learning_session_id": observation.learning_session_id,
                 "generation_id": observation.generation_id,
                 "observed_content_type": observation.observed_content_type,
                 "target_kc_ids": observation.target_kc_ids,
@@ -411,6 +412,7 @@ def build_router(
             student_id=str(request.student_id),
             payload={
                 "intent": request.intent.value,
+                "learning_session_id": request.learning_session_id,
                 "content_type": generated_content.content_type,
                 "generation_id": generated_content.generation_id,
                 "intervention_type": response.route.intervention_type.value,

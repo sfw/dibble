@@ -33,7 +33,7 @@ Legend:
 | Requirement | Status | Notes |
 |---|---|---|
 | `LLM-001` LLM orchestration service | Implemented | Primary/secondary upstreams, failover, circuit breaker, selection strategies |
-| `LLM-002` Prompt framework with versioning/A-B testing | Partial | Prompt registry now selects named templates with version and variant metadata for generation and Socratic assessment probes, observability now includes Socratic evidence aggregates plus per-template/style prompt-performance summaries, both assessment probes and the main experimented generation families can optionally prefer the stronger recent variant via audit-backed adaptive selection, and generation variants can now incorporate observation-linked downstream outcomes with exact/contextual matching, but experimentation is still minimal and there is no richer session-level calibration loop |
+| `LLM-002` Prompt framework with versioning/A-B testing | Partial | Prompt registry now selects named templates with version and variant metadata for generation and Socratic assessment probes, observability now includes Socratic evidence aggregates plus per-template/style prompt-performance summaries, both assessment probes and the main experimented generation families can optionally prefer the stronger recent variant via audit-backed adaptive selection, and generation variants can now incorporate observation-linked downstream outcomes with exact, same-session, and contextual matching, but experimentation is still minimal and there is no richer multi-step session calibration loop |
 | `LLM-003` RAG pipeline | Implemented | Hybrid lexical + embedding retriever with persistent embedding cache |
 | `LLM-004` Safety/moderation layer | Partial | Validation and safety rules exist; no dedicated moderation workflow |
 | `LLM-005` Streaming response architecture | Implemented | SSE route plus upstream chat-stream ingestion |
@@ -69,14 +69,14 @@ Based on `planning/4 - revised-spec/implementation-roadmap.md` and `planning/5 -
 2. `ADAPT-003`: evolve the new misconception signals into a richer taxonomy and confidence-calibrated classifier.
 3. `PROF-002` + `PROF-003` + `PROF-005`: replace the new heuristic learner-state inference path with stronger calibrated models trained from real outcome data.
 4. `INFRA-003`: move from explicit warmup requests to anticipatory scheduling and smarter cache invalidation for likely next-step content.
-5. `ADAPT-005` + `LLM-002`: extend the new observation-linked downstream calibration from single-generation matches into richer session-level outcome traces so the Socratic-to-profile feedback loop and adaptive prompt-selection loop can learn from more trustworthy learner outcomes.
+5. `ADAPT-005` + `LLM-002`: extend the new session-aware observation linkage from single-generation matches into richer multi-step outcome traces so the Socratic-to-profile feedback loop and adaptive prompt-selection loop can learn from more trustworthy learner outcomes.
 
 ## Recommendation
 
 The most coherent next implementation step is now:
 
 - extend the new Socratic-to-profile feedback loop with broader calibration targets so conversational evidence can be trusted across more contexts
-- use the new prompt-performance tracking and observation linkage so the broader adaptive selection loop can be calibrated on richer session-level downstream outcomes rather than immediate proxy signals
+- use the new prompt-performance tracking and session-aware observation linkage so the broader adaptive selection loop can be calibrated on richer multi-step downstream outcomes rather than immediate proxy signals
 - keep reusing the current generated-content and session stores instead of adding a parallel orchestration layer
 
 That is now more achievable because the Socratic flow no longer relies only on a single last-turn threshold and no longer ends at the assessment response itself. The next coherent step is to calibrate these richer learner-state and conversational signals against downstream outcomes so routing and generation selection rely less on heuristics alone.

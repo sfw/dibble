@@ -136,3 +136,65 @@ def test_generation_prompt_outcome_scorer_prefers_exact_generation_link_over_clo
 
     assert sample.downstream_outcome_score is not None
     assert sample.downstream_outcome_score > 0.7
+
+
+def test_generation_prompt_outcome_scorer_prefers_same_learning_session_when_generation_id_missing(tmp_path):
+    database_path = str(tmp_path / "generation-outcomes-session.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = str(uuid4())
+    generation_event = audit_store.append(
+        event_type="content.generate",
+        status="success",
+        student_id=student_id,
+        payload={
+            "learning_session_id": "learn-session-1",
+            "content_type": "micro_explanation",
+            "prompt_template_name": "micro_explanation.guided_reflection",
+            "prompt_template_variant": "guided_reflection",
+            "quality_score": 0.78,
+            "validation_passed": True,
+            "grounding_count": 1,
+            "target_kc_ids": ["KC-1"],
+        },
+    )
+    same_student_wrong_session = audit_store.append(
+        event_type="learner.observe",
+        status="success",
+        student_id=student_id,
+        payload={
+            "learning_session_id": "other-session",
+            "observed_content_type": "micro_explanation",
+            "task_type": "explanation",
+            "target_kc_ids": ["KC-1"],
+            "engagement": "low",
+            "frustration": "high",
+            "total_load": 0.88,
+            "confidence_calibration": 0.22,
+            "help_seeking": "high",
+        },
+    )
+    same_session = audit_store.append(
+        event_type="learner.observe",
+        status="success",
+        student_id=student_id,
+        payload={
+            "learning_session_id": "learn-session-1",
+            "observed_content_type": "micro_explanation",
+            "task_type": "explanation",
+            "target_kc_ids": ["KC-1"],
+            "engagement": "high",
+            "frustration": "low",
+            "total_load": 0.2,
+            "confidence_calibration": 0.84,
+            "help_seeking": "low",
+        },
+    )
+
+    sample = GenerationPromptOutcomeScorer().score(
+        generation_event=generation_event,
+        candidate_observations=[same_student_wrong_session, same_session],
+    )
+
+    assert sample.downstream_outcome_score is not None
+    assert sample.downstream_outcome_score > 0.75
