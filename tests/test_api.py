@@ -204,7 +204,7 @@ def test_auth_can_protect_api_endpoints(tmp_path, student_id):
     settings = Settings(
         database_path=str(tmp_path / "dibble-auth.db"),
         auth_enabled=True,
-        auth_api_keys=("secret-key",),
+        auth_principals=("secret-key:admin-user:admin",),
     )
     app = create_app(settings)
 
@@ -224,6 +224,42 @@ def test_auth_can_protect_api_endpoints(tmp_path, student_id):
     assert audit_response.status_code == 200
     assert audit_response.json()[0]["event_type"] == "auth.request"
     assert audit_response.json()[0]["status"] == "denied"
+
+
+def test_auth_exposes_identity_and_rbac(tmp_path, student_id):
+    settings = Settings(
+        database_path=str(tmp_path / "dibble-rbac.db"),
+        auth_enabled=True,
+        auth_principals=(
+            "viewer-key:viewer-user:viewer",
+            "editor-key:editor-user:editor",
+            "admin-key:admin-user:admin",
+        ),
+    )
+    app = create_app(settings)
+
+    with TestClient(app) as client:
+        me_response = client.get("/api/v1/auth/me", headers={"X-API-Key": "viewer-key"})
+        forbidden_write = client.put(
+            f"/api/v1/profiles/{student_id}",
+            headers={"X-API-Key": "viewer-key"},
+            json=build_profile(student_id),
+        )
+        allowed_write = client.put(
+            f"/api/v1/profiles/{student_id}",
+            headers={"X-API-Key": "editor-key"},
+            json=build_profile(student_id),
+        )
+        forbidden_audit = client.get("/api/v1/audit/events", headers={"X-API-Key": "editor-key"})
+        allowed_audit = client.get("/api/v1/audit/events", headers={"X-API-Key": "admin-key"})
+
+    assert me_response.status_code == 200
+    assert me_response.json()["principal_id"] == "viewer-user"
+    assert me_response.json()["role"] == "viewer"
+    assert forbidden_write.status_code == 403
+    assert allowed_write.status_code == 200
+    assert forbidden_audit.status_code == 403
+    assert allowed_audit.status_code == 200
 
 
 def test_generation_falls_back_when_no_curriculum_grounding(client, student_id):

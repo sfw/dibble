@@ -26,6 +26,7 @@ class Settings:
     embedding_allow_local_fallback: bool = True
     auth_enabled: bool = False
     auth_api_keys: tuple[str, ...] = ()
+    auth_principals: tuple[str, ...] = ()
     auth_header_name: str = "X-API-Key"
 
 
@@ -68,5 +69,6 @@ def get_settings() -> Settings:
         embedding_allow_local_fallback=_get_bool_env("DIBBLE_EMBEDDING_ALLOW_LOCAL_FALLBACK", True),
         auth_enabled=_get_bool_env("DIBBLE_AUTH_ENABLED", False),
         auth_api_keys=_get_csv_env("DIBBLE_AUTH_API_KEYS"),
+        auth_principals=_get_csv_env("DIBBLE_AUTH_PRINCIPALS"),
         auth_header_name=os.getenv("DIBBLE_AUTH_HEADER_NAME", "X-API-Key"),
     )

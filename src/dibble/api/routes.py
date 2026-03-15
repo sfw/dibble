@@ -5,13 +5,14 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
+from dibble.models.auth import AuthIdentity
 from dibble.models.curriculum import CurriculumResource, CurriculumResourceUpsert
 from dibble.models.generation import AdaptiveRouteDecision, GenerationRequest, GenerationResponse, GenerationStreamEvent
 from dibble.models.profile import LearnerProfile, ProfileSummary
 from dibble.models.telemetry import AuditEvent, TelemetrySnapshot
 from dibble.plugins.contracts import RouterPlugin
 from dibble.services.audit_store import SQLiteAuditStore
-from dibble.services.auth import AuthService, AuthenticationError
+from dibble.services.auth import AuthService, AuthenticationError, AuthorizationError
 from dibble.services.curriculum_store import SQLiteCurriculumStore
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.profile_store import SQLiteProfileStore
@@ -31,31 +32,62 @@ def build_router(
     router = APIRouter()
     protected_router = APIRouter()
 
-    async def require_auth(
-        request: Request,
-        api_key: str | None = Header(default=None, alias=auth_service.header_name),
-    ) -> None:
-        try:
-            auth_service.authorize(api_key)
-        except AuthenticationError as exc:
-            audit_store.append(
-                event_type="auth.request",
-                status="denied",
-                payload={
-                    "path": request.url.path,
-                    "method": request.method,
-                    "header_name": auth_service.header_name,
-                },
-            )
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+    def require_access(*allowed_roles: str):
+        async def dependency(
+            request: Request,
+            api_key: str | None = Header(default=None, alias=auth_service.header_name),
+        ) -> AuthIdentity:
+            try:
+                identity = auth_service.authorize(api_key, allowed_roles=tuple(allowed_roles) or ("viewer",))
+                request.state.auth_identity = identity
+                return identity
+            except AuthenticationError as exc:
+                audit_store.append(
+                    event_type="auth.request",
+                    status="denied",
+                    payload={
+                        "path": request.url.path,
+                        "method": request.method,
+                        "header_name": auth_service.header_name,
+                        "required_roles": list(allowed_roles or ("viewer",)),
+                    },
+                )
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+            except AuthorizationError as exc:
+                identity = auth_service.authenticate(api_key)
+                audit_store.append(
+                    event_type="auth.request",
+                    status="forbidden",
+                    payload={
+                        "path": request.url.path,
+                        "method": request.method,
+                        "header_name": auth_service.header_name,
+                        "principal_id": identity.principal_id,
+                        "role": identity.role,
+                        "required_roles": list(allowed_roles or ("viewer",)),
+                    },
+                )
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+
+        return dependency
 
     @router.get("/health")
     def healthcheck() -> dict[str, str]:
         return {"status": "ok"}
 
-    protected_dependencies = [Depends(require_auth)] if auth_service.enabled else []
+    def deps(*roles: str):
+        if not auth_service.enabled:
+            return []
+        return [Depends(require_access(*roles))]
 
-    @protected_router.put("/api/v1/profiles/{student_id}", response_model=LearnerProfile, dependencies=protected_dependencies)
+    @protected_router.get("/api/v1/auth/me", response_model=AuthIdentity, dependencies=deps("viewer"))
+    def get_current_identity(request: Request) -> AuthIdentity:
+        identity = getattr(request.state, "auth_identity", None)
+        if identity is None:
+            return auth_service.authenticate(None)
+        return identity
+
+    @protected_router.put("/api/v1/profiles/{student_id}", response_model=LearnerProfile, dependencies=deps("editor"))
     def upsert_profile(student_id: UUID, profile: LearnerProfile) -> LearnerProfile:
         if student_id != profile.student_id:
             raise HTTPException(
@@ -64,21 +96,21 @@ def build_router(
             )
         return profile_store.upsert(profile)
 
-    @protected_router.get("/api/v1/profiles/{student_id}", response_model=LearnerProfile, dependencies=protected_dependencies)
+    @protected_router.get("/api/v1/profiles/{student_id}", response_model=LearnerProfile, dependencies=deps("viewer"))
     def get_profile(student_id: UUID) -> LearnerProfile:
         profile = profile_store.get(student_id)
         if profile is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
         return profile
 
-    @protected_router.get("/api/v1/profiles", response_model=list[str], dependencies=protected_dependencies)
+    @protected_router.get("/api/v1/profiles", response_model=list[str], dependencies=deps("viewer"))
     def list_profiles() -> list[str]:
         return profile_store.list_ids()
 
     @protected_router.get(
         "/api/v1/profiles/{student_id}/summary",
         response_model=ProfileSummary,
-        dependencies=protected_dependencies,
+        dependencies=deps("viewer"),
     )
     def get_profile_summary(student_id: UUID) -> ProfileSummary:
         profile = profile_store.get(student_id)
@@ -89,7 +121,7 @@ def build_router(
     @protected_router.put(
         "/api/v1/curriculum/resources/{resource_id}",
         response_model=CurriculumResource,
-        dependencies=protected_dependencies,
+        dependencies=deps("editor"),
     )
     def upsert_curriculum_resource(
         resource_id: str,
@@ -105,7 +137,7 @@ def build_router(
     @protected_router.get(
         "/api/v1/curriculum/resources",
         response_model=list[CurriculumResource],
-        dependencies=protected_dependencies,
+        dependencies=deps("viewer"),
     )
     def list_curriculum_resources() -> list[CurriculumResource]:
         return curriculum_store.list()
@@ -113,7 +145,7 @@ def build_router(
     @protected_router.post(
         "/api/v1/adaptive/decide",
         response_model=AdaptiveRouteDecision,
-        dependencies=protected_dependencies,
+        dependencies=deps("editor"),
     )
     def decide_adaptive_route(request: GenerationRequest) -> AdaptiveRouteDecision:
         profile = profile_store.get(request.student_id)
@@ -137,7 +169,7 @@ def build_router(
     @protected_router.post(
         "/api/v1/adaptive/generate",
         response_model=GenerationResponse,
-        dependencies=protected_dependencies,
+        dependencies=deps("editor"),
     )
     def generate_adaptive_content(request: GenerationRequest) -> GenerationResponse:
         profile = profile_store.get(request.student_id)
@@ -160,7 +192,7 @@ def build_router(
         )
         return response
 
-    @protected_router.post("/api/v1/adaptive/generate/stream", dependencies=protected_dependencies)
+    @protected_router.post("/api/v1/adaptive/generate/stream", dependencies=deps("editor"))
     def stream_adaptive_content(request: GenerationRequest) -> StreamingResponse:
         profile = profile_store.get(request.student_id)
         if profile is None:
@@ -213,7 +245,7 @@ def build_router(
 
         return StreamingResponse(event_stream(), media_type="text/event-stream")
 
-    @protected_router.get("/api/v1/audit/events", response_model=list[AuditEvent], dependencies=protected_dependencies)
+    @protected_router.get("/api/v1/audit/events", response_model=list[AuditEvent], dependencies=deps("admin"))
     def list_audit_events(limit: int = 50) -> list[AuditEvent]:
         safe_limit = max(1, min(limit, 200))
         return audit_store.list(limit=safe_limit)
@@ -221,7 +253,7 @@ def build_router(
     @protected_router.get(
         "/api/v1/observability/metrics",
         response_model=TelemetrySnapshot,
-        dependencies=protected_dependencies,
+        dependencies=deps("admin"),
     )
     def get_observability_metrics() -> TelemetrySnapshot:
         return telemetry_service.snapshot()

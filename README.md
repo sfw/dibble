@@ -14,7 +14,7 @@ This repository now includes a working MVP backend slice for the revised adaptiv
 - Default validation now checks for missing grounding, missing instructional content, weak curriculum alignment, grade-band readability risk, accessibility density, unsafe language, and simple math errors
 - Adaptive decision and generation endpoints now write audit events and expose simple local observability metrics
 - Streaming generation is available over server-sent events for incremental `start`, `delta`, and `complete` delivery
-- Optional API key auth can protect every endpoint except `GET /health`
+- Optional principal-based API key auth with `viewer`/`editor`/`admin` roles can protect every endpoint except `GET /health`
 - Dynamic plugin loading for router, retriever, provider, and validator factories
 - API tests covering routing, persistence, retrieval, generation, and fallback behavior
 
@@ -50,6 +50,7 @@ env UV_CACHE_DIR=.uv-cache uv run pytest
 - `POST /api/v1/adaptive/decide`
 - `POST /api/v1/adaptive/generate`
 - `POST /api/v1/adaptive/generate/stream`
+- `GET /api/v1/auth/me`
 - `GET /api/v1/audit/events`
 - `GET /api/v1/observability/metrics`
 
@@ -103,14 +104,15 @@ Authentication settings:
 ```bash
 export DIBBLE_AUTH_ENABLED=true
 export DIBBLE_AUTH_API_KEYS=secret-one,secret-two
+export DIBBLE_AUTH_PRINCIPALS=viewer-key:viewer-user:viewer,editor-key:editor-user:editor,admin-key:admin-user:admin
 export DIBBLE_AUTH_HEADER_NAME=X-API-Key
 ```
 
-When auth is enabled, all API routes except `GET /health` require a valid key in the configured header.
+When auth is enabled, all API routes except `GET /health` require a valid key in the configured header. If `DIBBLE_AUTH_PRINCIPALS` is set, keys resolve to named principals and roles. Route access is split so viewers can read, editors can mutate/generate, and admins can access audit and observability endpoints.
 
 ## Suggested Next Build Steps
 
 1. Replace or augment SQLite with production persistence such as Redis/PostgreSQL or Redis/Cassandra.
 2. Replace the SQLite embedding cache with a production vector store and background indexing pipeline while keeping the retriever plugin contract stable.
 3. Add prompt versioning, richer generation metadata, and provider failover on top of the LLM orchestration layer.
-4. Add richer curriculum alignment scoring, domain-specific validators, severity levels, RBAC on top of API-key auth, and a true upstream streaming provider implementation.
+4. Add richer curriculum alignment scoring, domain-specific validators, severity levels, stronger identity/session management on top of RBAC, and a true upstream streaming provider implementation.
