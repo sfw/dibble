@@ -62,11 +62,21 @@ class GenerationRequest(BaseModel):
     curriculum_context: list[str] = Field(default_factory=list)
 
 
+class RouteCalibrationSummary(BaseModel):
+    signal: str = "insufficient"
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    average_run_outcome_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    matched_run_count: int = Field(default=0, ge=0)
+    positive_run_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    negative_run_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
 class AdaptiveRouteDecision(BaseModel):
     intervention_type: InterventionType
     delivery_mode: DeliveryMode
     scaffolding_level: str
     reasons: list[str]
+    calibration: RouteCalibrationSummary | None = None
 
 
 class GroundingReference(BaseModel):

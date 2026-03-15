@@ -8,6 +8,7 @@ from dibble.plugins.loader import build_generation_plugins
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.auth import AuthService
 from dibble.services.auth_sessions import SQLiteAuthSessionStore
+from dibble.services.calibrated_router import CalibratedRouter
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.content_workflow import ContentWorkflowService
 from dibble.services.curriculum_store import SQLiteCurriculumStore
@@ -28,6 +29,7 @@ from dibble.services.protocols import (
     SocraticSessionStore,
 )
 from dibble.services.remediation_planner import RemediationPlanner
+from dibble.services.router_calibration_signals import RouterCalibrationSignalService
 from dibble.services.socratic_assessment import SocraticAssessmentService
 from dibble.services.socratic_evidence import SocraticEvidenceScorer
 from dibble.services.socratic_policy import SocraticTurnPolicy
@@ -75,9 +77,13 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         session_store=SQLiteAuthSessionStore(settings.database_path),
     )
     plugins = build_generation_plugins(settings, curriculum_store=curriculum_store)
+    router_plugin = CalibratedRouter(
+        base_router=plugins.router,
+        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+    )
     generation_engine = GenerationEngine(
         retriever=plugins.retriever,
-        router=plugins.router,
+        router=router_plugin,
         provider=plugins.provider,
         validator=plugins.validator,
         generated_content_store=generated_content_store,
@@ -98,7 +104,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     content_warmer = ContentWarmer(profile_store, generation_engine)
     content_workflow_service = ContentWorkflowService(
         profile_store=profile_store,
-        router=plugins.router,
+        router=router_plugin,
         generation_engine=generation_engine,
         content_warmer=content_warmer,
         remediation_planner=remediation_planner,
@@ -122,5 +128,5 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         socratic_profile_updater=socratic_profile_updater,
         socratic_session_store=socratic_session_store,
         state_inference_service=state_inference_service,
-        router_plugin=plugins.router,
+        router_plugin=router_plugin,
     )

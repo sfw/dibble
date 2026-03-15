@@ -19,7 +19,7 @@ The biggest remaining gaps are no longer basic plumbing. They are adaptive intel
 - true learner-state inference rather than manually supplied profile fields
 - KC prerequisite graphs and misconception classification
 - richer remedial generation and deeper generation-template selection beyond the current specialized modes
-- broader router- and learner-model use of the new run-summary calibration signals
+- broader learner-model and cross-session use of the new run-summary calibration signals
 - proactive pre-generation beyond the current explicit warmup endpoint
 
 ## Requirement Snapshot
@@ -46,8 +46,8 @@ Legend:
 | `PROF-002` Affective state detection | Partial | Observation-driven inference now updates affective state with task-aware normalization, but the logic is still heuristic rather than a richer classifier |
 | `PROF-003` Real-time cognitive load estimation | Partial | Observation-driven load inference now updates the profile with task-aware normalization, but it remains heuristic rather than calibrated from real outcome data |
 | `PROF-004` KC granularity | Partial | KC mastery exists in the profile and there is now a persisted KC graph, but taxonomy depth and mastery migration are still limited |
-| `PROF-005` Metacognitive tracking | Partial | Observation-driven confidence calibration and help-seeking signals now exist, are task-aware, influence routing/generation selection, and can now be updated from Socratic assessment outcomes, but they remain heuristic rather than calibrated |
-| `ADAPT-001` Thompson Sampling router | Implemented | Thompson-style policy with safety constraints is in the production path |
+| `PROF-005` Metacognitive tracking | Partial | Observation-driven confidence calibration and help-seeking signals now exist, are task-aware, influence routing/generation selection, can now be updated from Socratic assessment outcomes, and now also receive conservative router-facing adjustments from recent run summaries, but they remain heuristic rather than calibrated |
+| `ADAPT-001` Thompson Sampling router | Implemented | Thompson-style policy with safety constraints is in the production path, and a calibration wrapper now feeds recent same-target run summaries back into final support selection |
 | `ADAPT-002` Within-session adaptation | Partial | Streaming generation exists, but there is no continuous state-updating adaptive loop |
 | `ADAPT-003` Misconception detection/classification | Partial | Rule-based misconception signals now guide remediation planning, but there is no richer classifier or taxonomy yet |
 | `ADAPT-004` Automatic step-back intervention | Implemented | Router and generation path support step-back content generation |
@@ -69,14 +69,14 @@ Based on `planning/4 - revised-spec/implementation-roadmap.md` and `planning/5 -
 2. `ADAPT-003`: evolve the new misconception signals into a richer taxonomy and confidence-calibrated classifier.
 3. `PROF-002` + `PROF-003` + `PROF-005`: replace the new heuristic learner-state inference path with stronger calibrated models trained from real outcome data.
 4. `INFRA-003`: move from explicit warmup requests to anticipatory scheduling and smarter cache invalidation for likely next-step content.
-5. `ADAPT-005` + `LLM-002`: promote the new explicit run summaries into broader router feedback and longer-horizon learner-outcome calibration so the Socratic-to-profile feedback loop and adaptive prompt-selection loop can learn across sessions rather than only within local audit windows.
+5. `ADAPT-005` + `LLM-002`: promote the new explicit run summaries beyond the current conservative router wrapper into learner-state calibration and longer-horizon learner-outcome feedback so the Socratic-to-profile feedback loop and adaptive prompt-selection loop can learn across sessions rather than only within local audit windows.
 
 ## Recommendation
 
 The most coherent next implementation step is now:
 
 - extend the new Socratic-to-profile feedback loop with broader calibration targets so conversational evidence can be trusted across more contexts
-- use the new explicit run-summary signals as a cleaner interface for router feedback and learner-state calibration instead of re-reading raw event windows downstream
+- use the new explicit run-summary signals as a cleaner interface for learner-state calibration and cross-session adaptation instead of re-reading raw event windows downstream
 - keep reusing the current generated-content and session stores instead of adding a parallel orchestration layer
 
-That is now more achievable because the Socratic flow no longer relies only on a single last-turn threshold, no longer ends at the assessment response itself, and now feeds into learner-state updates, within-step trace aggregation, later same-session outcome tracing, and explicit run-level calibration summaries. The next coherent step is to let those summaries drive more of the router and learner-state calibration path across longer horizons instead of remaining mainly prompt-selection telemetry.
+That is now more achievable because the Socratic flow no longer relies only on a single last-turn threshold, no longer ends at the assessment response itself, and now feeds into learner-state updates, within-step trace aggregation, later same-session outcome tracing, explicit run-level calibration summaries, and a conservative router calibration layer. The next coherent step is to let those summaries drive more of learner-state calibration and cross-session adaptation instead of remaining mostly local to prompt selection and route support nudges.

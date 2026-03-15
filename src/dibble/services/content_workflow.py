@@ -48,6 +48,14 @@ class ContentWorkflowService:
                 "delivery_mode": decision.delivery_mode.value,
                 "scaffolding_level": decision.scaffolding_level,
                 "reason_count": len(decision.reasons),
+                "calibration_signal": decision.calibration.signal if decision.calibration is not None else None,
+                "calibration_confidence": decision.calibration.confidence if decision.calibration is not None else 0.0,
+                "calibration_run_count": (
+                    decision.calibration.matched_run_count if decision.calibration is not None else 0
+                ),
+                "calibration_outcome_score": (
+                    decision.calibration.average_run_outcome_score if decision.calibration is not None else None
+                ),
             },
         )
         return decision
@@ -89,6 +97,12 @@ class ContentWorkflowService:
                 "target_kc_ids": request.target_kc_ids,
                 "target_lo_ids": request.target_lo_ids,
                 "scaffolding_level": response.route.scaffolding_level,
+                "route_calibration_signal": (
+                    response.route.calibration.signal if response.route.calibration is not None else None
+                ),
+                "route_calibration_confidence": (
+                    response.route.calibration.confidence if response.route.calibration is not None else 0.0
+                ),
                 "prompt_template_name": metadata.prompt_template_name,
                 "prompt_template_version": metadata.prompt_template_version,
                 "prompt_template_variant": metadata.prompt_template_variant,
