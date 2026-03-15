@@ -375,19 +375,50 @@ def build_router(
         dependencies=deps("editor"),
     )
     def trigger_remedial_content(request: RemedialTriggerRequest) -> GeneratedContent:
-        plan = remediation_planner.plan(profile_store.get(request.student_id) or _missing_profile(request.student_id), request.target_kc_id)
+        profile = profile_store.get(request.student_id) or _missing_profile(request.student_id)
+        plan = remediation_planner.plan(
+            profile,
+            request.target_kc_id,
+            misconception_description=request.misconception_description,
+            curriculum_context=request.curriculum_context,
+        )
         generation_request = GenerationRequest(
             student_id=request.student_id,
             target_kc_ids=plan.focus_kc_ids,
             intent="remediation",
             learner_prompt=(
-                f"{request.learner_prompt} {plan.rationale}".strip()
+                f"{request.learner_prompt} Step back through prerequisite components before returning to the target."
                 if request.learner_prompt
-                else plan.rationale
+                else "Step back through prerequisite components before returning to the target."
             ),
             curriculum_context=[request.misconception_description, *request.curriculum_context],
         )
-        return generate_content(generation_request)
+        generated_content = generate_content(generation_request)
+        enriched_request_context = {
+            **generated_content.request_context,
+            "target_kc_id": request.target_kc_id,
+            "focus_kc_ids": plan.focus_kc_ids,
+            "prerequisite_kc_ids": plan.prerequisite_kc_ids,
+            "misconception_description": request.misconception_description,
+            "misconception_signals": [signal.model_dump(mode="json") for signal in plan.misconception_signals],
+            "remediation_rationale": plan.rationale,
+        }
+        enriched_content = generated_content.model_copy(update={"request_context": enriched_request_context})
+        audit_store.append(
+            event_type="remediation.trigger",
+            status="success",
+            student_id=str(request.student_id),
+            payload={
+                "target_kc_id": request.target_kc_id,
+                "focus_kc_ids": plan.focus_kc_ids,
+                "prerequisite_kc_ids": plan.prerequisite_kc_ids,
+                "misconception_signal_count": len(plan.misconception_signals),
+                "misconception_signals": [signal.model_dump(mode="json") for signal in plan.misconception_signals],
+                "generation_id": enriched_content.generation_id,
+                "rationale": plan.rationale,
+            },
+        )
+        return enriched_content
 
     @api_router.post("/llm/stream", dependencies=deps("editor"))
     def stream_generated_content(request: GenerationRequest) -> StreamingResponse:

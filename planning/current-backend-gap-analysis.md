@@ -48,7 +48,7 @@ Legend:
 | `PROF-005` Metacognitive tracking | Missing | No dedicated confidence-calibration or help-seeking tracking model yet |
 | `ADAPT-001` Thompson Sampling router | Implemented | Thompson-style policy with safety constraints is in the production path |
 | `ADAPT-002` Within-session adaptation | Partial | Streaming generation exists, but there is no continuous state-updating adaptive loop |
-| `ADAPT-003` Misconception detection/classification | Missing | No classifier or misconception taxonomy yet |
+| `ADAPT-003` Misconception detection/classification | Partial | Rule-based misconception signals now guide remediation planning, but there is no richer classifier or taxonomy yet |
 | `ADAPT-004` Automatic step-back intervention | Implemented | Router and generation path support step-back content generation |
 | `ADAPT-005` Conversational/Socratic assessment | Missing | No conversational assessment endpoint or turn manager |
 | `API-001` `POST /api/content/generate` | Implemented | Current unified generation endpoint returns persisted generated-content metadata |
@@ -64,18 +64,18 @@ Legend:
 
 Based on `planning/4 - revised-spec/implementation-roadmap.md` and `planning/5 - dev-handoff-revised-spec/requirements-traceability.csv`, the strongest next backend slices are:
 
-1. `ADAPT-003`: add misconception detection/classification, even if it starts with rules plus retrieval signals before ML.
-2. `PROF-002` + `PROF-003`: infer affective state and cognitive load from observable events instead of relying on preloaded profile values.
-3. `INFRA-003`: extend the new cache into true pre-generation and warmup flows for anticipated remedial content.
-4. `GEN-002` + `GEN-003`: deepen practice-problem and worked-example generation beyond the current prompt specialization.
-5. `PROF-004`: expand the KC graph from a persistence/API layer into broader taxonomy coverage and mastery migration support.
+1. `PROF-002` + `PROF-003`: infer affective state and cognitive load from observable events instead of relying on preloaded profile values.
+2. `INFRA-003`: extend the new cache into true pre-generation and warmup flows for anticipated remedial content.
+3. `GEN-002` + `GEN-003`: deepen practice-problem and worked-example generation beyond the current prompt specialization.
+4. `PROF-004`: expand the KC graph from a persistence/API layer into broader taxonomy coverage and mastery migration support.
+5. `ADAPT-003`: evolve the new misconception signals into a richer taxonomy and confidence-calibrated classifier.
 
 ## Recommendation
 
 The most coherent next implementation step is now:
 
-- add misconception detection signals on top of the KC graph
-- use those signals to choose prerequisite step-back targets more intelligently
-- expose that reasoning in remediation audit metadata
+- infer affective state and cognitive load from observed behavior
+- feed those inferred states into the existing router and remediation planner
+- record that inference trail in observability and audit metadata
 
-That would turn the new KC graph from a structural capability into a genuinely adaptive remediation system.
+That would extend the current structural and remediation work into a more genuinely adaptive runtime system.

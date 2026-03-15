@@ -69,6 +69,14 @@ class GeneratedBlockChunk(BaseModel):
     done: bool = False
 
 
+class MisconceptionSignal(BaseModel):
+    kc_id: str
+    category: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    rationale: str
+    evidence_terms: list[str] = Field(default_factory=list)
+
+
 class GenerationMetadata(BaseModel):
     quality_score: float = Field(default=1.0, ge=0.0, le=1.0)
     validation_passed: bool = True

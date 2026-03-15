@@ -135,7 +135,7 @@ When auth is enabled, all API routes except `GET /health` require a valid key in
 
 Generated responses now include `generation_id` plus `generation_metadata` with validation status, quality score, provider provenance, latency, and cache-hit state. The `v2` generation routes wrap that response in a `GeneratedContent` record so the API contract aligns more closely with the revised handoff package.
 
-Knowledge Components are now first-class persisted entities with prerequisite links, and the remedial trigger uses that graph to step back through weaker prerequisite KCs before returning to the requested target.
+Knowledge Components are now first-class persisted entities with prerequisite links, and the remedial trigger uses that graph plus misconception signals to step back through weaker prerequisite KCs before returning to the requested target. Remediation responses now include the detected misconception signals and rationale in `request_context`, and audit logs capture the same planning metadata.
 
 ## Suggested Next Build Steps
 

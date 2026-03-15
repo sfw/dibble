@@ -85,6 +85,14 @@ def test_remedial_trigger_returns_remedial_generated_content(client, student_id)
     assert payload["response"]["route"]["intervention_type"] == "step_back"
     assert payload["quality"]["validation_passed"] is True
     assert payload["request_context"]["target_kc_ids"] == ["KC-1", "KC-2"]
+    assert payload["request_context"]["prerequisite_kc_ids"] == ["KC-1"]
+    assert payload["request_context"]["misconception_signals"][0]["kc_id"] == "KC-1"
+    assert "prerequisite knowledge components" in payload["request_context"]["remediation_rationale"]
+
+    audit_response = client.get("/api/audit/events")
+    assert audit_response.status_code == 200
+    assert audit_response.json()[0]["event_type"] == "remediation.trigger"
+    assert audit_response.json()[0]["payload"]["misconception_signal_count"] >= 1
 
 
 def test_explanations_and_problems_endpoints_specialize_generation(client, student_id):

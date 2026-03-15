@@ -11,6 +11,7 @@ from dibble.services.curriculum_store import SQLiteCurriculumStore
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
 from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
+from dibble.services.misconception_detector import MisconceptionDetector
 from dibble.services.provider_health import SQLiteProviderHealthStore
 from dibble.services.profile_store import SQLiteProfileStore
 from dibble.services.remediation_planner import RemediationPlanner
@@ -54,7 +55,10 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         generated_content_store=generated_content_store,
         cache_ttl_seconds=settings.generation_cache_ttl_seconds,
     )
-    remediation_planner = RemediationPlanner(knowledge_component_store)
+    remediation_planner = RemediationPlanner(
+        knowledge_component_store,
+        MisconceptionDetector(knowledge_component_store),
+    )
 
     return ApplicationServices(
         profile_store=profile_store,
