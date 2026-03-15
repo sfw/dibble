@@ -105,6 +105,18 @@ class MockLLMProvider:
                 ),
             ]
 
+        if plan.content_type.value == "assessment_probe":
+            return [
+                GeneratedBlock(
+                    kind="instruction",
+                    title="Think aloud",
+                    body=(
+                        f"In your own words, how would you explain {focus} using {grounding_text}? "
+                        "What evidence supports your thinking?"
+                    ),
+                ),
+            ]
+
         return [
             GeneratedBlock(
                 kind="instruction",

@@ -17,6 +17,7 @@ from dibble.services.observation_store import SQLiteObservationStore
 from dibble.services.provider_health import SQLiteProviderHealthStore
 from dibble.services.profile_store import SQLiteProfileStore
 from dibble.services.remediation_planner import RemediationPlanner
+from dibble.services.socratic_assessment import SocraticAssessmentService
 from dibble.services.state_inference import LearnerStateInferenceService
 from dibble.services.telemetry import TelemetryService
 from dibble.storage import ensure_database
@@ -35,6 +36,7 @@ class ApplicationServices:
     generation_engine: GenerationEngine
     content_warmer: ContentWarmer
     remediation_planner: RemediationPlanner
+    socratic_assessment_service: SocraticAssessmentService
     state_inference_service: LearnerStateInferenceService
     router_plugin: object
 
@@ -66,6 +68,10 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         knowledge_component_store,
         MisconceptionDetector(knowledge_component_store),
     )
+    socratic_assessment_service = SocraticAssessmentService(
+        generation_engine=generation_engine,
+        curriculum_store=curriculum_store,
+    )
     state_inference_service = LearnerStateInferenceService()
     content_warmer = ContentWarmer(profile_store, generation_engine)
 
@@ -81,6 +87,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         generation_engine=generation_engine,
         content_warmer=content_warmer,
         remediation_planner=remediation_planner,
+        socratic_assessment_service=socratic_assessment_service,
         state_inference_service=state_inference_service,
         router_plugin=plugins.router,
     )

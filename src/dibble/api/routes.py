@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
+from dibble.models.assessment import SocraticAssessmentRequest, SocraticAssessmentResponse
 from dibble.models.auth import AuthIdentity, AuthRefreshRequest, AuthRevokeRequest, AuthToken
 from dibble.models.curriculum import (
     CurriculumResource,
@@ -40,6 +41,7 @@ from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentSt
 from dibble.services.observation_store import SQLiteObservationStore
 from dibble.services.profile_store import SQLiteProfileStore
 from dibble.services.remediation_planner import RemediationPlanner
+from dibble.services.socratic_assessment import SocraticAssessmentService
 from dibble.services.state_inference import LearnerStateInferenceService
 from dibble.services.streaming import encode_sse_event
 from dibble.services.telemetry import TelemetryService
@@ -57,6 +59,7 @@ def build_router(
     generation_engine: GenerationEngine,
     content_warmer: ContentWarmer,
     remediation_planner: RemediationPlanner,
+    socratic_assessment_service: SocraticAssessmentService,
     state_inference_service: LearnerStateInferenceService,
 ) -> APIRouter:
     router = APIRouter()
@@ -526,6 +529,37 @@ def build_router(
             },
         )
         return enriched_content
+
+    @api_router.post(
+        "/assessments/socratic",
+        response_model=SocraticAssessmentResponse,
+        dependencies=deps("editor"),
+    )
+    def assess_socratically(request: SocraticAssessmentRequest) -> SocraticAssessmentResponse:
+        profile = profile_store.get(request.student_id)
+        if profile is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
+
+        result = socratic_assessment_service.assess(profile, request)
+        audit_store.append(
+            event_type="assessment.socratic",
+            status="success",
+            student_id=str(request.student_id),
+            payload={
+                "generation_id": result.generation_id,
+                "target_kc_ids": request.target_kc_ids,
+                "target_lo_ids": request.target_lo_ids,
+                "evidence_strength": result.evaluation.evidence_strength.value,
+                "next_action": result.evaluation.next_action.value,
+                "matched_term_count": len(result.evaluation.matched_terms),
+                "prompt_template_name": (
+                    result.generation_metadata.prompt_template_name
+                    if result.generation_metadata is not None
+                    else None
+                ),
+            },
+        )
+        return result
 
     @api_router.post("/llm/stream", dependencies=deps("editor"))
     def stream_generated_content(request: GenerationRequest) -> StreamingResponse:

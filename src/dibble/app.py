@@ -29,6 +29,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             services.generation_engine,
             services.content_warmer,
             services.remediation_planner,
+            services.socratic_assessment_service,
             services.state_inference_service,
         )
     )

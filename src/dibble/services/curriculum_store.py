@@ -29,6 +29,16 @@ class SQLiteCurriculumStore:
             connection.commit()
         return persisted
 
+    def get(self, resource_id: str) -> CurriculumResource | None:
+        with sqlite3.connect(self.database_path) as connection:
+            row = connection.execute(
+                "SELECT payload FROM curriculum_resources WHERE resource_id = ?",
+                (resource_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return CurriculumResource.model_validate_json(row[0])
+
     def list(self) -> list[CurriculumResource]:
         with sqlite3.connect(self.database_path) as connection:
             rows = connection.execute(
