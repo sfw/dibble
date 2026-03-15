@@ -11,7 +11,8 @@ from uuid import uuid4
 from dibble.config import Settings
 from dibble.models.auth import AuthIdentity, AuthSession, AuthToken, AuthTokenClaims
 from dibble.services.access_control import allows_role
-from dibble.services.auth_sessions import SQLiteAuthSessionStore, StoredAuthSession
+from dibble.services.auth_sessions import StoredAuthSession
+from dibble.services.protocols import AuthSessionStore
 
 
 class AuthenticationError(RuntimeError):
@@ -42,14 +43,14 @@ class AuthService:
     token_issuer: str = "dibble"
     token_ttl_seconds: int = 3600
     refresh_ttl_seconds: int = 604800
-    session_store: SQLiteAuthSessionStore | None = None
+    session_store: AuthSessionStore | None = None
 
     @classmethod
     def from_settings(
         cls,
         settings: Settings,
         *,
-        session_store: SQLiteAuthSessionStore | None = None,
+        session_store: AuthSessionStore | None = None,
     ) -> "AuthService":
         return cls(
             enabled=settings.auth_enabled,

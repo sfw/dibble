@@ -10,7 +10,7 @@ from dibble.models.assessment import (
     SocraticEvidenceStrength,
     SocraticNextAction,
 )
-from dibble.services.curriculum_store import SQLiteCurriculumStore
+from dibble.services.protocols import CurriculumStore
 from dibble.services.retrieval.text import salient_tokens
 
 
@@ -40,7 +40,7 @@ def _clamp(value: float, *, lower: float = 0.0, upper: float = 1.0) -> float:
 
 @dataclass(slots=True)
 class SocraticEvidenceScorer:
-    curriculum_store: SQLiteCurriculumStore
+    curriculum_store: CurriculumStore
 
     def evaluate(
         self,

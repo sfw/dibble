@@ -13,6 +13,7 @@ from dibble.services.content_provider import MockLLMProvider
 from dibble.services.llm_client import LLMClientError, OpenAICompatibleChatClient
 from dibble.services.llm_prompting import build_generation_prompts, build_stream_generation_prompts
 from dibble.services.provider_health import ProviderRoutingSnapshot, SQLiteProviderHealthStore
+from dibble.services.protocols import ProviderHealthStore
 from dibble.services.prompt_manager import PromptManager
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.generation_prompt_selector import GenerationPromptSelector
@@ -54,7 +55,7 @@ class LLMOrchestrationProvider:
         circuit_breaker_cooldown_seconds: float = 30.0,
         selection_strategy: str = "ordered",
         time_provider: Callable[[], float] = monotonic,
-        health_store: SQLiteProviderHealthStore | None = None,
+        health_store: ProviderHealthStore | None = None,
         prompt_manager: PromptManager | None = None,
     ) -> None:
         self.clients = clients
