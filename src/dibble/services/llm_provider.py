@@ -14,6 +14,8 @@ from dibble.services.llm_client import LLMClientError, OpenAICompatibleChatClien
 from dibble.services.llm_prompting import build_generation_prompts, build_stream_generation_prompts
 from dibble.services.provider_health import ProviderRoutingSnapshot, SQLiteProviderHealthStore
 from dibble.services.prompt_manager import PromptManager
+from dibble.services.audit_store import SQLiteAuditStore
+from dibble.services.socratic_prompt_selector import SocraticPromptSelector
 from dibble.services.streaming import iter_block_chunks
 
 
@@ -121,7 +123,14 @@ class LLMOrchestrationProvider:
             circuit_breaker_cooldown_seconds=settings.llm_circuit_breaker_cooldown_seconds,
             selection_strategy=settings.llm_selection_strategy,
             health_store=SQLiteProviderHealthStore(settings.database_path),
-            prompt_manager=PromptManager.from_settings(settings),
+            prompt_manager=PromptManager.from_settings(
+                settings,
+                socratic_prompt_selector=(
+                    SocraticPromptSelector(SQLiteAuditStore(settings.database_path))
+                    if settings.prompt_adaptive_selection_enabled
+                    else None
+                ),
+            ),
         )
 
     def generate(

@@ -27,6 +27,7 @@ class Settings:
     llm_selection_strategy: str = "ordered"
     prompt_library_version: str = "1.0"
     prompt_experiment_enabled: bool = False
+    prompt_adaptive_selection_enabled: bool = False
     prompt_variant_override: str | None = None
     embedding_api_base: str = "https://api.openai.com/v1"
     embedding_api_key: str | None = None
@@ -91,6 +92,7 @@ def get_settings() -> Settings:
         llm_selection_strategy=os.getenv("DIBBLE_LLM_SELECTION_STRATEGY", "ordered"),
         prompt_library_version=os.getenv("DIBBLE_PROMPT_LIBRARY_VERSION", "1.0"),
         prompt_experiment_enabled=_get_bool_env("DIBBLE_PROMPT_EXPERIMENT_ENABLED", False),
+        prompt_adaptive_selection_enabled=_get_bool_env("DIBBLE_PROMPT_ADAPTIVE_SELECTION_ENABLED", False),
         prompt_variant_override=os.getenv("DIBBLE_PROMPT_VARIANT"),
         embedding_api_base=os.getenv("DIBBLE_EMBEDDING_API_BASE", "https://api.openai.com/v1"),
         embedding_api_key=os.getenv("DIBBLE_EMBEDDING_API_KEY") or os.getenv("DIBBLE_LLM_API_KEY"),

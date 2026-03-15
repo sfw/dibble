@@ -6,6 +6,7 @@ from uuid import UUID
 
 from dibble.config import Settings
 from dibble.models.generation import RequestedContentType
+from dibble.services.socratic_prompt_selector import SocraticPromptSelector
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,18 +22,33 @@ class PromptSelection:
 class PromptManager:
     library_version: str = "1.0"
     experiment_enabled: bool = False
+    adaptive_selection_enabled: bool = False
     variant_override: str | None = None
+    socratic_prompt_selector: SocraticPromptSelector | None = None
 
     @classmethod
-    def from_settings(cls, settings: Settings) -> "PromptManager":
+    def from_settings(
+        cls,
+        settings: Settings,
+        *,
+        socratic_prompt_selector: SocraticPromptSelector | None = None,
+    ) -> "PromptManager":
         return cls(
             library_version=settings.prompt_library_version,
             experiment_enabled=settings.prompt_experiment_enabled,
+            adaptive_selection_enabled=settings.prompt_adaptive_selection_enabled,
             variant_override=settings.prompt_variant_override,
+            socratic_prompt_selector=socratic_prompt_selector,
         )
 
     def select(self, *, student_id: UUID, content_type: RequestedContentType) -> PromptSelection:
         variant = self.variant_override or self._variant_for(student_id=student_id, content_type=content_type)
+        if (
+            self.adaptive_selection_enabled
+            and content_type == RequestedContentType.assessment_probe
+            and self.socratic_prompt_selector is not None
+        ):
+            variant = self.socratic_prompt_selector.select_variant(fallback_variant=variant)
         template_name = f"{content_type.value}.{variant}"
         return PromptSelection(
             template_name=template_name,
