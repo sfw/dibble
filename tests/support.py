@@ -1,7 +1,18 @@
 from __future__ import annotations
 
 
-def build_profile(student_id, *, frustration="high", total_load=0.88, kc_mastery=None, engagement="medium"):
+def build_profile(
+    student_id,
+    *,
+    frustration="high",
+    total_load=0.88,
+    kc_mastery=None,
+    engagement="medium",
+    confidence_calibration=0.5,
+    help_seeking="low",
+    help_seeking_effectiveness=0.5,
+    self_monitoring=0.5,
+):
     return {
         "student_id": str(student_id),
         "grade_level": "5",
@@ -27,6 +38,12 @@ def build_profile(student_id, *, frustration="high", total_load=0.88, kc_mastery
             "germane_load": 0.2,
             "total_load": total_load,
             "capacity_utilization": 0.9,
+        },
+        "metacognitive_state": {
+            "confidence_calibration": confidence_calibration,
+            "help_seeking": help_seeking,
+            "help_seeking_effectiveness": help_seeking_effectiveness,
+            "self_monitoring": self_monitoring,
         },
         "learning_preferences": {
             "modality_affinity": {"textual": 0.9, "interactive": 0.4},

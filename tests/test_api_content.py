@@ -146,6 +146,41 @@ def test_explanations_and_problems_endpoints_specialize_generation(client, stude
     assert any(block["kind"] == "practice" for block in problem_payload["response"]["blocks"])
 
 
+def test_generation_endpoint_auto_selects_worked_example_when_metacognitive_signals_require_modeling(client, student_id):
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(
+            student_id,
+            frustration="low",
+            total_load=0.35,
+            kc_mastery={"KC-1": 0.58},
+            engagement="medium",
+            confidence_calibration=0.3,
+            help_seeking="high",
+        ),
+    )
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+
+    response = client.post(
+        "/api/content/generate",
+        json={
+            "student_id": str(student_id),
+            "target_kc_ids": ["KC-1"],
+            "intent": "explanation",
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["content_type"] == "worked_example"
+    assert payload["request_context"]["selection_mode"] == "adaptive"
+    assert payload["request_context"]["requested_content_type"] is None
+    assert payload["request_context"]["selected_content_type"] == "worked_example"
+    assert "selection_rationale" in payload["request_context"]
+    assert any(block["kind"] == "worked_example" for block in payload["response"]["blocks"])
+
+
 def test_decide_endpoint_returns_router_decision(client, student_id):
     client.put(
         f"/api/learners/{student_id}/profile",

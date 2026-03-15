@@ -21,6 +21,8 @@ def test_worked_examples_endpoint_returns_fading_metadata(client, student_id):
     payload = response.json()
     assert payload["content_type"] == "worked_example"
     assert payload["request_context"]["requested_content_type"] == "worked_example"
+    assert payload["request_context"]["selected_content_type"] == "worked_example"
+    assert payload["request_context"]["selection_mode"] == "explicit"
     assert payload["request_context"]["fading_strategy"] == "completion"
     assert any(block["kind"] == "worked_example" for block in payload["response"]["blocks"])
     assert any(block["kind"] == "instruction" for block in payload["response"]["blocks"])
@@ -46,5 +48,7 @@ def test_problem_endpoint_returns_difficulty_band_metadata(client, student_id):
     payload = response.json()
     assert payload["content_type"] == "practice_problem"
     assert payload["request_context"]["requested_content_type"] == "practice_problem"
+    assert payload["request_context"]["selected_content_type"] == "practice_problem"
+    assert payload["request_context"]["selection_mode"] == "explicit"
     assert payload["request_context"]["difficulty_band"] == "support"
     assert any(block["kind"] == "practice" for block in payload["response"]["blocks"])

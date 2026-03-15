@@ -16,6 +16,8 @@ from dibble.models.profile import LearnerProfile, SignalLevel
 class AdaptiveRouter:
     def route(self, profile: LearnerProfile, request: GenerationRequest) -> AdaptiveRouteDecision:
         target_mastery = self._average_target_mastery(profile, request)
+        confidence_calibration = profile.metacognitive_state.confidence_calibration
+        help_seeking = profile.metacognitive_state.help_seeking
 
         if (
             profile.affective_state.frustration in {SignalLevel.medium, SignalLevel.high}
@@ -28,6 +30,22 @@ class AdaptiveRouter:
                 reasons=[
                     "High frustration or cognitive load triggered the router's safety constraint for a step-back intervention.",
                     "Constraint handling runs before Thompson sampling for high-risk learner states.",
+                ],
+            )
+
+        if (
+            target_mastery >= 0.8
+            and profile.affective_state.engagement == SignalLevel.high
+            and profile.cognitive_load.total_load < 0.6
+            and (confidence_calibration < 0.45 or help_seeking == SignalLevel.high)
+        ):
+            return AdaptiveRouteDecision(
+                intervention_type=InterventionType.reteach,
+                delivery_mode=DeliveryMode.generated,
+                scaffolding_level="medium",
+                reasons=[
+                    "Observed mastery looked strong, but low confidence calibration or heavy help-seeking suggested the learner still needs modeled support.",
+                    "The router held back stretch content until metacognitive signals indicate more independent readiness.",
                 ],
             )
 
@@ -101,23 +119,43 @@ class AdaptiveRouter:
         frustration = profile.affective_state.frustration
         engagement = profile.affective_state.engagement
         load = profile.cognitive_load.total_load
+        confidence_calibration = profile.metacognitive_state.confidence_calibration
+        help_seeking = profile.metacognitive_state.help_seeking
+        self_monitoring = profile.metacognitive_state.self_monitoring
 
         priors = {
             InterventionType.step_back: (
-                1.0 + (2.5 if frustration in {SignalLevel.medium, SignalLevel.high} else 0.3) + (2.0 if load >= 0.8 else 0.1),
+                1.0
+                + (2.5 if frustration in {SignalLevel.medium, SignalLevel.high} else 0.3)
+                + (2.0 if load >= 0.8 else 0.1)
+                + (0.8 if help_seeking == SignalLevel.high else 0.0)
+                + (0.6 if confidence_calibration < 0.45 else 0.0),
                 1.0 + max(target_mastery - 0.4, 0.0),
             ),
             InterventionType.targeted_practice: (
-                1.0 + (2.2 if request.intent == ContentIntent.practice else 0.4) + max(0.6 - target_mastery, 0.0) * 3,
-                1.0 + max(target_mastery - 0.5, 0.0) * 2,
+                1.0
+                + (2.2 if request.intent == ContentIntent.practice else 0.4)
+                + max(0.6 - target_mastery, 0.0) * 3
+                + (self_monitoring * 0.5),
+                1.0 + max(target_mastery - 0.5, 0.0) * 2 + (0.5 if help_seeking == SignalLevel.high else 0.0),
             ),
             InterventionType.reteach: (
-                1.0 + (1.6 if 0.45 <= target_mastery < 0.8 else 0.6),
+                1.0
+                + (1.6 if 0.45 <= target_mastery < 0.8 else 0.6)
+                + (0.9 if confidence_calibration < 0.55 else 0.0)
+                + (0.6 if help_seeking in {SignalLevel.medium, SignalLevel.high} else 0.0),
                 1.0 + (1.0 if frustration == SignalLevel.high else 0.4),
             ),
             InterventionType.stretch: (
-                1.0 + max(target_mastery - 0.75, 0.0) * 6 + (1.0 if engagement == SignalLevel.high else 0.1),
-                1.0 + (2.0 if frustration in {SignalLevel.medium, SignalLevel.high} else 0.2) + (1.5 if load >= 0.7 else 0.2),
+                1.0
+                + max(target_mastery - 0.75, 0.0) * 6
+                + (1.0 if engagement == SignalLevel.high else 0.1)
+                + (0.4 if self_monitoring >= 0.7 else 0.0),
+                1.0
+                + (2.0 if frustration in {SignalLevel.medium, SignalLevel.high} else 0.2)
+                + (1.5 if load >= 0.7 else 0.2)
+                + (0.9 if confidence_calibration < 0.55 else 0.0)
+                + (0.6 if help_seeking == SignalLevel.high else 0.0),
             ),
         }
 
@@ -142,11 +180,21 @@ class AdaptiveRouter:
         profile: LearnerProfile,
     ) -> str:
         if intervention_type == InterventionType.step_back:
+            if (
+                profile.metacognitive_state.help_seeking == SignalLevel.high
+                or profile.metacognitive_state.confidence_calibration < 0.45
+            ):
+                return "Strong help-seeking or low confidence calibration shifted the bandit toward a step-back intervention."
             return "High frustration or cognitive load shifted the bandit toward a step-back intervention."
         if intervention_type == InterventionType.targeted_practice:
             return f"Target mastery is {target_mastery:.2f}, so targeted practice has the strongest near-term learning reward."
         if intervention_type == InterventionType.stretch:
             return "High mastery and strong engagement made stretch work the best sampled action."
+        if (
+            profile.metacognitive_state.help_seeking in {SignalLevel.medium, SignalLevel.high}
+            or profile.metacognitive_state.confidence_calibration < 0.55
+        ):
+            return "Metacognitive signals suggest the learner still benefits from modeled explanation before more independent work."
         return "The learner is between novice and mastery, so reteaching is the strongest grounded explanation path."
 
     def _delivery_mode_for(self, intervention_type: InterventionType) -> DeliveryMode:

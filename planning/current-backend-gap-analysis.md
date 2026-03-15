@@ -38,14 +38,14 @@ Legend:
 | `LLM-005` Streaming response architecture | Implemented | SSE route plus upstream chat-stream ingestion |
 | `GEN-001` On-the-fly explanation generation | Implemented | Current unified generation routes produce grounded explanations |
 | `GEN-002` Practice problem synthesis | Partial | Dedicated problem generation now carries difficulty-band metadata, but there is no calibrated difficulty model or distractor synthesis |
-| `GEN-003` Worked example generation with fading | Partial | Dedicated worked-example generation now carries adaptive fading metadata, but the template library and fading progression are still heuristic |
+| `GEN-003` Worked example generation with fading | Partial | Dedicated worked-example generation now carries adaptive fading metadata and can be auto-selected from the unified generation path, but the template library and fading progression are still heuristic |
 | `GEN-004` Remedial micro-module creation | Partial | Remedial trigger now steps through prerequisite KCs, but misconception classification and richer module assembly are still shallow |
 | `GEN-005` Multi-modal synthesis | Missing | No diagram, interactive, simulation, or code generation layer |
 | `PROF-001` Cognitive trait assessment | Partial | Profile schema stores traits, but no assessment or inference pipeline populates them |
 | `PROF-002` Affective state detection | Partial | Observation-driven inference now updates affective state, but the logic is still heuristic rather than a richer classifier |
 | `PROF-003` Real-time cognitive load estimation | Partial | Observation-driven load inference now updates the profile, but it is still heuristic and not calibrated by domain/task type |
 | `PROF-004` KC granularity | Partial | KC mastery exists in the profile and there is now a persisted KC graph, but taxonomy depth and mastery migration are still limited |
-| `PROF-005` Metacognitive tracking | Partial | Observation-driven confidence calibration and help-seeking signals now exist, but they remain heuristic and are not yet tied to richer intervention policy |
+| `PROF-005` Metacognitive tracking | Partial | Observation-driven confidence calibration and help-seeking signals now exist and influence routing/generation selection, but they remain heuristic rather than calibrated |
 | `ADAPT-001` Thompson Sampling router | Implemented | Thompson-style policy with safety constraints is in the production path |
 | `ADAPT-002` Within-session adaptation | Partial | Streaming generation exists, but there is no continuous state-updating adaptive loop |
 | `ADAPT-003` Misconception detection/classification | Partial | Rule-based misconception signals now guide remediation planning, but there is no richer classifier or taxonomy yet |
@@ -78,4 +78,4 @@ The most coherent next implementation step is now:
 - keep reusing the current generated-content entity and cache metadata instead of adding a parallel cache layer
 - let the router and remediation planner choose among richer instructional formats rather than only a generic prompt path
 
-That is now partially in place. The most coherent next step is to calibrate the new learner-state signals and connect them more directly to routing and generation selection so those richer modes are chosen using stronger evidence instead of heuristics alone.
+That is now partially in place. The most coherent next step is to calibrate the new learner-state signals, then connect them more directly to routing and generation selection so those richer modes are chosen using stronger evidence instead of heuristics alone.

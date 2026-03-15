@@ -25,14 +25,18 @@ def build_generation_mode_plan(
     request: GenerationRequest,
     route: AdaptiveRouteDecision,
 ) -> GenerationModePlan:
-    content_type = resolve_content_type(request)
+    content_type, selection_mode, selection_rationale = select_content_type(profile, request, route)
     request_context: dict[str, object] = {
         "intent": request.intent.value,
         "target_kc_ids": request.target_kc_ids,
         "target_lo_ids": request.target_lo_ids,
         "curriculum_context": request.curriculum_context,
-        "requested_content_type": content_type.value,
+        "requested_content_type": request.requested_content_type.value if request.requested_content_type else None,
+        "selected_content_type": content_type.value,
+        "selection_mode": selection_mode,
     }
+    if selection_rationale is not None:
+        request_context["selection_rationale"] = selection_rationale
 
     if content_type == RequestedContentType.practice_problem:
         difficulty_band = select_practice_difficulty_band(profile, request)
@@ -76,6 +80,33 @@ def resolve_content_type(request: GenerationRequest) -> RequestedContentType:
     if request.intent == ContentIntent.assessment:
         return RequestedContentType.assessment_probe
     return RequestedContentType.micro_explanation
+
+
+def select_content_type(
+    profile: LearnerProfile,
+    request: GenerationRequest,
+    route: AdaptiveRouteDecision,
+) -> tuple[RequestedContentType, str, str | None]:
+    if request.requested_content_type is not None:
+        return request.requested_content_type, "explicit", None
+
+    default_type = resolve_content_type(request)
+    if (
+        default_type == RequestedContentType.micro_explanation
+        and route.intervention_type.value in {"step_back", "reteach"}
+        and (
+            profile.metacognitive_state.help_seeking in {SignalLevel.medium, SignalLevel.high}
+            or profile.cognitive_load.total_load >= 0.7
+            or profile.metacognitive_state.confidence_calibration < 0.45
+        )
+    ):
+        return (
+            RequestedContentType.worked_example,
+            "adaptive",
+            "The unified generation path shifted to a worked example because learner-state signals favored modeled support before freer explanation.",
+        )
+
+    return default_type, "intent_default", None
 
 
 def select_practice_difficulty_band(
