@@ -58,8 +58,10 @@ class GenerationPromptPerformance(BaseModel):
     average_composite_outcome: float = 0.0
     downstream_observation_rate: float = 0.0
     downstream_assessment_rate: float = 0.0
+    session_outcome_rate: float = 0.0
     average_observation_trace_count: float = 0.0
     average_assessment_trace_count: float = 0.0
+    average_session_generation_depth: float = 0.0
 
 
 class TelemetrySnapshot(BaseModel):

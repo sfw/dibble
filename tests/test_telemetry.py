@@ -159,8 +159,68 @@ def test_telemetry_snapshot_includes_generation_prompt_outcomes(tmp_path):
     assert performance.average_composite_outcome > performance.average_quality_score
     assert performance.downstream_observation_rate == 1.0
     assert performance.downstream_assessment_rate == 1.0
+    assert performance.session_outcome_rate == 0.0
     assert performance.average_observation_trace_count == 1.0
     assert performance.average_assessment_trace_count == 1.0
+    assert performance.average_session_generation_depth == 0.0
+
+
+def test_telemetry_snapshot_includes_cross_generation_session_outcomes(tmp_path):
+    database_path = str(tmp_path / "generation-session-telemetry.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    telemetry = TelemetryService(audit_store)
+    student_id = str(uuid4())
+
+    audit_store.append(
+        event_type="content.generate",
+        status="success",
+        student_id=student_id,
+        payload={
+            "learning_session_id": "learn-session-2",
+            "content_type": "micro_explanation",
+            "quality_score": 0.72,
+            "validation_passed": True,
+            "grounding_count": 1,
+            "prompt_template_name": "micro_explanation.guided_reflection",
+            "prompt_template_variant": "guided_reflection",
+        },
+    )
+    audit_store.append(
+        event_type="content.generate",
+        status="success",
+        student_id=student_id,
+        payload={
+            "learning_session_id": "learn-session-2",
+            "content_type": "practice_problem",
+            "quality_score": 0.78,
+            "validation_passed": True,
+            "grounding_count": 1,
+            "prompt_template_name": "practice_problem.guided_reflection",
+            "prompt_template_variant": "guided_reflection",
+        },
+    )
+    audit_store.append(
+        event_type="assessment.socratic",
+        status="success",
+        student_id=student_id,
+        payload={
+            "learning_session_id": "learn-session-2",
+            "evidence_strength": "demonstrated",
+            "evidence_score": 0.83,
+            "profile_update_applied": True,
+        },
+    )
+
+    snapshot = telemetry.snapshot()
+
+    performance = next(
+        item
+        for item in snapshot.generation_prompt_performances
+        if item.template_name == "micro_explanation.guided_reflection"
+    )
+    assert performance.session_outcome_rate == 1.0
+    assert performance.average_session_generation_depth == 1.0
 
 
 def test_telemetry_snapshot_includes_socratic_assessment_metrics(tmp_path):

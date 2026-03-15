@@ -335,3 +335,80 @@ def test_generation_prompt_outcome_scorer_aggregates_multi_event_session_trace(t
     assert sample.downstream_assessment_score is not None
     assert sample.downstream_assessment_score > 0.7
     assert sample.composite_score > sample.quality_score
+
+
+def test_generation_prompt_outcome_scorer_uses_later_same_session_run_outcome(tmp_path):
+    database_path = str(tmp_path / "generation-outcomes-session-run.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = str(uuid4())
+    first_generation = audit_store.append(
+        event_type="content.generate",
+        status="success",
+        student_id=student_id,
+        payload={
+            "generation_id": "gen-1",
+            "learning_session_id": "learn-run-1",
+            "content_type": "micro_explanation",
+            "prompt_template_name": "micro_explanation.guided_reflection",
+            "prompt_template_variant": "guided_reflection",
+            "quality_score": 0.72,
+            "validation_passed": True,
+            "grounding_count": 1,
+            "target_kc_ids": ["KC-1"],
+        },
+    )
+    second_generation = audit_store.append(
+        event_type="content.generate",
+        status="success",
+        student_id=student_id,
+        payload={
+            "generation_id": "gen-2",
+            "learning_session_id": "learn-run-1",
+            "content_type": "practice_problem",
+            "prompt_template_name": "practice_problem.guided_reflection",
+            "prompt_template_variant": "guided_reflection",
+            "quality_score": 0.8,
+            "validation_passed": True,
+            "grounding_count": 1,
+            "target_kc_ids": ["KC-1"],
+        },
+    )
+    later_observation = audit_store.append(
+        event_type="learner.observe",
+        status="success",
+        student_id=student_id,
+        payload={
+            "learning_session_id": "learn-run-1",
+            "engagement": "high",
+            "frustration": "low",
+            "total_load": 0.24,
+            "confidence_calibration": 0.84,
+            "help_seeking": "low",
+        },
+    )
+    later_assessment = audit_store.append(
+        event_type="assessment.socratic",
+        status="success",
+        student_id=student_id,
+        payload={
+            "learning_session_id": "learn-run-1",
+            "target_kc_ids": ["KC-1"],
+            "evidence_strength": "demonstrated",
+            "evidence_score": 0.82,
+            "profile_update_applied": True,
+        },
+    )
+
+    sample = GenerationPromptOutcomeScorer().score(
+        generation_event=first_generation,
+        candidate_generations=[first_generation, second_generation],
+        candidate_observations=[later_observation],
+        candidate_assessments=[later_assessment],
+    )
+
+    assert sample.session_outcome_score is not None
+    assert sample.session_outcome_score > 0.75
+    assert sample.session_generation_depth == 1
+    assert sample.session_outcome_event_count == 2
+    assert sample.composite_score > sample.quality_score

@@ -22,9 +22,10 @@ class GenerationPromptSelector:
     ) -> str:
         prefix = f"{content_type.value}."
         events = self.audit_store.list(limit=self.max_events)
+        all_generation_events = [event for event in events if event.event_type == "content.generate"]
         generation_events = [
             event
-            for event in events
+            for event in all_generation_events
             if event.event_type == "content.generate"
             and event.payload.get("content_type") == content_type.value
             and event.payload.get("prompt_template_name")
@@ -41,11 +42,14 @@ class GenerationPromptSelector:
         grounded_counts: dict[str, int] = {}
         downstream_counts: dict[str, int] = {}
         assessment_counts: dict[str, int] = {}
+        session_outcome_counts: dict[str, int] = {}
         observation_trace_counts: dict[str, int] = {}
         assessment_trace_counts: dict[str, int] = {}
+        session_generation_depths: dict[str, int] = {}
         for event in generation_events:
             sample = self.outcome_scorer.score(
                 generation_event=event,
+                candidate_generations=all_generation_events,
                 candidate_observations=observation_events,
                 candidate_assessments=assessment_events,
             )
@@ -62,11 +66,17 @@ class GenerationPromptSelector:
             assessment_counts[sample.variant] = assessment_counts.get(sample.variant, 0) + (
                 1 if sample.downstream_assessment_score is not None else 0
             )
+            session_outcome_counts[sample.variant] = session_outcome_counts.get(sample.variant, 0) + (
+                1 if sample.session_outcome_score is not None else 0
+            )
             observation_trace_counts[sample.variant] = (
                 observation_trace_counts.get(sample.variant, 0) + sample.observation_match_count
             )
             assessment_trace_counts[sample.variant] = (
                 assessment_trace_counts.get(sample.variant, 0) + sample.assessment_match_count
+            )
+            session_generation_depths[sample.variant] = (
+                session_generation_depths.get(sample.variant, 0) + sample.session_generation_depth
             )
 
         eligible = {
@@ -85,16 +95,20 @@ class GenerationPromptSelector:
             grounding_rate = grounded_counts.get(variant, 0) / event_count
             downstream_rate = downstream_counts.get(variant, 0) / event_count
             assessment_rate = assessment_counts.get(variant, 0) / event_count
+            session_outcome_rate = session_outcome_counts.get(variant, 0) / event_count
             observation_trace_depth = min(1.0, observation_trace_counts.get(variant, 0) / max(1, event_count * 3))
             assessment_trace_depth = min(1.0, assessment_trace_counts.get(variant, 0) / max(1, event_count * 3))
+            session_generation_depth = min(1.0, session_generation_depths.get(variant, 0) / max(1, event_count * 2))
             return (
                 average_outcome
                 + (validation_rate * 0.08)
                 + (grounding_rate * 0.04)
                 + (downstream_rate * 0.06)
                 + (assessment_rate * 0.08)
+                + (session_outcome_rate * 0.08)
                 + (observation_trace_depth * 0.03)
-                + (assessment_trace_depth * 0.05),
+                + (assessment_trace_depth * 0.05)
+                + (session_generation_depth * 0.04),
                 average_outcome,
                 event_count,
             )

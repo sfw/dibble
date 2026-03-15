@@ -58,6 +58,7 @@ class TelemetryService:
             generation_prompt_groups.setdefault(key, []).append(
                 self.generation_outcome_scorer.score(
                     generation_event=event,
+                    candidate_generations=generation_events,
                     candidate_observations=observation_events,
                     candidate_assessments=assessment_events,
                 )
@@ -156,8 +157,10 @@ class TelemetryService:
         composite_scores = [sample.composite_score for sample in samples]
         downstream_matches = sum(1 for sample in samples if sample.downstream_observation_score is not None)
         assessment_matches = sum(1 for sample in samples if sample.downstream_assessment_score is not None)
+        session_outcome_matches = sum(1 for sample in samples if sample.session_outcome_score is not None)
         observation_trace_total = sum(sample.observation_match_count for sample in samples)
         assessment_trace_total = sum(sample.assessment_match_count for sample in samples)
+        session_generation_depth_total = sum(sample.session_generation_depth for sample in samples)
         return GenerationPromptPerformance(
             template_name=template_name,
             template_variant=template_variant,
@@ -167,6 +170,10 @@ class TelemetryService:
             average_composite_outcome=round(sum(composite_scores) / event_count, 2) if event_count else 0.0,
             downstream_observation_rate=round(downstream_matches / event_count, 2) if event_count else 0.0,
             downstream_assessment_rate=round(assessment_matches / event_count, 2) if event_count else 0.0,
+            session_outcome_rate=round(session_outcome_matches / event_count, 2) if event_count else 0.0,
             average_observation_trace_count=round(observation_trace_total / event_count, 2) if event_count else 0.0,
             average_assessment_trace_count=round(assessment_trace_total / event_count, 2) if event_count else 0.0,
+            average_session_generation_depth=round(session_generation_depth_total / event_count, 2)
+            if event_count
+            else 0.0,
         )

@@ -281,3 +281,109 @@ def test_generation_prompt_selector_can_prefer_deeper_session_trace(tmp_path):
         selector.select_variant(content_type=RequestedContentType.worked_example, fallback_variant="baseline")
         == "guided_reflection"
     )
+
+
+def test_generation_prompt_selector_can_prefer_better_cross_generation_session_outcome(tmp_path):
+    database_path = str(tmp_path / "generation-selector-session-run.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    selector = GenerationPromptSelector(audit_store=audit_store, min_samples_per_variant=2)
+
+    for suffix in ("1", "2"):
+        student_id = f"00000000-0000-0000-0000-00000000070{suffix}"
+        audit_store.append(
+            event_type="content.generate",
+            status="success",
+            student_id=student_id,
+            payload={
+                "generation_id": f"guided-start-{suffix}",
+                "learning_session_id": f"guided-run-{suffix}",
+                "content_type": "micro_explanation",
+                "prompt_template_name": "micro_explanation.guided_reflection",
+                "prompt_template_variant": "guided_reflection",
+                "quality_score": 0.72,
+                "validation_passed": True,
+                "grounding_count": 1,
+                "target_kc_ids": ["KC-1"],
+            },
+        )
+        audit_store.append(
+            event_type="content.generate",
+            status="success",
+            student_id=student_id,
+            payload={
+                "generation_id": f"guided-next-{suffix}",
+                "learning_session_id": f"guided-run-{suffix}",
+                "content_type": "practice_problem",
+                "prompt_template_name": "practice_problem.guided_reflection",
+                "prompt_template_variant": "guided_reflection",
+                "quality_score": 0.78,
+                "validation_passed": True,
+                "grounding_count": 1,
+                "target_kc_ids": ["KC-1"],
+            },
+        )
+        audit_store.append(
+            event_type="assessment.socratic",
+            status="success",
+            student_id=student_id,
+            payload={
+                "learning_session_id": f"guided-run-{suffix}",
+                "target_kc_ids": ["KC-1"],
+                "evidence_strength": "demonstrated",
+                "evidence_score": 0.84,
+                "profile_update_applied": True,
+            },
+        )
+
+    for suffix in ("1", "2"):
+        student_id = f"00000000-0000-0000-0000-00000000080{suffix}"
+        audit_store.append(
+            event_type="content.generate",
+            status="success",
+            student_id=student_id,
+            payload={
+                "generation_id": f"baseline-start-{suffix}",
+                "learning_session_id": f"baseline-run-{suffix}",
+                "content_type": "micro_explanation",
+                "prompt_template_name": "micro_explanation.baseline",
+                "prompt_template_variant": "baseline",
+                "quality_score": 0.8,
+                "validation_passed": True,
+                "grounding_count": 1,
+                "target_kc_ids": ["KC-1"],
+            },
+        )
+        audit_store.append(
+            event_type="content.generate",
+            status="success",
+            student_id=student_id,
+            payload={
+                "generation_id": f"baseline-next-{suffix}",
+                "learning_session_id": f"baseline-run-{suffix}",
+                "content_type": "practice_problem",
+                "prompt_template_name": "practice_problem.baseline",
+                "prompt_template_variant": "baseline",
+                "quality_score": 0.79,
+                "validation_passed": True,
+                "grounding_count": 1,
+                "target_kc_ids": ["KC-1"],
+            },
+        )
+        audit_store.append(
+            event_type="assessment.socratic",
+            status="success",
+            student_id=student_id,
+            payload={
+                "learning_session_id": f"baseline-run-{suffix}",
+                "target_kc_ids": ["KC-1"],
+                "evidence_strength": "insufficient",
+                "evidence_score": 0.24,
+                "profile_update_applied": False,
+            },
+        )
+
+    assert (
+        selector.select_variant(content_type=RequestedContentType.micro_explanation, fallback_variant="baseline")
+        == "guided_reflection"
+    )

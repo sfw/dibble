@@ -3,18 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from dibble.models.telemetry import AuditEvent
+from dibble.services.generation_outcome_metrics import score_assessment_event, score_observation_event
 from dibble.services.generation_trace_linker import GenerationTraceLinker, LinkedTraceEvent
-
-
-def _signal_score(value: object, *, positive: bool) -> float:
-    mapping = {
-        "none": 0.0,
-        "low": 0.33,
-        "medium": 0.66,
-        "high": 1.0,
-    }
-    score = mapping.get(str(value), 0.5)
-    return score if positive else (1.0 - score)
+from dibble.services.learning_session_outcomes import LearningSessionOutcomeScorer
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,14 +17,21 @@ class GenerationPromptOutcomeSample:
     grounding_count: int
     downstream_observation_score: float | None = None
     downstream_assessment_score: float | None = None
+    session_outcome_score: float | None = None
     observation_match_count: int = 0
     assessment_match_count: int = 0
+    session_generation_depth: int = 0
+    session_outcome_event_count: int = 0
 
     @property
     def composite_score(self) -> float:
         downstream_scores = [
             score
-            for score in (self.downstream_observation_score, self.downstream_assessment_score)
+            for score in (
+                self.downstream_observation_score,
+                self.downstream_assessment_score,
+                self.session_outcome_score,
+            )
             if score is not None
         ]
         if not downstream_scores:
@@ -51,6 +49,7 @@ class GenerationPromptOutcomeScorer:
         self,
         *,
         generation_event: AuditEvent,
+        candidate_generations: list[AuditEvent] | None = None,
         candidate_observations: list[AuditEvent],
         candidate_assessments: list[AuditEvent] | None = None,
     ) -> GenerationPromptOutcomeSample:
@@ -70,11 +69,20 @@ class GenerationPromptOutcomeScorer:
         )
         observation_score = self._aggregate_trace_score(
             linked_events=linked_observations,
-            event_scorer=self._score_observation,
+            event_scorer=score_observation_event,
         )
         assessment_score = self._aggregate_trace_score(
             linked_events=linked_assessments,
-            event_scorer=self._score_assessment,
+            event_scorer=score_assessment_event,
+        )
+        session_outcome = LearningSessionOutcomeScorer(
+            session_window_minutes=max(60, self.observation_window_minutes * 3),
+            max_events_per_type=self.max_trace_events,
+        ).score(
+            generation_event=generation_event,
+            candidate_generations=candidate_generations or [],
+            candidate_observations=candidate_observations,
+            candidate_assessments=candidate_assessments or [],
         )
         return GenerationPromptOutcomeSample(
             variant=variant,
@@ -84,8 +92,11 @@ class GenerationPromptOutcomeScorer:
             grounding_count=int(generation_event.payload.get("grounding_count", 0)),
             downstream_observation_score=observation_score,
             downstream_assessment_score=assessment_score,
+            session_outcome_score=session_outcome.session_outcome_score,
             observation_match_count=len(linked_observations),
             assessment_match_count=len(linked_assessments),
+            session_generation_depth=session_outcome.subsequent_generation_count,
+            session_outcome_event_count=session_outcome.outcome_event_count,
         )
 
     def _aggregate_trace_score(
@@ -104,29 +115,3 @@ class GenerationPromptOutcomeScorer:
         if total_weight <= 0.0:
             return None
         return round(weighted_total / total_weight, 2)
-
-    def _score_observation(self, observation_event: AuditEvent) -> float:
-        payload = observation_event.payload
-        engagement_score = _signal_score(payload.get("engagement"), positive=True)
-        frustration_score = _signal_score(payload.get("frustration"), positive=False)
-        load_score = 1.0 - min(max(float(payload.get("total_load", 0.5)), 0.0), 1.0)
-        confidence_score = min(max(float(payload.get("confidence_calibration", 0.5)), 0.0), 1.0)
-        help_seeking_score = _signal_score(payload.get("help_seeking"), positive=False)
-        return (
-            (engagement_score * 0.22)
-            + (frustration_score * 0.22)
-            + (load_score * 0.18)
-            + (confidence_score * 0.22)
-            + (help_seeking_score * 0.16)
-        )
-
-    def _score_assessment(self, assessment_event: AuditEvent) -> float:
-        payload = assessment_event.payload
-        evidence_score = min(max(float(payload.get("evidence_score", 0.0)), 0.0), 1.0)
-        profile_update_score = 1.0 if bool(payload.get("profile_update_applied")) else 0.0
-        strength_score = {
-            "insufficient": 0.2,
-            "emerging": 0.6,
-            "demonstrated": 1.0,
-        }.get(str(payload.get("evidence_strength")), 0.5)
-        return (evidence_score * 0.55) + (strength_score * 0.3) + (profile_update_score * 0.15)
