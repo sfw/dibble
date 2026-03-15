@@ -43,6 +43,11 @@ class TelemetrySnapshot(BaseModel):
     total_events: int = 0
     decision_events: int = 0
     generation_events: int = 0
+    socratic_assessment_events: int = 0
+    socratic_profile_updates: int = 0
+    socratic_demonstrated_events: int = 0
+    socratic_step_back_events: int = 0
+    average_socratic_evidence_score: float = 0.0
     fallback_generations: int = 0
     validation_issue_events: int = 0
     cache_hit_generations: int = 0

@@ -102,3 +102,39 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     assert snapshot.generated_content_entries == 0
     assert snapshot.prompt_template_usages[0].template_name == "micro_explanation.baseline"
     assert snapshot.prompt_template_usages[0].event_count == 1
+
+
+def test_telemetry_snapshot_includes_socratic_assessment_metrics(tmp_path):
+    database_path = str(tmp_path / "socratic-telemetry.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    telemetry = TelemetryService(audit_store)
+
+    audit_store.append(
+        event_type="assessment.socratic",
+        status="success",
+        payload={
+            "evidence_strength": "demonstrated",
+            "evidence_score": 0.78,
+            "next_action": "advance",
+            "profile_update_applied": True,
+        },
+    )
+    audit_store.append(
+        event_type="assessment.socratic",
+        status="success",
+        payload={
+            "evidence_strength": "insufficient",
+            "evidence_score": 0.24,
+            "next_action": "step_back",
+            "profile_update_applied": False,
+        },
+    )
+
+    snapshot = telemetry.snapshot()
+
+    assert snapshot.socratic_assessment_events == 2
+    assert snapshot.socratic_profile_updates == 1
+    assert snapshot.socratic_demonstrated_events == 1
+    assert snapshot.socratic_step_back_events == 1
+    assert snapshot.average_socratic_evidence_score == 0.51

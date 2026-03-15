@@ -23,6 +23,7 @@ class TelemetryService:
         events = self.audit_store.list(limit=500)
         generation_events = [event for event in events if event.event_type.startswith("content.generate")]
         decision_events = [event for event in events if event.event_type == "adaptive.decide"]
+        socratic_events = [event for event in events if event.event_type == "assessment.socratic"]
         warm_events = [event for event in events if event.event_type == "content.warm"]
         provider_events = self.provider_health_store.list(limit=500) if self.provider_health_store is not None else []
         cache_stats = self.generated_content_store.stats() if self.generated_content_store is not None else {
@@ -35,12 +36,28 @@ class TelemetryService:
             for event in generation_events
             if event.payload.get("prompt_template_name")
         )
+        socratic_evidence_scores = [
+            float(event.payload.get("evidence_score", 0.0))
+            for event in socratic_events
+            if event.payload.get("evidence_score") is not None
+        ]
 
         last_event_at = events[0].created_at if events else None
         return TelemetrySnapshot(
             total_events=len(events),
             decision_events=len(decision_events),
             generation_events=len(generation_events),
+            socratic_assessment_events=len(socratic_events),
+            socratic_profile_updates=sum(1 for event in socratic_events if bool(event.payload.get("profile_update_applied"))),
+            socratic_demonstrated_events=sum(
+                1 for event in socratic_events if event.payload.get("evidence_strength") == "demonstrated"
+            ),
+            socratic_step_back_events=sum(
+                1 for event in socratic_events if event.payload.get("next_action") == "step_back"
+            ),
+            average_socratic_evidence_score=(
+                round(sum(socratic_evidence_scores) / len(socratic_evidence_scores), 2) if socratic_evidence_scores else 0.0
+            ),
             fallback_generations=sum(
                 1 for event in generation_events if event.payload.get("delivery_mode") == "static_fallback"
             ),

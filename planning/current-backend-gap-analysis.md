@@ -33,7 +33,7 @@ Legend:
 | Requirement | Status | Notes |
 |---|---|---|
 | `LLM-001` LLM orchestration service | Implemented | Primary/secondary upstreams, failover, circuit breaker, selection strategies |
-| `LLM-002` Prompt framework with versioning/A-B testing | Partial | Prompt registry now selects named templates with version and variant metadata, but experimentation is still minimal and there is no prompt performance loop |
+| `LLM-002` Prompt framework with versioning/A-B testing | Partial | Prompt registry now selects named templates with version and variant metadata, and observability now includes Socratic evidence aggregates, but experimentation is still minimal and there is no prompt performance loop |
 | `LLM-003` RAG pipeline | Implemented | Hybrid lexical + embedding retriever with persistent embedding cache |
 | `LLM-004` Safety/moderation layer | Partial | Validation and safety rules exist; no dedicated moderation workflow |
 | `LLM-005` Streaming response architecture | Implemented | SSE route plus upstream chat-stream ingestion |
