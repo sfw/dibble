@@ -18,6 +18,26 @@ class ContentIntent(str, Enum):
     assessment = "assessment"
 
 
+class RequestedContentType(str, Enum):
+    micro_explanation = "micro_explanation"
+    worked_example = "worked_example"
+    practice_problem = "practice_problem"
+    remedial_micro_module = "remedial_micro_module"
+    assessment_probe = "assessment_probe"
+
+
+class WorkedExampleFading(str, Enum):
+    full = "full"
+    completion = "completion"
+    independent = "independent"
+
+
+class PracticeDifficultyBand(str, Enum):
+    support = "support"
+    on_grade = "on_grade"
+    stretch = "stretch"
+
+
 class InterventionType(str, Enum):
     step_back = "step_back"
     targeted_practice = "targeted_practice"
@@ -36,6 +56,7 @@ class GenerationRequest(BaseModel):
     target_kc_ids: list[str] = Field(default_factory=list)
     target_lo_ids: list[str] = Field(default_factory=list)
     intent: ContentIntent = ContentIntent.explanation
+    requested_content_type: RequestedContentType | None = None
     learner_prompt: str | None = None
     curriculum_context: list[str] = Field(default_factory=list)
 

@@ -34,7 +34,10 @@ def test_observation_endpoint_updates_inferred_state_and_profile(client, student
     assert observed["observation_count"] == 1
     assert observed["affective_state"]["frustration"] in {"medium", "high"}
     assert observed["cognitive_load"]["total_load"] >= 0.5
+    assert observed["metacognitive_state"]["help_seeking"] in {"medium", "high"}
     assert state["observation_count"] == 1
     assert profile["affective_state"]["frustration"] == observed["affective_state"]["frustration"]
     assert profile["cognitive_load"]["total_load"] == observed["cognitive_load"]["total_load"]
+    assert profile["metacognitive_state"]["confidence_calibration"] == observed["metacognitive_state"]["confidence_calibration"]
     assert audit_events[0]["event_type"] == "learner.observe"
+    assert "confidence_calibration" in audit_events[0]["payload"]

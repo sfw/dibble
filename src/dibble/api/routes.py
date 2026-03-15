@@ -35,6 +35,7 @@ from dibble.services.auth import (
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.curriculum_store import SQLiteCurriculumStore
 from dibble.services.generation_engine import GenerationEngine
+from dibble.services.generation_modes import build_generation_mode_plan
 from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
 from dibble.services.observation_store import SQLiteObservationStore
 from dibble.services.profile_store import SQLiteProfileStore
@@ -220,6 +221,7 @@ def build_router(
             update={
                 "affective_state": inferred_state.affective_state,
                 "cognitive_load": inferred_state.cognitive_load,
+                "metacognitive_state": inferred_state.metacognitive_state,
                 "updated_at": inferred_state.last_observation_at or profile.updated_at,
             }
         )
@@ -236,6 +238,8 @@ def build_router(
                 "engagement": inferred_state.affective_state.engagement.value,
                 "frustration": inferred_state.affective_state.frustration.value,
                 "total_load": inferred_state.cognitive_load.total_load,
+                "confidence_calibration": inferred_state.metacognitive_state.confidence_calibration,
+                "help_seeking": inferred_state.metacognitive_state.help_seeking.value,
             },
         )
         return inferred_state
@@ -256,6 +260,7 @@ def build_router(
             student_id=student_id,
             affective_state=profile.affective_state,
             cognitive_load=profile.cognitive_load,
+            metacognitive_state=profile.metacognitive_state,
             observation_count=0,
             last_observation_at=None,
         )
@@ -365,6 +370,7 @@ def build_router(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
 
         response = generation_engine.generate(profile, request)
+        plan = build_generation_mode_plan(profile, request, response.route)
         metadata = response.generation_metadata
         if metadata is None or response.generation_id is None:
             raise HTTPException(
@@ -375,13 +381,8 @@ def build_router(
         generated_content = GeneratedContent(
             generation_id=response.generation_id,
             student_id=response.student_id,
-            content_type=_content_type_label(request),
-            request_context={
-                "intent": request.intent.value,
-                "target_kc_ids": request.target_kc_ids,
-                "target_lo_ids": request.target_lo_ids,
-                "curriculum_context": request.curriculum_context,
-            },
+            content_type=plan.content_type.value,
+            request_context=plan.request_context,
             response=response,
             quality=metadata,
             created_at=response.generated_at,
@@ -435,6 +436,7 @@ def build_router(
             {
                 **request.model_dump(mode="json"),
                 "intent": "explanation",
+                "requested_content_type": "micro_explanation",
             }
         )
         return generate_content(explanation_request)
@@ -449,9 +451,24 @@ def build_router(
             {
                 **request.model_dump(mode="json"),
                 "intent": "practice",
+                "requested_content_type": "practice_problem",
             }
         )
         return generate_content(problem_request)
+
+    @api_router.post(
+        "/worked-examples/generate",
+        response_model=GeneratedContent,
+        dependencies=deps("editor"),
+    )
+    def generate_worked_example(request: GenerationRequest) -> GeneratedContent:
+        worked_example_request = GenerationRequest.model_validate(
+            {
+                **request.model_dump(mode="json"),
+                "requested_content_type": "worked_example",
+            }
+        )
+        return generate_content(worked_example_request)
 
     @api_router.post(
         "/remedial/trigger",
@@ -470,6 +487,7 @@ def build_router(
             student_id=request.student_id,
             target_kc_ids=plan.focus_kc_ids,
             intent="remediation",
+            requested_content_type="remedial_micro_module",
             learner_prompt=(
                 f"{request.learner_prompt} Step back through prerequisite components before returning to the target."
                 if request.learner_prompt
@@ -578,16 +596,6 @@ def build_router(
 
     router.include_router(api_router)
     return router
-
-
-def _content_type_label(request: GenerationRequest) -> str:
-    if request.intent.value == "remediation":
-        return "remedial_micro_module"
-    if request.intent.value == "practice":
-        return "practice_problem"
-    if request.intent.value == "assessment":
-        return "assessment_probe"
-    return "micro_explanation"
 
 
 def _missing_profile(student_id: UUID) -> LearnerProfile:

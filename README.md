@@ -7,6 +7,7 @@ This repository now includes a working MVP backend slice for the revised adaptiv
 - FastAPI application in `src/dibble/`
 - SQLite-backed persistence for learner profiles and curriculum resources
 - Learner profile model aligned to the revised spec's richer profile design
+- Observation-driven affective, cognitive-load, and metacognitive state inference folded into the learner profile
 - Adaptive routing service with curriculum/safety guardrails plus Thompson-style action selection for step-back, reteach, targeted practice, and stretch decisions
 - Retrieval-grounded generation pipeline split into retriever, router, provider, and validator services
 - Default retriever now uses a persistent SQLite-backed embedding index plus lexical/metadata scoring for better free-text curriculum matching
@@ -60,6 +61,7 @@ env UV_CACHE_DIR=.uv-cache uv run pytest
 - `POST /api/content/warm`
 - `POST /api/explanations/generate`
 - `POST /api/problems/generate`
+- `POST /api/worked-examples/generate`
 - `POST /api/remedial/trigger`
 - `POST /api/llm/stream`
 - `GET /api/auth/me`
@@ -138,11 +140,11 @@ When auth is enabled, all API routes except `GET /health` require a valid key in
 
 Generated responses now include `generation_id` plus `generation_metadata` with validation status, quality score, provider provenance, latency, and cache-hit state. The current revised-spec generation routes wrap that response in a `GeneratedContent` record so the API contract aligns with the authoritative planning package. `POST /api/content/warm` can proactively pre-generate the same content shape and prime the SQLite-backed cache for expected remedial or practice requests.
 
-Knowledge Components are now first-class persisted entities with prerequisite links, and the remedial trigger uses that graph plus misconception signals to step back through weaker prerequisite KCs before returning to the requested target. Remediation responses now include the detected misconception signals and rationale in `request_context`, and audit logs capture the same planning metadata. The learner API also now accepts observed interaction signals and infers affective state plus cognitive load back into the stored profile. Observability snapshots now include cache-hit counts, warm-request totals, and generated-content cache inventory so pre-generation effectiveness is visible without extra instrumentation.
+Knowledge Components are now first-class persisted entities with prerequisite links, and the remedial trigger uses that graph plus misconception signals to step back through weaker prerequisite KCs before returning to the requested target. Remediation responses now include the detected misconception signals and rationale in `request_context`, and audit logs capture the same planning metadata. The learner API also now accepts observed interaction signals and infers affective state, cognitive load, and metacognitive state back into the stored profile, including confidence calibration and help-seeking behavior. The generation path also now supports first-class worked-example fading and practice difficulty bands through the same unified engine, so `/api/problems/generate` and `/api/worked-examples/generate` return specialized request metadata instead of only generic prompt output. Observability snapshots now include cache-hit counts, warm-request totals, and generated-content cache inventory so pre-generation effectiveness is visible without extra instrumentation.
 
 ## Suggested Next Build Steps
 
 1. Replace or augment SQLite with production persistence such as Redis/PostgreSQL or Redis/Cassandra.
 2. Replace the SQLite embedding cache with a production vector store and background indexing pipeline while keeping the retriever plugin contract stable.
-3. Add prompt versioning, richer generation metadata, and provider failover on top of the LLM orchestration layer.
-4. Add richer curriculum alignment scoring, domain-specific validators, stronger session management like issuer rotation and per-device controls, and smarter traffic policy on top of the new provider telemetry such as latency-aware routing.
+3. Add prompt versioning, richer template selection, and experimentation support on top of the new generation-mode planning layer.
+4. Add conversational assessment, stronger curriculum-alignment scoring, and calibrated learner-state models so the router can choose among richer instructional formats with better evidence.

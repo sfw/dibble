@@ -53,6 +53,14 @@ class CognitiveLoadState(BaseModel):
     inferred_at: datetime = Field(default_factory=utc_now)
 
 
+class MetacognitiveState(BaseModel):
+    confidence_calibration: float = Field(default=0.5, ge=0.0, le=1.0)
+    help_seeking: SignalLevel = SignalLevel.low
+    help_seeking_effectiveness: float = Field(default=0.5, ge=0.0, le=1.0)
+    self_monitoring: float = Field(default=0.5, ge=0.0, le=1.0)
+    inferred_at: datetime = Field(default_factory=utc_now)
+
+
 class LearningPreferences(BaseModel):
     modality_affinity: dict[str, float] = Field(
         default_factory=lambda: {
@@ -81,6 +89,7 @@ class LearnerProfile(BaseModel):
     knowledge_state: KnowledgeState = Field(default_factory=KnowledgeState)
     affective_state: AffectiveState = Field(default_factory=AffectiveState)
     cognitive_load: CognitiveLoadState = Field(default_factory=CognitiveLoadState)
+    metacognitive_state: MetacognitiveState = Field(default_factory=MetacognitiveState)
     learning_preferences: LearningPreferences = Field(default_factory=LearningPreferences)
     accommodations: list[str] = Field(default_factory=list)
     updated_at: datetime = Field(default_factory=utc_now)
@@ -99,6 +108,7 @@ class LearnerProfileV2(BaseModel):
     knowledge_state: KnowledgeState = Field(default_factory=KnowledgeState)
     affective_state: AffectiveState = Field(default_factory=AffectiveState)
     cognitive_load: CognitiveLoadState = Field(default_factory=CognitiveLoadState)
+    metacognitive_state: MetacognitiveState = Field(default_factory=MetacognitiveState)
     learning_preferences: LearningPreferences = Field(default_factory=LearningPreferences)
     accommodations: list[str] = Field(default_factory=list)
 
@@ -113,6 +123,8 @@ class LearnerProfileV2(BaseModel):
             bool(profile.accommodations),
             profile.affective_state.confidence != 0.5,
             profile.cognitive_load.total_load != 0.4,
+            profile.metacognitive_state.confidence_calibration != 0.5,
+            profile.metacognitive_state.help_seeking_effectiveness != 0.5,
         ]
         completeness_score = sum(1 for item in signals_present if item) / len(signals_present)
 
@@ -127,6 +139,7 @@ class LearnerProfileV2(BaseModel):
             knowledge_state=profile.knowledge_state,
             affective_state=profile.affective_state,
             cognitive_load=profile.cognitive_load,
+            metacognitive_state=profile.metacognitive_state,
             learning_preferences=profile.learning_preferences,
             accommodations=profile.accommodations,
         )

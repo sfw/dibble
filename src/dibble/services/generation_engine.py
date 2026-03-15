@@ -18,6 +18,7 @@ from dibble.models.generation import (
 )
 from dibble.models.profile import LearnerProfile
 from dibble.plugins.contracts import ProviderPlugin, RetrieverPlugin, RouterPlugin, ValidatorPlugin
+from dibble.services.generation_modes import build_generation_mode_plan
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
 
 
@@ -158,6 +159,7 @@ class GenerationEngine:
         cache_hit: bool,
         generation_latency_ms: int,
     ) -> GeneratedContent:
+        plan = build_generation_mode_plan(profile, request, response.route)
         provider_descriptor = self._provider_descriptor()
         metadata = GenerationMetadata(
             quality_score=self._quality_score(response),
@@ -181,13 +183,8 @@ class GenerationEngine:
         return GeneratedContent(
             generation_id=generation_id,
             student_id=profile.student_id,
-            content_type=self._content_type(request),
-            request_context={
-                "intent": request.intent.value,
-                "target_kc_ids": request.target_kc_ids,
-                "target_lo_ids": request.target_lo_ids,
-                "curriculum_context": request.curriculum_context,
-            },
+            content_type=plan.content_type.value,
+            request_context=plan.request_context,
             response=updated_response,
             quality=metadata,
             created_at=created_at,
@@ -227,15 +224,6 @@ class GenerationEngine:
         if response.route.delivery_mode == DeliveryMode.static_fallback:
             base_score -= 0.1
         return round(max(0.0, min(base_score, 1.0)), 2)
-
-    def _content_type(self, request: GenerationRequest) -> str:
-        if request.intent.value == "remediation":
-            return "remedial_micro_module"
-        if request.intent.value == "practice":
-            return "practice_problem"
-        if request.intent.value == "assessment":
-            return "assessment_probe"
-        return "micro_explanation"
 
     def _provider_descriptor(self) -> dict[str, str | None]:
         descriptor = getattr(self.provider, "last_used_descriptor", None)

@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from dibble.models.profile import AffectiveState, CognitiveLoadState
+from dibble.models.profile import AffectiveState, CognitiveLoadState, MetacognitiveState
 
 
 def utc_now() -> datetime:
@@ -32,5 +32,6 @@ class InferredLearnerState(BaseModel):
     student_id: UUID
     affective_state: AffectiveState
     cognitive_load: CognitiveLoadState
+    metacognitive_state: MetacognitiveState
     observation_count: int = Field(default=0, ge=0)
     last_observation_at: datetime | None = None

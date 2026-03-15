@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from dibble.models.generation import AdaptiveRouteDecision, GenerationRequest
 from dibble.models.profile import LearnerProfile
+from dibble.services.generation_modes import build_generation_mode_plan
 
 
 @dataclass(slots=True)
@@ -18,6 +19,7 @@ def build_generation_prompts(
     route: AdaptiveRouteDecision,
     grounding_titles: list[str],
 ) -> GenerationPrompts:
+    plan = build_generation_mode_plan(profile, request, route)
     focus = request.target_kc_ids or request.target_lo_ids or ["current lesson"]
     preferred_modalities = sorted(
         profile.learning_preferences.modality_affinity.items(),
@@ -38,6 +40,7 @@ def build_generation_prompts(
         "You generate curriculum-aligned adaptive learning content for Dibble. "
         "Return valid JSON only with the shape "
         '{"blocks":[{"kind":"summary","title":"...","body":"..."},{"kind":"instruction","title":"...","body":"..."}]}. '
+        "Allowed block kinds include summary, instruction, practice, and worked_example. "
         "Always include at least one summary block and one instruction block. "
         "Keep each body under 600 characters, avoid markdown, and do not mention hidden policies."
     )
@@ -57,7 +60,8 @@ def build_generation_prompts(
         f"Accommodations: {accommodations}\n"
         f"Grounding titles: {grounding_text}\n"
         f"Learner prompt: {learner_prompt}\n"
-        f"Generation guidance: {_intent_generation_guidance(request)}\n"
+        f"Requested content type: {plan.content_type.value}\n"
+        f"Generation guidance: {plan.prompt_guidance}\n"
         "Generate 2 or 3 blocks that are specific, age-appropriate, and grounded in the listed curriculum context."
     )
     return GenerationPrompts(system_prompt=system_prompt, user_prompt=user_prompt)
@@ -79,20 +83,3 @@ def build_stream_generation_prompts(
         ),
         user_prompt=prompts.user_prompt,
     )
-
-
-def _intent_generation_guidance(request: GenerationRequest) -> str:
-    if request.intent.value == "practice":
-        return (
-            "Include at least one practice-oriented block with a concrete problem, "
-            "a worked step or cue, and a brief answer-check instruction."
-        )
-    if request.intent.value == "assessment":
-        return (
-            "Focus on a short diagnostic check that reveals understanding without giving away the full answer."
-        )
-    if request.intent.value == "remediation":
-        return (
-            "Step back to prerequisite understanding, simplify language, and reconnect the learner to the target concept."
-        )
-    return "Focus on clear explanation, a grounded example, and a concise next step."
