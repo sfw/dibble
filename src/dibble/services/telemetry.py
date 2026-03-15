@@ -156,6 +156,8 @@ class TelemetryService:
         composite_scores = [sample.composite_score for sample in samples]
         downstream_matches = sum(1 for sample in samples if sample.downstream_observation_score is not None)
         assessment_matches = sum(1 for sample in samples if sample.downstream_assessment_score is not None)
+        observation_trace_total = sum(sample.observation_match_count for sample in samples)
+        assessment_trace_total = sum(sample.assessment_match_count for sample in samples)
         return GenerationPromptPerformance(
             template_name=template_name,
             template_variant=template_variant,
@@ -165,4 +167,6 @@ class TelemetryService:
             average_composite_outcome=round(sum(composite_scores) / event_count, 2) if event_count else 0.0,
             downstream_observation_rate=round(downstream_matches / event_count, 2) if event_count else 0.0,
             downstream_assessment_rate=round(assessment_matches / event_count, 2) if event_count else 0.0,
+            average_observation_trace_count=round(observation_trace_total / event_count, 2) if event_count else 0.0,
+            average_assessment_trace_count=round(assessment_trace_total / event_count, 2) if event_count else 0.0,
         )

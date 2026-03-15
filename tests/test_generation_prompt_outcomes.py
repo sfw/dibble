@@ -243,3 +243,95 @@ def test_generation_prompt_outcome_scorer_uses_same_session_socratic_assessment(
     assert sample.downstream_assessment_score is not None
     assert sample.downstream_assessment_score > 0.8
     assert sample.composite_score > sample.quality_score
+
+
+def test_generation_prompt_outcome_scorer_aggregates_multi_event_session_trace(tmp_path):
+    database_path = str(tmp_path / "generation-outcomes-trace.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = str(uuid4())
+    generation_event = audit_store.append(
+        event_type="content.generate",
+        status="success",
+        student_id=student_id,
+        payload={
+            "learning_session_id": "learn-session-trace",
+            "content_type": "worked_example",
+            "prompt_template_name": "worked_example.guided_reflection",
+            "prompt_template_variant": "guided_reflection",
+            "quality_score": 0.7,
+            "validation_passed": True,
+            "grounding_count": 1,
+            "target_kc_ids": ["KC-1"],
+        },
+    )
+    first_observation = audit_store.append(
+        event_type="learner.observe",
+        status="success",
+        student_id=student_id,
+        payload={
+            "learning_session_id": "learn-session-trace",
+            "observed_content_type": "worked_example",
+            "task_type": "worked_example",
+            "target_kc_ids": ["KC-1"],
+            "engagement": "medium",
+            "frustration": "low",
+            "total_load": 0.35,
+            "confidence_calibration": 0.72,
+            "help_seeking": "low",
+        },
+    )
+    second_observation = audit_store.append(
+        event_type="learner.observe",
+        status="success",
+        student_id=student_id,
+        payload={
+            "learning_session_id": "learn-session-trace",
+            "observed_content_type": "worked_example",
+            "task_type": "worked_example",
+            "target_kc_ids": ["KC-1"],
+            "engagement": "high",
+            "frustration": "low",
+            "total_load": 0.22,
+            "confidence_calibration": 0.83,
+            "help_seeking": "low",
+        },
+    )
+    first_assessment = audit_store.append(
+        event_type="assessment.socratic",
+        status="success",
+        student_id=student_id,
+        payload={
+            "learning_session_id": "learn-session-trace",
+            "target_kc_ids": ["KC-1"],
+            "evidence_strength": "emerging",
+            "evidence_score": 0.65,
+            "profile_update_applied": False,
+        },
+    )
+    second_assessment = audit_store.append(
+        event_type="assessment.socratic",
+        status="success",
+        student_id=student_id,
+        payload={
+            "learning_session_id": "learn-session-trace",
+            "target_kc_ids": ["KC-1"],
+            "evidence_strength": "demonstrated",
+            "evidence_score": 0.84,
+            "profile_update_applied": True,
+        },
+    )
+
+    sample = GenerationPromptOutcomeScorer().score(
+        generation_event=generation_event,
+        candidate_observations=[first_observation, second_observation],
+        candidate_assessments=[first_assessment, second_assessment],
+    )
+
+    assert sample.observation_match_count == 2
+    assert sample.assessment_match_count == 2
+    assert sample.downstream_observation_score is not None
+    assert sample.downstream_observation_score > 0.7
+    assert sample.downstream_assessment_score is not None
+    assert sample.downstream_assessment_score > 0.7
+    assert sample.composite_score > sample.quality_score

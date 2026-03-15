@@ -159,6 +159,8 @@ def test_telemetry_snapshot_includes_generation_prompt_outcomes(tmp_path):
     assert performance.average_composite_outcome > performance.average_quality_score
     assert performance.downstream_observation_rate == 1.0
     assert performance.downstream_assessment_rate == 1.0
+    assert performance.average_observation_trace_count == 1.0
+    assert performance.average_assessment_trace_count == 1.0
 
 
 def test_telemetry_snapshot_includes_socratic_assessment_metrics(tmp_path):

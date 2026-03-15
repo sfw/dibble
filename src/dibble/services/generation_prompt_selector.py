@@ -41,6 +41,8 @@ class GenerationPromptSelector:
         grounded_counts: dict[str, int] = {}
         downstream_counts: dict[str, int] = {}
         assessment_counts: dict[str, int] = {}
+        observation_trace_counts: dict[str, int] = {}
+        assessment_trace_counts: dict[str, int] = {}
         for event in generation_events:
             sample = self.outcome_scorer.score(
                 generation_event=event,
@@ -60,6 +62,12 @@ class GenerationPromptSelector:
             assessment_counts[sample.variant] = assessment_counts.get(sample.variant, 0) + (
                 1 if sample.downstream_assessment_score is not None else 0
             )
+            observation_trace_counts[sample.variant] = (
+                observation_trace_counts.get(sample.variant, 0) + sample.observation_match_count
+            )
+            assessment_trace_counts[sample.variant] = (
+                assessment_trace_counts.get(sample.variant, 0) + sample.assessment_match_count
+            )
 
         eligible = {
             variant: scores
@@ -77,12 +85,16 @@ class GenerationPromptSelector:
             grounding_rate = grounded_counts.get(variant, 0) / event_count
             downstream_rate = downstream_counts.get(variant, 0) / event_count
             assessment_rate = assessment_counts.get(variant, 0) / event_count
+            observation_trace_depth = min(1.0, observation_trace_counts.get(variant, 0) / max(1, event_count * 3))
+            assessment_trace_depth = min(1.0, assessment_trace_counts.get(variant, 0) / max(1, event_count * 3))
             return (
                 average_outcome
                 + (validation_rate * 0.08)
                 + (grounding_rate * 0.04)
                 + (downstream_rate * 0.06)
-                + (assessment_rate * 0.08),
+                + (assessment_rate * 0.08)
+                + (observation_trace_depth * 0.03)
+                + (assessment_trace_depth * 0.05),
                 average_outcome,
                 event_count,
             )
