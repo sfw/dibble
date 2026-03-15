@@ -6,7 +6,12 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
 from dibble.models.auth import AuthIdentity, AuthRefreshRequest, AuthRevokeRequest, AuthToken
-from dibble.models.curriculum import CurriculumResource, CurriculumResourceUpsert
+from dibble.models.curriculum import (
+    CurriculumResource,
+    CurriculumResourceUpsert,
+    KnowledgeComponent,
+    KnowledgeComponentUpsert,
+)
 from dibble.models.generation import (
     AdaptiveRouteDecision,
     GeneratedContent,
@@ -26,7 +31,9 @@ from dibble.services.auth import (
 )
 from dibble.services.curriculum_store import SQLiteCurriculumStore
 from dibble.services.generation_engine import GenerationEngine
+from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
 from dibble.services.profile_store import SQLiteProfileStore
+from dibble.services.remediation_planner import RemediationPlanner
 from dibble.services.streaming import encode_sse_event
 from dibble.services.telemetry import TelemetryService
 
@@ -34,11 +41,13 @@ from dibble.services.telemetry import TelemetryService
 def build_router(
     profile_store: SQLiteProfileStore,
     curriculum_store: SQLiteCurriculumStore,
+    knowledge_component_store: SQLiteKnowledgeComponentStore,
     audit_store: SQLiteAuditStore,
     auth_service: AuthService,
     telemetry_service: TelemetryService,
     router_service: RouterPlugin,
     generation_engine: GenerationEngine,
+    remediation_planner: RemediationPlanner,
 ) -> APIRouter:
     router = APIRouter()
     api_router = APIRouter(prefix="/api")
@@ -220,6 +229,41 @@ def build_router(
     def list_curriculum_resources() -> list[CurriculumResource]:
         return curriculum_store.list()
 
+    @api_router.put(
+        "/knowledge-components/{kc_id}",
+        response_model=KnowledgeComponent,
+        dependencies=deps("editor"),
+    )
+    def upsert_knowledge_component(
+        kc_id: str,
+        component: KnowledgeComponentUpsert,
+    ) -> KnowledgeComponent:
+        if kc_id != component.kc_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Path kc_id must match the knowledge component payload kc_id.",
+            )
+        return knowledge_component_store.upsert(component)
+
+    @api_router.get(
+        "/knowledge-components",
+        response_model=list[KnowledgeComponent],
+        dependencies=deps("viewer"),
+    )
+    def list_knowledge_components() -> list[KnowledgeComponent]:
+        return knowledge_component_store.list()
+
+    @api_router.get(
+        "/knowledge-components/{kc_id}/prerequisites",
+        response_model=list[KnowledgeComponent],
+        dependencies=deps("viewer"),
+    )
+    def list_knowledge_component_prerequisites(kc_id: str) -> list[KnowledgeComponent]:
+        component = knowledge_component_store.get(kc_id)
+        if component is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge component not found.")
+        return knowledge_component_store.list_prerequisites(kc_id)
+
     @api_router.post(
         "/router/decide",
         response_model=AdaptiveRouteDecision,
@@ -331,11 +375,16 @@ def build_router(
         dependencies=deps("editor"),
     )
     def trigger_remedial_content(request: RemedialTriggerRequest) -> GeneratedContent:
+        plan = remediation_planner.plan(profile_store.get(request.student_id) or _missing_profile(request.student_id), request.target_kc_id)
         generation_request = GenerationRequest(
             student_id=request.student_id,
-            target_kc_ids=[request.target_kc_id],
+            target_kc_ids=plan.focus_kc_ids,
             intent="remediation",
-            learner_prompt=request.learner_prompt,
+            learner_prompt=(
+                f"{request.learner_prompt} {plan.rationale}".strip()
+                if request.learner_prompt
+                else plan.rationale
+            ),
             curriculum_context=[request.misconception_description, *request.curriculum_context],
         )
         return generate_content(generation_request)
@@ -424,3 +473,10 @@ def _content_type_label(request: GenerationRequest) -> str:
     if request.intent.value == "assessment":
         return "assessment_probe"
     return "micro_explanation"
+
+
+def _missing_profile(student_id: UUID) -> LearnerProfile:
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"Learner profile not found for student_id {student_id}.",
+    )

@@ -49,3 +49,23 @@ def build_curriculum_resource(resource_id="CURR-1"):
         "body": "Use visual fraction models to explain why equivalent fractions name the same amount.",
         "source_type": "curriculum_standard",
     }
+
+
+def build_knowledge_component(
+    kc_id="KC-1",
+    *,
+    prerequisite_kc_ids=None,
+    parent_lo_id="LO-1",
+    name="Understand equivalent fractions with visual models",
+):
+    return {
+        "kc_id": kc_id,
+        "name": name,
+        "parent_lo_id": parent_lo_id,
+        "grade_level": "5",
+        "subject": "math",
+        "prerequisite_kc_ids": prerequisite_kc_ids or [],
+        "difficulty": 0.5,
+        "estimated_time_minutes": 8,
+        "tags": ["fractions", "remediation"],
+    }

@@ -1,5 +1,5 @@
 from tests.api_support import parse_sse_events
-from tests.support import build_curriculum_resource, build_profile
+from tests.support import build_curriculum_resource, build_knowledge_component, build_profile
 
 
 def test_generation_uses_grounding_and_step_back_route(client, student_id):
@@ -56,12 +56,24 @@ def test_generation_endpoint_returns_generated_content_and_cache_hit(client, stu
 def test_remedial_trigger_returns_remedial_generated_content(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put(
+        "/api/knowledge-components/KC-1",
+        json=build_knowledge_component("KC-1", name="Identify numerator and denominator"),
+    )
+    client.put(
+        "/api/knowledge-components/KC-2",
+        json=build_knowledge_component(
+            "KC-2",
+            prerequisite_kc_ids=["KC-1"],
+            name="Generate equivalent fractions",
+        ),
+    )
 
     response = client.post(
         "/api/remedial/trigger",
         json={
             "student_id": str(student_id),
-            "target_kc_id": "KC-1",
+            "target_kc_id": "KC-2",
             "misconception_description": "The learner thinks 1/2 and 2/4 are different amounts.",
             "curriculum_context": ["Equivalent fractions"],
         },
@@ -72,6 +84,7 @@ def test_remedial_trigger_returns_remedial_generated_content(client, student_id)
     assert payload["content_type"] == "remedial_micro_module"
     assert payload["response"]["route"]["intervention_type"] == "step_back"
     assert payload["quality"]["validation_passed"] is True
+    assert payload["request_context"]["target_kc_ids"] == ["KC-1", "KC-2"]
 
 
 def test_explanations_and_problems_endpoints_specialize_generation(client, student_id):

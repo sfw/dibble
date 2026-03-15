@@ -10,8 +10,10 @@ from dibble.services.auth_sessions import SQLiteAuthSessionStore
 from dibble.services.curriculum_store import SQLiteCurriculumStore
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
+from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
 from dibble.services.provider_health import SQLiteProviderHealthStore
 from dibble.services.profile_store import SQLiteProfileStore
+from dibble.services.remediation_planner import RemediationPlanner
 from dibble.services.telemetry import TelemetryService
 from dibble.storage import ensure_database
 
@@ -20,11 +22,13 @@ from dibble.storage import ensure_database
 class ApplicationServices:
     profile_store: SQLiteProfileStore
     curriculum_store: SQLiteCurriculumStore
+    knowledge_component_store: SQLiteKnowledgeComponentStore
     audit_store: SQLiteAuditStore
     generated_content_store: SQLiteGeneratedContentStore
     auth_service: AuthService
     telemetry_service: TelemetryService
     generation_engine: GenerationEngine
+    remediation_planner: RemediationPlanner
     router_plugin: object
 
 
@@ -33,6 +37,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
 
     profile_store = SQLiteProfileStore(settings.database_path)
     curriculum_store = SQLiteCurriculumStore(settings.database_path)
+    knowledge_component_store = SQLiteKnowledgeComponentStore(settings.database_path)
     audit_store = SQLiteAuditStore(settings.database_path)
     generated_content_store = SQLiteGeneratedContentStore(settings.database_path)
     provider_health_store = SQLiteProviderHealthStore(settings.database_path)
@@ -49,14 +54,17 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         generated_content_store=generated_content_store,
         cache_ttl_seconds=settings.generation_cache_ttl_seconds,
     )
+    remediation_planner = RemediationPlanner(knowledge_component_store)
 
     return ApplicationServices(
         profile_store=profile_store,
         curriculum_store=curriculum_store,
+        knowledge_component_store=knowledge_component_store,
         audit_store=audit_store,
         generated_content_store=generated_content_store,
         auth_service=auth_service,
         telemetry_service=TelemetryService(audit_store, provider_health_store),
         generation_engine=generation_engine,
+        remediation_planner=remediation_planner,
         router_plugin=plugins.router,
     )

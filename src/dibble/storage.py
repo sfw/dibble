@@ -20,6 +20,14 @@ CREATE TABLE IF NOT EXISTS curriculum_resources (
 );
 """
 
+KNOWLEDGE_COMPONENT_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS knowledge_components (
+    kc_id TEXT PRIMARY KEY,
+    payload TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+"""
+
 AUDIT_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS audit_events (
     event_id TEXT PRIMARY KEY,
@@ -87,6 +95,7 @@ def ensure_database(database_path: str) -> None:
     with sqlite3.connect(database_path) as connection:
         connection.execute(PROFILE_TABLE_SQL)
         connection.execute(CURRICULUM_TABLE_SQL)
+        connection.execute(KNOWLEDGE_COMPONENT_TABLE_SQL)
         connection.execute(AUDIT_TABLE_SQL)
         connection.execute(EMBEDDING_TABLE_SQL)
         connection.execute(PROVIDER_HEALTH_TABLE_SQL)

@@ -20,11 +20,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         build_router(
             services.profile_store,
             services.curriculum_store,
+            services.knowledge_component_store,
             services.audit_store,
             services.auth_service,
             services.telemetry_service,
             services.router_plugin,
             services.generation_engine,
+            services.remediation_planner,
         )
     )
     return app

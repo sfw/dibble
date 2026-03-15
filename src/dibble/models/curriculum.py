@@ -23,3 +23,19 @@ class CurriculumResourceUpsert(BaseModel):
 
 class CurriculumResource(CurriculumResourceUpsert):
     updated_at: datetime = Field(default_factory=utc_now)
+
+
+class KnowledgeComponentUpsert(BaseModel):
+    kc_id: str
+    name: str
+    parent_lo_id: str
+    grade_level: str
+    subject: str
+    prerequisite_kc_ids: list[str] = Field(default_factory=list)
+    difficulty: float = Field(default=0.5, ge=0.0, le=1.0)
+    estimated_time_minutes: int = Field(default=10, ge=1)
+    tags: list[str] = Field(default_factory=list)
+
+
+class KnowledgeComponent(KnowledgeComponentUpsert):
+    updated_at: datetime = Field(default_factory=utc_now)

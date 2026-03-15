@@ -50,6 +50,9 @@ env UV_CACHE_DIR=.uv-cache uv run pytest
 - `GET /api/learners/{student_id}/summary`
 - `PUT /api/curriculum/resources/{resource_id}`
 - `GET /api/curriculum/resources`
+- `PUT /api/knowledge-components/{kc_id}`
+- `GET /api/knowledge-components`
+- `GET /api/knowledge-components/{kc_id}/prerequisites`
 - `POST /api/router/decide`
 - `POST /api/content/generate`
 - `POST /api/explanations/generate`
@@ -131,6 +134,8 @@ export DIBBLE_GENERATION_CACHE_TTL_SECONDS=3600
 When auth is enabled, all API routes except `GET /health` require a valid key in the configured header. If `DIBBLE_AUTH_PRINCIPALS` is set, keys resolve to named principals and roles. Route access is split so viewers can read, editors can mutate/generate, and admins can access audit and observability endpoints. If `DIBBLE_AUTH_TOKEN_SECRET` is set, authenticated principals can exchange API-key access for signed bearer tokens via `POST /api/auth/token`, rotate them with `POST /api/auth/token/refresh`, and revoke sessions with `POST /api/auth/token/revoke`.
 
 Generated responses now include `generation_id` plus `generation_metadata` with validation status, quality score, provider provenance, latency, and cache-hit state. The `v2` generation routes wrap that response in a `GeneratedContent` record so the API contract aligns more closely with the revised handoff package.
+
+Knowledge Components are now first-class persisted entities with prerequisite links, and the remedial trigger uses that graph to step back through weaker prerequisite KCs before returning to the requested target.
 
 ## Suggested Next Build Steps
 

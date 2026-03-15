@@ -39,12 +39,12 @@ Legend:
 | `GEN-001` On-the-fly explanation generation | Implemented | `v1` and `v2` generation routes produce grounded explanations |
 | `GEN-002` Practice problem synthesis | Partial | `intent=practice` is supported, but there is no dedicated problem generator or difficulty calibration |
 | `GEN-003` Worked example generation with fading | Partial | Generic generation exists; no worked-example-specific prompt or fading logic |
-| `GEN-004` Remedial micro-module creation | Partial | Remedial trigger endpoint exists, but prerequisite-aware micro-module assembly is still shallow |
+| `GEN-004` Remedial micro-module creation | Partial | Remedial trigger now steps through prerequisite KCs, but misconception classification and richer module assembly are still shallow |
 | `GEN-005` Multi-modal synthesis | Missing | No diagram, interactive, simulation, or code generation layer |
 | `PROF-001` Cognitive trait assessment | Partial | Profile schema stores traits, but no assessment or inference pipeline populates them |
 | `PROF-002` Affective state detection | Partial | Profile schema stores affective signals, but no classifier or inference API exists |
 | `PROF-003` Real-time cognitive load estimation | Partial | Load is stored and used by the router, but not inferred dynamically from behavior |
-| `PROF-004` KC granularity | Partial | KC mastery exists in the profile and requests target KCs, but there is no KC taxonomy or graph |
+| `PROF-004` KC granularity | Partial | KC mastery exists in the profile and there is now a persisted KC graph, but taxonomy depth and mastery migration are still limited |
 | `PROF-005` Metacognitive tracking | Missing | No dedicated confidence-calibration or help-seeking tracking model yet |
 | `ADAPT-001` Thompson Sampling router | Implemented | Thompson-style policy with safety constraints is in the production path |
 | `ADAPT-002` Within-session adaptation | Partial | Streaming generation exists, but there is no continuous state-updating adaptive loop |
@@ -55,7 +55,7 @@ Legend:
 | `API-002` `POST /api/remedial/trigger` | Partial | Implemented as a lightweight wrapper; deeper remedial orchestration still missing |
 | `API-003` `GET /api/learners/{id}/profile` | Implemented | Current unified learner-profile endpoint returns the extended dimensions |
 | `API-004` `POST /api/llm/stream` | Implemented | Current unified streaming surface |
-| `DATA-001` KnowledgeComponent entity and prerequisite graph | Missing | No first-class KC entity or prerequisite API yet |
+| `DATA-001` KnowledgeComponent entity and prerequisite graph | Implemented | Persisted KC entity plus prerequisite traversal API and remediation-planner integration |
 | `DATA-002` Extended learner profile | Implemented | Current profile model includes cognitive, affective, load, and preference dimensions |
 | `DATA-003` GeneratedContent entity with quality metadata | Implemented | Persisted generated content plus `generation_metadata` and `GeneratedContent` API envelope |
 | `INFRA-003` Pre-generation and intelligent caching | Partial | Request-time generation cache exists; proactive warming and smarter invalidation do not |
@@ -64,18 +64,18 @@ Legend:
 
 Based on `planning/4 - revised-spec/implementation-roadmap.md` and `planning/5 - dev-handoff-revised-spec/requirements-traceability.csv`, the strongest next backend slices are:
 
-1. `DATA-001` + `GEN-004`: add KnowledgeComponent entities and prerequisite graph queries so remedial generation can target actual prerequisite gaps.
-2. `ADAPT-003`: add misconception detection/classification, even if it starts with rules plus retrieval signals before ML.
-3. `PROF-002` + `PROF-003`: infer affective state and cognitive load from observable events instead of relying on preloaded profile values.
-4. `INFRA-003`: extend the new cache into true pre-generation and warmup flows for anticipated remedial content.
-5. `GEN-002` + `GEN-003`: split generic generation into dedicated practice-problem and worked-example generators.
+1. `ADAPT-003`: add misconception detection/classification, even if it starts with rules plus retrieval signals before ML.
+2. `PROF-002` + `PROF-003`: infer affective state and cognitive load from observable events instead of relying on preloaded profile values.
+3. `INFRA-003`: extend the new cache into true pre-generation and warmup flows for anticipated remedial content.
+4. `GEN-002` + `GEN-003`: deepen practice-problem and worked-example generation beyond the current prompt specialization.
+5. `PROF-004`: expand the KC graph from a persistence/API layer into broader taxonomy coverage and mastery migration support.
 
 ## Recommendation
 
-The most coherent next implementation step is:
+The most coherent next implementation step is now:
 
-- introduce a first-class `KnowledgeComponent` model and prerequisite store
-- add a lightweight prerequisite inference service
-- upgrade `/api/remedial/trigger` to generate from detected KC gaps rather than only the requested KC string
+- add misconception detection signals on top of the KC graph
+- use those signals to choose prerequisite step-back targets more intelligently
+- expose that reasoning in remediation audit metadata
 
-That closes the biggest structural gap between the current MVP and the revised spec’s remedial system without forcing us into premature ML work.
+That would turn the new KC graph from a structural capability into a genuinely adaptive remediation system.
