@@ -7,8 +7,14 @@ from fastapi.responses import StreamingResponse
 
 from dibble.models.auth import AuthIdentity, AuthRefreshRequest, AuthRevokeRequest, AuthToken
 from dibble.models.curriculum import CurriculumResource, CurriculumResourceUpsert
-from dibble.models.generation import AdaptiveRouteDecision, GenerationRequest, GenerationResponse, GenerationStreamEvent
-from dibble.models.profile import LearnerProfile, ProfileSummary
+from dibble.models.generation import (
+    AdaptiveRouteDecision,
+    GeneratedContent,
+    GenerationRequest,
+    GenerationStreamEvent,
+    RemedialTriggerRequest,
+)
+from dibble.models.profile import LearnerProfile, LearnerProfileV2, ProfileSummary
 from dibble.models.telemetry import AuditEvent, TelemetrySnapshot
 from dibble.plugins.contracts import RouterPlugin
 from dibble.services.audit_store import SQLiteAuditStore
@@ -35,7 +41,7 @@ def build_router(
     generation_engine: GenerationEngine,
 ) -> APIRouter:
     router = APIRouter()
-    protected_router = APIRouter()
+    api_router = APIRouter(prefix="/api")
 
     def require_access(*allowed_roles: str):
         async def dependency(
@@ -94,14 +100,14 @@ def build_router(
             return []
         return [Depends(require_access(*roles))]
 
-    @protected_router.get("/api/v1/auth/me", response_model=AuthIdentity, dependencies=deps("viewer"))
+    @api_router.get("/auth/me", response_model=AuthIdentity, dependencies=deps("viewer"))
     def get_current_identity(request: Request) -> AuthIdentity:
         identity = getattr(request.state, "auth_identity", None)
         if identity is None:
             return auth_service.authenticate(None)
         return identity
 
-    @protected_router.post("/api/v1/auth/token", response_model=AuthToken, dependencies=deps("viewer"))
+    @api_router.post("/auth/token", response_model=AuthToken, dependencies=deps("viewer"))
     def issue_access_token(request: Request) -> AuthToken:
         identity = getattr(request.state, "auth_identity", None)
         if identity is None:
@@ -118,7 +124,7 @@ def build_router(
         )
         return token
 
-    @router.post("/api/v1/auth/token/refresh", response_model=AuthToken)
+    @api_router.post("/auth/token/refresh", response_model=AuthToken)
     def refresh_access_token(payload: AuthRefreshRequest) -> AuthToken:
         try:
             token = auth_service.refresh_session(payload.refresh_token)
@@ -135,7 +141,7 @@ def build_router(
         )
         return token
 
-    @router.post("/api/v1/auth/token/revoke")
+    @api_router.post("/auth/token/revoke")
     def revoke_access_token(
         payload: AuthRevokeRequest | None = None,
         authorization: str | None = Header(default=None, alias="Authorization"),
@@ -159,7 +165,7 @@ def build_router(
         )
         return {"status": "revoked"}
 
-    @protected_router.put("/api/v1/profiles/{student_id}", response_model=LearnerProfile, dependencies=deps("editor"))
+    @api_router.put("/learners/{student_id}/profile", response_model=LearnerProfile, dependencies=deps("editor"))
     def upsert_profile(student_id: UUID, profile: LearnerProfile) -> LearnerProfile:
         if student_id != profile.student_id:
             raise HTTPException(
@@ -168,19 +174,19 @@ def build_router(
             )
         return profile_store.upsert(profile)
 
-    @protected_router.get("/api/v1/profiles/{student_id}", response_model=LearnerProfile, dependencies=deps("viewer"))
-    def get_profile(student_id: UUID) -> LearnerProfile:
+    @api_router.get("/learners/{student_id}/profile", response_model=LearnerProfileV2, dependencies=deps("viewer"))
+    def get_profile(student_id: UUID) -> LearnerProfileV2:
         profile = profile_store.get(student_id)
         if profile is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
-        return profile
+        return LearnerProfileV2.from_profile(profile)
 
-    @protected_router.get("/api/v1/profiles", response_model=list[str], dependencies=deps("viewer"))
+    @api_router.get("/learners", response_model=list[str], dependencies=deps("viewer"))
     def list_profiles() -> list[str]:
         return profile_store.list_ids()
 
-    @protected_router.get(
-        "/api/v1/profiles/{student_id}/summary",
+    @api_router.get(
+        "/learners/{student_id}/summary",
         response_model=ProfileSummary,
         dependencies=deps("viewer"),
     )
@@ -190,8 +196,8 @@ def build_router(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
         return ProfileSummary.from_profile(profile)
 
-    @protected_router.put(
-        "/api/v1/curriculum/resources/{resource_id}",
+    @api_router.put(
+        "/curriculum/resources/{resource_id}",
         response_model=CurriculumResource,
         dependencies=deps("editor"),
     )
@@ -206,16 +212,16 @@ def build_router(
             )
         return curriculum_store.upsert(resource)
 
-    @protected_router.get(
-        "/api/v1/curriculum/resources",
+    @api_router.get(
+        "/curriculum/resources",
         response_model=list[CurriculumResource],
         dependencies=deps("viewer"),
     )
     def list_curriculum_resources() -> list[CurriculumResource]:
         return curriculum_store.list()
 
-    @protected_router.post(
-        "/api/v1/adaptive/decide",
+    @api_router.post(
+        "/router/decide",
         response_model=AdaptiveRouteDecision,
         dependencies=deps("editor"),
     )
@@ -238,34 +244,104 @@ def build_router(
         )
         return decision
 
-    @protected_router.post(
-        "/api/v1/adaptive/generate",
-        response_model=GenerationResponse,
+    @api_router.post(
+        "/content/generate",
+        response_model=GeneratedContent,
         dependencies=deps("editor"),
     )
-    def generate_adaptive_content(request: GenerationRequest) -> GenerationResponse:
+    def generate_content(request: GenerationRequest) -> GeneratedContent:
         profile = profile_store.get(request.student_id)
         if profile is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
 
         response = generation_engine.generate(profile, request)
+        metadata = response.generation_metadata
+        if metadata is None or response.generation_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Generated content metadata was not available.",
+            )
+
+        generated_content = GeneratedContent(
+            generation_id=response.generation_id,
+            student_id=response.student_id,
+            content_type=_content_type_label(request),
+            request_context={
+                "intent": request.intent.value,
+                "target_kc_ids": request.target_kc_ids,
+                "target_lo_ids": request.target_lo_ids,
+                "curriculum_context": request.curriculum_context,
+            },
+            response=response,
+            quality=metadata,
+            created_at=response.generated_at,
+        )
+
         audit_store.append(
-            event_type="adaptive.generate",
+            event_type="content.generate",
             status="success",
             student_id=str(request.student_id),
             payload={
                 "intent": request.intent.value,
+                "content_type": generated_content.content_type,
+                "generation_id": generated_content.generation_id,
                 "intervention_type": response.route.intervention_type.value,
                 "delivery_mode": response.route.delivery_mode.value,
                 "grounding_count": len(response.grounding),
                 "generated_block_count": len(response.blocks),
                 "validation_issue_count": len(response.validation_issues),
+                "validation_passed": metadata.validation_passed,
+                "cache_hit": metadata.cache_hit,
+                "quality_score": metadata.quality_score,
             },
         )
-        return response
+        return generated_content
 
-    @protected_router.post("/api/v1/adaptive/generate/stream", dependencies=deps("editor"))
-    def stream_adaptive_content(request: GenerationRequest) -> StreamingResponse:
+    @api_router.post(
+        "/explanations/generate",
+        response_model=GeneratedContent,
+        dependencies=deps("editor"),
+    )
+    def generate_explanation(request: GenerationRequest) -> GeneratedContent:
+        explanation_request = GenerationRequest.model_validate(
+            {
+                **request.model_dump(mode="json"),
+                "intent": "explanation",
+            }
+        )
+        return generate_content(explanation_request)
+
+    @api_router.post(
+        "/problems/generate",
+        response_model=GeneratedContent,
+        dependencies=deps("editor"),
+    )
+    def generate_problem(request: GenerationRequest) -> GeneratedContent:
+        problem_request = GenerationRequest.model_validate(
+            {
+                **request.model_dump(mode="json"),
+                "intent": "practice",
+            }
+        )
+        return generate_content(problem_request)
+
+    @api_router.post(
+        "/remedial/trigger",
+        response_model=GeneratedContent,
+        dependencies=deps("editor"),
+    )
+    def trigger_remedial_content(request: RemedialTriggerRequest) -> GeneratedContent:
+        generation_request = GenerationRequest(
+            student_id=request.student_id,
+            target_kc_ids=[request.target_kc_id],
+            intent="remediation",
+            learner_prompt=request.learner_prompt,
+            curriculum_context=[request.misconception_description, *request.curriculum_context],
+        )
+        return generate_content(generation_request)
+
+    @api_router.post("/llm/stream", dependencies=deps("editor"))
+    def stream_generated_content(request: GenerationRequest) -> StreamingResponse:
         profile = profile_store.get(request.student_id)
         if profile is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
@@ -279,7 +355,7 @@ def build_router(
                         response = event.response
                         if response is not None:
                             audit_store.append(
-                                event_type="adaptive.generate.stream",
+                                event_type="content.generate.stream",
                                 status="success",
                                 student_id=str(request.student_id),
                                 payload={
@@ -289,20 +365,26 @@ def build_router(
                                     "grounding_count": len(response.grounding),
                                     "generated_block_count": len(response.blocks),
                                     "validation_issue_count": len(response.validation_issues),
+                                    "generation_id": response.generation_id,
+                                    "cache_hit": bool(
+                                        response.generation_metadata.cache_hit
+                                        if response.generation_metadata is not None
+                                        else False
+                                    ),
                                 },
                             )
                     yield encode_sse_event(event)
 
                 if complete_event is None:
                     audit_store.append(
-                        event_type="adaptive.generate.stream",
+                        event_type="content.generate.stream",
                         status="error",
                         student_id=str(request.student_id),
                         payload={"intent": request.intent.value, "detail": "stream ended before completion"},
                     )
             except Exception as exc:
                 audit_store.append(
-                    event_type="adaptive.generate.stream",
+                    event_type="content.generate.stream",
                     status="error",
                     student_id=str(request.student_id),
                     payload={"intent": request.intent.value, "detail": str(exc)},
@@ -317,18 +399,28 @@ def build_router(
 
         return StreamingResponse(event_stream(), media_type="text/event-stream")
 
-    @protected_router.get("/api/v1/audit/events", response_model=list[AuditEvent], dependencies=deps("admin"))
+    @api_router.get("/audit/events", response_model=list[AuditEvent], dependencies=deps("admin"))
     def list_audit_events(limit: int = 50) -> list[AuditEvent]:
         safe_limit = max(1, min(limit, 200))
         return audit_store.list(limit=safe_limit)
 
-    @protected_router.get(
-        "/api/v1/observability/metrics",
+    @api_router.get(
+        "/observability/metrics",
         response_model=TelemetrySnapshot,
         dependencies=deps("admin"),
     )
     def get_observability_metrics() -> TelemetrySnapshot:
         return telemetry_service.snapshot()
 
-    router.include_router(protected_router)
+    router.include_router(api_router)
     return router
+
+
+def _content_type_label(request: GenerationRequest) -> str:
+    if request.intent.value == "remediation":
+        return "remedial_micro_module"
+    if request.intent.value == "practice":
+        return "practice_problem"
+    if request.intent.value == "assessment":
+        return "assessment_probe"
+    return "micro_explanation"

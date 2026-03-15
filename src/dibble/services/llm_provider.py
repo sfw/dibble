@@ -44,6 +44,7 @@ class LLMOrchestrationProvider:
         self,
         *,
         clients: list[tuple[str, OpenAICompatibleChatClient]],
+        client_models: dict[str, str] | None = None,
         fallback_provider: MockLLMProvider | None = None,
         circuit_breaker_threshold: int = 2,
         circuit_breaker_cooldown_seconds: float = 30.0,
@@ -52,6 +53,7 @@ class LLMOrchestrationProvider:
         health_store: SQLiteProviderHealthStore | None = None,
     ) -> None:
         self.clients = clients
+        self.client_models = client_models or {}
         self.fallback_provider = fallback_provider
         self.circuit_breaker_threshold = max(1, circuit_breaker_threshold)
         self.circuit_breaker_cooldown_seconds = max(0.0, circuit_breaker_cooldown_seconds)
@@ -60,6 +62,10 @@ class LLMOrchestrationProvider:
         self.client_states = {name: ClientCircuitState() for name, _ in clients}
         self.health_store = health_store
         self.round_robin_cursor = 0
+        self.last_used_descriptor = {
+            "provider_name": None,
+            "model_used": None,
+        }
         self._hydrate_client_states()
 
     @classmethod
@@ -84,6 +90,7 @@ class LLMOrchestrationProvider:
         ]
         fallback_provider = MockLLMProvider() if settings.llm_allow_mock_fallback else None
         clients: list[tuple[str, OpenAICompatibleChatClient]] = []
+        client_models: dict[str, str] = {}
         for config in configs:
             if not config.api_key or not config.model:
                 continue
@@ -98,9 +105,11 @@ class LLMOrchestrationProvider:
                     ),
                 )
             )
+            client_models[config.name] = config.model
 
         return cls(
             clients=clients,
+            client_models=client_models,
             fallback_provider=fallback_provider,
             circuit_breaker_threshold=settings.llm_circuit_breaker_threshold,
             circuit_breaker_cooldown_seconds=settings.llm_circuit_breaker_cooldown_seconds,
@@ -128,6 +137,7 @@ class LLMOrchestrationProvider:
                     user_prompt=prompts.user_prompt,
                 )
                 blocks = self._parse_blocks(completion.content)
+                self._set_last_used_descriptor(name)
                 self._record_success(name, latency_ms=(self.time_provider() - started_at) * 1000.0)
                 return blocks
             except (LLMClientError, LLMProviderError):
@@ -161,6 +171,7 @@ class LLMOrchestrationProvider:
 
                 for chunk in parser.flush():
                     yield chunk
+                self._set_last_used_descriptor(name)
                 self._record_success(name, latency_ms=(self.time_provider() - started_at) * 1000.0)
                 return
             except (LLMClientError, LLMProviderError):
@@ -292,6 +303,12 @@ class LLMOrchestrationProvider:
             return
         self.health_store.append(provider_name=name, status=status, detail=detail)
 
+    def _set_last_used_descriptor(self, name: str) -> None:
+        self.last_used_descriptor = {
+            "provider_name": name,
+            "model_used": self.client_models.get(name),
+        }
+
     def _fallback(
         self,
         profile: LearnerProfile,
@@ -303,7 +320,13 @@ class LLMOrchestrationProvider:
         if self.fallback_provider is None:
             raise LLMProviderError(reason)
 
-        return self.fallback_provider.generate(profile, request, route, grounding_titles)
+        blocks = self.fallback_provider.generate(profile, request, route, grounding_titles)
+        self.last_used_descriptor = getattr(
+            self.fallback_provider,
+            "last_used_descriptor",
+            {"provider_name": "fallback", "model_used": None},
+        )
+        return blocks
 
     def _parse_blocks(self, response_text: str) -> list[GeneratedBlock]:
         cleaned = response_text.strip()

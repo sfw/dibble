@@ -16,7 +16,7 @@ class TelemetryService:
 
     def snapshot(self) -> TelemetrySnapshot:
         events = self.audit_store.list(limit=500)
-        generation_events = [event for event in events if event.event_type.startswith("adaptive.generate")]
+        generation_events = [event for event in events if event.event_type.startswith("content.generate")]
         decision_events = [event for event in events if event.event_type == "adaptive.decide"]
         provider_events = self.provider_health_store.list(limit=500) if self.provider_health_store is not None else []
 

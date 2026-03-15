@@ -1,0 +1,81 @@
+# Current Backend Gap Analysis
+
+This document compares the current Dibble backend against the authoritative planning packages:
+
+- Product source of truth: `planning/4 - revised-spec/`
+- Engineering handoff and migration guidance: `planning/5 - dev-handoff-revised-spec/`
+- Historical context only: `planning/1`, `planning/2`, `planning/3`
+
+## Status Summary
+
+The backend now covers a meaningful slice of the revised Phase 1 and early Phase 2 foundation:
+
+- LLM orchestration, retrieval-grounded generation, validation, streaming, auth, audit logging, observability, and provider resilience are implemented.
+- The API surface now includes a single current route set that implements the revised generation/profile contract without carrying `v1` and `v2` path namespaces side by side.
+- Generated content now has a persisted entity with quality and provenance metadata plus a lightweight cache-backed reuse path.
+
+The biggest remaining gaps are no longer basic plumbing. They are adaptive intelligence depth:
+
+- true learner-state inference rather than manually supplied profile fields
+- KC prerequisite graphs and misconception classification
+- richer remedial generation and problem/worked-example specialization
+- proactive pre-generation instead of request-time cache reuse only
+
+## Requirement Snapshot
+
+Legend:
+
+- `Implemented`: shipped in the current backend
+- `Partial`: present in MVP form, but not at the depth expected by the revised spec
+- `Missing`: still absent
+
+| Requirement | Status | Notes |
+|---|---|---|
+| `LLM-001` LLM orchestration service | Implemented | Primary/secondary upstreams, failover, circuit breaker, selection strategies |
+| `LLM-002` Prompt framework with versioning/A-B testing | Partial | Prompt builders exist; no prompt registry, versioning, or experimentation layer |
+| `LLM-003` RAG pipeline | Implemented | Hybrid lexical + embedding retriever with persistent embedding cache |
+| `LLM-004` Safety/moderation layer | Partial | Validation and safety rules exist; no dedicated moderation workflow |
+| `LLM-005` Streaming response architecture | Implemented | SSE route plus upstream chat-stream ingestion |
+| `GEN-001` On-the-fly explanation generation | Implemented | `v1` and `v2` generation routes produce grounded explanations |
+| `GEN-002` Practice problem synthesis | Partial | `intent=practice` is supported, but there is no dedicated problem generator or difficulty calibration |
+| `GEN-003` Worked example generation with fading | Partial | Generic generation exists; no worked-example-specific prompt or fading logic |
+| `GEN-004` Remedial micro-module creation | Partial | Remedial trigger endpoint exists, but prerequisite-aware micro-module assembly is still shallow |
+| `GEN-005` Multi-modal synthesis | Missing | No diagram, interactive, simulation, or code generation layer |
+| `PROF-001` Cognitive trait assessment | Partial | Profile schema stores traits, but no assessment or inference pipeline populates them |
+| `PROF-002` Affective state detection | Partial | Profile schema stores affective signals, but no classifier or inference API exists |
+| `PROF-003` Real-time cognitive load estimation | Partial | Load is stored and used by the router, but not inferred dynamically from behavior |
+| `PROF-004` KC granularity | Partial | KC mastery exists in the profile and requests target KCs, but there is no KC taxonomy or graph |
+| `PROF-005` Metacognitive tracking | Missing | No dedicated confidence-calibration or help-seeking tracking model yet |
+| `ADAPT-001` Thompson Sampling router | Implemented | Thompson-style policy with safety constraints is in the production path |
+| `ADAPT-002` Within-session adaptation | Partial | Streaming generation exists, but there is no continuous state-updating adaptive loop |
+| `ADAPT-003` Misconception detection/classification | Missing | No classifier or misconception taxonomy yet |
+| `ADAPT-004` Automatic step-back intervention | Implemented | Router and generation path support step-back content generation |
+| `ADAPT-005` Conversational/Socratic assessment | Missing | No conversational assessment endpoint or turn manager |
+| `API-001` `POST /api/content/generate` | Implemented | Current unified generation endpoint returns persisted generated-content metadata |
+| `API-002` `POST /api/remedial/trigger` | Partial | Implemented as a lightweight wrapper; deeper remedial orchestration still missing |
+| `API-003` `GET /api/learners/{id}/profile` | Implemented | Current unified learner-profile endpoint returns the extended dimensions |
+| `API-004` `POST /api/llm/stream` | Implemented | Current unified streaming surface |
+| `DATA-001` KnowledgeComponent entity and prerequisite graph | Missing | No first-class KC entity or prerequisite API yet |
+| `DATA-002` Extended learner profile | Implemented | Current profile model includes cognitive, affective, load, and preference dimensions |
+| `DATA-003` GeneratedContent entity with quality metadata | Implemented | Persisted generated content plus `generation_metadata` and `GeneratedContent` API envelope |
+| `INFRA-003` Pre-generation and intelligent caching | Partial | Request-time generation cache exists; proactive warming and smarter invalidation do not |
+
+## Highest-Value Next Gaps
+
+Based on `planning/4 - revised-spec/implementation-roadmap.md` and `planning/5 - dev-handoff-revised-spec/requirements-traceability.csv`, the strongest next backend slices are:
+
+1. `DATA-001` + `GEN-004`: add KnowledgeComponent entities and prerequisite graph queries so remedial generation can target actual prerequisite gaps.
+2. `ADAPT-003`: add misconception detection/classification, even if it starts with rules plus retrieval signals before ML.
+3. `PROF-002` + `PROF-003`: infer affective state and cognitive load from observable events instead of relying on preloaded profile values.
+4. `INFRA-003`: extend the new cache into true pre-generation and warmup flows for anticipated remedial content.
+5. `GEN-002` + `GEN-003`: split generic generation into dedicated practice-problem and worked-example generators.
+
+## Recommendation
+
+The most coherent next implementation step is:
+
+- introduce a first-class `KnowledgeComponent` model and prerequisite store
+- add a lightweight prerequisite inference service
+- upgrade `/api/remedial/trigger` to generate from detected KC gaps rather than only the requested KC string
+
+That closes the biggest structural gap between the current MVP and the revised spec’s remedial system without forcing us into premature ML work.

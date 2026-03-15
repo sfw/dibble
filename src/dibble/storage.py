@@ -64,6 +64,20 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
 );
 """
 
+GENERATED_CONTENT_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS generated_content (
+    generation_id TEXT PRIMARY KEY,
+    cache_key TEXT NOT NULL UNIQUE,
+    student_id TEXT NOT NULL,
+    content_type TEXT NOT NULL,
+    request_context TEXT NOT NULL,
+    response_payload TEXT NOT NULL,
+    quality_payload TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT
+);
+"""
+
 
 def ensure_database(database_path: str) -> None:
     path = Path(database_path)
@@ -77,4 +91,5 @@ def ensure_database(database_path: str) -> None:
         connection.execute(EMBEDDING_TABLE_SQL)
         connection.execute(PROVIDER_HEALTH_TABLE_SQL)
         connection.execute(AUTH_SESSION_TABLE_SQL)
+        connection.execute(GENERATED_CONTENT_TABLE_SQL)
         connection.commit()

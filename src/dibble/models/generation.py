@@ -69,6 +69,17 @@ class GeneratedBlockChunk(BaseModel):
     done: bool = False
 
 
+class GenerationMetadata(BaseModel):
+    quality_score: float = Field(default=1.0, ge=0.0, le=1.0)
+    validation_passed: bool = True
+    validation_issue_count: int = Field(default=0, ge=0)
+    grounding_count: int = Field(default=0, ge=0)
+    provider_name: str | None = None
+    model_used: str | None = None
+    generation_latency_ms: int = Field(default=0, ge=0)
+    cache_hit: bool = False
+
+
 class GenerationResponse(BaseModel):
     student_id: UUID
     generated_at: datetime = Field(default_factory=utc_now)
@@ -78,6 +89,19 @@ class GenerationResponse(BaseModel):
     grounding: list[GroundingReference] = Field(default_factory=list)
     safety_notes: list[str]
     validation_issues: list[str] = Field(default_factory=list)
+    generation_id: str | None = None
+    generation_metadata: GenerationMetadata | None = None
+
+
+class GeneratedContent(BaseModel):
+    generation_id: str
+    student_id: UUID
+    content_type: str
+    request_context: dict[str, object] = Field(default_factory=dict)
+    response: GenerationResponse
+    quality: GenerationMetadata
+    created_at: datetime = Field(default_factory=utc_now)
+    expires_at: datetime | None = None
 
 
 class GenerationStreamEvent(BaseModel):
@@ -88,3 +112,11 @@ class GenerationStreamEvent(BaseModel):
     chunk: GeneratedBlockChunk | None = None
     validation_issues: list[str] = Field(default_factory=list)
     response: GenerationResponse | None = None
+
+
+class RemedialTriggerRequest(BaseModel):
+    student_id: UUID
+    target_kc_id: str
+    misconception_description: str
+    learner_prompt: str | None = None
+    curriculum_context: list[str] = Field(default_factory=list)

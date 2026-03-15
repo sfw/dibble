@@ -15,6 +15,7 @@ This repository now includes a working MVP backend slice for the revised adaptiv
 - Adaptive decision and generation endpoints now write audit events and expose simple local observability metrics
 - Observability metrics now include durable provider-health telemetry for upstream failures and circuit-open state
 - Streaming generation is available over server-sent events for incremental `start`, `delta`, and `complete` delivery, and can consume real upstream OpenAI-compatible chat streams when configured
+- Generated content is now persisted with quality/provenance metadata and reused through a lightweight SQLite-backed generation cache
 - Optional principal-based API key auth with `viewer`/`editor`/`admin` roles can protect every endpoint except `GET /health`
 - Signed bearer tokens can be minted, refreshed, and revoked for request-scoped sessions
 - Dynamic plugin loading for router, retriever, provider, and validator factories
@@ -43,21 +44,24 @@ env UV_CACHE_DIR=.uv-cache uv run pytest
 ## Current Endpoints
 
 - `GET /health`
-- `GET /api/v1/profiles`
-- `PUT /api/v1/profiles/{student_id}`
-- `GET /api/v1/profiles/{student_id}`
-- `GET /api/v1/profiles/{student_id}/summary`
-- `PUT /api/v1/curriculum/resources/{resource_id}`
-- `GET /api/v1/curriculum/resources`
-- `POST /api/v1/adaptive/decide`
-- `POST /api/v1/adaptive/generate`
-- `POST /api/v1/adaptive/generate/stream`
-- `GET /api/v1/auth/me`
-- `POST /api/v1/auth/token`
-- `POST /api/v1/auth/token/refresh`
-- `POST /api/v1/auth/token/revoke`
-- `GET /api/v1/audit/events`
-- `GET /api/v1/observability/metrics`
+- `GET /api/learners`
+- `PUT /api/learners/{student_id}/profile`
+- `GET /api/learners/{student_id}/profile`
+- `GET /api/learners/{student_id}/summary`
+- `PUT /api/curriculum/resources/{resource_id}`
+- `GET /api/curriculum/resources`
+- `POST /api/router/decide`
+- `POST /api/content/generate`
+- `POST /api/explanations/generate`
+- `POST /api/problems/generate`
+- `POST /api/remedial/trigger`
+- `POST /api/llm/stream`
+- `GET /api/auth/me`
+- `POST /api/auth/token`
+- `POST /api/auth/token/refresh`
+- `POST /api/auth/token/revoke`
+- `GET /api/audit/events`
+- `GET /api/observability/metrics`
 
 ## Persistence
 
@@ -121,9 +125,12 @@ export DIBBLE_AUTH_TOKEN_SECRET=replace-me
 export DIBBLE_AUTH_TOKEN_ISSUER=dibble
 export DIBBLE_AUTH_TOKEN_TTL_SECONDS=3600
 export DIBBLE_AUTH_REFRESH_TTL_SECONDS=604800
+export DIBBLE_GENERATION_CACHE_TTL_SECONDS=3600
 ```
 
-When auth is enabled, all API routes except `GET /health` require a valid key in the configured header. If `DIBBLE_AUTH_PRINCIPALS` is set, keys resolve to named principals and roles. Route access is split so viewers can read, editors can mutate/generate, and admins can access audit and observability endpoints. If `DIBBLE_AUTH_TOKEN_SECRET` is set, authenticated principals can exchange API-key access for signed bearer tokens via `POST /api/v1/auth/token`, rotate them with `POST /api/v1/auth/token/refresh`, and revoke sessions with `POST /api/v1/auth/token/revoke`.
+When auth is enabled, all API routes except `GET /health` require a valid key in the configured header. If `DIBBLE_AUTH_PRINCIPALS` is set, keys resolve to named principals and roles. Route access is split so viewers can read, editors can mutate/generate, and admins can access audit and observability endpoints. If `DIBBLE_AUTH_TOKEN_SECRET` is set, authenticated principals can exchange API-key access for signed bearer tokens via `POST /api/auth/token`, rotate them with `POST /api/auth/token/refresh`, and revoke sessions with `POST /api/auth/token/revoke`.
+
+Generated responses now include `generation_id` plus `generation_metadata` with validation status, quality score, provider provenance, latency, and cache-hit state. The `v2` generation routes wrap that response in a `GeneratedContent` record so the API contract aligns more closely with the revised handoff package.
 
 ## Suggested Next Build Steps
 

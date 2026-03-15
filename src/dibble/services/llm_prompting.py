@@ -57,6 +57,7 @@ def build_generation_prompts(
         f"Accommodations: {accommodations}\n"
         f"Grounding titles: {grounding_text}\n"
         f"Learner prompt: {learner_prompt}\n"
+        f"Generation guidance: {_intent_generation_guidance(request)}\n"
         "Generate 2 or 3 blocks that are specific, age-appropriate, and grounded in the listed curriculum context."
     )
     return GenerationPrompts(system_prompt=system_prompt, user_prompt=user_prompt)
@@ -78,3 +79,20 @@ def build_stream_generation_prompts(
         ),
         user_prompt=prompts.user_prompt,
     )
+
+
+def _intent_generation_guidance(request: GenerationRequest) -> str:
+    if request.intent.value == "practice":
+        return (
+            "Include at least one practice-oriented block with a concrete problem, "
+            "a worked step or cue, and a brief answer-check instruction."
+        )
+    if request.intent.value == "assessment":
+        return (
+            "Focus on a short diagnostic check that reveals understanding without giving away the full answer."
+        )
+    if request.intent.value == "remediation":
+        return (
+            "Step back to prerequisite understanding, simplify language, and reconnect the learner to the target concept."
+        )
+    return "Focus on clear explanation, a grounded example, and a concise next step."

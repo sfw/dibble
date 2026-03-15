@@ -86,6 +86,52 @@ class LearnerProfile(BaseModel):
     updated_at: datetime = Field(default_factory=utc_now)
 
 
+class ProfileMetadata(BaseModel):
+    student_id: UUID
+    version: str
+    last_updated: datetime
+    completeness_score: float = Field(ge=0.0, le=1.0)
+
+
+class LearnerProfileV2(BaseModel):
+    profile_metadata: ProfileMetadata
+    cognitive_traits: dict[str, CognitiveTraitScore] = Field(default_factory=dict)
+    knowledge_state: KnowledgeState = Field(default_factory=KnowledgeState)
+    affective_state: AffectiveState = Field(default_factory=AffectiveState)
+    cognitive_load: CognitiveLoadState = Field(default_factory=CognitiveLoadState)
+    learning_preferences: LearningPreferences = Field(default_factory=LearningPreferences)
+    accommodations: list[str] = Field(default_factory=list)
+
+    @classmethod
+    def from_profile(cls, profile: "LearnerProfile") -> "LearnerProfileV2":
+        signals_present = [
+            bool(profile.cognitive_traits),
+            bool(profile.knowledge_state.lo_mastery),
+            bool(profile.knowledge_state.kc_mastery),
+            bool(profile.learning_preferences.modality_affinity),
+            bool(profile.learning_preferences.example_domain_preferences),
+            bool(profile.accommodations),
+            profile.affective_state.confidence != 0.5,
+            profile.cognitive_load.total_load != 0.4,
+        ]
+        completeness_score = sum(1 for item in signals_present if item) / len(signals_present)
+
+        return cls(
+            profile_metadata=ProfileMetadata(
+                student_id=profile.student_id,
+                version=profile.profile_version,
+                last_updated=profile.updated_at,
+                completeness_score=round(completeness_score, 2),
+            ),
+            cognitive_traits=profile.cognitive_traits,
+            knowledge_state=profile.knowledge_state,
+            affective_state=profile.affective_state,
+            cognitive_load=profile.cognitive_load,
+            learning_preferences=profile.learning_preferences,
+            accommodations=profile.accommodations,
+        )
+
+
 class ProfileSummary(BaseModel):
     student_id: UUID
     grade_level: str

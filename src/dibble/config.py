@@ -39,6 +39,7 @@ class Settings:
     auth_token_issuer: str = "dibble"
     auth_token_ttl_seconds: int = 3600
     auth_refresh_ttl_seconds: int = 604800
+    generation_cache_ttl_seconds: int = 3600
 
 
 def _get_bool_env(name: str, default: bool) -> bool:
@@ -99,4 +100,5 @@ def get_settings() -> Settings:
         auth_token_issuer=os.getenv("DIBBLE_AUTH_TOKEN_ISSUER", "dibble"),
         auth_token_ttl_seconds=int(os.getenv("DIBBLE_AUTH_TOKEN_TTL_SECONDS", "3600")),
         auth_refresh_ttl_seconds=int(os.getenv("DIBBLE_AUTH_REFRESH_TTL_SECONDS", "604800")),
+        generation_cache_ttl_seconds=int(os.getenv("DIBBLE_GENERATION_CACHE_TTL_SECONDS", "3600")),
     )
