@@ -16,23 +16,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version=settings.app_version,
         description="Foundational revised-spec backend for adaptive learner profiling and content generation.",
     )
-    app.include_router(
-        build_router(
-            services.profile_store,
-            services.curriculum_store,
-            services.knowledge_component_store,
-            services.audit_store,
-            services.observation_store,
-            services.auth_service,
-            services.telemetry_service,
-            services.router_plugin,
-            services.generation_engine,
-            services.content_warmer,
-            services.remediation_planner,
-            services.socratic_assessment_service,
-            services.socratic_profile_updater,
-            services.socratic_session_store,
-            services.state_inference_service,
-        )
-    )
+    app.include_router(build_router(services))
     return app
