@@ -15,6 +15,7 @@ from dibble.services.llm_prompting import build_generation_prompts, build_stream
 from dibble.services.provider_health import ProviderRoutingSnapshot, SQLiteProviderHealthStore
 from dibble.services.prompt_manager import PromptManager
 from dibble.services.audit_store import SQLiteAuditStore
+from dibble.services.generation_prompt_selector import GenerationPromptSelector
 from dibble.services.socratic_prompt_selector import SocraticPromptSelector
 from dibble.services.streaming import iter_block_chunks
 
@@ -125,6 +126,11 @@ class LLMOrchestrationProvider:
             health_store=SQLiteProviderHealthStore(settings.database_path),
             prompt_manager=PromptManager.from_settings(
                 settings,
+                generation_prompt_selector=(
+                    GenerationPromptSelector(SQLiteAuditStore(settings.database_path))
+                    if settings.prompt_adaptive_selection_enabled
+                    else None
+                ),
                 socratic_prompt_selector=(
                     SocraticPromptSelector(SQLiteAuditStore(settings.database_path))
                     if settings.prompt_adaptive_selection_enabled

@@ -6,6 +6,7 @@ from uuid import UUID
 
 from dibble.config import Settings
 from dibble.models.generation import RequestedContentType
+from dibble.services.generation_prompt_selector import GenerationPromptSelector
 from dibble.services.socratic_prompt_selector import SocraticPromptSelector
 
 
@@ -24,6 +25,7 @@ class PromptManager:
     experiment_enabled: bool = False
     adaptive_selection_enabled: bool = False
     variant_override: str | None = None
+    generation_prompt_selector: GenerationPromptSelector | None = None
     socratic_prompt_selector: SocraticPromptSelector | None = None
 
     @classmethod
@@ -31,6 +33,7 @@ class PromptManager:
         cls,
         settings: Settings,
         *,
+        generation_prompt_selector: GenerationPromptSelector | None = None,
         socratic_prompt_selector: SocraticPromptSelector | None = None,
     ) -> "PromptManager":
         return cls(
@@ -38,11 +41,25 @@ class PromptManager:
             experiment_enabled=settings.prompt_experiment_enabled,
             adaptive_selection_enabled=settings.prompt_adaptive_selection_enabled,
             variant_override=settings.prompt_variant_override,
+            generation_prompt_selector=generation_prompt_selector,
             socratic_prompt_selector=socratic_prompt_selector,
         )
 
     def select(self, *, student_id: UUID, content_type: RequestedContentType) -> PromptSelection:
         variant = self.variant_override or self._variant_for(student_id=student_id, content_type=content_type)
+        if (
+            self.adaptive_selection_enabled
+            and content_type in {
+                RequestedContentType.micro_explanation,
+                RequestedContentType.worked_example,
+                RequestedContentType.practice_problem,
+            }
+            and self.generation_prompt_selector is not None
+        ):
+            variant = self.generation_prompt_selector.select_variant(
+                content_type=content_type,
+                fallback_variant=variant,
+            )
         if (
             self.adaptive_selection_enabled
             and content_type == RequestedContentType.assessment_probe

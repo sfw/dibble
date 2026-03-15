@@ -33,7 +33,7 @@ Legend:
 | Requirement | Status | Notes |
 |---|---|---|
 | `LLM-001` LLM orchestration service | Implemented | Primary/secondary upstreams, failover, circuit breaker, selection strategies |
-| `LLM-002` Prompt framework with versioning/A-B testing | Partial | Prompt registry now selects named templates with version and variant metadata for generation and Socratic assessment probes, observability now includes Socratic evidence aggregates plus per-template/style prompt-performance summaries, and assessment probes can optionally prefer the stronger recent variant via audit-backed adaptive selection, but experimentation is still minimal and there is no broader automated selection loop |
+| `LLM-002` Prompt framework with versioning/A-B testing | Partial | Prompt registry now selects named templates with version and variant metadata for generation and Socratic assessment probes, observability now includes Socratic evidence aggregates plus per-template/style prompt-performance summaries, and both assessment probes and the main experimented generation families can optionally prefer the stronger recent variant via audit-backed adaptive selection, but experimentation is still minimal and there is no longer-horizon calibration loop |
 | `LLM-003` RAG pipeline | Implemented | Hybrid lexical + embedding retriever with persistent embedding cache |
 | `LLM-004` Safety/moderation layer | Partial | Validation and safety rules exist; no dedicated moderation workflow |
 | `LLM-005` Streaming response architecture | Implemented | SSE route plus upstream chat-stream ingestion |
@@ -69,14 +69,14 @@ Based on `planning/4 - revised-spec/implementation-roadmap.md` and `planning/5 -
 2. `ADAPT-003`: evolve the new misconception signals into a richer taxonomy and confidence-calibrated classifier.
 3. `PROF-002` + `PROF-003` + `PROF-005`: replace the new heuristic learner-state inference path with stronger calibrated models trained from real outcome data.
 4. `INFRA-003`: move from explicit warmup requests to anticipatory scheduling and smarter cache invalidation for likely next-step content.
-5. `ADAPT-005` + `LLM-002`: calibrate the new Socratic-to-profile feedback loop against real learner outcomes, then broaden the new adaptive prompt-selection loop beyond assessment probes.
+5. `ADAPT-005` + `LLM-002`: calibrate the new Socratic-to-profile feedback loop and the now-broader adaptive prompt-selection loop against real learner outcomes.
 
 ## Recommendation
 
 The most coherent next implementation step is now:
 
 - extend the new Socratic-to-profile feedback loop with broader calibration targets so conversational evidence can be trusted across more contexts
-- use the new prompt-performance tracking on top of the evidence dimensions so more prompt families can be compared and eventually selected on downstream outcomes
+- use the new prompt-performance tracking on top of the evidence dimensions so the broader adaptive selection loop can be calibrated on downstream outcomes rather than immediate proxy signals
 - keep reusing the current generated-content and session stores instead of adding a parallel orchestration layer
 
 That is now more achievable because the Socratic flow no longer relies only on a single last-turn threshold and no longer ends at the assessment response itself. The next coherent step is to calibrate these richer learner-state and conversational signals against downstream outcomes so routing and generation selection rely less on heuristics alone.

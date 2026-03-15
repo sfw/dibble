@@ -3,6 +3,7 @@ from uuid import UUID
 from dibble.services.prompt_manager import PromptManager
 from dibble.models.generation import RequestedContentType
 from dibble.services.socratic_prompt_selector import SocraticPromptSelector
+from dibble.services.generation_prompt_selector import GenerationPromptSelector
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.storage import ensure_database
 
@@ -99,3 +100,50 @@ def test_prompt_manager_can_adaptively_select_assessment_probe_variant(tmp_path)
 
     assert selection.template_variant == "causal_probe"
     assert selection.template_name == "assessment_probe.causal_probe"
+
+
+def test_prompt_manager_can_adaptively_select_generation_variant(tmp_path):
+    database_path = str(tmp_path / "prompt-manager-generation-selector.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    for quality_score in (0.91, 0.96):
+        audit_store.append(
+            event_type="content.generate",
+            status="success",
+            payload={
+                "content_type": "worked_example",
+                "prompt_template_name": "worked_example.guided_reflection",
+                "prompt_template_variant": "guided_reflection",
+                "quality_score": quality_score,
+                "validation_passed": True,
+                "grounding_count": 1,
+            },
+        )
+    for quality_score in (0.72, 0.74):
+        audit_store.append(
+            event_type="content.generate",
+            status="success",
+            payload={
+                "content_type": "worked_example",
+                "prompt_template_name": "worked_example.baseline",
+                "prompt_template_variant": "baseline",
+                "quality_score": quality_score,
+                "validation_passed": True,
+                "grounding_count": 1,
+            },
+        )
+
+    manager = PromptManager(
+        library_version="1.0",
+        experiment_enabled=True,
+        adaptive_selection_enabled=True,
+        generation_prompt_selector=GenerationPromptSelector(audit_store),
+    )
+
+    selection = manager.select(
+        student_id=UUID("00000000-0000-0000-0000-000000000123"),
+        content_type=RequestedContentType.worked_example,
+    )
+
+    assert selection.template_variant == "guided_reflection"
+    assert selection.template_name == "worked_example.guided_reflection"
