@@ -20,6 +20,7 @@ from dibble.services.remediation_planner import RemediationPlanner
 from dibble.services.socratic_assessment import SocraticAssessmentService
 from dibble.services.socratic_evidence import SocraticEvidenceScorer
 from dibble.services.socratic_policy import SocraticTurnPolicy
+from dibble.services.socratic_profile_update import SocraticProfileUpdater
 from dibble.services.socratic_session_store import SQLiteSocraticSessionStore
 from dibble.services.state_inference import LearnerStateInferenceService
 from dibble.services.telemetry import TelemetryService
@@ -40,6 +41,7 @@ class ApplicationServices:
     content_warmer: ContentWarmer
     remediation_planner: RemediationPlanner
     socratic_assessment_service: SocraticAssessmentService
+    socratic_profile_updater: SocraticProfileUpdater
     socratic_session_store: SQLiteSocraticSessionStore
     state_inference_service: LearnerStateInferenceService
     router_plugin: object
@@ -79,6 +81,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         evidence_scorer=SocraticEvidenceScorer(curriculum_store),
         turn_policy=SocraticTurnPolicy(),
     )
+    socratic_profile_updater = SocraticProfileUpdater()
     state_inference_service = LearnerStateInferenceService()
     content_warmer = ContentWarmer(profile_store, generation_engine)
 
@@ -95,6 +98,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         content_warmer=content_warmer,
         remediation_planner=remediation_planner,
         socratic_assessment_service=socratic_assessment_service,
+        socratic_profile_updater=socratic_profile_updater,
         socratic_session_store=socratic_session_store,
         state_inference_service=state_inference_service,
         router_plugin=plugins.router,

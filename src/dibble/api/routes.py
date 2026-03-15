@@ -46,6 +46,7 @@ from dibble.services.observation_store import SQLiteObservationStore
 from dibble.services.profile_store import SQLiteProfileStore
 from dibble.services.remediation_planner import RemediationPlanner
 from dibble.services.socratic_assessment import SocraticAssessmentService
+from dibble.services.socratic_profile_update import SocraticProfileUpdater
 from dibble.services.socratic_session_store import SQLiteSocraticSessionStore
 from dibble.services.state_inference import LearnerStateInferenceService
 from dibble.services.streaming import encode_sse_event
@@ -65,6 +66,7 @@ def build_router(
     content_warmer: ContentWarmer,
     remediation_planner: RemediationPlanner,
     socratic_assessment_service: SocraticAssessmentService,
+    socratic_profile_updater: SocraticProfileUpdater,
     socratic_session_store: SQLiteSocraticSessionStore,
     state_inference_service: LearnerStateInferenceService,
 ) -> APIRouter:
@@ -547,6 +549,10 @@ def build_router(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
 
         result = socratic_assessment_service.assess(profile, request)
+        session = socratic_session_store.get(result.session_id)
+        profile_update = socratic_profile_updater.apply(profile, request, result, session)
+        if profile_update.applied:
+            profile_store.upsert(profile_update.profile)
         audit_store.append(
             event_type="assessment.socratic",
             status="success",
@@ -560,6 +566,14 @@ def build_router(
                 "evidence_score": result.evaluation.evidence_score,
                 "next_action": result.evaluation.next_action.value,
                 "matched_term_count": len(result.evaluation.matched_terms),
+                "profile_update_applied": profile_update.applied,
+                "updated_kc_mastery": profile_update.kc_mastery_updates,
+                "updated_lo_mastery": profile_update.lo_mastery_updates,
+                "updated_confidence_calibration": profile_update.confidence_calibration,
+                "updated_self_monitoring": profile_update.self_monitoring,
+                "updated_help_seeking": (
+                    profile_update.help_seeking.value if profile_update.help_seeking is not None else None
+                ),
                 "prompt_template_name": (
                     result.generation_metadata.prompt_template_name
                     if result.generation_metadata is not None

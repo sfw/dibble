@@ -30,6 +30,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             services.content_warmer,
             services.remediation_planner,
             services.socratic_assessment_service,
+            services.socratic_profile_updater,
             services.socratic_session_store,
             services.state_inference_service,
         )
