@@ -100,3 +100,34 @@ def test_generation_mode_plan_auto_selects_worked_example_for_high_help_seeking(
     assert plan.request_context["requested_content_type"] is None
     assert plan.request_context["selected_content_type"] == "worked_example"
     assert "selection_rationale" in plan.request_context
+
+
+def test_generation_mode_plan_assigns_independent_fading_for_stable_high_mastery_worked_example():
+    profile = LearnerProfile.model_validate(
+        build_profile(
+            uuid4(),
+            frustration="low",
+            total_load=0.3,
+            kc_mastery={"KC-1": 0.88},
+            engagement="high",
+            confidence_calibration=0.82,
+            help_seeking="low",
+            self_monitoring=0.82,
+        )
+    )
+    request = GenerationRequest(
+        student_id=profile.student_id,
+        target_kc_ids=["KC-1"],
+        requested_content_type="worked_example",
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.stretch,
+        delivery_mode=DeliveryMode.blended,
+        scaffolding_level="low",
+        reasons=["test"],
+    )
+
+    plan = build_generation_mode_plan(profile, request, route)
+
+    assert plan.request_context["fading_strategy"] == "independent"
+    assert plan.request_context["worked_steps_visible"] == 1

@@ -104,6 +104,49 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     assert snapshot.prompt_template_usages[0].event_count == 1
 
 
+def test_telemetry_snapshot_includes_generation_prompt_outcomes(tmp_path):
+    database_path = str(tmp_path / "generation-prompt-telemetry.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    telemetry = TelemetryService(audit_store)
+    student_id = str(uuid4())
+
+    audit_store.append(
+        event_type="content.generate",
+        status="success",
+        student_id=student_id,
+        payload={
+            "content_type": "worked_example",
+            "quality_score": 0.78,
+            "validation_passed": True,
+            "grounding_count": 1,
+            "prompt_template_name": "worked_example.guided_reflection",
+            "prompt_template_variant": "guided_reflection",
+        },
+    )
+    audit_store.append(
+        event_type="learner.observe",
+        status="success",
+        student_id=student_id,
+        payload={
+            "engagement": "high",
+            "frustration": "low",
+            "total_load": 0.25,
+            "confidence_calibration": 0.82,
+            "help_seeking": "low",
+        },
+    )
+
+    snapshot = telemetry.snapshot()
+
+    assert len(snapshot.generation_prompt_performances) == 1
+    performance = snapshot.generation_prompt_performances[0]
+    assert performance.template_name == "worked_example.guided_reflection"
+    assert performance.content_type == "worked_example"
+    assert performance.average_composite_outcome > performance.average_quality_score
+    assert performance.downstream_observation_rate == 1.0
+
+
 def test_telemetry_snapshot_includes_socratic_assessment_metrics(tmp_path):
     database_path = str(tmp_path / "socratic-telemetry.db")
     ensure_database(database_path)

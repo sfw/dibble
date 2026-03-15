@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from dibble.models.generation import RequestedContentType
 from dibble.services.audit_store import SQLiteAuditStore
+from dibble.services.generation_prompt_outcomes import GenerationPromptOutcomeScorer
 
 
 @dataclass(slots=True)
@@ -11,6 +12,7 @@ class GenerationPromptSelector:
     audit_store: SQLiteAuditStore
     min_samples_per_variant: int = 2
     max_events: int = 500
+    outcome_scorer: GenerationPromptOutcomeScorer = field(default_factory=GenerationPromptOutcomeScorer)
 
     def select_variant(
         self,
@@ -19,29 +21,38 @@ class GenerationPromptSelector:
         fallback_variant: str,
     ) -> str:
         prefix = f"{content_type.value}."
-        events = [
+        events = self.audit_store.list(limit=self.max_events)
+        generation_events = [
             event
-            for event in self.audit_store.list(limit=self.max_events)
+            for event in events
             if event.event_type == "content.generate"
             and event.payload.get("content_type") == content_type.value
             and event.payload.get("prompt_template_name")
             and str(event.payload.get("prompt_template_name")).startswith(prefix)
             and event.payload.get("prompt_template_variant")
         ]
-        if not events:
+        if not generation_events:
             return fallback_variant
+        observation_events = [event for event in events if event.event_type == "learner.observe"]
 
         grouped: dict[str, list[float]] = {}
         validation_counts: dict[str, int] = {}
         grounded_counts: dict[str, int] = {}
-        for event in events:
-            variant = str(event.payload.get("prompt_template_variant"))
-            grouped.setdefault(variant, []).append(float(event.payload.get("quality_score", 0.0)))
-            validation_counts[variant] = validation_counts.get(variant, 0) + (
-                1 if bool(event.payload.get("validation_passed")) else 0
+        downstream_counts: dict[str, int] = {}
+        for event in generation_events:
+            sample = self.outcome_scorer.score(
+                generation_event=event,
+                candidate_observations=observation_events,
             )
-            grounded_counts[variant] = grounded_counts.get(variant, 0) + (
-                1 if int(event.payload.get("grounding_count", 0)) > 0 else 0
+            grouped.setdefault(sample.variant, []).append(sample.composite_score)
+            validation_counts[sample.variant] = validation_counts.get(sample.variant, 0) + (
+                1 if sample.validation_passed else 0
+            )
+            grounded_counts[sample.variant] = grounded_counts.get(sample.variant, 0) + (
+                1 if sample.grounding_count > 0 else 0
+            )
+            downstream_counts[sample.variant] = downstream_counts.get(sample.variant, 0) + (
+                1 if sample.downstream_outcome_score is not None else 0
             )
 
         eligible = {
@@ -55,12 +66,13 @@ class GenerationPromptSelector:
         def rank(item: tuple[str, list[float]]) -> tuple[float, float, int]:
             variant, scores = item
             event_count = len(scores)
-            average_quality = sum(scores) / event_count
+            average_outcome = sum(scores) / event_count
             validation_rate = validation_counts.get(variant, 0) / event_count
             grounding_rate = grounded_counts.get(variant, 0) / event_count
+            downstream_rate = downstream_counts.get(variant, 0) / event_count
             return (
-                average_quality + (validation_rate * 0.1) + (grounding_rate * 0.05),
-                average_quality,
+                average_outcome + (validation_rate * 0.08) + (grounding_rate * 0.04) + (downstream_rate * 0.08),
+                average_outcome,
                 event_count,
             )
 

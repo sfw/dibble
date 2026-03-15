@@ -68,3 +68,71 @@ def test_generation_prompt_selector_falls_back_when_samples_are_sparse(tmp_path)
         selector.select_variant(content_type=RequestedContentType.micro_explanation, fallback_variant="baseline")
         == "baseline"
     )
+
+
+def test_generation_prompt_selector_can_prefer_better_downstream_outcome(tmp_path):
+    database_path = str(tmp_path / "generation-selector-outcomes.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    selector = GenerationPromptSelector(audit_store=audit_store, min_samples_per_variant=2)
+    student_a = "00000000-0000-0000-0000-000000000101"
+    student_b = "00000000-0000-0000-0000-000000000102"
+
+    for student_id in (student_a, student_b):
+        audit_store.append(
+            event_type="content.generate",
+            status="success",
+            student_id=student_id,
+            payload={
+                "content_type": "practice_problem",
+                "prompt_template_name": "practice_problem.guided_reflection",
+                "prompt_template_variant": "guided_reflection",
+                "quality_score": 0.82,
+                "validation_passed": True,
+                "grounding_count": 1,
+            },
+        )
+        audit_store.append(
+            event_type="learner.observe",
+            status="success",
+            student_id=student_id,
+            payload={
+                "engagement": "high",
+                "frustration": "low",
+                "total_load": 0.25,
+                "confidence_calibration": 0.8,
+                "help_seeking": "low",
+            },
+        )
+
+    for student_id in ("00000000-0000-0000-0000-000000000201", "00000000-0000-0000-0000-000000000202"):
+        audit_store.append(
+            event_type="content.generate",
+            status="success",
+            student_id=student_id,
+            payload={
+                "content_type": "practice_problem",
+                "prompt_template_name": "practice_problem.baseline",
+                "prompt_template_variant": "baseline",
+                "quality_score": 0.9,
+                "validation_passed": True,
+                "grounding_count": 1,
+            },
+        )
+        audit_store.append(
+            event_type="learner.observe",
+            status="success",
+            student_id=student_id,
+            payload={
+                "engagement": "low",
+                "frustration": "high",
+                "total_load": 0.88,
+                "confidence_calibration": 0.32,
+                "help_seeking": "high",
+            },
+        )
+
+    assert (
+        selector.select_variant(content_type=RequestedContentType.practice_problem, fallback_variant="baseline")
+        == "guided_reflection"
+    )

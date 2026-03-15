@@ -2,8 +2,14 @@ from __future__ import annotations
 
 from collections import Counter
 
-from dibble.models.telemetry import PromptTemplateUsage, SocraticPromptPerformance, TelemetrySnapshot
+from dibble.models.telemetry import (
+    GenerationPromptPerformance,
+    PromptTemplateUsage,
+    SocraticPromptPerformance,
+    TelemetrySnapshot,
+)
 from dibble.services.audit_store import SQLiteAuditStore
+from dibble.services.generation_prompt_outcomes import GenerationPromptOutcomeScorer
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
 from dibble.services.provider_health import SQLiteProviderHealthStore
 
@@ -18,6 +24,7 @@ class TelemetryService:
         self.audit_store = audit_store
         self.generated_content_store = generated_content_store
         self.provider_health_store = provider_health_store
+        self.generation_outcome_scorer = GenerationPromptOutcomeScorer()
 
     def snapshot(self) -> TelemetrySnapshot:
         events = self.audit_store.list(limit=500)
@@ -36,6 +43,23 @@ class TelemetryService:
             for event in generation_events
             if event.payload.get("prompt_template_name")
         )
+        generation_prompt_groups: dict[tuple[str, str | None, str | None], list[object]] = {}
+        observation_events = [event for event in events if event.event_type == "learner.observe"]
+        for event in generation_events:
+            template_name = event.payload.get("prompt_template_name")
+            if not template_name:
+                continue
+            key = (
+                str(template_name),
+                str(event.payload.get("prompt_template_variant")) if event.payload.get("prompt_template_variant") else None,
+                str(event.payload.get("content_type")) if event.payload.get("content_type") else None,
+            )
+            generation_prompt_groups.setdefault(key, []).append(
+                self.generation_outcome_scorer.score(
+                    generation_event=event,
+                    candidate_observations=observation_events,
+                )
+            )
         socratic_evidence_scores = [
             float(event.payload.get("evidence_score", 0.0))
             for event in socratic_events
@@ -85,6 +109,10 @@ class TelemetryService:
                 PromptTemplateUsage(template_name=name, event_count=count)
                 for name, count in sorted(prompt_template_counts.items())
             ],
+            generation_prompt_performances=[
+                self._build_generation_prompt_performance(key, grouped_samples)
+                for key, grouped_samples in sorted(generation_prompt_groups.items())
+            ],
             socratic_prompt_performances=[
                 self._build_socratic_prompt_performance(key, grouped_events)
                 for key, grouped_events in sorted(prompt_performance_groups.items())
@@ -113,4 +141,24 @@ class TelemetryService:
             average_evidence_score=round(sum(evidence_scores) / event_count, 2) if event_count else 0.0,
             demonstrated_rate=round(demonstrated_events / event_count, 2) if event_count else 0.0,
             profile_update_rate=round(profile_updates / event_count, 2) if event_count else 0.0,
+        )
+
+    def _build_generation_prompt_performance(
+        self,
+        key: tuple[str, str | None, str | None],
+        samples,
+    ) -> GenerationPromptPerformance:
+        template_name, template_variant, content_type = key
+        event_count = len(samples)
+        quality_scores = [sample.quality_score for sample in samples]
+        composite_scores = [sample.composite_score for sample in samples]
+        downstream_matches = sum(1 for sample in samples if sample.downstream_outcome_score is not None)
+        return GenerationPromptPerformance(
+            template_name=template_name,
+            template_variant=template_variant,
+            content_type=content_type,
+            event_count=event_count,
+            average_quality_score=round(sum(quality_scores) / event_count, 2) if event_count else 0.0,
+            average_composite_outcome=round(sum(composite_scores) / event_count, 2) if event_count else 0.0,
+            downstream_observation_rate=round(downstream_matches / event_count, 2) if event_count else 0.0,
         )

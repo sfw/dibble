@@ -46,7 +46,7 @@ def build_generation_mode_plan(
             f"and a brief answer-check instruction. Tune the problem to {difficulty_band.value} difficulty."
         )
     elif content_type == RequestedContentType.worked_example:
-        fading = select_worked_example_fading(profile, route)
+        fading = select_worked_example_fading(profile, request)
         request_context["fading_strategy"] = fading.value
         request_context["worked_steps_visible"] = _worked_steps_visible(fading)
         prompt_guidance = _worked_example_guidance(fading)
@@ -123,14 +123,20 @@ def select_practice_difficulty_band(
 
 def select_worked_example_fading(
     profile: LearnerProfile,
-    route: AdaptiveRouteDecision,
+    request: GenerationRequest,
 ) -> WorkedExampleFading:
+    mastery = _average_target_mastery(profile, request)
     if (
         profile.cognitive_load.total_load >= 0.75
         or profile.affective_state.frustration in {SignalLevel.medium, SignalLevel.high}
     ):
         return WorkedExampleFading.full
-    if route.scaffolding_level == "medium":
+    if (
+        mastery < 0.75
+        or profile.metacognitive_state.help_seeking in {SignalLevel.medium, SignalLevel.high}
+        or profile.metacognitive_state.confidence_calibration < 0.6
+        or profile.metacognitive_state.self_monitoring < 0.6
+    ):
         return WorkedExampleFading.completion
     return WorkedExampleFading.independent
 
