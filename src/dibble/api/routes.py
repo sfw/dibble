@@ -5,7 +5,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
-from dibble.models.assessment import SocraticAssessmentRequest, SocraticAssessmentResponse
+from dibble.models.assessment import (
+    SocraticAssessmentRequest,
+    SocraticAssessmentResponse,
+    SocraticAssessmentSession,
+)
 from dibble.models.auth import AuthIdentity, AuthRefreshRequest, AuthRevokeRequest, AuthToken
 from dibble.models.curriculum import (
     CurriculumResource,
@@ -42,6 +46,7 @@ from dibble.services.observation_store import SQLiteObservationStore
 from dibble.services.profile_store import SQLiteProfileStore
 from dibble.services.remediation_planner import RemediationPlanner
 from dibble.services.socratic_assessment import SocraticAssessmentService
+from dibble.services.socratic_session_store import SQLiteSocraticSessionStore
 from dibble.services.state_inference import LearnerStateInferenceService
 from dibble.services.streaming import encode_sse_event
 from dibble.services.telemetry import TelemetryService
@@ -60,6 +65,7 @@ def build_router(
     content_warmer: ContentWarmer,
     remediation_planner: RemediationPlanner,
     socratic_assessment_service: SocraticAssessmentService,
+    socratic_session_store: SQLiteSocraticSessionStore,
     state_inference_service: LearnerStateInferenceService,
 ) -> APIRouter:
     router = APIRouter()
@@ -546,6 +552,7 @@ def build_router(
             status="success",
             student_id=str(request.student_id),
             payload={
+                "session_id": result.session_id,
                 "generation_id": result.generation_id,
                 "target_kc_ids": request.target_kc_ids,
                 "target_lo_ids": request.target_lo_ids,
@@ -560,6 +567,17 @@ def build_router(
             },
         )
         return result
+
+    @api_router.get(
+        "/assessments/socratic/{session_id}",
+        response_model=SocraticAssessmentSession,
+        dependencies=deps("viewer"),
+    )
+    def get_socratic_assessment_session(session_id: str) -> SocraticAssessmentSession:
+        session = socratic_session_store.get(session_id)
+        if session is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Socratic assessment session not found.")
+        return session
 
     @api_router.post("/llm/stream", dependencies=deps("editor"))
     def stream_generated_content(request: GenerationRequest) -> StreamingResponse:

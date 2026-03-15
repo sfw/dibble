@@ -11,6 +11,8 @@ from dibble.models.generation import (
 )
 from dibble.models.profile import LearnerProfile
 from dibble.services.socratic_assessment import SocraticAssessmentService
+from dibble.services.socratic_session_store import SQLiteSocraticSessionStore
+from dibble.storage import ensure_database
 from tests.support import build_profile
 
 
@@ -42,7 +44,17 @@ class FakeGenerationEngine:
         return self.response
 
 
-def test_socratic_assessment_requests_probe_without_learner_response():
+def build_service(tmp_path, response: GenerationResponse) -> SocraticAssessmentService:
+    database_path = str(tmp_path / "socratic.db")
+    ensure_database(database_path)
+    return SocraticAssessmentService(
+        generation_engine=FakeGenerationEngine(response),
+        curriculum_store=FakeCurriculumStore(),
+        session_store=SQLiteSocraticSessionStore(database_path),
+    )
+
+
+def test_socratic_assessment_requests_probe_without_learner_response(tmp_path):
     student_id = uuid4()
     profile = LearnerProfile.model_validate(build_profile(student_id))
     response = GenerationResponse(
@@ -71,10 +83,7 @@ def test_socratic_assessment_requests_probe_without_learner_response():
         generation_id="gen-1",
         generation_metadata=GenerationMetadata(prompt_template_name="assessment_probe.baseline"),
     )
-    service = SocraticAssessmentService(
-        generation_engine=FakeGenerationEngine(response),
-        curriculum_store=FakeCurriculumStore(),
-    )
+    service = build_service(tmp_path, response)
 
     result = service.assess(
         profile,
@@ -87,9 +96,11 @@ def test_socratic_assessment_requests_probe_without_learner_response():
 
     assert result.prompt == "How do you know 1/2 and 2/4 are equal?"
     assert result.evaluation.next_action.value == "ask_probe"
+    assert result.session_id is not None
+    assert len(result.conversation_history) == 1
 
 
-def test_socratic_assessment_advances_when_response_is_grounded():
+def test_socratic_assessment_advances_when_response_is_grounded(tmp_path):
     student_id = uuid4()
     profile = LearnerProfile.model_validate(build_profile(student_id))
     response = GenerationResponse(
@@ -118,10 +129,7 @@ def test_socratic_assessment_advances_when_response_is_grounded():
         generation_id="gen-2",
         generation_metadata=GenerationMetadata(prompt_template_name="assessment_probe.baseline"),
     )
-    service = SocraticAssessmentService(
-        generation_engine=FakeGenerationEngine(response),
-        curriculum_store=FakeCurriculumStore(),
-    )
+    service = build_service(tmp_path, response)
 
     result = service.assess(
         profile,
@@ -136,3 +144,58 @@ def test_socratic_assessment_advances_when_response_is_grounded():
     assert result.evaluation.evidence_strength.value == "demonstrated"
     assert result.evaluation.next_action.value == "advance"
     assert "equivalent" in result.evaluation.matched_terms
+
+
+def test_socratic_assessment_reuses_persisted_session_history(tmp_path):
+    student_id = uuid4()
+    profile = LearnerProfile.model_validate(build_profile(student_id))
+    response = GenerationResponse(
+        student_id=student_id,
+        route=AdaptiveRouteDecision(
+            intervention_type="reteach",
+            delivery_mode="generated",
+            scaffolding_level="medium",
+            reasons=["test"],
+        ),
+        blocks=[
+            GeneratedBlock(kind="summary", title="Focus", body="Equivalent fractions matter."),
+            GeneratedBlock(kind="instruction", title="Think aloud", body="Why are 1/2 and 2/4 the same amount?"),
+        ],
+        curriculum_context=["Equivalent fractions"],
+        grounding=[
+            GroundingReference(
+                resource_id="CURR-1",
+                title="Equivalent Fractions Foundations",
+                grade_level="5",
+                score=0.9,
+                matched_terms=["equivalent", "fractions", "same", "amount"],
+            )
+        ],
+        safety_notes=[],
+        generation_id="gen-3",
+        generation_metadata=GenerationMetadata(prompt_template_name="assessment_probe.baseline"),
+    )
+    service = build_service(tmp_path, response)
+
+    first_result = service.assess(
+        profile,
+        SocraticAssessmentRequest(
+            student_id=student_id,
+            target_kc_ids=["KC-1"],
+            curriculum_context=["Equivalent fractions"],
+        ),
+    )
+    second_result = service.assess(
+        profile,
+        SocraticAssessmentRequest(
+            student_id=student_id,
+            session_id=first_result.session_id,
+            learner_response="They are equivalent fractions because both models cover the same amount.",
+        ),
+    )
+    stored_session = service.get_session(first_result.session_id)
+
+    assert second_result.session_id == first_result.session_id
+    assert len(second_result.conversation_history) >= 3
+    assert stored_session is not None
+    assert len(stored_session.turns) == 2

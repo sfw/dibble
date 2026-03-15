@@ -41,8 +41,29 @@ class SocraticMessage(BaseModel):
     text: str = Field(min_length=1)
 
 
+class SocraticTurnRecord(BaseModel):
+    turn_id: str
+    prompt: str
+    learner_response: str | None = None
+    evaluation: "SocraticAssessmentEvaluation"
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class SocraticAssessmentSession(BaseModel):
+    session_id: str
+    student_id: UUID
+    target_kc_ids: list[str] = Field(default_factory=list)
+    target_lo_ids: list[str] = Field(default_factory=list)
+    curriculum_context: list[str] = Field(default_factory=list)
+    conversation_history: list[SocraticMessage] = Field(default_factory=list)
+    turns: list[SocraticTurnRecord] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
+
+
 class SocraticAssessmentRequest(BaseModel):
     student_id: UUID
+    session_id: str | None = None
     target_kc_ids: list[str] = Field(default_factory=list)
     target_lo_ids: list[str] = Field(default_factory=list)
     curriculum_context: list[str] = Field(default_factory=list)
@@ -60,6 +81,7 @@ class SocraticAssessmentEvaluation(BaseModel):
 
 
 class SocraticAssessmentResponse(BaseModel):
+    session_id: str
     student_id: UUID
     turn_id: str
     prompt: str
@@ -67,6 +89,10 @@ class SocraticAssessmentResponse(BaseModel):
     route: AdaptiveRouteDecision
     grounding: list[GroundingReference] = Field(default_factory=list)
     generated_blocks: list[GeneratedBlock] = Field(default_factory=list)
+    conversation_history: list[SocraticMessage] = Field(default_factory=list)
     generation_id: str | None = None
     generation_metadata: GenerationMetadata | None = None
     created_at: datetime = Field(default_factory=utc_now)
+
+
+SocraticTurnRecord.model_rebuild()

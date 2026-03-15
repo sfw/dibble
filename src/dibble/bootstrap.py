@@ -18,6 +18,7 @@ from dibble.services.provider_health import SQLiteProviderHealthStore
 from dibble.services.profile_store import SQLiteProfileStore
 from dibble.services.remediation_planner import RemediationPlanner
 from dibble.services.socratic_assessment import SocraticAssessmentService
+from dibble.services.socratic_session_store import SQLiteSocraticSessionStore
 from dibble.services.state_inference import LearnerStateInferenceService
 from dibble.services.telemetry import TelemetryService
 from dibble.storage import ensure_database
@@ -37,6 +38,7 @@ class ApplicationServices:
     content_warmer: ContentWarmer
     remediation_planner: RemediationPlanner
     socratic_assessment_service: SocraticAssessmentService
+    socratic_session_store: SQLiteSocraticSessionStore
     state_inference_service: LearnerStateInferenceService
     router_plugin: object
 
@@ -50,6 +52,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     audit_store = SQLiteAuditStore(settings.database_path)
     generated_content_store = SQLiteGeneratedContentStore(settings.database_path)
     observation_store = SQLiteObservationStore(settings.database_path)
+    socratic_session_store = SQLiteSocraticSessionStore(settings.database_path)
     provider_health_store = SQLiteProviderHealthStore(settings.database_path)
     auth_service = AuthService.from_settings(
         settings,
@@ -71,6 +74,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     socratic_assessment_service = SocraticAssessmentService(
         generation_engine=generation_engine,
         curriculum_store=curriculum_store,
+        session_store=socratic_session_store,
     )
     state_inference_service = LearnerStateInferenceService()
     content_warmer = ContentWarmer(profile_store, generation_engine)
@@ -88,6 +92,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         content_warmer=content_warmer,
         remediation_planner=remediation_planner,
         socratic_assessment_service=socratic_assessment_service,
+        socratic_session_store=socratic_session_store,
         state_inference_service=state_inference_service,
         router_plugin=plugins.router,
     )
