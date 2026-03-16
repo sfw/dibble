@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 
 from dibble.models.curriculum import KnowledgeComponent, KnowledgeComponentUpsert
+from dibble.services.knowledge_component_graph import KnowledgeComponentGraph
 
 
 class SQLiteKnowledgeComponentStore:
@@ -49,21 +50,5 @@ class SQLiteKnowledgeComponentStore:
         return [KnowledgeComponent.model_validate_json(row[0]) for row in rows]
 
     def list_prerequisites(self, kc_id: str) -> list[KnowledgeComponent]:
-        seen: set[str] = set()
-        ordered: list[KnowledgeComponent] = []
-
-        def visit(current_id: str) -> None:
-            component = self.get(current_id)
-            if component is None:
-                return
-            for prerequisite_id in component.prerequisite_kc_ids:
-                if prerequisite_id in seen:
-                    continue
-                seen.add(prerequisite_id)
-                visit(prerequisite_id)
-                prerequisite = self.get(prerequisite_id)
-                if prerequisite is not None:
-                    ordered.append(prerequisite)
-
-        visit(kc_id)
-        return ordered
+        graph = KnowledgeComponentGraph(self.list())
+        return [relation.component for relation in graph.prerequisites_for(kc_id)]

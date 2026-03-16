@@ -235,3 +235,100 @@ def test_socratic_profile_updater_propagates_mastery_through_kc_graph():
     assert result.kc_mastery_updates["KC-2"] > 0.78
     assert result.propagated_kc_mastery_updates["KC-1"] > 0.42
     assert result.propagated_lo_mastery_updates["LO-1"] >= 0.7
+
+
+def test_socratic_profile_updater_backfills_kc_mastery_from_lo_only_updates():
+    from dibble.models.curriculum import KnowledgeComponent
+
+    class StubKnowledgeComponentStore:
+        def __init__(self) -> None:
+            self.components = {
+                "KC-1": KnowledgeComponent(
+                    kc_id="KC-1",
+                    name="KC-1",
+                    parent_lo_id="LO-1",
+                    grade_level="5",
+                    subject="math",
+                    prerequisite_kc_ids=[],
+                    difficulty=0.35,
+                    estimated_time_minutes=8,
+                    tags=[],
+                    common_misconceptions=[],
+                ),
+                "KC-2": KnowledgeComponent(
+                    kc_id="KC-2",
+                    name="KC-2",
+                    parent_lo_id="LO-1",
+                    grade_level="5",
+                    subject="math",
+                    prerequisite_kc_ids=["KC-1"],
+                    difficulty=0.56,
+                    estimated_time_minutes=9,
+                    tags=[],
+                    common_misconceptions=[],
+                ),
+            }
+
+        def list(self):
+            return list(self.components.values())
+
+        def get(self, kc_id):
+            return self.components.get(kc_id)
+
+        def list_prerequisites(self, kc_id):
+            if kc_id == "KC-2":
+                return [self.components["KC-1"]]
+            return []
+
+    student_id = uuid4()
+    profile = LearnerProfile.model_validate(
+        build_profile(
+            student_id,
+            frustration="low",
+            total_load=0.2,
+            kc_mastery={},
+            engagement="high",
+            confidence_calibration=0.4,
+            help_seeking="medium",
+            self_monitoring=0.45,
+        )
+    )
+    profile = profile.model_copy(
+        update={
+            "knowledge_state": profile.knowledge_state.model_copy(
+                update={
+                    "kc_mastery": {},
+                }
+            )
+        }
+    )
+    updater = SocraticProfileUpdater(
+        knowledge_state_migrator=KnowledgeStateMigrator(knowledge_component_store=StubKnowledgeComponentStore())
+    )
+
+    result = updater.apply(
+        profile,
+        SocraticAssessmentRequest(
+            student_id=student_id,
+            target_lo_ids=["LO-1"],
+            learner_response="Equivalent fractions still show the same amount across the whole model.",
+            learner_confidence=0.82,
+        ),
+        build_assessment_response(
+            student_id,
+            evidence_strength=SocraticEvidenceStrength.demonstrated,
+            evidence_score=0.76,
+            inferred_mastery=0.84,
+            confidence_alignment=0.87,
+        ),
+        SocraticAssessmentSession(
+            session_id="session-1",
+            student_id=student_id,
+            target_lo_ids=["LO-1"],
+        ),
+    )
+
+    assert result.applied is True
+    assert result.lo_mastery_updates["LO-1"] >= 0.7
+    assert result.propagated_kc_mastery_updates["KC-1"] >= 0.7
+    assert result.propagated_kc_mastery_updates["KC-2"] >= 0.65
