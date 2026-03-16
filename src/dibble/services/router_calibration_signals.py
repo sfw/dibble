@@ -7,6 +7,7 @@ from uuid import UUID
 from dibble.models.generation import GenerationRequest, RouteCalibrationSummary
 from dibble.models.telemetry import AuditEvent
 from dibble.services.generation_prompt_outcomes import GenerationPromptOutcomeScorer
+from dibble.services.learning_calibration_profiles import LearningCalibrationProfileResolver
 from dibble.services.protocols import AuditStore
 
 
@@ -14,6 +15,7 @@ from dibble.services.protocols import AuditStore
 class RouterCalibrationSignalService:
     audit_store: AuditStore
     outcome_scorer: GenerationPromptOutcomeScorer = field(default_factory=GenerationPromptOutcomeScorer)
+    profile_resolver: LearningCalibrationProfileResolver = field(default_factory=LearningCalibrationProfileResolver)
     max_events: int = 500
     max_matched_runs: int = 4
     recency_window_hours: int = 12
@@ -21,6 +23,14 @@ class RouterCalibrationSignalService:
 
     def signal_for(self, *, student_id: UUID, request: GenerationRequest) -> RouteCalibrationSummary:
         events = self.audit_store.list(limit=self.max_events)
+        profile_events = [
+            event
+            for event in events
+            if event.event_type == "learning.calibration.profile" and event.student_id == student_id
+        ]
+        matched_profiles = self.profile_resolver.matched_profile_events(profile_events=profile_events, request=request)
+        if matched_profiles:
+            return self._aggregate_profile_events(matched_profiles)
         summary_events = [
             event
             for event in events
@@ -80,9 +90,65 @@ class RouterCalibrationSignalService:
                 positive_run_rate=positive_run_rate,
                 negative_run_rate=negative_run_rate,
             ),
+            source="derived",
             confidence=average_confidence,
             average_run_outcome_score=average_run_outcome_score,
             matched_run_count=len(stable_samples),
+            positive_run_rate=positive_run_rate,
+            negative_run_rate=negative_run_rate,
+        )
+
+    def _aggregate_profile_events(self, profile_events: list[AuditEvent]) -> RouteCalibrationSummary:
+        total_run_count = sum(max(1, int(event.payload.get("matched_run_count", 0))) for event in profile_events)
+        if total_run_count <= 0:
+            return RouteCalibrationSummary()
+        average_run_outcome_score = round(
+            sum(
+                float(event.payload.get("average_run_outcome_score", 0.0))
+                * max(1, int(event.payload.get("matched_run_count", 0)))
+                for event in profile_events
+            )
+            / total_run_count,
+            2,
+        )
+        average_confidence = round(
+            sum(
+                float(event.payload.get("average_run_confidence", 0.0))
+                * max(1, int(event.payload.get("matched_run_count", 0)))
+                for event in profile_events
+            )
+            / total_run_count,
+            2,
+        )
+        positive_run_rate = round(
+            sum(
+                float(event.payload.get("positive_run_rate", 0.0))
+                * max(1, int(event.payload.get("matched_run_count", 0)))
+                for event in profile_events
+            )
+            / total_run_count,
+            2,
+        )
+        negative_run_rate = round(
+            sum(
+                float(event.payload.get("negative_run_rate", 0.0))
+                * max(1, int(event.payload.get("matched_run_count", 0)))
+                for event in profile_events
+            )
+            / total_run_count,
+            2,
+        )
+        return RouteCalibrationSummary(
+            signal=self._signal_label(
+                average_run_outcome_score=average_run_outcome_score,
+                average_confidence=average_confidence,
+                positive_run_rate=positive_run_rate,
+                negative_run_rate=negative_run_rate,
+            ),
+            source="profile",
+            confidence=average_confidence,
+            average_run_outcome_score=average_run_outcome_score,
+            matched_run_count=total_run_count,
             positive_run_rate=positive_run_rate,
             negative_run_rate=negative_run_rate,
         )
@@ -145,6 +211,7 @@ class RouterCalibrationSignalService:
                 positive_run_rate=positive_run_rate,
                 negative_run_rate=negative_run_rate,
             ),
+            source="run_summary",
             confidence=average_confidence,
             average_run_outcome_score=average_run_outcome_score,
             matched_run_count=len(summary_events),

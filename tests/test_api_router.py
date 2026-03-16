@@ -20,4 +20,5 @@ def test_decide_endpoint_exposes_router_calibration_summary(client, student_id):
     payload = response.json()
     assert payload["intervention_type"] == "targeted_practice"
     assert payload["calibration"]["signal"] == "insufficient"
+    assert payload["calibration"]["source"] == "insufficient"
     assert payload["calibration"]["matched_run_count"] == 0

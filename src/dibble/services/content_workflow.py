@@ -49,6 +49,7 @@ class ContentWorkflowService:
                 "scaffolding_level": decision.scaffolding_level,
                 "reason_count": len(decision.reasons),
                 "calibration_signal": decision.calibration.signal if decision.calibration is not None else None,
+                "calibration_source": decision.calibration.source if decision.calibration is not None else None,
                 "calibration_confidence": decision.calibration.confidence if decision.calibration is not None else 0.0,
                 "calibration_run_count": (
                     decision.calibration.matched_run_count if decision.calibration is not None else 0
@@ -99,6 +100,9 @@ class ContentWorkflowService:
                 "scaffolding_level": response.route.scaffolding_level,
                 "route_calibration_signal": (
                     response.route.calibration.signal if response.route.calibration is not None else None
+                ),
+                "route_calibration_source": (
+                    response.route.calibration.source if response.route.calibration is not None else None
                 ),
                 "route_calibration_confidence": (
                     response.route.calibration.confidence if response.route.calibration is not None else 0.0

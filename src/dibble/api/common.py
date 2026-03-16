@@ -15,6 +15,7 @@ from dibble.services.auth import (
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.content_workflow import ContentWorkflowService
 from dibble.services.generation_engine import GenerationEngine
+from dibble.services.learning_calibration_profiles import LearningCalibrationProfileRecorder
 from dibble.services.learning_run_summary_recorder import LearningRunSummaryRecorder
 from dibble.services.learner_state_calibration import LearnerStateCalibrator
 from dibble.services.protocols import (
@@ -51,6 +52,7 @@ class ApiServices(Protocol):
     state_inference_service: LearnerStateInferenceService
     learner_state_calibrator: LearnerStateCalibrator
     learning_run_summary_recorder: LearningRunSummaryRecorder
+    learning_calibration_profile_recorder: LearningCalibrationProfileRecorder
 
 
 @dataclass(slots=True)

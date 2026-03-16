@@ -64,7 +64,10 @@ def build_assessment_router(context: ApiContext) -> APIRouter:
                 ),
             },
         )
-        services.learning_run_summary_recorder.record_from_trigger_event(trigger_event=assessment_audit_event)
+        summary_events = services.learning_run_summary_recorder.record_from_trigger_event(
+            trigger_event=assessment_audit_event
+        )
+        services.learning_calibration_profile_recorder.record_from_summary_events(summary_events=summary_events)
         return result
 
     @router.get(

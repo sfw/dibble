@@ -89,7 +89,10 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 "state_calibration_applied": calibration.applied,
             },
         )
-        services.learning_run_summary_recorder.record_from_trigger_event(trigger_event=observation_audit_event)
+        summary_events = services.learning_run_summary_recorder.record_from_trigger_event(
+            trigger_event=observation_audit_event
+        )
+        services.learning_calibration_profile_recorder.record_from_summary_events(summary_events=summary_events)
         return inferred_state
 
     @router.get("/learners/{student_id}/state", response_model=InferredLearnerState, dependencies=context.deps("viewer"))

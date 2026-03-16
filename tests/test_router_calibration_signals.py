@@ -61,6 +61,7 @@ def test_router_calibration_signal_service_returns_negative_signal_for_recent_st
     )
 
     assert signal.signal == "negative"
+    assert signal.source == "derived"
     assert signal.confidence >= 0.6
     assert signal.average_run_outcome_score is not None
     assert signal.average_run_outcome_score < 0.5
@@ -155,6 +156,7 @@ def test_router_calibration_signal_service_prefers_same_session_matches(tmp_path
     )
 
     assert signal.signal == "positive"
+    assert signal.source == "derived"
     assert signal.matched_run_count == 1
     assert signal.average_run_outcome_score is not None
     assert signal.average_run_outcome_score > 0.75
@@ -178,6 +180,7 @@ def test_router_calibration_signal_service_returns_insufficient_without_matching
     )
 
     assert signal.signal == "insufficient"
+    assert signal.source == "insufficient"
     assert signal.matched_run_count == 0
     assert signal.average_run_outcome_score is None
 
@@ -232,6 +235,7 @@ def test_router_calibration_signal_service_prefers_persisted_run_summaries(tmp_p
     )
 
     assert signal.signal == "positive"
+    assert signal.source == "run_summary"
     assert signal.matched_run_count == 2
     assert signal.average_run_outcome_score is not None
     assert signal.average_run_outcome_score > 0.8
