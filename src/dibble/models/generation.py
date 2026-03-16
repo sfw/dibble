@@ -198,3 +198,30 @@ class ContentWarmResult(BaseModel):
     cache_misses: int = Field(default=0, ge=0)
     generation_ids: list[str] = Field(default_factory=list)
     warmed_at: datetime = Field(default_factory=utc_now)
+
+
+class PredictiveWarmTask(BaseModel):
+    task_id: str
+    student_id: UUID
+    request: GenerationRequest
+    request_fingerprint: str
+    status: str = "pending"
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
+    last_error: str | None = None
+
+
+class PredictiveWarmProcessRequest(BaseModel):
+    limit: int = Field(default=10, ge=1, le=100)
+
+
+class PredictiveWarmProcessResult(BaseModel):
+    attempted_tasks: int = Field(default=0, ge=0)
+    completed_tasks: int = Field(default=0, ge=0)
+    failed_tasks: int = Field(default=0, ge=0)
+    skipped_tasks: int = Field(default=0, ge=0)
+    pending_tasks: int = Field(default=0, ge=0)
+    cache_hits: int = Field(default=0, ge=0)
+    cache_misses: int = Field(default=0, ge=0)
+    generation_ids: list[str] = Field(default_factory=list)
+    processed_at: datetime = Field(default_factory=utc_now)

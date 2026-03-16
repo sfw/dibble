@@ -23,6 +23,7 @@ from dibble.services.learning_run_summary_recorder import LearningRunSummaryReco
 from dibble.services.learner_state_calibration import LearnerStateCalibrator
 from dibble.services.learner_summary_service import LearnerSummaryService
 from dibble.services.predictive_content_invalidator import PredictiveContentInvalidator
+from dibble.services.predictive_warm_scheduler import PredictiveWarmScheduler
 from dibble.services.protocols import (
     AuditStore,
     CurriculumStore,
@@ -63,6 +64,7 @@ class ApiServices(Protocol):
     learner_summary_service: LearnerSummaryService
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_invalidator: PredictiveContentInvalidator
+    predictive_warm_scheduler: PredictiveWarmScheduler
 
 
 @dataclass(slots=True)

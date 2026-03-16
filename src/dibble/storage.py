@@ -104,6 +104,19 @@ CREATE TABLE IF NOT EXISTS socratic_assessment_sessions (
 );
 """
 
+PREDICTIVE_WARM_QUEUE_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS predictive_warm_queue (
+    task_id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL,
+    request_payload TEXT NOT NULL,
+    request_fingerprint TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    last_error TEXT
+);
+"""
+
 
 def ensure_database(database_path: str) -> None:
     path = Path(database_path)
@@ -121,4 +134,5 @@ def ensure_database(database_path: str) -> None:
         connection.execute(GENERATED_CONTENT_TABLE_SQL)
         connection.execute(OBSERVATION_TABLE_SQL)
         connection.execute(SOCRATIC_SESSION_TABLE_SQL)
+        connection.execute(PREDICTIVE_WARM_QUEUE_TABLE_SQL)
         connection.commit()

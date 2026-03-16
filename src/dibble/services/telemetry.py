@@ -9,7 +9,7 @@ from dibble.models.telemetry import (
     TelemetrySnapshot,
 )
 from dibble.services.generation_prompt_outcomes import GenerationPromptOutcomeScorer
-from dibble.services.protocols import AuditStore, GeneratedContentStore, ProviderHealthStore
+from dibble.services.protocols import AuditStore, GeneratedContentStore, PredictiveWarmTaskStore, ProviderHealthStore
 
 
 class TelemetryService:
@@ -18,10 +18,12 @@ class TelemetryService:
         audit_store: AuditStore,
         generated_content_store: GeneratedContentStore | None = None,
         provider_health_store: ProviderHealthStore | None = None,
+        predictive_warm_queue_store: PredictiveWarmTaskStore | None = None,
     ) -> None:
         self.audit_store = audit_store
         self.generated_content_store = generated_content_store
         self.provider_health_store = provider_health_store
+        self.predictive_warm_queue_store = predictive_warm_queue_store
         self.generation_outcome_scorer = GenerationPromptOutcomeScorer()
 
     def snapshot(self) -> TelemetrySnapshot:
@@ -32,6 +34,9 @@ class TelemetryService:
         progress_profile_events = [event for event in events if event.event_type == "learning.progress.profile"]
         warm_events = [event for event in events if event.event_type in {"content.warm", "content.warm.predictive"}]
         predictive_warm_events = [event for event in events if event.event_type == "content.warm.predictive"]
+        predictive_warm_process_events = [
+            event for event in events if event.event_type == "content.warm.predictive.process"
+        ]
         cache_invalidation_events = [event for event in events if event.event_type == "content.cache.invalidate"]
         provider_events = self.provider_health_store.list(limit=500) if self.provider_health_store is not None else []
         cache_stats = self.generated_content_store.stats() if self.generated_content_store is not None else {
@@ -39,6 +44,11 @@ class TelemetryService:
             "fresh_entries": 0,
             "expired_entries": 0,
         }
+        queue_stats = (
+            self.predictive_warm_queue_store.stats()
+            if self.predictive_warm_queue_store is not None
+            else {"pending": 0, "completed": 0, "failed": 0, "canceled": 0}
+        )
         prompt_template_counts = Counter(
             str(event.payload.get("prompt_template_name"))
             for event in generation_events
@@ -121,9 +131,14 @@ class TelemetryService:
             predictive_warm_requests=sum(
                 int(event.payload.get("predicted_request_count", 0)) for event in predictive_warm_events
             ),
+            predictive_warm_process_events=len(predictive_warm_process_events),
             predictive_cache_invalidations=sum(
                 int(event.payload.get("expired_entries", 0)) for event in cache_invalidation_events
             ),
+            pending_predictive_warm_tasks=queue_stats["pending"],
+            completed_predictive_warm_tasks=queue_stats["completed"],
+            failed_predictive_warm_tasks=queue_stats["failed"],
+            canceled_predictive_warm_tasks=queue_stats["canceled"],
             generated_content_entries=cache_stats["total_entries"],
             fresh_generated_content_entries=cache_stats["fresh_entries"],
             provider_failure_events=sum(1 for event in provider_events if event.status == "failure"),

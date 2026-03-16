@@ -10,6 +10,8 @@ from dibble.models.generation import (
     ContentWarmResult,
     GeneratedContent,
     GenerationRequest,
+    PredictiveWarmProcessRequest,
+    PredictiveWarmProcessResult,
     GenerationStreamEvent,
     RemedialTriggerRequest,
 )
@@ -46,6 +48,16 @@ def build_content_router(context: ApiContext) -> APIRouter:
     @router.post("/content/warm", response_model=ContentWarmResult, dependencies=context.deps("editor"))
     def warm_content(request: ContentWarmRequest) -> ContentWarmResult:
         return services.content_workflow_service.warm_content(request)
+
+    @router.post(
+        "/content/warm/process",
+        response_model=PredictiveWarmProcessResult,
+        dependencies=context.deps("editor"),
+    )
+    def process_predictive_warm_queue(
+        request: PredictiveWarmProcessRequest,
+    ) -> PredictiveWarmProcessResult:
+        return services.content_workflow_service.process_predictive_warm_queue(limit=request.limit)
 
     @router.post("/explanations/generate", response_model=GeneratedContent, dependencies=context.deps("editor"))
     def generate_explanation(request: GenerationRequest) -> GeneratedContent:

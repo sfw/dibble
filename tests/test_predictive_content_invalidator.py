@@ -13,6 +13,7 @@ from dibble.models.generation import (
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
 from dibble.services.predictive_content_invalidator import PredictiveContentInvalidator
+from dibble.services.predictive_warm_queue_store import SQLitePredictiveWarmQueueStore
 from dibble.storage import ensure_database
 
 
@@ -20,6 +21,7 @@ def test_predictive_content_invalidator_expires_only_matching_predictive_entries
     database_path = str(tmp_path / "predictive-cache.db")
     ensure_database(database_path)
     generated_content_store = SQLiteGeneratedContentStore(database_path)
+    queue_store = SQLitePredictiveWarmQueueStore(database_path)
     audit_store = SQLiteAuditStore(database_path)
     student_id = str(uuid4())
 
@@ -71,12 +73,32 @@ def test_predictive_content_invalidator_expires_only_matching_predictive_entries
             "target_lo_ids": ["LO-1"],
         },
     )
+    from dibble.models.generation import GenerationRequest
 
-    invalidation_event = PredictiveContentInvalidator(generated_content_store, audit_store).invalidate_from_trigger_event(
-        trigger_event
+    queue_store.enqueue(
+        request=GenerationRequest.model_validate(
+            {
+                "student_id": student_id,
+                "learning_session_id": "session-1",
+                "target_kc_ids": ["KC-1"],
+                "target_lo_ids": ["LO-1"],
+                "intent": "practice",
+                "requested_content_type": "practice_problem",
+                "predictive_warm": True,
+                "warm_reason": "test",
+                "source_generation_id": "gen-source",
+            }
+        )
     )
 
+    invalidation_event = PredictiveContentInvalidator(
+        generated_content_store,
+        audit_store,
+        predictive_warm_task_store=queue_store,
+    ).invalidate_from_trigger_event(trigger_event)
+
     assert invalidation_event.payload["expired_entries"] == 1
+    assert invalidation_event.payload["canceled_queue_tasks"] == 1
     assert generated_content_store.get_fresh(cache_key="predictive-match") is None
     assert generated_content_store.get_fresh(cache_key="predictive-other-session") is not None
     assert generated_content_store.get_fresh(cache_key="non-predictive") is not None

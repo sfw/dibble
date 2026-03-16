@@ -1,4 +1,8 @@
+from fastapi.testclient import TestClient
+
 from tests.api_support import parse_sse_events
+from dibble.app import create_app
+from dibble.config import Settings
 from tests.support import build_curriculum_resource, build_knowledge_component, build_profile
 
 
@@ -202,6 +206,45 @@ def test_generation_endpoint_predictively_warms_follow_up_content(client, studen
     assert predictive_event["payload"]["source_generation_id"] == worked_example_response.json()["generation_id"]
     assert predictive_event["payload"]["predicted_request_count"] == 2
     assert predictive_event["payload"]["predicted_content_types"] == ["practice_problem", "assessment_probe"]
+
+
+def test_predictive_warm_process_endpoint_drains_pending_queue(tmp_path, student_id):
+    settings = Settings(
+        database_path=str(tmp_path / "predictive-warm-process-api.db"),
+        predictive_warm_inline_process_limit=0,
+    )
+    app = create_app(settings)
+
+    with TestClient(app) as client:
+        client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+        client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+
+        worked_example_response = client.post(
+            "/api/worked-examples/generate",
+            json={
+                "student_id": str(student_id),
+                "learning_session_id": "session-queued-predictive",
+                "target_kc_ids": ["KC-1"],
+                "curriculum_context": ["Equivalent fractions"],
+            },
+        )
+        process_response = client.post("/api/content/warm/process", json={"limit": 10})
+        problem_response = client.post(
+            "/api/problems/generate",
+            json={
+                "student_id": str(student_id),
+                "learning_session_id": "session-queued-predictive",
+                "target_kc_ids": ["KC-1"],
+                "curriculum_context": ["Equivalent fractions"],
+            },
+        )
+
+        assert worked_example_response.status_code == 200
+        assert process_response.status_code == 200
+        assert problem_response.status_code == 200
+        assert process_response.json()["completed_tasks"] >= 1
+        assert process_response.json()["pending_tasks"] == 0
+        assert problem_response.json()["quality"]["cache_hit"] is True
 
 
 def test_remedial_trigger_returns_remedial_generated_content(client, student_id):

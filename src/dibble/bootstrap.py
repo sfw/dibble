@@ -31,6 +31,8 @@ from dibble.services.misconception_profiles import (
 from dibble.services.observation_store import SQLiteObservationStore
 from dibble.services.predictive_content_invalidator import PredictiveContentInvalidator
 from dibble.services.predictive_content_warming import PredictiveContentWarmer
+from dibble.services.predictive_warm_queue_store import SQLitePredictiveWarmQueueStore
+from dibble.services.predictive_warm_scheduler import PredictiveWarmScheduler
 from dibble.services.provider_health import SQLiteProviderHealthStore
 from dibble.services.profile_store import SQLiteProfileStore
 from dibble.services.protocols import (
@@ -80,6 +82,7 @@ class ApplicationServices:
     learner_summary_service: LearnerSummaryService
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_invalidator: PredictiveContentInvalidator
+    predictive_warm_scheduler: PredictiveWarmScheduler
     router_plugin: RouterPlugin
 
 
@@ -91,6 +94,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     knowledge_component_store = SQLiteKnowledgeComponentStore(settings.database_path)
     audit_store = SQLiteAuditStore(settings.database_path)
     generated_content_store = SQLiteGeneratedContentStore(settings.database_path)
+    predictive_warm_queue_store = SQLitePredictiveWarmQueueStore(settings.database_path)
     observation_store = SQLiteObservationStore(settings.database_path)
     socratic_session_store = SQLiteSocraticSessionStore(settings.database_path)
     provider_health_store = SQLiteProviderHealthStore(settings.database_path)
@@ -147,9 +151,15 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         generation_mode_calibrator=generation_mode_calibrator,
     )
     predictive_content_warmer = PredictiveContentWarmer(content_warmer=content_warmer)
+    predictive_warm_scheduler = PredictiveWarmScheduler(
+        queue_store=predictive_warm_queue_store,
+        content_warmer=content_warmer,
+        inline_process_limit=settings.predictive_warm_inline_process_limit,
+    )
     predictive_content_invalidator = PredictiveContentInvalidator(
         generated_content_store=generated_content_store,
         audit_store=audit_store,
+        predictive_warm_task_store=predictive_warm_queue_store,
     )
     content_workflow_service = ContentWorkflowService(
         profile_store=profile_store,
@@ -158,6 +168,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         content_warmer=content_warmer,
         generation_mode_calibrator=generation_mode_calibrator,
         predictive_content_warmer=predictive_content_warmer,
+        predictive_warm_scheduler=predictive_warm_scheduler,
         remediation_planner=remediation_planner,
         misconception_profile_recorder=misconception_profile_recorder,
         audit_store=audit_store,
@@ -171,7 +182,12 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         generated_content_store=generated_content_store,
         observation_store=observation_store,
         auth_service=auth_service,
-        telemetry_service=TelemetryService(audit_store, generated_content_store, provider_health_store),
+        telemetry_service=TelemetryService(
+            audit_store,
+            generated_content_store,
+            provider_health_store,
+            predictive_warm_queue_store=predictive_warm_queue_store,
+        ),
         generation_engine=generation_engine,
         content_warmer=content_warmer,
         content_workflow_service=content_workflow_service,
@@ -188,5 +204,6 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         learner_summary_service=learner_summary_service,
         generation_mode_calibrator=generation_mode_calibrator,
         predictive_content_invalidator=predictive_content_invalidator,
+        predictive_warm_scheduler=predictive_warm_scheduler,
         router_plugin=router_plugin,
     )

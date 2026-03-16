@@ -6,6 +6,7 @@ from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.llm_client import LLMClientError
 from dibble.services.llm_provider import LLMOrchestrationProvider
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
+from dibble.services.predictive_warm_queue_store import SQLitePredictiveWarmQueueStore
 from dibble.services.provider_health import SQLiteProviderHealthStore
 from dibble.services.telemetry import TelemetryService
 from dibble.storage import ensure_database
@@ -77,7 +78,8 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
     generated_content_store = SQLiteGeneratedContentStore(database_path)
-    telemetry = TelemetryService(audit_store, generated_content_store)
+    queue_store = SQLitePredictiveWarmQueueStore(database_path)
+    telemetry = TelemetryService(audit_store, generated_content_store, predictive_warm_queue_store=queue_store)
 
     audit_store.append(
         event_type="content.generate",
@@ -105,6 +107,11 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
         payload={"expired_entries": 2},
     )
     audit_store.append(
+        event_type="content.warm.predictive.process",
+        status="success",
+        payload={"attempted_tasks": 1, "completed_tasks": 1},
+    )
+    audit_store.append(
         event_type="learning.progress.profile",
         status="success",
         payload={"progress_signal": "improving"},
@@ -121,10 +128,12 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     assert snapshot.warm_requests == 5
     assert snapshot.predictive_warm_events == 1
     assert snapshot.predictive_warm_requests == 3
+    assert snapshot.predictive_warm_process_events == 1
     assert snapshot.predictive_cache_invalidations == 2
     assert snapshot.learning_progress_profile_events == 2
     assert snapshot.improving_progress_signals == 1
     assert snapshot.declining_progress_signals == 1
+    assert snapshot.pending_predictive_warm_tasks == 0
     assert snapshot.generated_content_entries == 0
     assert snapshot.prompt_template_usages[0].template_name == "micro_explanation.baseline"
     assert snapshot.prompt_template_usages[0].event_count == 1

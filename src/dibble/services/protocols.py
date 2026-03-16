@@ -4,7 +4,7 @@ from typing import Protocol
 from uuid import UUID
 
 from dibble.models.curriculum import CurriculumResource, CurriculumResourceUpsert, KnowledgeComponent, KnowledgeComponentUpsert
-from dibble.models.generation import GeneratedContent
+from dibble.models.generation import GeneratedContent, GenerationRequest, PredictiveWarmTask
 from dibble.models.observations import LearnerObservation, LearnerObservationCreate
 from dibble.models.profile import LearnerProfile
 from dibble.models.telemetry import AuditEvent, ProviderHealthEvent, ProviderStatusSnapshot
@@ -55,6 +55,23 @@ class GeneratedContentStore(Protocol):
     def get_fresh(self, *, cache_key: str) -> GeneratedContent | None: ...
     def list_recent(self, *, limit: int = 50) -> list[GeneratedContent]: ...
     def expire_predictive_content(
+        self,
+        *,
+        student_id: str | None,
+        target_kc_ids: list[str],
+        target_lo_ids: list[str],
+        learning_session_id: str | None = None,
+    ) -> int: ...
+    def stats(self) -> dict[str, int]: ...
+
+
+class PredictiveWarmTaskStore(Protocol):
+    def enqueue(self, *, request: GenerationRequest) -> PredictiveWarmTask | None: ...
+    def claim_pending(self, *, limit: int = 10) -> list[PredictiveWarmTask]: ...
+    def claim_tasks(self, *, task_ids: list[str]) -> list[PredictiveWarmTask]: ...
+    def mark_completed(self, *, task_id: str) -> None: ...
+    def mark_failed(self, *, task_id: str, error: str) -> None: ...
+    def cancel_pending(
         self,
         *,
         student_id: str | None,

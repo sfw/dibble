@@ -9,6 +9,7 @@ from dibble.models.generation import (
     ContentWarmResult,
     GeneratedContent,
     GenerationRequest,
+    PredictiveWarmProcessResult,
     RemedialTriggerRequest,
 )
 from dibble.models.profile import LearnerProfile
@@ -19,6 +20,7 @@ from dibble.services.generation_mode_calibration import GenerationModeCalibrator
 from dibble.services.generation_modes import build_generation_mode_plan
 from dibble.services.misconception_profiles import LearningMisconceptionProfileRecorder
 from dibble.services.predictive_content_warming import PredictiveContentWarmer
+from dibble.services.predictive_warm_scheduler import PredictiveWarmScheduler
 from dibble.services.protocols import AuditStore, ProfileStore
 from dibble.services.remediation_planner import RemediationPlanner
 
@@ -37,6 +39,7 @@ class ContentWorkflowService:
     content_warmer: ContentWarmer
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_warmer: PredictiveContentWarmer
+    predictive_warm_scheduler: PredictiveWarmScheduler
     remediation_planner: RemediationPlanner
     misconception_profile_recorder: LearningMisconceptionProfileRecorder
     audit_store: AuditStore
@@ -153,8 +156,10 @@ class ContentWorkflowService:
                 "prompt_template_variant": metadata.prompt_template_variant,
             },
         )
-        predictive_warm = self.predictive_content_warmer.warm_follow_ups(generated_content)
-        if predictive_warm is not None:
+        predictive_plan = self.predictive_content_warmer.plan_follow_ups(generated_content)
+        if predictive_plan.requests:
+            enqueue_result = self.predictive_warm_scheduler.enqueue_plan(plan=predictive_plan)
+            inline_process_result = self.predictive_warm_scheduler.process_inline(task_ids=enqueue_result.task_ids or [])
             self.audit_store.append(
                 event_type="content.warm.predictive",
                 status="success",
@@ -164,12 +169,17 @@ class ContentWorkflowService:
                     "learning_session_id": request.learning_session_id,
                     "target_kc_ids": request.target_kc_ids,
                     "target_lo_ids": request.target_lo_ids,
-                    "predicted_request_count": len(predictive_warm.plan.requests),
-                    "predicted_content_types": predictive_warm.plan.content_types,
-                    "warm_reasons": predictive_warm.plan.reasons,
-                    "cache_hits": predictive_warm.result.cache_hits,
-                    "cache_misses": predictive_warm.result.cache_misses,
-                    "generation_ids": predictive_warm.result.generation_ids,
+                    "predicted_request_count": len(predictive_plan.requests),
+                    "predicted_content_types": predictive_plan.content_types,
+                    "warm_reasons": predictive_plan.reasons,
+                    "enqueued_tasks": enqueue_result.enqueued_count,
+                    "duplicate_tasks": enqueue_result.duplicate_count,
+                    "processed_tasks": inline_process_result.completed_tasks,
+                    "failed_tasks": inline_process_result.failed_tasks,
+                    "pending_tasks": inline_process_result.pending_tasks,
+                    "cache_hits": inline_process_result.cache_hits,
+                    "cache_misses": inline_process_result.cache_misses,
+                    "generation_ids": inline_process_result.generation_ids,
                 },
             )
         return generated_content
@@ -186,6 +196,25 @@ class ContentWorkflowService:
             },
         )
         return warmed
+
+    def process_predictive_warm_queue(self, *, limit: int) -> PredictiveWarmProcessResult:
+        result = self.predictive_warm_scheduler.process_pending(limit=limit)
+        self.audit_store.append(
+            event_type="content.warm.predictive.process",
+            status="success",
+            payload={
+                "limit": limit,
+                "attempted_tasks": result.attempted_tasks,
+                "completed_tasks": result.completed_tasks,
+                "failed_tasks": result.failed_tasks,
+                "skipped_tasks": result.skipped_tasks,
+                "pending_tasks": result.pending_tasks,
+                "cache_hits": result.cache_hits,
+                "cache_misses": result.cache_misses,
+                "generation_ids": result.generation_ids,
+            },
+        )
+        return result
 
     def trigger_remedial_content(self, request: RemedialTriggerRequest) -> GeneratedContent:
         profile = self._load_profile(request.student_id)
