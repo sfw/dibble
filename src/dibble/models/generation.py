@@ -102,6 +102,11 @@ class GenerationModeCalibration(BaseModel):
     session_primary_kc_id: str | None = None
     session_observation_count: int = Field(default=0, ge=0)
     session_assessment_count: int = Field(default=0, ge=0)
+    session_phase: str = "monitor"
+    session_recovery_intent: str = "monitor"
+    session_generated_step_count: int = Field(default=0, ge=0)
+    session_positive_streak: int = Field(default=0, ge=0)
+    session_negative_streak: int = Field(default=0, ge=0)
     session_rationale: str | None = None
     rationale: str | None = None
 

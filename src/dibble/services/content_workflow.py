@@ -34,6 +34,7 @@ from dibble.services.remediation_workflows import (
     RemediationWorkflowCoordinator,
     RemediationWorkflowNotFoundError,
 )
+from dibble.services.within_session_adaptation import WithinSessionAdaptationService
 
 
 class LearnerProfileNotFoundError(LookupError):
@@ -56,6 +57,7 @@ class ContentWorkflowService:
     strategy_signal_service: LearnerStrategySignalService
     misconception_profile_recorder: LearningMisconceptionProfileRecorder
     audit_store: AuditStore
+    within_session_adaptation_service: WithinSessionAdaptationService
 
     def decide_route(self, request: GenerationRequest) -> AdaptiveRouteDecision:
         profile = self._load_profile(request.student_id)
@@ -204,6 +206,15 @@ class ContentWorkflowService:
                 "prompt_template_variant": metadata.prompt_template_variant,
             },
         )
+        session_summary = self.within_session_adaptation_service.record_generation_step(
+            request=calibrated_request,
+            content_type=generated_content.content_type,
+            generation_id=generated_content.generation_id,
+        )
+        self._apply_session_adaptation(
+            generated_content=generated_content,
+            session_summary=session_summary,
+        )
         predictive_plan = self.predictive_content_warmer.plan_follow_ups(generated_content)
         if predictive_plan.requests:
             enqueue_result = self.predictive_warm_scheduler.enqueue_plan(plan=predictive_plan)
@@ -231,6 +242,55 @@ class ContentWorkflowService:
                 },
             )
         return generated_content
+
+    def _apply_session_adaptation(
+        self,
+        *,
+        generated_content: GeneratedContent,
+        session_summary,
+    ) -> None:
+        if session_summary.signal == "insufficient":
+            return
+        request_context = generated_content.request_context
+        request_context["session_adaptation"] = {
+            "signal": session_summary.signal,
+            "source": session_summary.source,
+            "confidence": session_summary.confidence,
+            "support_bias": session_summary.support_bias,
+            "sequence_action": session_summary.sequence_action,
+            "primary_kc_id": session_summary.primary_kc_id,
+            "observation_count": session_summary.matched_observation_count,
+            "assessment_count": session_summary.matched_assessment_count,
+            "phase": session_summary.phase,
+            "recovery_intent": session_summary.recovery_intent,
+            "generated_step_count": session_summary.generated_step_count,
+            "positive_streak": session_summary.positive_streak,
+            "negative_streak": session_summary.negative_streak,
+            "rationale": session_summary.rationale,
+        }
+        mode_calibration = request_context.get("mode_calibration")
+        if isinstance(mode_calibration, dict):
+            mode_calibration.update(
+                {
+                    "session_signal": session_summary.signal,
+                    "session_source": session_summary.source,
+                    "session_confidence": session_summary.confidence,
+                    "session_support_bias": session_summary.support_bias,
+                    "session_sequence_action": session_summary.sequence_action,
+                    "session_primary_kc_id": session_summary.primary_kc_id,
+                    "session_observation_count": session_summary.matched_observation_count,
+                    "session_assessment_count": session_summary.matched_assessment_count,
+                    "session_phase": session_summary.phase,
+                    "session_recovery_intent": session_summary.recovery_intent,
+                    "session_generated_step_count": session_summary.generated_step_count,
+                    "session_positive_streak": session_summary.positive_streak,
+                    "session_negative_streak": session_summary.negative_streak,
+                    "session_rationale": session_summary.rationale,
+                    "sequence_source": session_summary.source
+                    if session_summary.sequence_action != "monitor"
+                    else mode_calibration.get("sequence_source", "insufficient"),
+                }
+            )
 
     def warm_content(self, request: ContentWarmRequest) -> ContentWarmResult:
         warmed = self.content_warmer.warm(request.requests)

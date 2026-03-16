@@ -40,6 +40,7 @@ from dibble.services.socratic_assessment import SocraticAssessmentService
 from dibble.services.socratic_profile_update import SocraticProfileUpdater
 from dibble.services.state_inference import LearnerStateInferenceService
 from dibble.services.telemetry import TelemetryService
+from dibble.services.within_session_adaptation import WithinSessionAdaptationService
 
 
 class ApiServices(Protocol):
@@ -71,6 +72,7 @@ class ApiServices(Protocol):
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_invalidator: PredictiveContentInvalidator
     predictive_warm_scheduler: PredictiveWarmScheduler
+    within_session_adaptation_service: WithinSessionAdaptationService
 
 
 @dataclass(slots=True)

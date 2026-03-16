@@ -210,3 +210,59 @@ def test_generation_mode_plan_uses_negative_mode_calibration_to_increase_worked_
     assert plan.request_context["worked_steps_visible"] == 3
     assert plan.request_context["mode_calibration"]["source"] == "run_summary"
     assert plan.request_context["mode_calibration_applied"] is True
+
+
+def test_generation_mode_plan_surfaces_session_controller_metadata():
+    profile = LearnerProfile.model_validate(
+        build_profile(
+            uuid4(),
+            frustration="low",
+            total_load=0.35,
+            kc_mastery={"KC-1": 0.55},
+            engagement="medium",
+        )
+    )
+    request = GenerationRequest(
+        student_id=profile.student_id,
+        learning_session_id="session-controller",
+        target_kc_ids=["KC-1"],
+        intent="practice",
+        mode_calibration=GenerationModeCalibration(
+            signal="negative",
+            source="session_controller",
+            confidence=0.82,
+            support_bias=-1,
+            sequence_action="hold_target",
+            sequence_primary_kc_id="KC-1",
+            sequence_kc_ids=["KC-1"],
+            sequence_source="session_controller",
+            session_signal="negative",
+            session_source="session_controller",
+            session_confidence=0.82,
+            session_support_bias=-1,
+            session_sequence_action="hold_target",
+            session_primary_kc_id="KC-1",
+            session_observation_count=2,
+            session_assessment_count=0,
+            session_phase="repair",
+            session_recovery_intent="increase_support",
+            session_generated_step_count=1,
+            session_positive_streak=0,
+            session_negative_streak=2,
+            session_rationale="Controller is holding the repair target.",
+            rationale="test",
+        ),
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.targeted_practice,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="medium",
+        reasons=["test"],
+    )
+
+    plan = build_generation_mode_plan(profile, request, route)
+
+    assert plan.request_context["session_adaptation"]["source"] == "session_controller"
+    assert plan.request_context["session_adaptation"]["phase"] == "repair"
+    assert plan.request_context["session_adaptation"]["generated_step_count"] == 1
+    assert plan.request_context["session_adaptation"]["negative_streak"] == 2

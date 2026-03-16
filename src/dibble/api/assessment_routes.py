@@ -66,6 +66,10 @@ def build_assessment_router(context: ApiContext) -> APIRouter:
                 ),
             },
         )
+        services.within_session_adaptation_service.record_assessment_event(
+            student_id=request.student_id,
+            event_payload=assessment_audit_event.payload,
+        )
         services.predictive_content_invalidator.invalidate_from_trigger_event(assessment_audit_event)
         summary_events = services.learning_run_summary_recorder.record_from_trigger_event(
             trigger_event=assessment_audit_event

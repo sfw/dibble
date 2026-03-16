@@ -68,6 +68,7 @@ from dibble.services.socratic_session_store import SQLiteSocraticSessionStore
 from dibble.services.state_inference import LearnerStateInferenceService
 from dibble.services.telemetry import TelemetryService
 from dibble.services.within_session_adaptation import WithinSessionAdaptationService
+from dibble.services.within_session_controller_store import SQLiteWithinSessionControllerStore
 from dibble.storage import ensure_database
 
 
@@ -101,6 +102,7 @@ class ApplicationServices:
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_invalidator: PredictiveContentInvalidator
     predictive_warm_scheduler: PredictiveWarmScheduler
+    within_session_adaptation_service: WithinSessionAdaptationService
     router_plugin: RouterPlugin
 
 
@@ -116,6 +118,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     observation_store = SQLiteObservationStore(settings.database_path)
     socratic_session_store = SQLiteSocraticSessionStore(settings.database_path)
     remediation_session_store = SQLiteRemediationSessionStore(settings.database_path)
+    within_session_controller_store = SQLiteWithinSessionControllerStore(settings.database_path)
     provider_health_store = SQLiteProviderHealthStore(settings.database_path)
     auth_service = AuthService.from_settings(
         settings,
@@ -125,7 +128,10 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     learner_strategy_signal_service = LearnerStrategySignalService(audit_store=audit_store)
     learner_state_signal_service = LearnerStateSignalService(audit_store=audit_store)
     learner_trait_profile_signal_service = LearnerTraitProfileSignalService(audit_store=audit_store)
-    within_session_adaptation_service = WithinSessionAdaptationService(audit_store=audit_store)
+    within_session_adaptation_service = WithinSessionAdaptationService(
+        audit_store=audit_store,
+        controller_store=within_session_controller_store,
+    )
     router_plugin = CalibratedRouter(
         base_router=plugins.router,
         calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
@@ -216,6 +222,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         strategy_signal_service=learner_strategy_signal_service,
         misconception_profile_recorder=misconception_profile_recorder,
         audit_store=audit_store,
+        within_session_adaptation_service=within_session_adaptation_service,
     )
 
     return ApplicationServices(
@@ -252,5 +259,6 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         generation_mode_calibrator=generation_mode_calibrator,
         predictive_content_invalidator=predictive_content_invalidator,
         predictive_warm_scheduler=predictive_warm_scheduler,
+        within_session_adaptation_service=within_session_adaptation_service,
         router_plugin=router_plugin,
     )

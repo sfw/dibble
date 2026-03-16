@@ -5,7 +5,8 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from dibble.models.generation import GenerationRequest
-from dibble.services.protocols import AuditStore
+from dibble.models.session_adaptation import WithinSessionControllerState
+from dibble.services.protocols import AuditStore, WithinSessionControllerStore
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,16 +19,88 @@ class WithinSessionAdaptationSummary:
     primary_kc_id: str | None = None
     matched_observation_count: int = 0
     matched_assessment_count: int = 0
+    phase: str = "monitor"
+    recovery_intent: str = "monitor"
+    generated_step_count: int = 0
+    positive_streak: int = 0
+    negative_streak: int = 0
     rationale: str | None = None
 
 
 @dataclass(slots=True)
 class WithinSessionAdaptationService:
     audit_store: AuditStore
+    controller_store: WithinSessionControllerStore | None = None
     max_events: int = 500
     recency_window_hours: int = 6
 
     def adaptation_for(self, *, student_id: UUID, request: GenerationRequest) -> WithinSessionAdaptationSummary:
+        if request.learning_session_id is None:
+            return WithinSessionAdaptationSummary()
+        controller = self._controller_for(student_id=student_id, request=request)
+        if controller is not None:
+            return self._summary_from_controller(controller)
+
+        return self._raw_adaptation_for(student_id=student_id, request=request)
+
+    def record_observation_event(self, *, student_id: UUID, event_payload: dict[str, object]) -> WithinSessionAdaptationSummary:
+        request = self._request_from_payload(student_id=student_id, payload=event_payload, default_intent="practice")
+        if request is None:
+            return WithinSessionAdaptationSummary()
+        raw_summary = self._raw_adaptation_for(student_id=student_id, request=request)
+        controller = self._transition_controller(
+            request=request,
+            raw_summary=raw_summary,
+            event_type="learner.observe",
+        )
+        return self._summary_from_controller(controller)
+
+    def record_assessment_event(self, *, student_id: UUID, event_payload: dict[str, object]) -> WithinSessionAdaptationSummary:
+        request = self._request_from_payload(student_id=student_id, payload=event_payload, default_intent="assessment")
+        if request is None:
+            return WithinSessionAdaptationSummary()
+        raw_summary = self._raw_adaptation_for(student_id=student_id, request=request)
+        controller = self._transition_controller(
+            request=request,
+            raw_summary=raw_summary,
+            event_type="assessment.socratic",
+        )
+        return self._summary_from_controller(controller)
+
+    def record_generation_step(
+        self,
+        *,
+        request: GenerationRequest,
+        content_type: str,
+        generation_id: str,
+    ) -> WithinSessionAdaptationSummary:
+        if request.learning_session_id is None or self.controller_store is None:
+            return self.adaptation_for(student_id=request.student_id, request=request)
+        existing = self.controller_store.get(request.learning_session_id)
+        if existing is None:
+            raw_summary = self._raw_adaptation_for(student_id=request.student_id, request=request)
+            existing = self._build_controller_state(
+                request=request,
+                raw_summary=raw_summary,
+                phase=self._phase_for(raw_summary=raw_summary, existing=None),
+                recovery_intent=self._recovery_intent_for(raw_summary=raw_summary, existing=None),
+                positive_streak=1 if raw_summary.signal == "positive" else 0,
+                negative_streak=1 if raw_summary.signal == "negative" else 0,
+                mixed_streak=1 if raw_summary.signal == "mixed" else 0,
+                generation_count=0,
+            )
+        updated = existing.model_copy(
+            update={
+                "generation_count": existing.generation_count + 1,
+                "last_generated_content_type": content_type,
+                "last_generation_id": generation_id,
+                "updated_at": datetime.now(timezone.utc),
+            }
+        )
+        self.controller_store.upsert(updated)
+        return self._summary_from_controller(updated)
+
+    def _raw_adaptation_for(self, *, student_id: UUID, request: GenerationRequest) -> WithinSessionAdaptationSummary:
         if request.learning_session_id is None:
             return WithinSessionAdaptationSummary()
 
@@ -76,6 +149,8 @@ class WithinSessionAdaptationService:
                 primary_kc_id=primary_kc_id,
                 matched_observation_count=len(observation_events),
                 matched_assessment_count=len(assessment_events),
+                phase="stabilize",
+                recovery_intent="stabilize_support",
                 rationale=self._negative_rationale(
                     latest_assessment=latest_assessment.payload if latest_assessment is not None else None,
                     observation_count=len(observation_events),
@@ -93,6 +168,8 @@ class WithinSessionAdaptationService:
                 primary_kc_id=primary_kc_id,
                 matched_observation_count=len(observation_events),
                 matched_assessment_count=len(assessment_events),
+                phase="transfer_check",
+                recovery_intent="fade_support",
                 rationale=self._positive_rationale(
                     latest_assessment=latest_assessment.payload if latest_assessment is not None else None,
                     observation_count=len(observation_events),
@@ -109,6 +186,8 @@ class WithinSessionAdaptationService:
             primary_kc_id=primary_kc_id,
             matched_observation_count=len(observation_events),
             matched_assessment_count=len(assessment_events),
+            phase="monitor",
+            recovery_intent="monitor",
             rationale=(
                 f"Recent same-session evidence in {request.learning_session_id} is mixed, so support should stay steady for now."
                 if event_count > 0
@@ -122,6 +201,26 @@ class WithinSessionAdaptationService:
         if request.target_lo_ids and self._overlap_score(request.target_lo_ids, payload.get("target_lo_ids")) > 0.0:
             return True
         return not request.target_kc_ids and not request.target_lo_ids
+
+    def _request_from_payload(
+        self,
+        *,
+        student_id: UUID,
+        payload: dict[str, object],
+        default_intent: str,
+    ) -> GenerationRequest | None:
+        learning_session_id = payload.get("learning_session_id")
+        if learning_session_id is None:
+            return None
+        target_kc_ids = [str(item) for item in payload.get("target_kc_ids", [])] if isinstance(payload.get("target_kc_ids"), list) else []
+        target_lo_ids = [str(item) for item in payload.get("target_lo_ids", [])] if isinstance(payload.get("target_lo_ids"), list) else []
+        return GenerationRequest(
+            student_id=student_id,
+            learning_session_id=str(learning_session_id),
+            target_kc_ids=target_kc_ids,
+            target_lo_ids=target_lo_ids,
+            intent=str(payload.get("intent", default_intent)),
+        )
 
     def _primary_kc_id(self, *, request: GenerationRequest, events) -> str | None:
         if request.target_kc_ids:
@@ -222,3 +321,250 @@ class WithinSessionAdaptationService:
         if not left_values or not right_values:
             return 0.0
         return len(left_values & right_values) / max(len(left_values), len(right_values))
+
+    def _controller_for(self, *, student_id: UUID, request: GenerationRequest) -> WithinSessionControllerState | None:
+        if self.controller_store is None or request.learning_session_id is None:
+            return None
+        controller = self.controller_store.get(request.learning_session_id)
+        if controller is None or str(controller.student_id) != str(student_id):
+            return None
+        if request.target_kc_ids and self._overlap_score(request.target_kc_ids, controller.target_kc_ids) <= 0.0:
+            return None
+        if request.target_lo_ids and self._overlap_score(request.target_lo_ids, controller.target_lo_ids) <= 0.0:
+            return None
+        return controller
+
+    def _summary_from_controller(self, controller: WithinSessionControllerState) -> WithinSessionAdaptationSummary:
+        return WithinSessionAdaptationSummary(
+            signal=controller.signal,
+            source=controller.source,
+            confidence=controller.confidence,
+            support_bias=controller.support_bias,
+            sequence_action=controller.sequence_action,
+            primary_kc_id=controller.primary_kc_id,
+            matched_observation_count=controller.observation_count,
+            matched_assessment_count=controller.assessment_count,
+            phase=controller.phase,
+            recovery_intent=controller.recovery_intent,
+            generated_step_count=controller.generation_count,
+            positive_streak=controller.positive_streak,
+            negative_streak=controller.negative_streak,
+            rationale=controller.rationale,
+        )
+
+    def _transition_controller(
+        self,
+        *,
+        request: GenerationRequest,
+        raw_summary: WithinSessionAdaptationSummary,
+        event_type: str,
+    ) -> WithinSessionControllerState:
+        if self.controller_store is None or request.learning_session_id is None:
+            return self._build_controller_state(
+                request=request,
+                raw_summary=raw_summary,
+                phase=self._phase_for(raw_summary=raw_summary, existing=None),
+                recovery_intent=self._recovery_intent_for(raw_summary=raw_summary, existing=None),
+                positive_streak=1 if raw_summary.signal == "positive" else 0,
+                negative_streak=1 if raw_summary.signal == "negative" else 0,
+                mixed_streak=1 if raw_summary.signal == "mixed" else 0,
+                generation_count=0,
+            )
+        existing = self.controller_store.get(request.learning_session_id)
+        positive_streak = self._updated_streak(existing.positive_streak if existing is not None else 0, raw_summary.signal == "positive")
+        negative_streak = self._updated_streak(existing.negative_streak if existing is not None else 0, raw_summary.signal == "negative")
+        mixed_streak = self._updated_streak(existing.mixed_streak if existing is not None else 0, raw_summary.signal == "mixed")
+        phase = self._phase_for(raw_summary=raw_summary, existing=existing)
+        recovery_intent = self._recovery_intent_for(raw_summary=raw_summary, existing=existing)
+        signal, support_bias, sequence_action = self._controller_signal(raw_summary=raw_summary, existing=existing, phase=phase, positive_streak=positive_streak, negative_streak=negative_streak)
+        confidence = self._controller_confidence(raw_summary=raw_summary, phase=phase, positive_streak=positive_streak, negative_streak=negative_streak)
+        observation_count = raw_summary.matched_observation_count
+        assessment_count = raw_summary.matched_assessment_count
+        generation_count = existing.generation_count if existing is not None else 0
+        updated = WithinSessionControllerState(
+            learning_session_id=request.learning_session_id,
+            student_id=request.student_id,
+            target_kc_ids=request.target_kc_ids,
+            target_lo_ids=request.target_lo_ids,
+            signal=signal,
+            confidence=confidence,
+            support_bias=support_bias,
+            sequence_action=sequence_action,
+            primary_kc_id=raw_summary.primary_kc_id or (existing.primary_kc_id if existing is not None else None),
+            phase=phase,
+            recovery_intent=recovery_intent,
+            observation_count=observation_count,
+            assessment_count=assessment_count,
+            generation_count=generation_count,
+            positive_streak=positive_streak,
+            negative_streak=negative_streak,
+            mixed_streak=mixed_streak,
+            last_generated_content_type=existing.last_generated_content_type if existing is not None else None,
+            last_generation_id=existing.last_generation_id if existing is not None else None,
+            rationale=self._controller_rationale(
+                learning_session_id=request.learning_session_id,
+                phase=phase,
+                recovery_intent=recovery_intent,
+                raw_summary=raw_summary,
+                positive_streak=positive_streak,
+                negative_streak=negative_streak,
+                event_type=event_type,
+            ),
+            created_at=existing.created_at if existing is not None else datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+        self.controller_store.upsert(updated)
+        return updated
+
+    def _build_controller_state(
+        self,
+        *,
+        request: GenerationRequest,
+        raw_summary: WithinSessionAdaptationSummary,
+        phase: str,
+        recovery_intent: str,
+        positive_streak: int,
+        negative_streak: int,
+        mixed_streak: int,
+        generation_count: int,
+    ) -> WithinSessionControllerState:
+        signal, support_bias, sequence_action = self._controller_signal(
+            raw_summary=raw_summary,
+            existing=None,
+            phase=phase,
+            positive_streak=positive_streak,
+            negative_streak=negative_streak,
+        )
+        return WithinSessionControllerState(
+            learning_session_id=request.learning_session_id or "",
+            student_id=request.student_id,
+            target_kc_ids=request.target_kc_ids,
+            target_lo_ids=request.target_lo_ids,
+            signal=signal,
+            confidence=self._controller_confidence(
+                raw_summary=raw_summary,
+                phase=phase,
+                positive_streak=positive_streak,
+                negative_streak=negative_streak,
+            ),
+            support_bias=support_bias,
+            sequence_action=sequence_action,
+            primary_kc_id=raw_summary.primary_kc_id,
+            phase=phase,
+            recovery_intent=recovery_intent,
+            observation_count=raw_summary.matched_observation_count,
+            assessment_count=raw_summary.matched_assessment_count,
+            generation_count=generation_count,
+            positive_streak=positive_streak,
+            negative_streak=negative_streak,
+            mixed_streak=mixed_streak,
+            rationale=raw_summary.rationale,
+        )
+
+    def _updated_streak(self, current: int, is_same_signal: bool) -> int:
+        return current + 1 if is_same_signal else 0
+
+    def _phase_for(
+        self,
+        *,
+        raw_summary: WithinSessionAdaptationSummary,
+        existing: WithinSessionControllerState | None,
+    ) -> str:
+        if raw_summary.signal == "negative":
+            if existing is not None and existing.negative_streak >= 1:
+                return "repair"
+            return "stabilize"
+        if raw_summary.signal == "positive":
+            if existing is not None and existing.phase in {"stabilize", "repair", "consolidate"}:
+                if existing.positive_streak >= 1:
+                    return "transfer_check"
+                return "consolidate"
+            return "transfer_check"
+        if existing is not None and existing.phase in {"stabilize", "repair"}:
+            return existing.phase
+        if existing is not None and existing.phase == "transfer_check":
+            return "consolidate"
+        return "monitor"
+
+    def _recovery_intent_for(
+        self,
+        *,
+        raw_summary: WithinSessionAdaptationSummary,
+        existing: WithinSessionControllerState | None,
+    ) -> str:
+        if raw_summary.signal == "negative":
+            return "increase_support"
+        if raw_summary.signal == "positive":
+            if existing is not None and existing.phase in {"stabilize", "repair", "consolidate"}:
+                return "confirm_recovery"
+            return "check_transfer"
+        if existing is not None and existing.phase in {"stabilize", "repair"}:
+            return "hold_repair"
+        return "monitor"
+
+    def _controller_signal(
+        self,
+        *,
+        raw_summary: WithinSessionAdaptationSummary,
+        existing: WithinSessionControllerState | None,
+        phase: str,
+        positive_streak: int,
+        negative_streak: int,
+    ) -> tuple[str, int, str]:
+        if phase in {"stabilize", "repair"}:
+            return "negative", -1, "hold_target"
+        if phase == "consolidate":
+            return "recovering", 0, "hold_target"
+        if phase == "transfer_check":
+            if existing is not None and existing.phase in {"stabilize", "repair", "consolidate"} and positive_streak < 2:
+                return "recovering", 0, "hold_target"
+            return "positive", 1, "attempt_transfer"
+        if raw_summary.signal == "mixed" and negative_streak > 0:
+            return "mixed", -1, "hold_target"
+        return raw_summary.signal, raw_summary.support_bias, raw_summary.sequence_action
+
+    def _controller_confidence(
+        self,
+        *,
+        raw_summary: WithinSessionAdaptationSummary,
+        phase: str,
+        positive_streak: int,
+        negative_streak: int,
+    ) -> float:
+        streak_bonus = min(0.14, ((positive_streak + negative_streak) * 0.04))
+        phase_bonus = 0.04 if phase in {"repair", "consolidate", "transfer_check"} else 0.0
+        return round(min(0.95, raw_summary.confidence + streak_bonus + phase_bonus), 2)
+
+    def _controller_rationale(
+        self,
+        *,
+        learning_session_id: str,
+        phase: str,
+        recovery_intent: str,
+        raw_summary: WithinSessionAdaptationSummary,
+        positive_streak: int,
+        negative_streak: int,
+        event_type: str,
+    ) -> str:
+        if phase == "repair":
+            return (
+                f"Within-session controller for {learning_session_id} has seen {negative_streak} consecutive struggle signals, "
+                f"so it is staying in repair mode after {event_type}."
+            )
+        if phase == "stabilize":
+            return (
+                f"Within-session controller for {learning_session_id} is stabilizing support after fresh same-session struggle."
+            )
+        if phase == "consolidate":
+            return (
+                f"Within-session controller for {learning_session_id} has seen recovery evidence after earlier struggle, "
+                "so it is holding the target while confidence consolidates."
+            )
+        if phase == "transfer_check":
+            return (
+                f"Within-session controller for {learning_session_id} has seen {positive_streak} consecutive strong signals, "
+                "so the next generated step can test transfer."
+            )
+        return raw_summary.rationale or (
+            f"Within-session controller for {learning_session_id} is monitoring the active recovery intent {recovery_intent}."
+        )

@@ -6,6 +6,7 @@ from dibble.services.generation_mode_calibration import GenerationModeCalibrator
 from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
 from dibble.services.router_calibration_signals import RouterCalibrationSignalService
 from dibble.services.within_session_adaptation import WithinSessionAdaptationService
+from dibble.services.within_session_controller_store import SQLiteWithinSessionControllerStore
 from dibble.storage import ensure_database
 
 
@@ -344,3 +345,56 @@ def test_generation_mode_calibrator_uses_same_session_assessment_to_attempt_tran
     assert calibrated_request.mode_calibration.support_bias == 1
     assert calibrated_request.mode_calibration.session_signal == "positive"
     assert calibrated_request.mode_calibration.sequence_action == "attempt_transfer"
+
+
+def test_generation_mode_calibrator_uses_persisted_session_controller_metadata(tmp_path):
+    database_path = str(tmp_path / "generation-mode-session-controller.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    controller_store = SQLiteWithinSessionControllerStore(database_path)
+    student_id = uuid4()
+    service = WithinSessionAdaptationService(
+        audit_store=audit_store,
+        controller_store=controller_store,
+    )
+    observation_payload = {
+        "learning_session_id": "session-controller",
+        "target_kc_ids": ["KC-3"],
+        "error_count": 3,
+        "hints_used": 2,
+        "support_level": "low",
+        "frustration": "high",
+        "total_load": 0.84,
+        "confidence_calibration": 0.24,
+        "help_seeking": "high",
+    }
+    audit_store.append(
+        event_type="learner.observe",
+        status="success",
+        student_id=str(student_id),
+        payload=observation_payload,
+    )
+    service.record_observation_event(student_id=student_id, event_payload=observation_payload)
+
+    request = GenerationRequest.model_validate(
+        {
+            "student_id": student_id,
+            "learning_session_id": "session-controller",
+            "target_kc_ids": ["KC-3"],
+            "intent": "practice",
+            "requested_content_type": "practice_problem",
+        }
+    )
+    calibrator = GenerationModeCalibrator(
+        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
+        within_session_adaptation_service=service,
+    )
+
+    calibrated_request = calibrator.calibrate_request(request=request)
+
+    assert calibrated_request.mode_calibration is not None
+    assert calibrated_request.mode_calibration.source == "session_controller"
+    assert calibrated_request.mode_calibration.sequence_source == "session_controller"
+    assert calibrated_request.mode_calibration.session_phase == "stabilize"
+    assert calibrated_request.mode_calibration.session_negative_streak == 1

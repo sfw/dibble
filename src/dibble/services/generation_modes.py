@@ -61,6 +61,11 @@ def build_generation_mode_plan(
                 "primary_kc_id": mode_calibration.session_primary_kc_id,
                 "observation_count": mode_calibration.session_observation_count,
                 "assessment_count": mode_calibration.session_assessment_count,
+                "phase": mode_calibration.session_phase,
+                "recovery_intent": mode_calibration.session_recovery_intent,
+                "generated_step_count": mode_calibration.session_generated_step_count,
+                "positive_streak": mode_calibration.session_positive_streak,
+                "negative_streak": mode_calibration.session_negative_streak,
                 "rationale": mode_calibration.session_rationale,
             }
     if request.predictive_warm:
