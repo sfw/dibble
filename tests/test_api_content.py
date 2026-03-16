@@ -389,6 +389,8 @@ def test_remedial_trigger_returns_remedial_generated_content(client, student_id,
     assert "prerequisite knowledge components" in payload["request_context"]["remediation_rationale"]
     assert payload["request_context"]["remediation_blueprint"]["trigger"] == "misconception_detected"
     assert payload["request_context"]["remediation_blueprint"]["primary_misconception_id"] == "fraction-whole-number-bias"
+    assert payload["request_context"]["sequencing"]["action"] == "rebuild_prerequisite_first"
+    assert payload["request_context"]["sequencing"]["primary_kc_id"] == "KC-1"
     assert [step["phase"] for step in payload["request_context"]["remediation_blueprint"]["steps"]] == [
         "step_back",
         "repair",

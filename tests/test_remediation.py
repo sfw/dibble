@@ -1,7 +1,7 @@
 from uuid import uuid4
 
 from dibble.models.curriculum import KnowledgeComponentUpsert
-from dibble.models.profile import LearnerProfile
+from dibble.models.profile import LearnerProfile, LearnerStrategySummary
 from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
 from dibble.services.misconception_detector import MisconceptionDetector
 from dibble.services.misconception_profiles import LearningMisconceptionProfileResolver
@@ -158,7 +158,49 @@ def test_remediation_planner_builds_structured_blueprint_for_known_misconception
     assert plan.module_blueprint["trigger"] == "misconception_detected"
     assert plan.module_blueprint["primary_misconception_id"] == "fraction-part-role-swap"
     assert plan.module_blueprint["repair_target_kc_ids"] == ["KC-1"]
+    assert plan.module_blueprint["sequence_action"] == "rebuild_prerequisite_first"
     assert [step["phase"] for step in plan.module_blueprint["steps"]] == ["step_back", "repair", "return"]
+
+
+def test_remediation_planner_can_hold_target_before_prerequisite_step_back(tmp_path):
+    database_path = str(tmp_path / "remediation-hold-target.db")
+    ensure_database(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(database_path)
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component("KC-1", name="Identify numerator and denominator")
+        )
+    )
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component(
+                "KC-2",
+                prerequisite_kc_ids=["KC-1"],
+                name="Generate equivalent fractions",
+            )
+        )
+    )
+    profile = LearnerProfile.model_validate(build_profile(uuid4(), kc_mastery={"KC-1": 0.35, "KC-2": 0.54}))
+    planner = RemediationPlanner(kc_store, MisconceptionDetector(kc_store))
+
+    plan = planner.plan(
+        profile,
+        "KC-2",
+        misconception_description="The learner still needs guided repair on equivalent fractions.",
+        curriculum_context=["Equivalent fractions"],
+        strategy_summary=LearnerStrategySummary(
+            signal="stabilizing",
+            source="strategy_profile",
+            recovery_focus="guided_practice",
+            trajectory_state="plateaued",
+            recommended_next_action="introduce_varied_support",
+        ),
+    )
+
+    assert plan.kc_sequence.action == "hold_target"
+    assert plan.focus_kc_ids == ["KC-2"]
+    assert plan.module_blueprint["sequence_action"] == "hold_target"
+    assert [step["phase"] for step in plan.module_blueprint["steps"]] == ["return"]
 
 
 def test_misconception_detector_uses_profile_signals_to_reinforce_prior_patterns(tmp_path):

@@ -18,6 +18,7 @@ The backend now covers a meaningful slice of the revised Phase 1 and early Phase
 - The backend now compacts recent run summaries plus progress snapshots into durable `learning.strategy.profile` events that expose honest heuristic long-horizon recovery, plateau, relapse, and volatility signals for similar future requests.
 - The misconception pipeline now compacts repeated remediation signals into richer `learning.misconception.profile` events with recurrence counts, session counts, and recurrence labels such as `recurring` and `relapsing`, and remediation planning can now react to those durable recurrence signals instead of treating every misconception hit as isolated.
 - Overlapping misconception matches on the same KC are now disambiguated into a single primary misconception signal per KC, with recurrence-aware profile evidence merged into the same signal before remediation focus and blueprint selection.
+- Learner-strategy signals now also resolve into explicit per-KC sequencing actions such as `rebuild_prerequisite_first`, `hold_repair_target`, `hold_target`, and `attempt_transfer`, and those sequencing decisions now drive remediation workflow ordering plus predictive follow-up targeting.
 
 The biggest remaining gaps are no longer basic plumbing. They are adaptive intelligence depth:
 
@@ -56,7 +57,7 @@ Legend:
 | `ADAPT-002` Within-session adaptation | Partial | Streaming generation exists, but there is no continuous state-updating adaptive loop |
 | `ADAPT-003` Misconception detection/classification | Partial | Misconception detection now combines rule-based mastery gaps with optional KC-level misconception catalogs, confidence scoring, remediation hints, recommended repair targets, durable repeated-misconception profile signals from prior remediation runs, recurrence-aware profile/catalog signal merging, and per-KC primary misconception disambiguation before remediation selection, but it is still a lightweight heuristic taxonomy rather than a learned classifier |
 | `ADAPT-004` Automatic step-back intervention | Implemented | Router and generation path support step-back content generation |
-| `ADAPT-005` Conversational/Socratic assessment | Partial | A persisted Socratic assessment flow now scores the current learner response with modular evidence dimensions, stores multi-turn session state, chooses follow-up prompt style with an outcome-aware turn policy, feeds outcomes back into learner-profile mastery and metacognitive state, and can now contribute same-session plus later-session evidence to explicit generation run summaries and calibration signals that now influence router support, learner-state persistence, prompt calibration, generation-mode selection, durable learner progress summaries, and a durable learner-strategy layer used by live remediation and support-fading decisions, but it still lacks richer discourse modeling and broader learned outcome calibration across full learning traces |
+| `ADAPT-005` Conversational/Socratic assessment | Partial | A persisted Socratic assessment flow now scores the current learner response with modular evidence dimensions, stores multi-turn session state, chooses follow-up prompt style with an outcome-aware turn policy, feeds outcomes back into learner-profile mastery and metacognitive state, and can now contribute same-session plus later-session evidence to explicit generation run summaries and calibration signals that now influence router support, learner-state persistence, prompt calibration, generation-mode selection, durable learner progress summaries, an explicit KC-sequencing layer, and a durable learner-strategy layer used by live remediation and support-fading decisions, but it still lacks richer discourse modeling and broader learned outcome calibration across full learning traces |
 | `API-001` `POST /api/content/generate` | Implemented | Current unified generation endpoint returns persisted generated-content metadata |
 | `API-002` `POST /api/remedial/trigger` | Implemented | Starts a persisted remediation workflow session, returns richer misconception and workflow metadata, and is now paired with remediation-session retrieval and advancement endpoints for longer-running orchestration |
 | `API-003` `GET /api/learners/{id}/profile` | Implemented | Current unified learner-profile endpoint returns the extended dimensions |
@@ -71,16 +72,16 @@ Legend:
 Based on `planning/4 - revised-spec/implementation-roadmap.md` and `planning/5 - dev-handoff-revised-spec/requirements-traceability.csv`, the strongest next backend slices are:
 
 1. `PROF-004`: expand the KC graph from the current persistence plus conservative mastery-migration layer into broader taxonomy coverage and richer migration support.
-2. `ADAPT-005` + `LLM-002`: deepen the new learner-strategy layer beyond the current heuristic recovery, plateau, relapse, and volatility profiles so the Socratic-to-profile feedback loop can drive stronger per-KC sequencing across longer spans instead of mostly summarizing support direction.
+2. `ADAPT-002`: add a small within-session adaptation loop so new observations and Socratic evidence can update support during an active learning session instead of only across durable summaries.
 3. `PROF-001` + `PROF-002` + `PROF-003` + `PROF-005`: replace the new heuristic learner-state and lightweight trait inference path with stronger calibrated models trained from real outcome data.
-4. `ADAPT-002`: add a small within-session adaptation loop so new observations and Socratic evidence can update support during an active learning session instead of only across durable summaries.
+4. `ADAPT-005` + `LLM-002`: deepen the learner-strategy and KC-sequencing layer beyond the current heuristic recovery, plateau, relapse, volatility, and first-pass sequencing actions so the Socratic-to-profile feedback loop can steer longer adaptive arcs instead of mostly choosing the next KC.
 5. `INFRA-003`: evolve the new queue-backed predictive warming path into a broader autonomous scheduler and stronger learned next-step prediction beyond the current calibration-aware heuristic planner.
 
 ## Recommendation
 
 The most coherent next implementation step is now:
 
-- deepen the learner-strategy layer beyond the current recovery, plateau, relapse, volatility, and per-KC misconception-disambiguation heuristics
+- deepen the learner-strategy layer beyond the current recovery, plateau, relapse, volatility, per-KC misconception-disambiguation, and first-pass KC-sequencing heuristics
 - replace more of the remaining heuristic learner-state and misconception logic with better-calibrated models trained from real outcomes
 - keep building on the current predictive cache path rather than introducing a separate orchestration stack too early
 

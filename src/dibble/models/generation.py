@@ -83,6 +83,11 @@ class GenerationModeCalibration(BaseModel):
     strategy_relapse_risk: float = Field(default=0.0, ge=0.0, le=1.0)
     strategy_source: str = "insufficient"
     strategy_rationale: str | None = None
+    strategy_sequence_action: str = "monitor"
+    strategy_sequence_primary_kc_id: str | None = None
+    strategy_sequence_kc_ids: list[str] = Field(default_factory=list)
+    strategy_sequence_deferred_kc_ids: list[str] = Field(default_factory=list)
+    strategy_sequence_rationale: str | None = None
     rationale: str | None = None
 
 

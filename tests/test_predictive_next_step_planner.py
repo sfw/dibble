@@ -170,6 +170,40 @@ def test_predictive_next_step_planner_uses_varied_support_after_plateaued_practi
     ]
 
 
+def test_predictive_next_step_planner_uses_assessment_when_sequence_is_transfer_ready():
+    generated_content = _build_generated_content(
+        content_type="micro_explanation",
+        request_context={
+            "learning_session_id": "session-1",
+            "target_kc_ids": ["KC-2"],
+            "curriculum_context": ["Equivalent fractions"],
+            "selected_content_type": "micro_explanation",
+            "mode_calibration": {
+                "support_bias": 1,
+                "strategy_sequence_action": "attempt_transfer",
+            },
+        },
+        route_calibration=RouteCalibrationSummary(
+            signal="positive",
+            source="strategy_profile",
+            confidence=0.8,
+            average_run_outcome_score=0.82,
+            matched_run_count=4,
+            progress_signal="improving",
+            progress_delta=0.14,
+        ),
+    )
+
+    plan = PredictiveNextStepPlanner().plan(generated_content)
+
+    assert plan == [
+        (
+            RequestedContentType.assessment_probe,
+            "Per-KC sequencing suggests the learner can test transfer on the target KC next.",
+        )
+    ]
+
+
 def _build_generated_content(
     *,
     content_type: str,

@@ -3,6 +3,7 @@ from uuid import uuid4
 import pytest
 
 from dibble.models.profile import LearnerStrategySummary
+from dibble.models.remediation import KcSequenceSummary
 from dibble.services.remediation_planner import RemediationPlan
 from dibble.services.remediation_session_store import SQLiteRemediationSessionStore
 from dibble.services.remediation_workflows import (
@@ -50,6 +51,13 @@ def test_remediation_workflow_coordinator_persists_and_advances_steps(tmp_path):
                 },
             ],
         },
+        kc_sequence=KcSequenceSummary(
+            action="rebuild_prerequisite_first",
+            primary_kc_id="KC-1",
+            ordered_kc_ids=["KC-1", "KC-2"],
+            deferred_kc_ids=["KC-2"],
+            rationale="Rebuild the prerequisite before returning to the target.",
+        ),
     )
 
     session = coordinator.start_session(
@@ -90,6 +98,7 @@ def test_remediation_workflow_coordinator_persists_and_advances_steps(tmp_path):
     assert "Reconnect the prerequisite concept." in generation_request.curriculum_context
     assert any("Learner strategy: support_intensive" in item for item in generation_request.curriculum_context)
     assert any("Rebuild prerequisite understanding" in item for item in generation_request.curriculum_context)
+    assert any("KC sequencing: rebuild_prerequisite_first" in item for item in generation_request.curriculum_context)
 
     updated_session = coordinator.complete_current_step(
         session_id=session.session_id,

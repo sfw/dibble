@@ -52,6 +52,7 @@ class RemediationWorkflowCoordinator:
             rationale=plan.rationale,
             blueprint=plan.module_blueprint,
             strategy_summary=strategy_summary or LearnerStrategySummary(),
+            kc_sequence=plan.kc_sequence,
             steps=steps,
             current_step_index=0 if steps else None,
         )
@@ -89,6 +90,7 @@ class RemediationWorkflowCoordinator:
                 current_step.objective,
                 current_step.guidance,
                 *self._strategy_curriculum_context(session.strategy_summary),
+                *self._sequencing_curriculum_context(session.kc_sequence),
                 *session.curriculum_context,
                 *(curriculum_context or []),
             ],
@@ -193,4 +195,14 @@ class RemediationWorkflowCoordinator:
             context.append("Fade support sooner and end with an independent check on the target skill.")
         elif strategy_summary.recovery_focus == "guided_practice":
             context.append("Keep guidance present, but start fading support once the learner is stable.")
+        return context
+
+    def _sequencing_curriculum_context(self, kc_sequence) -> list[str]:
+        if kc_sequence.action == "monitor":
+            return []
+        context = [f"KC sequencing: {kc_sequence.action}."]
+        if kc_sequence.primary_kc_id is not None:
+            context.append(f"Stay centered on {kc_sequence.primary_kc_id} before moving on.")
+        if kc_sequence.rationale is not None:
+            context.append(kc_sequence.rationale)
         return context

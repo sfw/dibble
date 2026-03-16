@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from dibble.models.generation import GenerationModeCalibration, GenerationRequest
+from dibble.services.kc_sequence_planner import KcSequencePlanner
 from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
 from dibble.services.router_calibration_signals import RouterCalibrationSignalService
 
@@ -11,6 +12,7 @@ from dibble.services.router_calibration_signals import RouterCalibrationSignalSe
 class GenerationModeCalibrator:
     calibration_signal_service: RouterCalibrationSignalService
     strategy_signal_service: LearnerStrategySignalService
+    kc_sequence_planner: KcSequencePlanner = KcSequencePlanner()
     minimum_confidence_for_bias: float = 0.65
     minimum_positive_outcome_score: float = 0.78
     minimum_improving_outcome_score: float = 0.7
@@ -39,6 +41,10 @@ class GenerationModeCalibrator:
             if signal.average_run_outcome_score is not None
             else strategy.average_run_outcome_score
         )
+        sequence = self.kc_sequence_planner.plan(
+            strategy_summary=strategy,
+            target_kc_ids=request.target_kc_ids,
+        )
         matched_run_count = signal.matched_run_count if signal.source != "insufficient" else strategy.matched_run_count
         progress_signal = signal.progress_signal if signal.source != "insufficient" else strategy.progress_signal
         progress_delta = signal.progress_delta if signal.source != "insufficient" else strategy.progress_delta
@@ -60,6 +66,11 @@ class GenerationModeCalibrator:
             strategy_relapse_risk=strategy.relapse_risk,
             strategy_source=strategy.source,
             strategy_rationale=strategy.rationale,
+            strategy_sequence_action=sequence.action,
+            strategy_sequence_primary_kc_id=sequence.primary_kc_id,
+            strategy_sequence_kc_ids=sequence.ordered_kc_ids,
+            strategy_sequence_deferred_kc_ids=sequence.deferred_kc_ids,
+            strategy_sequence_rationale=sequence.rationale,
             rationale=rationale,
         )
 

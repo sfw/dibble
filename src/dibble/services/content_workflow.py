@@ -251,12 +251,6 @@ class ContentWorkflowService:
 
     def trigger_remedial_content(self, request: RemedialTriggerRequest) -> GeneratedContent:
         profile = self._load_profile(request.student_id)
-        plan = self.remediation_planner.plan(
-            profile,
-            request.target_kc_id,
-            misconception_description=request.misconception_description,
-            curriculum_context=request.curriculum_context,
-        )
         strategy_summary = self.strategy_signal_service.strategy_for(
             student_id=request.student_id,
             request=GenerationRequest(
@@ -264,6 +258,13 @@ class ContentWorkflowService:
                 target_kc_ids=[request.target_kc_id],
                 intent="remediation",
             ),
+        )
+        plan = self.remediation_planner.plan(
+            profile,
+            request.target_kc_id,
+            misconception_description=request.misconception_description,
+            curriculum_context=request.curriculum_context,
+            strategy_summary=strategy_summary,
         )
         session = self.remediation_workflow_coordinator.start_session(
             student_id=request.student_id,
@@ -311,6 +312,9 @@ class ContentWorkflowService:
                 "strategy_signal": strategy_summary.signal,
                 "strategy_support_bias": strategy_summary.support_bias,
                 "strategy_recovery_focus": strategy_summary.recovery_focus,
+                "sequence_action": plan.kc_sequence.action,
+                "sequence_primary_kc_id": plan.kc_sequence.primary_kc_id,
+                "sequence_ordered_kc_ids": plan.kc_sequence.ordered_kc_ids,
             },
         )
         self.misconception_profile_recorder.record_from_remediation_event(remediation_event=remediation_event)
@@ -407,6 +411,7 @@ class ContentWorkflowService:
             "remediation_blueprint": session.blueprint,
             "remediation_session_id": session.session_id,
             "learner_strategy": session.strategy_summary.model_dump(mode="json"),
+            "sequencing": session.kc_sequence.model_dump(mode="json"),
             "remediation_workflow": {
                 "status": "complete" if session.current_step_index is None else "in_progress",
                 "executed_phase": executed_step.phase,

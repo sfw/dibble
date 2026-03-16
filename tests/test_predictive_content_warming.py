@@ -108,6 +108,31 @@ def test_predictive_content_warmer_uses_strategy_trajectory_for_relapsing_practi
     assert plan.content_types == ["remedial_micro_module"]
 
 
+def test_predictive_content_warmer_targets_primary_sequence_kc_for_repair_follow_up():
+    generated_content = _build_generated_content(
+        content_type="remedial_micro_module",
+        request_context={
+            "learning_session_id": "session-1",
+            "target_kc_ids": ["KC-1", "KC-2"],
+            "target_lo_ids": ["LO-1"],
+            "curriculum_context": ["Equivalent fractions"],
+            "selected_content_type": "remedial_micro_module",
+            "mode_calibration": {"support_bias": 0, "strategy_sequence_action": "hold_repair_target"},
+            "sequencing": {
+                "action": "hold_repair_target",
+                "primary_kc_id": "KC-1",
+                "ordered_kc_ids": ["KC-1", "KC-2"],
+                "deferred_kc_ids": ["KC-2"],
+            },
+        },
+    )
+
+    plan = PredictiveContentWarmer(content_warmer=None).plan_follow_ups(generated_content)
+
+    assert plan.content_types == ["practice_problem"]
+    assert plan.requests[0].target_kc_ids == ["KC-1"]
+
+
 def _build_generated_content(*, content_type: str, request_context: dict[str, object]) -> GeneratedContent:
     student_id = uuid4()
     route = AdaptiveRouteDecision(

@@ -42,6 +42,14 @@ def build_generation_mode_plan(
         request_context["selection_rationale"] = selection_rationale
     if mode_calibration is not None:
         request_context["mode_calibration"] = mode_calibration.model_dump(mode="json")
+        if mode_calibration.strategy_sequence_action != "monitor":
+            request_context["sequencing"] = {
+                "action": mode_calibration.strategy_sequence_action,
+                "primary_kc_id": mode_calibration.strategy_sequence_primary_kc_id,
+                "ordered_kc_ids": mode_calibration.strategy_sequence_kc_ids,
+                "deferred_kc_ids": mode_calibration.strategy_sequence_deferred_kc_ids,
+                "rationale": mode_calibration.strategy_sequence_rationale,
+            }
     if request.predictive_warm:
         request_context["is_predictive_warm"] = True
         if request.warm_reason is not None:

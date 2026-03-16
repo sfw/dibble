@@ -197,3 +197,54 @@ def test_generation_mode_calibrator_can_use_strategy_profile_without_run_calibra
     assert calibrated_request.mode_calibration.strategy_signal == "support_intensive"
     assert calibrated_request.mode_calibration.strategy_trajectory_state == "relapsing"
     assert calibrated_request.mode_calibration.strategy_recommended_next_action == "rebuild_prerequisite"
+    assert calibrated_request.mode_calibration.strategy_sequence_action == "hold_target"
+    assert calibrated_request.mode_calibration.strategy_sequence_kc_ids == ["KC-1"]
+
+
+def test_generation_mode_calibrator_exposes_transfer_sequence_for_independence_ready_strategy(tmp_path):
+    database_path = str(tmp_path / "generation-mode-strategy-sequencing.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = str(uuid4())
+    audit_store.append(
+        event_type="learning.strategy.profile",
+        status="success",
+        student_id=student_id,
+        payload={
+            "intent": "explanation",
+            "content_type": "micro_explanation",
+            "target_kc_ids": ["KC-2"],
+            "average_run_outcome_score": 0.82,
+            "average_run_confidence": 0.77,
+            "matched_run_count": 4,
+            "matched_session_count": 3,
+            "progress_signal": "improving",
+            "progress_delta": 0.14,
+            "strategy_signal": "independence_ready",
+            "strategy_support_bias": 1,
+            "strategy_recovery_focus": "independent_practice",
+            "strategy_trajectory_state": "accelerating",
+            "strategy_recommended_next_action": "check_transfer_readiness",
+            "strategy_volatility_index": 0.0,
+            "strategy_relapse_risk": 0.05,
+        },
+    )
+
+    request = GenerationRequest.model_validate(
+        {
+            "student_id": student_id,
+            "target_kc_ids": ["KC-2"],
+            "intent": "explanation",
+            "requested_content_type": "micro_explanation",
+        }
+    )
+    calibrator = GenerationModeCalibrator(
+        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
+    )
+
+    calibrated_request = calibrator.calibrate_request(request=request)
+
+    assert calibrated_request.mode_calibration is not None
+    assert calibrated_request.mode_calibration.strategy_sequence_action == "attempt_transfer"
+    assert calibrated_request.mode_calibration.strategy_sequence_primary_kc_id == "KC-2"

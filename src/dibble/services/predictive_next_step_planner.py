@@ -32,6 +32,11 @@ class PredictiveNextStepPlanner:
             if isinstance(mode_calibration, dict)
             else 0.0
         )
+        sequence_action = (
+            str(mode_calibration.get("strategy_sequence_action", "monitor"))
+            if isinstance(mode_calibration, dict)
+            else "monitor"
+        )
         route_signal = route_calibration.signal if route_calibration is not None else "insufficient"
         progress_signal = route_calibration.progress_signal if route_calibration is not None else "insufficient"
 
@@ -66,6 +71,13 @@ class PredictiveNextStepPlanner:
                     (
                         RequestedContentType.worked_example,
                         "Recent calibration suggests adding modeled support before moving into independent practice.",
+                    )
+                ]
+            if sequence_action == "attempt_transfer":
+                return [
+                    (
+                        RequestedContentType.assessment_probe,
+                        "Per-KC sequencing suggests the learner can test transfer on the target KC next.",
                     )
                 ]
             return [
@@ -153,6 +165,13 @@ class PredictiveNextStepPlanner:
             ]
 
         if content_type == RequestedContentType.remedial_micro_module.value:
+            if sequence_action in {"hold_target", "hold_repair_target"}:
+                return [
+                    (
+                        RequestedContentType.practice_problem,
+                        "Per-KC sequencing suggests staying on the repair target before moving back into transfer.",
+                    )
+                ]
             if self._should_vary_support(
                 strategy_trajectory_state=strategy_trajectory_state,
                 strategy_next_action=strategy_next_action,
