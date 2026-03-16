@@ -4,6 +4,7 @@ from uuid import uuid4
 
 from dibble.models.profile import LearnerProfile
 from dibble.services.audit_store import SQLiteAuditStore
+from dibble.services.learning_state_profiles import LearnerStateSignalService
 from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
 from dibble.services.learner_summary_service import LearnerSummaryService
 from dibble.services.profile_store import SQLiteProfileStore
@@ -102,11 +103,34 @@ def test_learner_summary_service_prefers_calibration_profile_and_recent_activity
             "strategy_rationale": "Support can fade because the learner has stayed strong across sessions.",
         },
     )
+    audit_store.append(
+        event_type="learning.state.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "average_run_outcome_score": 0.8,
+            "average_run_confidence": 0.76,
+            "matched_run_count": 5,
+            "matched_session_count": 3,
+            "progress_signal": "improving",
+            "progress_delta": 0.13,
+            "strategy_signal": "independence_ready",
+            "strategy_trajectory_state": "accelerating",
+            "state_profile_signal": "independence_ready",
+            "engagement": "high",
+            "frustration": "low",
+            "total_load": 0.43,
+            "confidence_calibration": 0.79,
+            "help_seeking": "low",
+            "self_monitoring": 0.81,
+        },
+    )
 
     summary = LearnerSummaryService(
         profile_store=profile_store,
         audit_store=audit_store,
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
+        state_signal_service=LearnerStateSignalService(audit_store=audit_store),
     ).build_for_student(student_id=student_id)
 
     assert summary is not None
@@ -123,6 +147,9 @@ def test_learner_summary_service_prefers_calibration_profile_and_recent_activity
     assert summary.strategy.support_bias == 1
     assert summary.strategy.trajectory_state == "accelerating"
     assert summary.strategy.recommended_next_action == "check_transfer_readiness"
+    assert summary.state_profile.source == "state_profile"
+    assert summary.state_profile.signal == "independence_ready"
+    assert summary.state_profile.total_load == 0.43
     assert summary.recent_activity.generation_count == 1
     assert summary.recent_activity.observation_count == 1
     assert summary.recent_activity.socratic_assessment_count == 1
@@ -159,6 +186,7 @@ def test_learner_summary_service_falls_back_to_run_summary_when_profile_missing(
         profile_store=profile_store,
         audit_store=audit_store,
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
+        state_signal_service=LearnerStateSignalService(audit_store=audit_store),
     ).build_for_student(student_id=student_id)
 
     assert summary is not None
@@ -167,4 +195,5 @@ def test_learner_summary_service_falls_back_to_run_summary_when_profile_missing(
     assert summary.calibration.average_run_outcome_score == 0.43
     assert summary.progress.source == "insufficient"
     assert summary.strategy.source == "insufficient"
+    assert summary.state_profile.source == "insufficient"
     assert summary.recent_activity.last_generation_id == "fallback-gen"

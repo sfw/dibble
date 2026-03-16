@@ -73,6 +73,7 @@ def build_assessment_router(context: ApiContext) -> APIRouter:
         services.learning_calibration_profile_recorder.record_from_summary_events(summary_events=summary_events)
         services.learning_progress_profile_recorder.record_from_summary_events(summary_events=summary_events)
         services.learning_strategy_profile_recorder.record_from_summary_events(summary_events=summary_events)
+        services.learning_state_profile_recorder.record_from_summary_events(summary_events=summary_events)
         return result
 
     @router.get(

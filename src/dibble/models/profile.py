@@ -193,6 +193,27 @@ class LearnerStrategySummary(BaseModel):
     updated_at: datetime | None = None
 
 
+class LearnerStateProfileSummary(BaseModel):
+    signal: str = "insufficient"
+    source: str = "insufficient"
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    average_run_outcome_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    matched_run_count: int = Field(default=0, ge=0)
+    matched_session_count: int = Field(default=0, ge=0)
+    progress_signal: str = "insufficient"
+    progress_delta: float = 0.0
+    strategy_signal: str = "insufficient"
+    strategy_trajectory_state: str = "insufficient"
+    engagement: SignalLevel = SignalLevel.medium
+    frustration: SignalLevel = SignalLevel.none
+    total_load: float = Field(default=0.4, ge=0.0, le=1.0)
+    confidence_calibration: float = Field(default=0.5, ge=0.0, le=1.0)
+    help_seeking: SignalLevel = SignalLevel.low
+    self_monitoring: float = Field(default=0.5, ge=0.0, le=1.0)
+    rationale: str | None = None
+    updated_at: datetime | None = None
+
+
 class RecentLearnerActivity(BaseModel):
     generation_count: int = Field(default=0, ge=0)
     observation_count: int = Field(default=0, ge=0)
@@ -216,6 +237,7 @@ class ProfileSummary(BaseModel):
     calibration: LearnerCalibrationSummary = Field(default_factory=LearnerCalibrationSummary)
     progress: LearnerProgressSummary = Field(default_factory=LearnerProgressSummary)
     strategy: LearnerStrategySummary = Field(default_factory=LearnerStrategySummary)
+    state_profile: LearnerStateProfileSummary = Field(default_factory=LearnerStateProfileSummary)
     recent_activity: RecentLearnerActivity = Field(default_factory=RecentLearnerActivity)
     updated_at: datetime
 
@@ -227,6 +249,7 @@ class ProfileSummary(BaseModel):
         calibration: LearnerCalibrationSummary | None = None,
         progress: LearnerProgressSummary | None = None,
         strategy: LearnerStrategySummary | None = None,
+        state_profile: LearnerStateProfileSummary | None = None,
         recent_activity: RecentLearnerActivity | None = None,
     ) -> "ProfileSummary":
         return cls(
@@ -243,6 +266,7 @@ class ProfileSummary(BaseModel):
             calibration=calibration or LearnerCalibrationSummary(),
             progress=progress or LearnerProgressSummary(),
             strategy=strategy or LearnerStrategySummary(),
+            state_profile=state_profile or LearnerStateProfileSummary(),
             recent_activity=recent_activity or RecentLearnerActivity(),
             updated_at=profile.updated_at,
         )

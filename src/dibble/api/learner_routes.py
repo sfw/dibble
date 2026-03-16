@@ -89,9 +89,14 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 "help_seeking": inferred_state.metacognitive_state.help_seeking.value,
                 "updated_cognitive_traits": sorted(inferred_cognitive_traits.keys()),
                 "state_calibration_signal": calibration.signal,
+                "state_calibration_source": calibration.source,
                 "state_calibration_confidence": calibration.confidence,
                 "state_calibration_run_count": calibration.matched_run_count,
+                "state_calibration_session_count": calibration.matched_session_count,
                 "state_calibration_outcome_score": calibration.average_run_outcome_score,
+                "state_calibration_progress_signal": calibration.progress_signal,
+                "state_calibration_strategy_signal": calibration.strategy_signal,
+                "state_calibration_rationale": calibration.rationale,
                 "state_calibration_applied": calibration.applied,
             },
         )
@@ -102,6 +107,7 @@ def build_learner_router(context: ApiContext) -> APIRouter:
         services.learning_calibration_profile_recorder.record_from_summary_events(summary_events=summary_events)
         services.learning_progress_profile_recorder.record_from_summary_events(summary_events=summary_events)
         services.learning_strategy_profile_recorder.record_from_summary_events(summary_events=summary_events)
+        services.learning_state_profile_recorder.record_from_summary_events(summary_events=summary_events)
         return inferred_state
 
     @router.get("/learners/{student_id}/state", response_model=InferredLearnerState, dependencies=context.deps("viewer"))

@@ -10,6 +10,7 @@ from dibble.models.profile import (
     SignalLevel,
 )
 from dibble.services.audit_store import SQLiteAuditStore
+from dibble.services.learning_state_profiles import LearnerStateSignalService
 from dibble.services.learner_state_calibration import LearnerStateCalibrator
 from dibble.services.router_calibration_signals import RouterCalibrationSignalService
 from dibble.storage import ensure_database
@@ -198,3 +199,85 @@ def test_learner_state_calibrator_leaves_state_unchanged_without_durable_signal(
     assert result.applied is False
     assert result.signal == "insufficient"
     assert result.state == inferred_state
+
+
+def test_learner_state_calibrator_blends_durable_state_profile_when_available(tmp_path):
+    database_path = str(tmp_path / "learner-state-profile-calibration.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = uuid4()
+    audit_store.append(
+        event_type="learning.state.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "intent": "practice",
+            "content_type": "practice_problem",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": [],
+            "average_run_outcome_score": 0.85,
+            "average_run_confidence": 0.8,
+            "matched_run_count": 4,
+            "matched_session_count": 3,
+            "progress_signal": "improving",
+            "progress_delta": 0.14,
+            "strategy_signal": "independence_ready",
+            "strategy_trajectory_state": "accelerating",
+            "state_profile_signal": "independence_ready",
+            "engagement": "high",
+            "frustration": "none",
+            "total_load": 0.42,
+            "confidence_calibration": 0.78,
+            "help_seeking": "low",
+            "self_monitoring": 0.8,
+            "state_profile_rationale": "Recent outcomes stay strong across sessions.",
+        },
+    )
+
+    calibrator = LearnerStateCalibrator(
+        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        state_signal_service=LearnerStateSignalService(audit_store=audit_store),
+    )
+    inferred_state = InferredLearnerState(
+        student_id=student_id,
+        affective_state=AffectiveState(
+            engagement=SignalLevel.medium,
+            frustration=SignalLevel.medium,
+            confidence=0.48,
+        ),
+        cognitive_load=CognitiveLoadState(
+            intrinsic_load=0.42,
+            extraneous_load=0.34,
+            germane_load=0.38,
+            total_load=0.66,
+            capacity_utilization=0.7,
+        ),
+        metacognitive_state=MetacognitiveState(
+            confidence_calibration=0.46,
+            help_seeking=SignalLevel.medium,
+            help_seeking_effectiveness=0.44,
+            self_monitoring=0.48,
+        ),
+        observation_count=3,
+    )
+
+    result = calibrator.calibrate(
+        student_id=student_id,
+        observation=LearnerObservationCreate(
+            response_time_ms=9000,
+            task_type="practice",
+            support_level="medium",
+            target_kc_ids=["KC-1"],
+        ),
+        inferred_state=inferred_state,
+    )
+
+    assert result.applied is True
+    assert result.signal == "independence_ready"
+    assert result.source == "state_profile"
+    assert result.matched_session_count == 3
+    assert result.state.affective_state.engagement == SignalLevel.high
+    assert result.state.affective_state.frustration == SignalLevel.low
+    assert result.state.cognitive_load.total_load < 0.66
+    assert result.state.metacognitive_state.confidence_calibration > 0.46
+    assert result.state.metacognitive_state.self_monitoring > 0.48

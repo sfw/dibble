@@ -30,6 +30,7 @@ def test_profile_round_trip_and_summary(client, student_id):
     assert summary_response.json()["calibration"]["source"] == "insufficient"
     assert summary_response.json()["progress"]["source"] == "insufficient"
     assert summary_response.json()["strategy"]["source"] == "insufficient"
+    assert summary_response.json()["state_profile"]["source"] == "insufficient"
     assert summary_response.json()["recent_activity"]["generation_count"] == 0
     assert profile_response.json()["profile_metadata"]["student_id"] == str(student_id)
     assert str(student_id) in list_response.json()
@@ -105,6 +106,28 @@ def test_profile_summary_exposes_recent_calibration_and_activity(client, student
             "strategy_relapse_risk": 0.05,
         },
     )
+    audit_store.append(
+        event_type="learning.state.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "average_run_outcome_score": 0.78,
+            "average_run_confidence": 0.73,
+            "matched_run_count": 4,
+            "matched_session_count": 2,
+            "progress_signal": "improving",
+            "progress_delta": 0.13,
+            "strategy_signal": "independence_ready",
+            "strategy_trajectory_state": "accelerating",
+            "state_profile_signal": "independence_ready",
+            "engagement": "high",
+            "frustration": "low",
+            "total_load": 0.44,
+            "confidence_calibration": 0.77,
+            "help_seeking": "low",
+            "self_monitoring": 0.8,
+        },
+    )
 
     response = client.get(f"/api/learners/{student_id}/summary")
 
@@ -123,6 +146,9 @@ def test_profile_summary_exposes_recent_calibration_and_activity(client, student
     assert payload["strategy"]["support_bias"] == 1
     assert payload["strategy"]["trajectory_state"] == "accelerating"
     assert payload["strategy"]["recommended_next_action"] == "check_transfer_readiness"
+    assert payload["state_profile"]["source"] == "state_profile"
+    assert payload["state_profile"]["signal"] == "independence_ready"
+    assert payload["state_profile"]["total_load"] == 0.44
     assert payload["recent_activity"]["generation_count"] == 1
     assert payload["recent_activity"]["last_generation_id"] == "summary-gen-1"
     assert payload["recent_activity"]["last_learning_session_id"] == "summary-session-1"

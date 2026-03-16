@@ -9,6 +9,7 @@ from dibble.models.profile import (
     ProfileSummary,
     RecentLearnerActivity,
 )
+from dibble.services.learning_state_profiles import LearnerStateSignalService
 from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
 from dibble.services.protocols import AuditStore, ProfileStore
 
@@ -18,6 +19,7 @@ class LearnerSummaryService:
     profile_store: ProfileStore
     audit_store: AuditStore
     strategy_signal_service: LearnerStrategySignalService
+    state_signal_service: LearnerStateSignalService
     max_events: int = 200
 
     def build_for_student(self, *, student_id: UUID) -> ProfileSummary | None:
@@ -30,6 +32,7 @@ class LearnerSummaryService:
             calibration=self._latest_calibration(events),
             progress=self._latest_progress(events),
             strategy=self.strategy_signal_service.latest_for_student(student_id=student_id),
+            state_profile=self.state_signal_service.latest_for_student(student_id=student_id),
             recent_activity=self._recent_activity(events),
         )
 
