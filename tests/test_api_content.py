@@ -383,6 +383,9 @@ def test_remedial_trigger_returns_remedial_generated_content(client, student_id,
     assert payload["request_context"]["remediation_session_id"] is not None
     assert prerequisite_signal["kc_id"] == "KC-1"
     assert catalog_signal["source"] == "catalog"
+    assert catalog_signal["primary_for_kc"] is True
+    assert catalog_signal["disambiguation_score"] > 0
+    assert catalog_signal["disambiguation_rationale"] is not None
     assert "prerequisite knowledge components" in payload["request_context"]["remediation_rationale"]
     assert payload["request_context"]["remediation_blueprint"]["trigger"] == "misconception_detected"
     assert payload["request_context"]["remediation_blueprint"]["primary_misconception_id"] == "fraction-whole-number-bias"

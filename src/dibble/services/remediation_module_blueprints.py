@@ -18,12 +18,18 @@ class RemediationModuleBlueprintBuilder:
             (
                 signal
                 for signal in misconception_signals
-                if signal.source == "profile" and signal.recurrence_signal in {"recurring", "relapsing"}
+                if signal.primary_for_kc
+                and signal.source == "profile"
+                and signal.recurrence_signal in {"recurring", "relapsing"}
             ),
             None,
         )
         primary_catalog_signal = next(
-            (signal for signal in misconception_signals if signal.source == "catalog" and signal.misconception_id),
+            (
+                signal
+                for signal in misconception_signals
+                if signal.primary_for_kc and signal.source in {"catalog", "profile"} and signal.misconception_id
+            ),
             None,
         )
         repair_targets = []

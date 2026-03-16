@@ -44,6 +44,11 @@ class RemediationPlanner:
             misconception_description=misconception_description,
             curriculum_context=curriculum_context,
         )
+        primary_misconception_signals = [
+            signal
+            for signal in signals
+            if signal.category == "known_misconception" and signal.misconception_id is not None and signal.primary_for_kc
+        ]
         prerequisite_gaps = [
             signal.kc_id
             for signal in signals
@@ -51,13 +56,12 @@ class RemediationPlanner:
         ]
         recurring_profile_signals = [
             signal
-            for signal in signals
+            for signal in primary_misconception_signals
             if signal.source == "profile" and signal.recurrence_signal in {"recurring", "relapsing"}
         ]
         misconception_repair_targets = [
             kc_id
-            for signal in signals
-            if signal.category == "known_misconception" or signal in recurring_profile_signals
+            for signal in primary_misconception_signals
             for kc_id in signal.recommended_kc_ids
         ]
 
@@ -75,11 +79,7 @@ class RemediationPlanner:
         if target_kc_id not in focus_kc_ids:
             focus_kc_ids.append(target_kc_id)
 
-        matched_misconceptions = [
-            signal
-            for signal in signals
-            if signal.category == "known_misconception" and signal.misconception_id is not None
-        ]
+        matched_misconceptions = primary_misconception_signals
         if recurring_profile_signals:
             strongest_profile_signal = recurring_profile_signals[0]
             recurrence_fragment = (

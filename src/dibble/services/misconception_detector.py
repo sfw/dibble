@@ -5,6 +5,7 @@ import re
 from dibble.models.curriculum import KnowledgeComponent
 from dibble.models.generation import MisconceptionSignal
 from dibble.models.profile import LearnerProfile
+from dibble.services.misconception_disambiguation import MisconceptionDisambiguationService
 from dibble.services.misconception_profiles import LearningMisconceptionProfileResolver
 from dibble.services.protocols import AuditStore, KnowledgeComponentStore
 
@@ -41,10 +42,14 @@ class MisconceptionDetector:
         *,
         audit_store: AuditStore | None = None,
         misconception_profile_resolver: LearningMisconceptionProfileResolver | None = None,
+        misconception_disambiguation_service: MisconceptionDisambiguationService | None = None,
     ) -> None:
         self.knowledge_component_store = knowledge_component_store
         self.audit_store = audit_store
         self.misconception_profile_resolver = misconception_profile_resolver
+        self.misconception_disambiguation_service = (
+            misconception_disambiguation_service or MisconceptionDisambiguationService()
+        )
 
     def detect(
         self,
@@ -130,10 +135,12 @@ class MisconceptionDetector:
             )
 
         signals = _deduplicate_signals(signals)
+        signals = self.misconception_disambiguation_service.annotate(signals)
         source_priority = {"profile": 0, "catalog": 1, "heuristic": 2}
         recurrence_priority = {"relapsing": 0, "recurring": 1, "repeated": 2, "tentative": 3, "none": 4}
         signals.sort(
             key=lambda item: (
+                -int(item.primary_for_kc),
                 -item.confidence,
                 -item.recurrence_session_count,
                 -item.recurrence_count,
@@ -194,15 +201,89 @@ class MisconceptionDetector:
 def _deduplicate_signals(signals: list[MisconceptionSignal]) -> list[MisconceptionSignal]:
     best_by_key: dict[tuple[str, str, str | None], MisconceptionSignal] = {}
     source_priority = {"profile": 0, "catalog": 1, "heuristic": 2}
+    recurrence_priority = {"relapsing": 0, "recurring": 1, "repeated": 2, "tentative": 3, "none": 4}
     for signal in signals:
         key = (signal.kc_id, signal.category, signal.misconception_id)
         current = best_by_key.get(key)
         if current is None:
             best_by_key[key] = signal
             continue
-        if (signal.confidence, -source_priority.get(signal.source, 3)) > (
-            current.confidence,
-            -source_priority.get(current.source, 3),
-        ):
-            best_by_key[key] = signal
+
+        preferred = _preferred_signal(
+            current=current,
+            candidate=signal,
+            source_priority=source_priority,
+            recurrence_priority=recurrence_priority,
+        )
+        secondary = signal if preferred is current else current
+        best_by_key[key] = preferred.model_copy(
+            update={
+                "confidence": round(max(current.confidence, signal.confidence), 2),
+                "recommended_kc_ids": _unique_items(
+                    [*preferred.recommended_kc_ids, *secondary.recommended_kc_ids]
+                ),
+                "remediation_hint": preferred.remediation_hint or secondary.remediation_hint,
+                "evidence_terms": _unique_items([*preferred.evidence_terms, *secondary.evidence_terms]),
+                "recurrence_count": max(current.recurrence_count, signal.recurrence_count),
+                "recurrence_session_count": max(
+                    current.recurrence_session_count,
+                    signal.recurrence_session_count,
+                ),
+                "recurrence_signal": _stronger_recurrence_signal(
+                    current.recurrence_signal,
+                    signal.recurrence_signal,
+                    recurrence_priority=recurrence_priority,
+                ),
+                "last_seen_at": _later_timestamp(current.last_seen_at, signal.last_seen_at),
+            }
+        )
     return list(best_by_key.values())
+
+
+def _preferred_signal(
+    *,
+    current: MisconceptionSignal,
+    candidate: MisconceptionSignal,
+    source_priority: dict[str, int],
+    recurrence_priority: dict[str, int],
+) -> MisconceptionSignal:
+    current_key = (
+        -current.recurrence_session_count,
+        -current.recurrence_count,
+        recurrence_priority.get(current.recurrence_signal, 4),
+        -current.confidence,
+        source_priority.get(current.source, 3),
+    )
+    candidate_key = (
+        -candidate.recurrence_session_count,
+        -candidate.recurrence_count,
+        recurrence_priority.get(candidate.recurrence_signal, 4),
+        -candidate.confidence,
+        source_priority.get(candidate.source, 3),
+    )
+    return current if current_key <= candidate_key else candidate
+
+
+def _stronger_recurrence_signal(
+    left: str,
+    right: str,
+    *,
+    recurrence_priority: dict[str, int],
+) -> str:
+    return left if recurrence_priority.get(left, 4) <= recurrence_priority.get(right, 4) else right
+
+
+def _later_timestamp(left, right):
+    if left is None:
+        return right
+    if right is None:
+        return left
+    return left if left >= right else right
+
+
+def _unique_items(values: list[str]) -> list[str]:
+    deduplicated: list[str] = []
+    for value in values:
+        if value not in deduplicated:
+            deduplicated.append(value)
+    return deduplicated

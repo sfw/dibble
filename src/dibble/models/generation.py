@@ -142,6 +142,9 @@ class MisconceptionSignal(BaseModel):
     recurrence_session_count: int = Field(default=0, ge=0)
     recurrence_signal: str = "none"
     last_seen_at: datetime | None = None
+    primary_for_kc: bool = False
+    disambiguation_score: float = Field(default=0.0, ge=0.0)
+    disambiguation_rationale: str | None = None
 
 
 class GenerationMetadata(BaseModel):
