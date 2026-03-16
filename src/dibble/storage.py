@@ -129,8 +129,11 @@ CREATE TABLE IF NOT EXISTS predictive_warm_queue (
     request_payload TEXT NOT NULL,
     request_fingerprint TEXT NOT NULL,
     status TEXT NOT NULL,
+    priority_class TEXT NOT NULL DEFAULT 'routine',
+    attempt_count INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
+    next_attempt_at TEXT,
     last_error TEXT
 );
 """
@@ -155,4 +158,29 @@ def ensure_database(database_path: str) -> None:
         connection.execute(REMEDIATION_SESSION_TABLE_SQL)
         connection.execute(WITHIN_SESSION_CONTROLLER_TABLE_SQL)
         connection.execute(PREDICTIVE_WARM_QUEUE_TABLE_SQL)
+        _ensure_sqlite_columns(
+            connection,
+            table_name="predictive_warm_queue",
+            columns={
+                "priority_class": "TEXT NOT NULL DEFAULT 'routine'",
+                "attempt_count": "INTEGER NOT NULL DEFAULT 0",
+                "next_attempt_at": "TEXT",
+            },
+        )
         connection.commit()
+
+
+def _ensure_sqlite_columns(
+    connection: sqlite3.Connection,
+    *,
+    table_name: str,
+    columns: dict[str, str],
+) -> None:
+    existing = {
+        str(row[1])
+        for row in connection.execute(f"PRAGMA table_info({table_name})").fetchall()
+    }
+    for column_name, column_sql in columns.items():
+        if column_name in existing:
+            continue
+        connection.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_sql}")

@@ -16,15 +16,20 @@ class SQLitePredictiveWarmQueueStore:
         *,
         stale_after_minutes: int = 30,
         claim_scan_limit: int = 100,
+        max_retry_attempts: int = 3,
+        retry_backoff_seconds: int = 30,
     ) -> None:
         self.database_path = database_path
         self.stale_after_minutes = stale_after_minutes
         self.claim_scan_limit = claim_scan_limit
+        self.max_retry_attempts = max(1, max_retry_attempts)
+        self.retry_backoff_seconds = max(5, retry_backoff_seconds)
 
     def enqueue(self, *, request: GenerationRequest) -> PredictiveWarmTask | None:
         fingerprint = _request_fingerprint(request)
         now = datetime.now(timezone.utc)
         priority_score = _priority_for_request(request)
+        priority_class = _priority_class_for_request(request, priority_score=priority_score)
         expires_at = now + timedelta(minutes=max(1, self.stale_after_minutes))
         with sqlite3.connect(self.database_path) as connection:
             row = connection.execute(
@@ -45,9 +50,12 @@ class SQLitePredictiveWarmQueueStore:
                 request_fingerprint=fingerprint,
                 status="pending",
                 priority_score=priority_score,
+                priority_class=priority_class,
+                attempt_count=0,
                 created_at=now,
                 updated_at=now,
                 expires_at=expires_at,
+                next_attempt_at=None,
             )
             connection.execute(
                 """
@@ -57,11 +65,14 @@ class SQLitePredictiveWarmQueueStore:
                     request_payload,
                     request_fingerprint,
                     status,
+                    priority_class,
+                    attempt_count,
                     created_at,
                     updated_at,
+                    next_attempt_at,
                     last_error
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     task.task_id,
@@ -69,8 +80,11 @@ class SQLitePredictiveWarmQueueStore:
                     task.request.model_dump_json(),
                     task.request_fingerprint,
                     task.status,
+                    task.priority_class,
+                    task.attempt_count,
                     task.created_at.isoformat(),
                     task.updated_at.isoformat(),
+                    None,
                     task.last_error,
                 ),
             )
@@ -82,9 +96,10 @@ class SQLitePredictiveWarmQueueStore:
         with sqlite3.connect(self.database_path) as connection:
             rows = connection.execute(
                 """
-                SELECT task_id, student_id, request_payload, request_fingerprint, status, created_at, updated_at, last_error
+                SELECT task_id, student_id, request_payload, request_fingerprint, status, priority_class, attempt_count,
+                       created_at, updated_at, next_attempt_at, last_error
                 FROM predictive_warm_queue
-                WHERE status = 'pending'
+                WHERE status IN ('pending', 'deferred')
                 ORDER BY created_at ASC, task_id ASC
                 LIMIT ?
                 """,
@@ -96,9 +111,12 @@ class SQLitePredictiveWarmQueueStore:
             stale_ids = [task.task_id for task in tasks if task.expires_at is not None and task.expires_at <= now]
             if stale_ids:
                 _mark_canceled(connection, task_ids=stale_ids, last_error="Predictive warm task expired before processing.")
-            candidates = [task for task in tasks if task.task_id not in stale_ids]
-            candidates.sort(key=lambda task: (-task.priority_score, task.created_at, task.task_id))
-            task_ids = [task.task_id for task in candidates[:limit]]
+            candidates = [
+                task
+                for task in tasks
+                if task.task_id not in stale_ids and (task.next_attempt_at is None or task.next_attempt_at <= now)
+            ]
+            task_ids = [task.task_id for task in _select_task_batch(candidates, limit=limit)]
             if not task_ids:
                 connection.commit()
                 return []
@@ -106,7 +124,14 @@ class SQLitePredictiveWarmQueueStore:
             connection.commit()
         task_by_id = {task.task_id: task for task in candidates}
         return [
-            task_by_id[task_id].model_copy(update={"status": "processing", "updated_at": now})
+            task_by_id[task_id].model_copy(
+                update={
+                    "status": "processing",
+                    "updated_at": now,
+                    "attempt_count": task_by_id[task_id].attempt_count + 1,
+                    "next_attempt_at": None,
+                }
+            )
             for task_id in task_ids
         ]
 
@@ -117,7 +142,8 @@ class SQLitePredictiveWarmQueueStore:
         with sqlite3.connect(self.database_path) as connection:
             rows = connection.execute(
                 f"""
-                SELECT task_id, student_id, request_payload, request_fingerprint, status, created_at, updated_at, last_error
+                SELECT task_id, student_id, request_payload, request_fingerprint, status, priority_class, attempt_count,
+                       created_at, updated_at, next_attempt_at, last_error
                 FROM predictive_warm_queue
                 WHERE task_id IN ({placeholders}) AND status = 'pending'
                 ORDER BY created_at ASC, task_id ASC
@@ -130,15 +156,73 @@ class SQLitePredictiveWarmQueueStore:
             _mark_processing(connection, task_ids=claimed_ids)
             connection.commit()
         return [
-            _task_from_row((*row[:4], "processing", *row[5:]), stale_after_minutes=self.stale_after_minutes)
+            _task_from_row(
+                (
+                    row[0],
+                    row[1],
+                    row[2],
+                    row[3],
+                    "processing",
+                    row[5],
+                    int(row[6]) + 1,
+                    row[7],
+                    datetime.now(timezone.utc).isoformat(),
+                    None,
+                    row[10],
+                ),
+                stale_after_minutes=self.stale_after_minutes,
+            )
             for row in rows
         ]
 
     def mark_completed(self, *, task_id: str) -> None:
-        self._update_status(task_id=task_id, status="completed", last_error=None)
+        self._update_status(task_id=task_id, status="completed", last_error=None, next_attempt_at=None)
 
     def mark_failed(self, *, task_id: str, error: str) -> None:
-        self._update_status(task_id=task_id, status="failed", last_error=error)
+        self._update_status(task_id=task_id, status="failed", last_error=error, next_attempt_at=None)
+
+    def defer_retry(self, *, task_id: str, error: str) -> PredictiveWarmTask | None:
+        with sqlite3.connect(self.database_path) as connection:
+            row = connection.execute(
+                """
+                SELECT task_id, student_id, request_payload, request_fingerprint, status, priority_class, attempt_count,
+                       created_at, updated_at, next_attempt_at, last_error
+                FROM predictive_warm_queue
+                WHERE task_id = ?
+                LIMIT 1
+                """,
+                (task_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            task = _task_from_row(row, stale_after_minutes=self.stale_after_minutes)
+            if task.attempt_count >= self.max_retry_attempts:
+                self._update_status(task_id=task_id, status="failed", last_error=error, next_attempt_at=None)
+                return None
+            delay_seconds = self.retry_backoff_seconds * (2 ** max(0, task.attempt_count - 1))
+            next_attempt_at = datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)
+            connection.execute(
+                """
+                UPDATE predictive_warm_queue
+                SET status = 'deferred', updated_at = ?, next_attempt_at = ?, last_error = ?
+                WHERE task_id = ?
+                """,
+                (
+                    datetime.now(timezone.utc).isoformat(),
+                    next_attempt_at.isoformat(),
+                    error,
+                    task_id,
+                ),
+            )
+            connection.commit()
+        return task.model_copy(
+            update={
+                "status": "deferred",
+                "updated_at": datetime.now(timezone.utc),
+                "next_attempt_at": next_attempt_at,
+                "last_error": error,
+            }
+        )
 
     def cancel_pending(
         self,
@@ -178,7 +262,7 @@ class SQLitePredictiveWarmQueueStore:
             connection.execute(
                 f"""
                 UPDATE predictive_warm_queue
-                SET status = 'canceled', updated_at = ?, last_error = NULL
+                SET status = 'canceled', updated_at = ?, next_attempt_at = NULL, last_error = NULL
                 WHERE task_id IN ({placeholders})
                 """,
                 (datetime.now(timezone.utc).isoformat(), *canceled_ids),
@@ -187,7 +271,7 @@ class SQLitePredictiveWarmQueueStore:
         return len(canceled_ids)
 
     def stats(self) -> dict[str, int]:
-        counts = {"pending": 0, "processing": 0, "completed": 0, "failed": 0, "canceled": 0}
+        counts = {"pending": 0, "processing": 0, "deferred": 0, "completed": 0, "failed": 0, "canceled": 0}
         with sqlite3.connect(self.database_path) as connection:
             rows = connection.execute(
                 """
@@ -200,17 +284,25 @@ class SQLitePredictiveWarmQueueStore:
             counts[str(status)] = int(count)
         return counts
 
-    def _update_status(self, *, task_id: str, status: str, last_error: str | None) -> None:
+    def _update_status(
+        self,
+        *,
+        task_id: str,
+        status: str,
+        last_error: str | None,
+        next_attempt_at: str | None,
+    ) -> None:
         with sqlite3.connect(self.database_path) as connection:
             connection.execute(
                 """
                 UPDATE predictive_warm_queue
-                SET status = ?, updated_at = ?, last_error = ?
+                SET status = ?, updated_at = ?, next_attempt_at = ?, last_error = ?
                 WHERE task_id = ?
                 """,
                 (
                     status,
                     datetime.now(timezone.utc).isoformat(),
+                    next_attempt_at,
                     last_error,
                     task_id,
                 ),
@@ -223,7 +315,7 @@ def _mark_processing(connection: sqlite3.Connection, *, task_ids: list[str]) -> 
     connection.execute(
         f"""
         UPDATE predictive_warm_queue
-        SET status = 'processing', updated_at = ?, last_error = NULL
+        SET status = 'processing', updated_at = ?, next_attempt_at = NULL, last_error = NULL, attempt_count = attempt_count + 1
         WHERE task_id IN ({placeholders})
         """,
         (datetime.now(timezone.utc).isoformat(), *task_ids),
@@ -235,7 +327,7 @@ def _mark_canceled(connection: sqlite3.Connection, *, task_ids: list[str], last_
     connection.execute(
         f"""
         UPDATE predictive_warm_queue
-        SET status = 'canceled', updated_at = ?, last_error = ?
+        SET status = 'canceled', updated_at = ?, next_attempt_at = NULL, last_error = ?
         WHERE task_id IN ({placeholders})
         """,
         (datetime.now(timezone.utc).isoformat(), last_error, *task_ids),
@@ -243,19 +335,35 @@ def _mark_canceled(connection: sqlite3.Connection, *, task_ids: list[str], last_
 
 
 def _task_from_row(row, *, stale_after_minutes: int) -> PredictiveWarmTask:
-    task_id, student_id, request_payload, request_fingerprint, status, created_at, updated_at, last_error = row
+    (
+        task_id,
+        student_id,
+        request_payload,
+        request_fingerprint,
+        status,
+        priority_class,
+        attempt_count,
+        created_at,
+        updated_at,
+        next_attempt_at,
+        last_error,
+    ) = row
     request = GenerationRequest.model_validate(json.loads(request_payload))
     created = datetime.fromisoformat(created_at)
+    priority_score = _priority_for_request(request)
     return PredictiveWarmTask(
         task_id=str(task_id),
         student_id=student_id,
         request=request,
         request_fingerprint=str(request_fingerprint),
         status=str(status),
-        priority_score=_priority_for_request(request),
+        priority_score=priority_score,
+        priority_class=str(priority_class) if priority_class is not None else _priority_class_for_request(request, priority_score=priority_score),
+        attempt_count=int(attempt_count or 0),
         created_at=created,
         updated_at=datetime.fromisoformat(updated_at),
         expires_at=created + timedelta(minutes=max(1, stale_after_minutes)),
+        next_attempt_at=datetime.fromisoformat(next_attempt_at) if next_attempt_at is not None else None,
         last_error=str(last_error) if last_error is not None else None,
     )
 
@@ -313,3 +421,40 @@ def _priority_for_request(request: GenerationRequest) -> float:
         elif "transfer" in normalized_reason:
             priority += 0.04
     return round(min(1.0, priority), 3)
+
+
+def _priority_class_for_request(request: GenerationRequest, *, priority_score: float) -> str:
+    if priority_score >= 0.84 or request.requested_content_type in {
+        RequestedContentType.remedial_micro_module,
+        RequestedContentType.assessment_probe,
+    }:
+        return "urgent"
+    if priority_score >= 0.68:
+        return "high"
+    return "routine"
+
+
+def _select_task_batch(tasks: list[PredictiveWarmTask], *, limit: int) -> list[PredictiveWarmTask]:
+    if limit <= 0 or not tasks:
+        return []
+    ordered = sorted(tasks, key=lambda task: (-task.priority_score, task.created_at, task.task_id))
+    groups = {
+        "urgent": [task for task in ordered if task.priority_class == "urgent"],
+        "high": [task for task in ordered if task.priority_class == "high"],
+        "routine": [task for task in ordered if task.priority_class == "routine"],
+    }
+    selected: list[PredictiveWarmTask] = []
+    if limit >= 3:
+        for priority_class in ("urgent", "high", "routine"):
+            if groups[priority_class]:
+                selected.append(groups[priority_class].pop(0))
+                if len(selected) >= limit:
+                    return selected
+    remaining_ids = {task.task_id for task in selected}
+    for task in ordered:
+        if task.task_id in remaining_ids:
+            continue
+        selected.append(task)
+        if len(selected) >= limit:
+            break
+    return selected[:limit]

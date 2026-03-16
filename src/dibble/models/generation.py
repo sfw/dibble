@@ -251,9 +251,12 @@ class PredictiveWarmTask(BaseModel):
     request_fingerprint: str
     status: str = "pending"
     priority_score: float = Field(default=0.0, ge=0.0)
+    priority_class: str = "routine"
+    attempt_count: int = Field(default=0, ge=0)
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
     expires_at: datetime | None = None
+    next_attempt_at: datetime | None = None
     last_error: str | None = None
 
 
@@ -265,6 +268,9 @@ class PredictiveWarmProcessResult(BaseModel):
     attempted_tasks: int = Field(default=0, ge=0)
     completed_tasks: int = Field(default=0, ge=0)
     failed_tasks: int = Field(default=0, ge=0)
+    retried_tasks: int = Field(default=0, ge=0)
+    deferred_tasks: int = Field(default=0, ge=0)
+    dropped_tasks: int = Field(default=0, ge=0)
     skipped_tasks: int = Field(default=0, ge=0)
     pending_tasks: int = Field(default=0, ge=0)
     cache_hits: int = Field(default=0, ge=0)

@@ -47,7 +47,7 @@ class TelemetryService:
         queue_stats = (
             self.predictive_warm_queue_store.stats()
             if self.predictive_warm_queue_store is not None
-            else {"pending": 0, "completed": 0, "failed": 0, "canceled": 0}
+            else {"pending": 0, "deferred": 0, "completed": 0, "failed": 0, "canceled": 0}
         )
         prompt_template_counts = Counter(
             str(event.payload.get("prompt_template_name"))
@@ -136,9 +136,16 @@ class TelemetryService:
                 int(event.payload.get("expired_entries", 0)) for event in cache_invalidation_events
             ),
             pending_predictive_warm_tasks=queue_stats["pending"],
+            deferred_predictive_warm_tasks=queue_stats.get("deferred", 0),
             completed_predictive_warm_tasks=queue_stats["completed"],
             failed_predictive_warm_tasks=queue_stats["failed"],
             canceled_predictive_warm_tasks=queue_stats["canceled"],
+            retried_predictive_warm_tasks=sum(
+                int(event.payload.get("retried_tasks", 0)) for event in predictive_warm_process_events
+            ),
+            dropped_predictive_warm_tasks=sum(
+                int(event.payload.get("dropped_tasks", 0)) for event in predictive_warm_process_events
+            ),
             generated_content_entries=cache_stats["total_entries"],
             fresh_generated_content_entries=cache_stats["fresh_entries"],
             provider_failure_events=sum(1 for event in provider_events if event.status == "failure"),

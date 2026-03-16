@@ -43,7 +43,7 @@ class PredictiveWarmScheduler:
 
     def process_inline(self, *, task_ids: list[str]) -> PredictiveWarmProcessResult:
         if self.inline_process_limit <= 0 or not task_ids:
-            return PredictiveWarmProcessResult(pending_tasks=self.queue_store.stats().get("pending", 0))
+            return PredictiveWarmProcessResult(pending_tasks=self._backlog_count())
         return self._process_tasks(
             self.queue_store.claim_tasks(task_ids=task_ids[: self.inline_process_limit]),
         )
@@ -53,10 +53,13 @@ class PredictiveWarmScheduler:
 
     def _process_tasks(self, tasks) -> PredictiveWarmProcessResult:
         if not tasks:
-            return PredictiveWarmProcessResult(pending_tasks=self.queue_store.stats().get("pending", 0))
+            return PredictiveWarmProcessResult(pending_tasks=self._backlog_count())
 
         completed = 0
         failed = 0
+        retried = 0
+        deferred = 0
+        dropped = 0
         skipped = 0
         cache_hits = 0
         cache_misses = 0
@@ -71,11 +74,15 @@ class PredictiveWarmScheduler:
             try:
                 result = self.content_warmer.warm([task.request])
             except Exception as exc:  # pragma: no cover - defensive fallback around provider/runtime failures
-                self.queue_store.mark_failed(task_id=task.task_id, error=str(exc))
-                failed += 1
+                if self.queue_store.defer_retry(task_id=task.task_id, error=str(exc)) is not None:
+                    retried += 1
+                    deferred += 1
+                else:
+                    failed += 1
                 continue
             if result.total_requests <= 0:
                 self.queue_store.mark_failed(task_id=task.task_id, error="Predictive warm task was skipped.")
+                dropped += 1
                 skipped += 1
                 continue
             self.queue_store.mark_completed(task_id=task.task_id)
@@ -88,9 +95,16 @@ class PredictiveWarmScheduler:
             attempted_tasks=len(tasks),
             completed_tasks=completed,
             failed_tasks=failed,
+            retried_tasks=retried,
+            deferred_tasks=deferred,
+            dropped_tasks=dropped,
             skipped_tasks=skipped,
-            pending_tasks=self.queue_store.stats().get("pending", 0),
+            pending_tasks=self._backlog_count(),
             cache_hits=cache_hits,
             cache_misses=cache_misses,
             generation_ids=generation_ids,
         )
+
+    def _backlog_count(self) -> int:
+        stats = self.queue_store.stats()
+        return stats.get("pending", 0) + stats.get("deferred", 0)

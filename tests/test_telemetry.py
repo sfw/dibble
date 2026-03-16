@@ -80,6 +80,22 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     generated_content_store = SQLiteGeneratedContentStore(database_path)
     queue_store = SQLitePredictiveWarmQueueStore(database_path)
     telemetry = TelemetryService(audit_store, generated_content_store, predictive_warm_queue_store=queue_store)
+    deferred_task = queue_store.enqueue(
+        request=GenerationRequest(
+            student_id=uuid4(),
+            learning_session_id="session-telemetry",
+            target_kc_ids=["KC-1"],
+            intent="practice",
+            requested_content_type="practice_problem",
+            predictive_warm=True,
+            warm_reason="practice follow-up",
+            source_generation_id="gen-1",
+        )
+    )
+    claimed = queue_store.claim_pending(limit=1)
+    assert deferred_task is not None
+    assert claimed
+    queue_store.defer_retry(task_id=claimed[0].task_id, error="provider timeout")
 
     audit_store.append(
         event_type="content.generate",
@@ -109,7 +125,7 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     audit_store.append(
         event_type="content.warm.predictive.process",
         status="success",
-        payload={"attempted_tasks": 1, "completed_tasks": 1},
+        payload={"attempted_tasks": 1, "completed_tasks": 1, "retried_tasks": 1, "dropped_tasks": 0},
     )
     audit_store.append(
         event_type="learning.progress.profile",
@@ -134,6 +150,9 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     assert snapshot.improving_progress_signals == 1
     assert snapshot.declining_progress_signals == 1
     assert snapshot.pending_predictive_warm_tasks == 0
+    assert snapshot.deferred_predictive_warm_tasks == 1
+    assert snapshot.retried_predictive_warm_tasks == 1
+    assert snapshot.dropped_predictive_warm_tasks == 0
     assert snapshot.generated_content_entries == 0
     assert snapshot.prompt_template_usages[0].template_name == "micro_explanation.baseline"
     assert snapshot.prompt_template_usages[0].event_count == 1
