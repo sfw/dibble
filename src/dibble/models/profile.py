@@ -179,12 +179,16 @@ class LearnerStrategySummary(BaseModel):
     source: str = "insufficient"
     support_bias: int = Field(default=0, ge=-1, le=1)
     recovery_focus: str = "monitor"
+    trajectory_state: str = "insufficient"
+    recommended_next_action: str = "monitor"
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     average_run_outcome_score: float | None = Field(default=None, ge=0.0, le=1.0)
     matched_run_count: int = Field(default=0, ge=0)
     matched_session_count: int = Field(default=0, ge=0)
     progress_signal: str = "insufficient"
     progress_delta: float = 0.0
+    volatility_index: float = Field(default=0.0, ge=0.0, le=1.0)
+    relapse_risk: float = Field(default=0.0, ge=0.0, le=1.0)
     rationale: str | None = None
     updated_at: datetime | None = None
 

@@ -85,6 +85,29 @@ def test_predictive_content_warmer_uses_adaptive_follow_up_selection_for_negativ
     assert plan.content_types == ["worked_example"]
 
 
+def test_predictive_content_warmer_uses_strategy_trajectory_for_relapsing_practice():
+    generated_content = _build_generated_content(
+        content_type="practice_problem",
+        request_context={
+            "learning_session_id": "session-1",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": ["LO-1"],
+            "curriculum_context": ["Equivalent fractions"],
+            "selected_content_type": "practice_problem",
+            "mode_calibration": {
+                "support_bias": 0,
+                "strategy_trajectory_state": "relapsing",
+                "strategy_recommended_next_action": "rebuild_prerequisite",
+                "strategy_relapse_risk": 0.71,
+            },
+        },
+    )
+
+    plan = PredictiveContentWarmer(content_warmer=None).plan_follow_ups(generated_content)
+
+    assert plan.content_types == ["remedial_micro_module"]
+
+
 def _build_generated_content(*, content_type: str, request_context: dict[str, object]) -> GeneratedContent:
     student_id = uuid4()
     route = AdaptiveRouteDecision(

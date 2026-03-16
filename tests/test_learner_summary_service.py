@@ -95,6 +95,10 @@ def test_learner_summary_service_prefers_calibration_profile_and_recent_activity
             "strategy_signal": "independence_ready",
             "strategy_support_bias": 1,
             "strategy_recovery_focus": "independent_practice",
+            "strategy_trajectory_state": "accelerating",
+            "strategy_recommended_next_action": "check_transfer_readiness",
+            "strategy_volatility_index": 0.0,
+            "strategy_relapse_risk": 0.05,
             "strategy_rationale": "Support can fade because the learner has stayed strong across sessions.",
         },
     )
@@ -117,6 +121,8 @@ def test_learner_summary_service_prefers_calibration_profile_and_recent_activity
     assert summary.strategy.source == "strategy_profile"
     assert summary.strategy.signal == "independence_ready"
     assert summary.strategy.support_bias == 1
+    assert summary.strategy.trajectory_state == "accelerating"
+    assert summary.strategy.recommended_next_action == "check_transfer_readiness"
     assert summary.recent_activity.generation_count == 1
     assert summary.recent_activity.observation_count == 1
     assert summary.recent_activity.socratic_assessment_count == 1

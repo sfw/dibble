@@ -77,6 +77,10 @@ class GenerationModeCalibration(BaseModel):
     support_bias: int = Field(default=0, ge=-1, le=1)
     strategy_signal: str = "insufficient"
     strategy_recovery_focus: str = "monitor"
+    strategy_trajectory_state: str = "insufficient"
+    strategy_recommended_next_action: str = "monitor"
+    strategy_volatility_index: float = Field(default=0.0, ge=0.0, le=1.0)
+    strategy_relapse_risk: float = Field(default=0.0, ge=0.0, le=1.0)
     strategy_source: str = "insufficient"
     strategy_rationale: str | None = None
     rationale: str | None = None

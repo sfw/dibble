@@ -99,6 +99,10 @@ def test_profile_summary_exposes_recent_calibration_and_activity(client, student
             "strategy_signal": "independence_ready",
             "strategy_support_bias": 1,
             "strategy_recovery_focus": "independent_practice",
+            "strategy_trajectory_state": "accelerating",
+            "strategy_recommended_next_action": "check_transfer_readiness",
+            "strategy_volatility_index": 0.0,
+            "strategy_relapse_risk": 0.05,
         },
     )
 
@@ -117,6 +121,8 @@ def test_profile_summary_exposes_recent_calibration_and_activity(client, student
     assert payload["strategy"]["source"] == "strategy_profile"
     assert payload["strategy"]["signal"] == "independence_ready"
     assert payload["strategy"]["support_bias"] == 1
+    assert payload["strategy"]["trajectory_state"] == "accelerating"
+    assert payload["strategy"]["recommended_next_action"] == "check_transfer_readiness"
     assert payload["recent_activity"]["generation_count"] == 1
     assert payload["recent_activity"]["last_generation_id"] == "summary-gen-1"
     assert payload["recent_activity"]["last_learning_session_id"] == "summary-session-1"

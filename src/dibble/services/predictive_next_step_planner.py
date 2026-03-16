@@ -17,10 +17,46 @@ class PredictiveNextStepPlanner:
         route_calibration = generated_content.response.route.calibration
         mode_calibration = request_context.get("mode_calibration", {})
         mode_support_bias = int(mode_calibration.get("support_bias", 0)) if isinstance(mode_calibration, dict) else 0
+        strategy_trajectory_state = (
+            str(mode_calibration.get("strategy_trajectory_state", "insufficient"))
+            if isinstance(mode_calibration, dict)
+            else "insufficient"
+        )
+        strategy_next_action = (
+            str(mode_calibration.get("strategy_recommended_next_action", "monitor"))
+            if isinstance(mode_calibration, dict)
+            else "monitor"
+        )
+        strategy_relapse_risk = (
+            float(mode_calibration.get("strategy_relapse_risk", 0.0))
+            if isinstance(mode_calibration, dict)
+            else 0.0
+        )
         route_signal = route_calibration.signal if route_calibration is not None else "insufficient"
         progress_signal = route_calibration.progress_signal if route_calibration is not None else "insufficient"
 
         if content_type == RequestedContentType.micro_explanation.value:
+            if self._should_rebuild_prerequisite(
+                strategy_trajectory_state=strategy_trajectory_state,
+                strategy_next_action=strategy_next_action,
+                strategy_relapse_risk=strategy_relapse_risk,
+            ):
+                return [
+                    (
+                        RequestedContentType.remedial_micro_module,
+                        "Cross-session strategy suggests the learner is relapsing, so warm a prerequisite repair step before more explanation.",
+                    )
+                ]
+            if self._should_vary_support(
+                strategy_trajectory_state=strategy_trajectory_state,
+                strategy_next_action=strategy_next_action,
+            ):
+                return [
+                    (
+                        RequestedContentType.worked_example,
+                        "Cross-session strategy suggests varying support before moving straight into independent practice.",
+                    )
+                ]
             if self._needs_modeled_support(
                 route_signal=route_signal,
                 progress_signal=progress_signal,
@@ -40,6 +76,17 @@ class PredictiveNextStepPlanner:
             ]
 
         if content_type == RequestedContentType.worked_example.value:
+            if self._should_rebuild_prerequisite(
+                strategy_trajectory_state=strategy_trajectory_state,
+                strategy_next_action=strategy_next_action,
+                strategy_relapse_risk=strategy_relapse_risk,
+            ):
+                return [
+                    (
+                        RequestedContentType.remedial_micro_module,
+                        "Cross-session strategy suggests stepping back to prerequisite repair before fading support further.",
+                    )
+                ]
             follow_ups = [
                 (
                     RequestedContentType.practice_problem,
@@ -50,6 +97,12 @@ class PredictiveNextStepPlanner:
                 route_signal=route_signal,
                 progress_signal=progress_signal,
                 mode_support_bias=mode_support_bias,
+            ) and self._should_check_transfer(
+                route_signal=route_signal,
+                progress_signal=progress_signal,
+                mode_support_bias=mode_support_bias,
+                strategy_trajectory_state=strategy_trajectory_state,
+                strategy_next_action=strategy_next_action,
             ):
                 follow_ups.append(
                     (
@@ -60,6 +113,27 @@ class PredictiveNextStepPlanner:
             return follow_ups
 
         if content_type == RequestedContentType.practice_problem.value:
+            if self._should_rebuild_prerequisite(
+                strategy_trajectory_state=strategy_trajectory_state,
+                strategy_next_action=strategy_next_action,
+                strategy_relapse_risk=strategy_relapse_risk,
+            ):
+                return [
+                    (
+                        RequestedContentType.remedial_micro_module,
+                        "Cross-session strategy suggests relapse, so warm a prerequisite repair step instead of another independent attempt.",
+                    )
+                ]
+            if self._should_vary_support(
+                strategy_trajectory_state=strategy_trajectory_state,
+                strategy_next_action=strategy_next_action,
+            ):
+                return [
+                    (
+                        RequestedContentType.worked_example,
+                        "Cross-session strategy suggests a plateau or uneven outcomes, so warm a varied modeled example next.",
+                    )
+                ]
             if self._needs_modeled_support(
                 route_signal=route_signal,
                 progress_signal=progress_signal,
@@ -79,6 +153,16 @@ class PredictiveNextStepPlanner:
             ]
 
         if content_type == RequestedContentType.remedial_micro_module.value:
+            if self._should_vary_support(
+                strategy_trajectory_state=strategy_trajectory_state,
+                strategy_next_action=strategy_next_action,
+            ):
+                return [
+                    (
+                        RequestedContentType.practice_problem,
+                        "Keep the learner in guided repair practice while the cross-session plateau or volatility stabilizes.",
+                    )
+                ]
             follow_ups = [
                 (
                     RequestedContentType.practice_problem,
@@ -89,6 +173,12 @@ class PredictiveNextStepPlanner:
                 route_signal=route_signal,
                 progress_signal=progress_signal,
                 mode_support_bias=mode_support_bias,
+            ) and self._should_check_transfer(
+                route_signal=route_signal,
+                progress_signal=progress_signal,
+                mode_support_bias=mode_support_bias,
+                strategy_trajectory_state=strategy_trajectory_state,
+                strategy_next_action=strategy_next_action,
             ):
                 follow_ups.append(
                     (
@@ -117,3 +207,48 @@ class PredictiveNextStepPlanner:
         mode_support_bias: int,
     ) -> bool:
         return route_signal == "positive" or progress_signal == "improving" or mode_support_bias > 0
+
+    def _should_rebuild_prerequisite(
+        self,
+        *,
+        strategy_trajectory_state: str,
+        strategy_next_action: str,
+        strategy_relapse_risk: float,
+    ) -> bool:
+        return (
+            strategy_next_action == "rebuild_prerequisite"
+            or strategy_trajectory_state == "relapsing"
+            or strategy_relapse_risk >= 0.65
+        )
+
+    def _should_vary_support(
+        self,
+        *,
+        strategy_trajectory_state: str,
+        strategy_next_action: str,
+    ) -> bool:
+        return (
+            strategy_next_action in {"introduce_varied_support", "stabilize_support"}
+            or strategy_trajectory_state in {"plateaued", "volatile"}
+        )
+
+    def _should_check_transfer(
+        self,
+        *,
+        route_signal: str,
+        progress_signal: str,
+        mode_support_bias: int,
+        strategy_trajectory_state: str,
+        strategy_next_action: str,
+    ) -> bool:
+        if strategy_trajectory_state in {"plateaued", "volatile", "relapsing"}:
+            return False
+        if strategy_next_action == "check_transfer_readiness":
+            return True
+        if strategy_trajectory_state == "insufficient" and strategy_next_action == "monitor":
+            return True
+        return self._shows_independence(
+            route_signal=route_signal,
+            progress_signal=progress_signal,
+            mode_support_bias=mode_support_bias,
+        )

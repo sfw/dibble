@@ -54,6 +54,10 @@ class GenerationModeCalibrator:
             support_bias=support_bias,
             strategy_signal=strategy.signal,
             strategy_recovery_focus=strategy.recovery_focus,
+            strategy_trajectory_state=strategy.trajectory_state,
+            strategy_recommended_next_action=strategy.recommended_next_action,
+            strategy_volatility_index=strategy.volatility_index,
+            strategy_relapse_risk=strategy.relapse_risk,
             strategy_source=strategy.source,
             strategy_rationale=strategy.rationale,
             rationale=rationale,
@@ -139,6 +143,18 @@ class GenerationModeCalibrator:
         if strategy.signal == "stabilizing":
             return strategy.rationale or (
                 "Long-horizon learner strategy suggests staying with guided practice while recent gains stabilize."
+            )
+        if strategy.trajectory_state == "plateaued":
+            return strategy.rationale or (
+                "Long-horizon learner strategy shows the learner has plateaued, so the next step should vary support instead of repeating the same independence level."
+            )
+        if strategy.trajectory_state == "volatile":
+            return strategy.rationale or (
+                "Long-horizon learner strategy shows uneven outcomes, so the next step should stabilize support before pushing ahead."
+            )
+        if strategy.trajectory_state == "relapsing":
+            return strategy.rationale or (
+                "Long-horizon learner strategy shows relapse across sessions, so the next step should rebuild prerequisite support."
             )
         return (
             "Recent matching runs were informative but not decisive enough to override the baseline mode heuristics."

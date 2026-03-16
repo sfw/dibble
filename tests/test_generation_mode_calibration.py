@@ -167,6 +167,10 @@ def test_generation_mode_calibrator_can_use_strategy_profile_without_run_calibra
             "strategy_signal": "support_intensive",
             "strategy_support_bias": -1,
             "strategy_recovery_focus": "prerequisite_rebuild",
+            "strategy_trajectory_state": "relapsing",
+            "strategy_recommended_next_action": "rebuild_prerequisite",
+            "strategy_volatility_index": 0.0,
+            "strategy_relapse_risk": 0.73,
             "strategy_rationale": "The learner has struggled across sessions and should step back before more independence.",
         },
     )
@@ -191,3 +195,5 @@ def test_generation_mode_calibrator_can_use_strategy_profile_without_run_calibra
     assert calibrated_request.mode_calibration.signal == "negative"
     assert calibrated_request.mode_calibration.support_bias == -1
     assert calibrated_request.mode_calibration.strategy_signal == "support_intensive"
+    assert calibrated_request.mode_calibration.strategy_trajectory_state == "relapsing"
+    assert calibrated_request.mode_calibration.strategy_recommended_next_action == "rebuild_prerequisite"

@@ -247,7 +247,7 @@ def test_predictive_warm_process_endpoint_drains_pending_queue(tmp_path, student
         assert problem_response.json()["quality"]["cache_hit"] is True
 
 
-def test_negative_practice_generation_predictively_warms_worked_example(client, student_id, app_settings):
+def test_negative_practice_generation_predictively_warms_remediation_after_relapse(client, student_id, app_settings):
     from dibble.services.audit_store import SQLiteAuditStore
 
     audit_store = SQLiteAuditStore(app_settings.database_path)
@@ -287,27 +287,29 @@ def test_negative_practice_generation_predictively_warms_worked_example(client, 
             "curriculum_context": ["Equivalent fractions"],
         },
     )
-    worked_example_response = client.post(
-        "/api/worked-examples/generate",
+    remediation_response = client.post(
+        "/api/content/generate",
         json={
             "student_id": str(student_id),
             "learning_session_id": "session-negative-practice",
             "target_kc_ids": ["KC-1"],
+            "intent": "remediation",
+            "requested_content_type": "remedial_micro_module",
             "curriculum_context": ["Equivalent fractions"],
         },
     )
     audit_response = client.get("/api/audit/events")
 
     assert practice_response.status_code == 200
-    assert worked_example_response.status_code == 200
-    assert worked_example_response.json()["quality"]["cache_hit"] is True
+    assert remediation_response.status_code == 200
+    assert remediation_response.json()["quality"]["cache_hit"] is True
     predictive_event = next(
         event
         for event in audit_response.json()
         if event["event_type"] == "content.warm.predictive"
         and event["payload"]["source_generation_id"] == practice_response.json()["generation_id"]
     )
-    assert predictive_event["payload"]["predicted_content_types"] == ["worked_example"]
+    assert predictive_event["payload"]["predicted_content_types"] == ["remedial_micro_module"]
 
 
 def test_remedial_trigger_returns_remedial_generated_content(client, student_id, app_settings):

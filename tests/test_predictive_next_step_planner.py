@@ -98,6 +98,78 @@ def test_predictive_next_step_planner_adds_assessment_after_improving_remediatio
     assert [content_type.value for content_type, _ in plan] == ["practice_problem", "assessment_probe"]
 
 
+def test_predictive_next_step_planner_uses_remediation_after_relapsing_practice():
+    generated_content = _build_generated_content(
+        content_type="practice_problem",
+        request_context={
+            "learning_session_id": "session-1",
+            "target_kc_ids": ["KC-1"],
+            "curriculum_context": ["Equivalent fractions"],
+            "selected_content_type": "practice_problem",
+            "mode_calibration": {
+                "support_bias": 0,
+                "strategy_trajectory_state": "relapsing",
+                "strategy_recommended_next_action": "rebuild_prerequisite",
+                "strategy_relapse_risk": 0.71,
+            },
+        },
+        route_calibration=RouteCalibrationSummary(
+            signal="mixed",
+            source="strategy_profile",
+            confidence=0.74,
+            average_run_outcome_score=0.62,
+            matched_run_count=4,
+            progress_signal="stable",
+            progress_delta=-0.02,
+        ),
+    )
+
+    plan = PredictiveNextStepPlanner().plan(generated_content)
+
+    assert plan == [
+        (
+            RequestedContentType.remedial_micro_module,
+            "Cross-session strategy suggests relapse, so warm a prerequisite repair step instead of another independent attempt.",
+        )
+    ]
+
+
+def test_predictive_next_step_planner_uses_varied_support_after_plateaued_practice():
+    generated_content = _build_generated_content(
+        content_type="practice_problem",
+        request_context={
+            "learning_session_id": "session-1",
+            "target_kc_ids": ["KC-1"],
+            "curriculum_context": ["Equivalent fractions"],
+            "selected_content_type": "practice_problem",
+            "mode_calibration": {
+                "support_bias": 0,
+                "strategy_trajectory_state": "plateaued",
+                "strategy_recommended_next_action": "introduce_varied_support",
+                "strategy_relapse_risk": 0.18,
+            },
+        },
+        route_calibration=RouteCalibrationSummary(
+            signal="mixed",
+            source="strategy_profile",
+            confidence=0.76,
+            average_run_outcome_score=0.68,
+            matched_run_count=5,
+            progress_signal="stable",
+            progress_delta=0.02,
+        ),
+    )
+
+    plan = PredictiveNextStepPlanner().plan(generated_content)
+
+    assert plan == [
+        (
+            RequestedContentType.worked_example,
+            "Cross-session strategy suggests a plateau or uneven outcomes, so warm a varied modeled example next.",
+        )
+    ]
+
+
 def _build_generated_content(
     *,
     content_type: str,
