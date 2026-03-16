@@ -548,12 +548,15 @@ def test_generation_mode_plan_uses_target_kc_misconceptions_to_focus_distractors
     plan = build_generation_mode_plan(profile, request, route)
 
     assert "Whole-number bias" in plan.request_context["practice_distractor_focus"]
+    assert "misconception_mirror" in plan.request_context["practice_distractor_slots"][0]
+    assert "avoids Whole-number bias" in plan.request_context["practice_answer_check_focus"]
     assert plan.request_context["practice_distractor_misconception_ids"] == ["fraction-whole-number-bias"]
     assert (
         plan.request_context["practice_distractor_remediation_hint"]
         == "Compare the total amount before comparing the parts."
     )
     assert "Whole-number bias" in plan.prompt_guidance
+    assert "Distractor slots:" in plan.prompt_guidance
     assert "Compare the total amount before comparing the parts." in plan.prompt_guidance
 
 
@@ -598,6 +601,8 @@ def test_generation_mode_plan_uses_bridge_progression_for_worked_examples():
     assert plan.request_context["fading_strategy"] == "completion"
     assert plan.request_context["worked_example_progression_action"] == "bridge_release"
     assert plan.request_context["worked_example_fade_focus"] == "a near-target example with the transfer move left unfinished"
+    assert "worked bridge" in plan.request_context["worked_example_step_outline"][1]
+    assert "learner sees how the example returns" in plan.request_context["worked_example_learner_release"]
     assert "near-target example" in plan.prompt_guidance
 
 
@@ -652,8 +657,11 @@ def test_generation_mode_plan_names_visible_and_hidden_worked_example_roles():
         plan.request_context["worked_example_transfer_move"]
         == "apply Generate equivalent fractions in Compare equivalent fractions"
     )
+    assert "cue: give only the lightest setup needed" in plan.request_context["worked_example_step_outline"][0]
+    assert "independent application" in plan.request_context["worked_example_learner_release"]
     assert "visible step roles (cue)" in plan.prompt_guidance
     assert "independent application" in plan.prompt_guidance
+    assert "Use this step outline:" in plan.prompt_guidance
 
 
 def test_generation_mode_plan_advances_practice_after_improving_progress():

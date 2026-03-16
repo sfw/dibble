@@ -129,6 +129,8 @@ def test_prompt_builder_includes_distractor_and_fade_plans(sample_profile, sampl
 
     assert "Practice distractor plan:" in prompts.user_prompt
     assert "Whole-number bias" in prompts.user_prompt
+    assert "distractor_slots=" in prompts.user_prompt
+    assert "answer_check_focus=" in prompts.user_prompt
     assert "Worked example fade plan: none" in prompts.user_prompt
 
 

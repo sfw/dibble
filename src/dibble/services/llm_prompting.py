@@ -137,9 +137,15 @@ def _practice_distractor_plan_text(request_context: dict[str, object]) -> str:
     focus = request_context.get("practice_distractor_focus")
     if not isinstance(focus, str):
         return "none"
+    distractor_slots = request_context.get("practice_distractor_slots") or []
+    answer_check_focus = request_context.get("practice_answer_check_focus")
     misconception_ids = request_context.get("practice_distractor_misconception_ids") or []
     remediation_hint = request_context.get("practice_distractor_remediation_hint")
     fragments = [focus]
+    if distractor_slots:
+        fragments.append(f"distractor_slots={' | '.join(str(item) for item in distractor_slots)}")
+    if isinstance(answer_check_focus, str) and answer_check_focus:
+        fragments.append(f"answer_check_focus={answer_check_focus}")
     if misconception_ids:
         fragments.append(f"misconception_ids={','.join(str(item) for item in misconception_ids)}")
     if isinstance(remediation_hint, str) and remediation_hint:
@@ -151,9 +157,16 @@ def _worked_example_fade_plan_text(request_context: dict[str, object]) -> str:
     visible_roles = request_context.get("worked_example_visible_step_roles")
     hidden_step_role = request_context.get("worked_example_hidden_step_role")
     transfer_move = request_context.get("worked_example_transfer_move")
+    step_outline = request_context.get("worked_example_step_outline") or []
+    learner_release = request_context.get("worked_example_learner_release")
     if not isinstance(visible_roles, list) or not isinstance(hidden_step_role, str):
         return "none"
     roles = ", ".join(str(role) for role in visible_roles)
+    fragments = [f"visible_roles={roles}", f"hidden_step_role={hidden_step_role}"]
+    if step_outline:
+        fragments.append(f"step_outline={' | '.join(str(item) for item in step_outline)}")
+    if isinstance(learner_release, str) and learner_release:
+        fragments.append(f"learner_release={learner_release}")
     if isinstance(transfer_move, str) and transfer_move:
-        return f"visible_roles={roles}; hidden_step_role={hidden_step_role}; transfer_move={transfer_move}"
-    return f"visible_roles={roles}; hidden_step_role={hidden_step_role}"
+        fragments.append(f"transfer_move={transfer_move}")
+    return "; ".join(fragments)
