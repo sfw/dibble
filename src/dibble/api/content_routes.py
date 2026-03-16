@@ -198,6 +198,21 @@ def build_content_router(context: ApiContext) -> APIRouter:
                                         if response.generation_metadata is not None
                                         else "none"
                                     ),
+                                    "moderation_categories": (
+                                        response.generation_metadata.moderation.categories
+                                        if response.generation_metadata is not None
+                                        else []
+                                    ),
+                                    "moderation_reasons": (
+                                        response.generation_metadata.moderation.reasons
+                                        if response.generation_metadata is not None
+                                        else []
+                                    ),
+                                    "moderation_matched_terms": (
+                                        response.generation_metadata.moderation.matched_terms
+                                        if response.generation_metadata is not None
+                                        else []
+                                    ),
                                     "moderation_fallback_applied": bool(
                                         response.generation_metadata.moderation.fallback_applied
                                         if response.generation_metadata is not None

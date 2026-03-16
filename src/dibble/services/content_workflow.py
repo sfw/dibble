@@ -138,6 +138,8 @@ class ContentWorkflowService:
                 "moderation_status": metadata.moderation.status,
                 "moderation_stage": metadata.moderation.stage,
                 "moderation_categories": metadata.moderation.categories,
+                "moderation_reasons": metadata.moderation.reasons,
+                "moderation_matched_terms": metadata.moderation.matched_terms,
                 "moderation_fallback_applied": metadata.moderation.fallback_applied,
                 "cache_hit": metadata.cache_hit,
                 "quality_score": metadata.quality_score,

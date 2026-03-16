@@ -82,6 +82,9 @@ class TelemetrySnapshot(BaseModel):
     socratic_step_back_events: int = 0
     average_socratic_evidence_score: float = 0.0
     fallback_generations: int = 0
+    moderation_flagged_generations: int = 0
+    moderation_request_flags: int = 0
+    moderation_response_flags: int = 0
     validation_issue_events: int = 0
     cache_hit_generations: int = 0
     warm_requests: int = 0

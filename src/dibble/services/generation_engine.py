@@ -133,6 +133,7 @@ class GenerationEngine:
             )
             moderation = request_moderation.model_copy(update={"fallback_applied": True})
             route.delivery_mode = DeliveryMode.static_fallback
+            yield self._moderation_event(profile=profile, route=route, moderation=moderation)
         else:
             block_buffers: dict[int, GeneratedBlock] = {}
             for chunk in self.provider.stream_generate(profile, request, route, grounding_titles):
@@ -151,6 +152,7 @@ class GenerationEngine:
                 )
                 moderation = moderation.model_copy(update={"fallback_applied": True})
                 route.delivery_mode = DeliveryMode.static_fallback
+                yield self._moderation_event(profile=profile, route=route, moderation=moderation)
 
         for chunk in self._stream_cached_blocks(blocks):
             yield GenerationStreamEvent(
@@ -319,6 +321,20 @@ class GenerationEngine:
                 body_delta=block.body,
                 done=True,
             )
+
+    def _moderation_event(
+        self,
+        *,
+        profile: LearnerProfile,
+        route,
+        moderation: ModerationResult,
+    ) -> GenerationStreamEvent:
+        return GenerationStreamEvent(
+            event="moderation",
+            student_id=profile.student_id,
+            route=route,
+            moderation=moderation,
+        )
 
     def _moderation_fallback_blocks(
         self,

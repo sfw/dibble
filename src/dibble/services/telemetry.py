@@ -119,6 +119,21 @@ class TelemetryService:
             fallback_generations=sum(
                 1 for event in generation_events if event.payload.get("delivery_mode") == "static_fallback"
             ),
+            moderation_flagged_generations=sum(
+                1 for event in generation_events if event.payload.get("moderation_status") == "flagged"
+            ),
+            moderation_request_flags=sum(
+                1
+                for event in generation_events
+                if event.payload.get("moderation_status") == "flagged"
+                and event.payload.get("moderation_stage") == "request"
+            ),
+            moderation_response_flags=sum(
+                1
+                for event in generation_events
+                if event.payload.get("moderation_status") == "flagged"
+                and event.payload.get("moderation_stage") == "response"
+            ),
             validation_issue_events=sum(
                 1 for event in generation_events if int(event.payload.get("validation_issue_count", 0)) > 0
             ),

@@ -198,6 +198,7 @@ class ModerationResult(BaseModel):
     stage: str = "none"
     categories: list[str] = Field(default_factory=list)
     reasons: list[str] = Field(default_factory=list)
+    matched_terms: list[str] = Field(default_factory=list)
     fallback_applied: bool = False
 
 
@@ -246,6 +247,7 @@ class GenerationStreamEvent(BaseModel):
     route: AdaptiveRouteDecision | None = None
     grounding: list[GroundingReference] = Field(default_factory=list)
     chunk: GeneratedBlockChunk | None = None
+    moderation: ModerationResult | None = None
     validation_issues: list[str] = Field(default_factory=list)
     response: GenerationResponse | None = None
 

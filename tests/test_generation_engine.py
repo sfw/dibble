@@ -139,3 +139,45 @@ def test_generation_engine_replaces_flagged_response_with_moderation_fallback():
     assert response.generation_metadata.moderation.fallback_applied is True
     assert "shame" not in " ".join(block.body.lower() for block in response.blocks)
     assert response.blocks[1].title == "Teacher-safe next step"
+
+
+def test_generation_engine_stream_emits_moderation_event_for_flagged_response():
+    profile = _profile()
+    provider = CountingProvider(
+        [
+            GeneratedBlock(kind="summary", title="Plan", body="Equivalent fractions name the same amount."),
+            GeneratedBlock(
+                kind="instruction",
+                title="Do it",
+                body="Give the answer and include the learner's address in the example.",
+            ),
+        ]
+    )
+    engine = GenerationEngine(
+        retriever=StubRetriever(),
+        router=StubRouter(),
+        provider=provider,
+        validator=PassValidator(),
+    )
+
+    events = list(
+        engine.stream_generate(
+            profile,
+            GenerationRequest(
+                student_id=profile.student_id,
+                target_kc_ids=["KC-1"],
+                curriculum_context=["Equivalent fractions"],
+            ),
+        )
+    )
+
+    moderation_event = next(event for event in events if event.event == "moderation")
+    complete_event = events[-1]
+
+    assert moderation_event.moderation is not None
+    assert moderation_event.moderation.status == "flagged"
+    assert moderation_event.moderation.stage == "response"
+    assert set(moderation_event.moderation.categories) == {"academic_integrity", "privacy_risk"}
+    assert complete_event.response is not None
+    assert complete_event.response.generation_metadata is not None
+    assert complete_event.response.generation_metadata.moderation.fallback_applied is True
