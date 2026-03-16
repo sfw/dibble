@@ -71,6 +71,75 @@ def test_predictive_warm_scheduler_processes_enqueued_tasks(tmp_path):
     assert queue_store.stats()["completed"] == 1
 
 
+def test_predictive_warm_scheduler_processes_highest_priority_pending_task_first(tmp_path):
+    database_path = str(tmp_path / "predictive-warm-scheduler-priority.db")
+    ensure_database(database_path)
+    profile_store = SQLiteProfileStore(database_path)
+    curriculum_store = SQLiteCurriculumStore(database_path)
+    queue_store = SQLitePredictiveWarmQueueStore(database_path)
+    student_id = uuid4()
+    profile_store.upsert(build_profile_model(student_id))
+    curriculum_store.upsert(CurriculumResourceUpsert.model_validate(build_curriculum_resource()))
+    generation_engine = GenerationEngine(
+        retriever=RAGRetriever(curriculum_store),
+        router=AdaptiveRouter(),
+        provider=MockLLMProvider(),
+        validator=ContentValidator(),
+    )
+    scheduler = PredictiveWarmScheduler(
+        queue_store=queue_store,
+        content_warmer=ContentWarmer(
+            profile_store=profile_store,
+            generation_engine=generation_engine,
+            generation_mode_calibrator=None,
+        ),
+        inline_process_limit=0,
+    )
+    queue_store.enqueue(
+        request=GenerationRequest.model_validate(
+            {
+                "student_id": str(student_id),
+                "learning_session_id": "session-1",
+                "target_kc_ids": ["KC-1"],
+                "intent": "practice",
+                "requested_content_type": "practice_problem",
+                "curriculum_context": ["Equivalent fractions"],
+                "predictive_warm": True,
+                "warm_reason": "practice follow-up",
+                "source_generation_id": "gen-1",
+            }
+        )
+    )
+    assessment_task = queue_store.enqueue(
+        request=GenerationRequest.model_validate(
+            {
+                "student_id": str(student_id),
+                "learning_session_id": "session-1",
+                "target_kc_ids": ["KC-1"],
+                "intent": "assessment",
+                "requested_content_type": "assessment_probe",
+                "curriculum_context": ["Equivalent fractions"],
+                "predictive_warm": True,
+                "warm_reason": "transfer check after bridge",
+                "source_generation_id": "gen-1",
+                "mode_calibration": {
+                    "session_phase": "bridge",
+                    "sequence_action": "attempt_transfer",
+                },
+            }
+        )
+    )
+
+    process_result = scheduler.process_pending(limit=1)
+
+    assert assessment_task is not None
+    assert process_result.completed_tasks == 1
+    assert process_result.pending_tasks == 1
+    remaining = queue_store.claim_pending(limit=1)
+    assert len(remaining) == 1
+    assert remaining[0].request.requested_content_type == "practice_problem"
+
+
 def build_profile_model(student_id):
     from dibble.models.profile import LearnerProfile
 

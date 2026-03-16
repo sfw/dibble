@@ -2,20 +2,30 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 from uuid import uuid4
 
-from dibble.models.generation import GenerationRequest, PredictiveWarmTask
+from dibble.models.generation import GenerationRequest, PredictiveWarmTask, RequestedContentType
 
 
 class SQLitePredictiveWarmQueueStore:
-    def __init__(self, database_path: str) -> None:
+    def __init__(
+        self,
+        database_path: str,
+        *,
+        stale_after_minutes: int = 30,
+        claim_scan_limit: int = 100,
+    ) -> None:
         self.database_path = database_path
+        self.stale_after_minutes = stale_after_minutes
+        self.claim_scan_limit = claim_scan_limit
 
     def enqueue(self, *, request: GenerationRequest) -> PredictiveWarmTask | None:
         fingerprint = _request_fingerprint(request)
         now = datetime.now(timezone.utc)
+        priority_score = _priority_for_request(request)
+        expires_at = now + timedelta(minutes=max(1, self.stale_after_minutes))
         with sqlite3.connect(self.database_path) as connection:
             row = connection.execute(
                 """
@@ -34,8 +44,10 @@ class SQLitePredictiveWarmQueueStore:
                 request=request,
                 request_fingerprint=fingerprint,
                 status="pending",
+                priority_score=priority_score,
                 created_at=now,
                 updated_at=now,
+                expires_at=expires_at,
             )
             connection.execute(
                 """
@@ -66,6 +78,7 @@ class SQLitePredictiveWarmQueueStore:
         return task
 
     def claim_pending(self, *, limit: int = 10) -> list[PredictiveWarmTask]:
+        now = datetime.now(timezone.utc)
         with sqlite3.connect(self.database_path) as connection:
             rows = connection.execute(
                 """
@@ -75,14 +88,27 @@ class SQLitePredictiveWarmQueueStore:
                 ORDER BY created_at ASC, task_id ASC
                 LIMIT ?
                 """,
-                (limit,),
+                (max(limit, self.claim_scan_limit),),
             ).fetchall()
             if not rows:
                 return []
-            task_ids = [str(row[0]) for row in rows]
+            tasks = [_task_from_row(row, stale_after_minutes=self.stale_after_minutes) for row in rows]
+            stale_ids = [task.task_id for task in tasks if task.expires_at is not None and task.expires_at <= now]
+            if stale_ids:
+                _mark_canceled(connection, task_ids=stale_ids, last_error="Predictive warm task expired before processing.")
+            candidates = [task for task in tasks if task.task_id not in stale_ids]
+            candidates.sort(key=lambda task: (-task.priority_score, task.created_at, task.task_id))
+            task_ids = [task.task_id for task in candidates[:limit]]
+            if not task_ids:
+                connection.commit()
+                return []
             _mark_processing(connection, task_ids=task_ids)
             connection.commit()
-        return [_task_from_row((*row[:4], "processing", *row[5:])) for row in rows]
+        task_by_id = {task.task_id: task for task in candidates}
+        return [
+            task_by_id[task_id].model_copy(update={"status": "processing", "updated_at": now})
+            for task_id in task_ids
+        ]
 
     def claim_tasks(self, *, task_ids: list[str]) -> list[PredictiveWarmTask]:
         if not task_ids:
@@ -103,7 +129,10 @@ class SQLitePredictiveWarmQueueStore:
             claimed_ids = [str(row[0]) for row in rows]
             _mark_processing(connection, task_ids=claimed_ids)
             connection.commit()
-        return [_task_from_row((*row[:4], "processing", *row[5:])) for row in rows]
+        return [
+            _task_from_row((*row[:4], "processing", *row[5:]), stale_after_minutes=self.stale_after_minutes)
+            for row in rows
+        ]
 
     def mark_completed(self, *, task_id: str) -> None:
         self._update_status(task_id=task_id, status="completed", last_error=None)
@@ -201,16 +230,32 @@ def _mark_processing(connection: sqlite3.Connection, *, task_ids: list[str]) -> 
     )
 
 
-def _task_from_row(row) -> PredictiveWarmTask:
+def _mark_canceled(connection: sqlite3.Connection, *, task_ids: list[str], last_error: str | None) -> None:
+    placeholders = ", ".join("?" for _ in task_ids)
+    connection.execute(
+        f"""
+        UPDATE predictive_warm_queue
+        SET status = 'canceled', updated_at = ?, last_error = ?
+        WHERE task_id IN ({placeholders})
+        """,
+        (datetime.now(timezone.utc).isoformat(), last_error, *task_ids),
+    )
+
+
+def _task_from_row(row, *, stale_after_minutes: int) -> PredictiveWarmTask:
     task_id, student_id, request_payload, request_fingerprint, status, created_at, updated_at, last_error = row
+    request = GenerationRequest.model_validate(json.loads(request_payload))
+    created = datetime.fromisoformat(created_at)
     return PredictiveWarmTask(
         task_id=str(task_id),
         student_id=student_id,
-        request=GenerationRequest.model_validate(json.loads(request_payload)),
+        request=request,
         request_fingerprint=str(request_fingerprint),
         status=str(status),
-        created_at=created_at,
-        updated_at=updated_at,
+        priority_score=_priority_for_request(request),
+        created_at=created,
+        updated_at=datetime.fromisoformat(updated_at),
+        expires_at=created + timedelta(minutes=max(1, stale_after_minutes)),
         last_error=str(last_error) if last_error is not None else None,
     )
 
@@ -238,3 +283,33 @@ def _matches_invalidation(
     if set(request.target_lo_ids).intersection(target_lo_ids):
         return True
     return False
+
+
+def _priority_for_request(request: GenerationRequest) -> float:
+    mode = request.mode_calibration
+    session_phase = mode.session_phase if mode is not None else "monitor"
+    sequence_action = mode.sequence_action if mode is not None else "monitor"
+    priority = {
+        RequestedContentType.remedial_micro_module: 0.9,
+        RequestedContentType.assessment_probe: 0.82,
+        RequestedContentType.worked_example: 0.74,
+        RequestedContentType.practice_problem: 0.68,
+        RequestedContentType.micro_explanation: 0.58,
+    }.get(request.requested_content_type or RequestedContentType.micro_explanation, 0.5)
+    if session_phase in {"transfer_check", "bridge"}:
+        priority += 0.08
+    elif session_phase == "consolidate":
+        priority += 0.04
+    if sequence_action == "attempt_transfer":
+        priority += 0.06
+    elif sequence_action in {"hold_target", "hold_repair_target"}:
+        priority += 0.03
+    if request.intent.value == "remediation":
+        priority += 0.05
+    if request.warm_reason is not None:
+        normalized_reason = request.warm_reason.lower()
+        if any(term in normalized_reason for term in {"relapse", "repair", "prerequisite"}):
+            priority += 0.05
+        elif "transfer" in normalized_reason:
+            priority += 0.04
+    return round(min(1.0, priority), 3)
