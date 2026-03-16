@@ -14,6 +14,7 @@ from dibble.services.content_workflow import ContentWorkflowService
 from dibble.services.cognitive_trait_inference import CognitiveTraitInferenceService
 from dibble.services.curriculum_store import SQLiteCurriculumStore
 from dibble.services.generation_engine import GenerationEngine
+from dibble.services.generation_mode_calibration import GenerationModeCalibrator
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
 from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
 from dibble.services.learning_calibration_profiles import LearningCalibrationProfileRecorder
@@ -70,6 +71,7 @@ class ApplicationServices:
     learning_run_summary_recorder: LearningRunSummaryRecorder
     learning_calibration_profile_recorder: LearningCalibrationProfileRecorder
     learner_summary_service: LearnerSummaryService
+    generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_invalidator: PredictiveContentInvalidator
     router_plugin: RouterPlugin
 
@@ -118,10 +120,17 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     learner_state_calibrator = LearnerStateCalibrator(
         calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
     )
+    generation_mode_calibrator = GenerationModeCalibrator(
+        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+    )
     learning_run_summary_recorder = LearningRunSummaryRecorder(audit_store=audit_store)
     learning_calibration_profile_recorder = LearningCalibrationProfileRecorder(audit_store=audit_store)
     learner_summary_service = LearnerSummaryService(profile_store=profile_store, audit_store=audit_store)
-    content_warmer = ContentWarmer(profile_store, generation_engine)
+    content_warmer = ContentWarmer(
+        profile_store,
+        generation_engine,
+        generation_mode_calibrator=generation_mode_calibrator,
+    )
     predictive_content_warmer = PredictiveContentWarmer(content_warmer=content_warmer)
     predictive_content_invalidator = PredictiveContentInvalidator(
         generated_content_store=generated_content_store,
@@ -132,6 +141,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         router=router_plugin,
         generation_engine=generation_engine,
         content_warmer=content_warmer,
+        generation_mode_calibrator=generation_mode_calibrator,
         predictive_content_warmer=predictive_content_warmer,
         remediation_planner=remediation_planner,
         audit_store=audit_store,
@@ -159,6 +169,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         learning_run_summary_recorder=learning_run_summary_recorder,
         learning_calibration_profile_recorder=learning_calibration_profile_recorder,
         learner_summary_service=learner_summary_service,
+        generation_mode_calibrator=generation_mode_calibrator,
         predictive_content_invalidator=predictive_content_invalidator,
         router_plugin=router_plugin,
     )

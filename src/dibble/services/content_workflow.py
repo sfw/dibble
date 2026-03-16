@@ -15,6 +15,7 @@ from dibble.models.profile import LearnerProfile
 from dibble.plugins.contracts import RouterPlugin
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.generation_engine import GenerationEngine
+from dibble.services.generation_mode_calibration import GenerationModeCalibrator
 from dibble.services.generation_modes import build_generation_mode_plan
 from dibble.services.predictive_content_warming import PredictiveContentWarmer
 from dibble.services.protocols import AuditStore, ProfileStore
@@ -33,6 +34,7 @@ class ContentWorkflowService:
     router: RouterPlugin
     generation_engine: GenerationEngine
     content_warmer: ContentWarmer
+    generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_warmer: PredictiveContentWarmer
     remediation_planner: RemediationPlanner
     audit_store: AuditStore
@@ -65,8 +67,9 @@ class ContentWorkflowService:
 
     def generate_content(self, request: GenerationRequest) -> GeneratedContent:
         profile = self._load_profile(request.student_id)
-        response = self.generation_engine.generate(profile, request)
-        plan = build_generation_mode_plan(profile, request, response.route)
+        calibrated_request = self.generation_mode_calibrator.calibrate_request(request=request)
+        response = self.generation_engine.generate(profile, calibrated_request)
+        plan = build_generation_mode_plan(profile, calibrated_request, response.route)
         metadata = response.generation_metadata
         if metadata is None or response.generation_id is None:
             raise RuntimeError("Generated content metadata was not available.")
@@ -100,6 +103,28 @@ class ContentWorkflowService:
                 "target_kc_ids": request.target_kc_ids,
                 "target_lo_ids": request.target_lo_ids,
                 "scaffolding_level": response.route.scaffolding_level,
+                "mode_calibration_signal": (
+                    calibrated_request.mode_calibration.signal if calibrated_request.mode_calibration is not None else None
+                ),
+                "mode_calibration_source": (
+                    calibrated_request.mode_calibration.source if calibrated_request.mode_calibration is not None else None
+                ),
+                "mode_calibration_confidence": (
+                    calibrated_request.mode_calibration.confidence
+                    if calibrated_request.mode_calibration is not None
+                    else 0.0
+                ),
+                "mode_calibration_run_count": (
+                    calibrated_request.mode_calibration.matched_run_count
+                    if calibrated_request.mode_calibration is not None
+                    else 0
+                ),
+                "mode_support_bias": (
+                    calibrated_request.mode_calibration.support_bias
+                    if calibrated_request.mode_calibration is not None
+                    else 0
+                ),
+                "mode_calibration_applied": bool(plan.request_context.get("mode_calibration_applied", False)),
                 "route_calibration_signal": (
                     response.route.calibration.signal if response.route.calibration is not None else None
                 ),

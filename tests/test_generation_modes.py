@@ -3,6 +3,7 @@ from uuid import uuid4
 from dibble.models.generation import (
     AdaptiveRouteDecision,
     DeliveryMode,
+    GenerationModeCalibration,
     GenerationRequest,
     InterventionType,
     RequestedContentType,
@@ -131,3 +132,81 @@ def test_generation_mode_plan_assigns_independent_fading_for_stable_high_mastery
 
     assert plan.request_context["fading_strategy"] == "independent"
     assert plan.request_context["worked_steps_visible"] == 1
+
+
+def test_generation_mode_plan_uses_positive_mode_calibration_to_raise_practice_difficulty():
+    profile = LearnerProfile.model_validate(
+        build_profile(
+            uuid4(),
+            frustration="low",
+            total_load=0.3,
+            kc_mastery={"KC-1": 0.2},
+            engagement="medium",
+        )
+    )
+    request = GenerationRequest(
+        student_id=profile.student_id,
+        target_kc_ids=["KC-1"],
+        intent="practice",
+        mode_calibration=GenerationModeCalibration(
+            signal="positive",
+            source="profile",
+            confidence=0.78,
+            matched_run_count=4,
+            average_run_outcome_score=0.84,
+            support_bias=1,
+            rationale="test",
+        ),
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.targeted_practice,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="medium",
+        reasons=["test"],
+    )
+
+    plan = build_generation_mode_plan(profile, request, route)
+
+    assert plan.request_context["difficulty_band"] == "on_grade"
+    assert plan.request_context["mode_calibration"]["support_bias"] == 1
+    assert plan.request_context["mode_calibration_applied"] is True
+    assert "on_grade difficulty" in plan.prompt_guidance
+
+
+def test_generation_mode_plan_uses_negative_mode_calibration_to_increase_worked_example_support():
+    profile = LearnerProfile.model_validate(
+        build_profile(
+            uuid4(),
+            frustration="low",
+            total_load=0.45,
+            kc_mastery={"KC-1": 0.55},
+            engagement="medium",
+        )
+    )
+    request = GenerationRequest(
+        student_id=profile.student_id,
+        target_kc_ids=["KC-1"],
+        requested_content_type="worked_example",
+        mode_calibration=GenerationModeCalibration(
+            signal="negative",
+            source="run_summary",
+            confidence=0.81,
+            matched_run_count=2,
+            average_run_outcome_score=0.34,
+            support_bias=-1,
+            rationale="test",
+        ),
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.reteach,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="medium",
+        reasons=["test"],
+    )
+
+    plan = build_generation_mode_plan(profile, request, route)
+
+    assert plan.request_context["fading_strategy"] == "full"
+    assert plan.request_context["worked_steps_visible"] == 3
+    assert plan.request_context["mode_calibration"]["source"] == "run_summary"
+    assert plan.request_context["mode_calibration_applied"] is True

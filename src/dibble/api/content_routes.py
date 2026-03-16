@@ -91,11 +91,12 @@ def build_content_router(context: ApiContext) -> APIRouter:
     @router.post("/llm/stream", dependencies=context.deps("editor"))
     def stream_generated_content(request: GenerationRequest) -> StreamingResponse:
         profile = load_profile(request.student_id)
+        calibrated_request = services.generation_mode_calibrator.calibrate_request(request=request)
 
         def event_stream():
             try:
                 complete_event: GenerationStreamEvent | None = None
-                for event in services.generation_engine.stream_generate(profile, request):
+                for event in services.generation_engine.stream_generate(profile, calibrated_request):
                     if event.event == "complete":
                         complete_event = event
                         response = event.response
@@ -105,13 +106,23 @@ def build_content_router(context: ApiContext) -> APIRouter:
                                 status="success",
                                 student_id=str(request.student_id),
                                 payload={
-                                    "intent": request.intent.value,
+                                    "intent": calibrated_request.intent.value,
                                     "intervention_type": response.route.intervention_type.value,
                                     "delivery_mode": response.route.delivery_mode.value,
                                     "grounding_count": len(response.grounding),
                                     "generated_block_count": len(response.blocks),
                                     "validation_issue_count": len(response.validation_issues),
                                     "generation_id": response.generation_id,
+                                    "mode_calibration_signal": (
+                                        calibrated_request.mode_calibration.signal
+                                        if calibrated_request.mode_calibration is not None
+                                        else None
+                                    ),
+                                    "mode_support_bias": (
+                                        calibrated_request.mode_calibration.support_bias
+                                        if calibrated_request.mode_calibration is not None
+                                        else 0
+                                    ),
                                     "cache_hit": bool(
                                         response.generation_metadata.cache_hit
                                         if response.generation_metadata is not None
@@ -141,14 +152,14 @@ def build_content_router(context: ApiContext) -> APIRouter:
                         event_type="content.generate.stream",
                         status="error",
                         student_id=str(request.student_id),
-                        payload={"intent": request.intent.value, "detail": "stream ended before completion"},
+                        payload={"intent": calibrated_request.intent.value, "detail": "stream ended before completion"},
                     )
             except Exception as exc:
                 services.audit_store.append(
                     event_type="content.generate.stream",
                     status="error",
                     student_id=str(request.student_id),
-                    payload={"intent": request.intent.value, "detail": str(exc)},
+                    payload={"intent": calibrated_request.intent.value, "detail": str(exc)},
                 )
                 yield encode_sse_event(
                     GenerationStreamEvent(

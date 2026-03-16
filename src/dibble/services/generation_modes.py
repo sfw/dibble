@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from dibble.models.generation import (
     AdaptiveRouteDecision,
     ContentIntent,
+    GenerationModeCalibration,
     GenerationRequest,
     PracticeDifficultyBand,
     RequestedContentType,
@@ -25,6 +26,7 @@ def build_generation_mode_plan(
     request: GenerationRequest,
     route: AdaptiveRouteDecision,
 ) -> GenerationModePlan:
+    mode_calibration = request.mode_calibration
     content_type, selection_mode, selection_rationale = select_content_type(profile, request, route)
     request_context: dict[str, object] = {
         "learning_session_id": request.learning_session_id,
@@ -38,6 +40,8 @@ def build_generation_mode_plan(
     }
     if selection_rationale is not None:
         request_context["selection_rationale"] = selection_rationale
+    if mode_calibration is not None:
+        request_context["mode_calibration"] = mode_calibration.model_dump(mode="json")
     if request.predictive_warm:
         request_context["is_predictive_warm"] = True
         if request.warm_reason is not None:
@@ -46,16 +50,20 @@ def build_generation_mode_plan(
             request_context["source_generation_id"] = request.source_generation_id
 
     if content_type == RequestedContentType.practice_problem:
-        difficulty_band = select_practice_difficulty_band(profile, request)
+        baseline_difficulty_band = select_practice_difficulty_band(profile, request)
+        difficulty_band = apply_support_bias_to_difficulty_band(baseline_difficulty_band, mode_calibration)
         request_context["difficulty_band"] = difficulty_band.value
+        request_context["mode_calibration_applied"] = difficulty_band != baseline_difficulty_band
         prompt_guidance = (
             "Create one practice problem with a clear success target, one concise worked cue, "
             f"and a brief answer-check instruction. Tune the problem to {difficulty_band.value} difficulty."
         )
     elif content_type == RequestedContentType.worked_example:
-        fading = select_worked_example_fading(profile, request)
+        baseline_fading = select_worked_example_fading(profile, request)
+        fading = apply_support_bias_to_fading(baseline_fading, mode_calibration)
         request_context["fading_strategy"] = fading.value
         request_context["worked_steps_visible"] = _worked_steps_visible(fading)
+        request_context["mode_calibration_applied"] = fading != baseline_fading
         prompt_guidance = _worked_example_guidance(fading)
     elif content_type == RequestedContentType.assessment_probe:
         prompt_guidance = (
@@ -146,6 +154,38 @@ def select_worked_example_fading(
     ):
         return WorkedExampleFading.completion
     return WorkedExampleFading.independent
+
+
+def apply_support_bias_to_difficulty_band(
+    difficulty_band: PracticeDifficultyBand,
+    mode_calibration: GenerationModeCalibration | None,
+) -> PracticeDifficultyBand:
+    if mode_calibration is None or mode_calibration.support_bias == 0:
+        return difficulty_band
+    bands = [
+        PracticeDifficultyBand.support,
+        PracticeDifficultyBand.on_grade,
+        PracticeDifficultyBand.stretch,
+    ]
+    current_index = bands.index(difficulty_band)
+    adjusted_index = max(0, min(len(bands) - 1, current_index + mode_calibration.support_bias))
+    return bands[adjusted_index]
+
+
+def apply_support_bias_to_fading(
+    fading: WorkedExampleFading,
+    mode_calibration: GenerationModeCalibration | None,
+) -> WorkedExampleFading:
+    if mode_calibration is None or mode_calibration.support_bias == 0:
+        return fading
+    strategies = [
+        WorkedExampleFading.full,
+        WorkedExampleFading.completion,
+        WorkedExampleFading.independent,
+    ]
+    current_index = strategies.index(fading)
+    adjusted_index = max(0, min(len(strategies) - 1, current_index + mode_calibration.support_bias))
+    return strategies[adjusted_index]
 
 
 def _worked_example_guidance(fading: WorkedExampleFading) -> str:
