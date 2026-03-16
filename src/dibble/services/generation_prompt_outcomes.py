@@ -7,6 +7,7 @@ from dibble.services.generation_outcome_metrics import score_assessment_event, s
 from dibble.services.generation_run_summaries import GenerationRunSummaryBuilder
 from dibble.services.generation_trace_linker import GenerationTraceLinker, LinkedTraceEvent
 from dibble.services.learning_session_outcomes import LearningSessionOutcomeScorer
+from dibble.services.persisted_run_summaries import PersistedRunSummaryResolver
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,6 +29,8 @@ class GenerationPromptOutcomeSample:
     run_calibration_confidence: float = 0.0
     run_direct_source_count: int = 0
     run_event_count: int = 0
+    run_summary_source: str = "insufficient"
+    run_summary_event_id: str | None = None
 
     @property
     def composite_score(self) -> float:
@@ -55,6 +58,7 @@ class GenerationPromptOutcomeScorer:
     observation_window_minutes: int = 30
     max_trace_events: int = 3
     run_summary_builder: GenerationRunSummaryBuilder = field(default_factory=GenerationRunSummaryBuilder)
+    persisted_run_summary_resolver: PersistedRunSummaryResolver = field(default_factory=PersistedRunSummaryResolver)
 
     def score(
         self,
@@ -63,6 +67,7 @@ class GenerationPromptOutcomeScorer:
         candidate_generations: list[AuditEvent] | None = None,
         candidate_observations: list[AuditEvent],
         candidate_assessments: list[AuditEvent] | None = None,
+        candidate_run_summaries: list[AuditEvent] | None = None,
     ) -> GenerationPromptOutcomeSample:
         prompt_template_name = str(generation_event.payload.get("prompt_template_name"))
         variant = str(generation_event.payload.get("prompt_template_variant"))
@@ -100,6 +105,11 @@ class GenerationPromptOutcomeScorer:
             linked_assessments=linked_assessments,
             session_outcome=session_outcome,
         )
+        persisted_run_summary = self.persisted_run_summary_resolver.resolve_for_generation(
+            generation_event=generation_event,
+            summary_events=candidate_run_summaries or [],
+        )
+        selected_run_summary = persisted_run_summary.summary if persisted_run_summary is not None else run_summary
         return GenerationPromptOutcomeSample(
             variant=variant,
             prompt_template_name=prompt_template_name,
@@ -113,11 +123,17 @@ class GenerationPromptOutcomeScorer:
             assessment_match_count=len(linked_assessments),
             session_generation_depth=session_outcome.subsequent_generation_count,
             session_outcome_event_count=session_outcome.outcome_event_count,
-            run_summary_score=run_summary.run_outcome_score,
-            run_calibration_signal=run_summary.calibration_signal,
-            run_calibration_confidence=run_summary.calibration_confidence,
-            run_direct_source_count=run_summary.direct_source_count,
-            run_event_count=run_summary.event_count,
+            run_summary_score=selected_run_summary.run_outcome_score,
+            run_calibration_signal=selected_run_summary.calibration_signal,
+            run_calibration_confidence=selected_run_summary.calibration_confidence,
+            run_direct_source_count=selected_run_summary.direct_source_count,
+            run_event_count=selected_run_summary.event_count,
+            run_summary_source=(
+                "persisted"
+                if persisted_run_summary is not None
+                else "derived" if run_summary.run_outcome_score is not None else "insufficient"
+            ),
+            run_summary_event_id=persisted_run_summary.event_id if persisted_run_summary is not None else None,
         )
 
     def _aggregate_trace_score(

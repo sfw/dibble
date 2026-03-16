@@ -283,6 +283,88 @@ def test_generation_prompt_selector_can_prefer_deeper_session_trace(tmp_path):
     )
 
 
+def test_generation_prompt_selector_prefers_variant_with_stronger_persisted_run_summaries(tmp_path):
+    database_path = str(tmp_path / "generation-selector-persisted-summary.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    selector = GenerationPromptSelector(audit_store=audit_store, min_samples_per_variant=2)
+
+    for suffix, quality_score, run_score, signal in (
+        ("1", 0.72, 0.86, "positive"),
+        ("2", 0.74, 0.84, "positive"),
+    ):
+        student_id = f"00000000-0000-0000-0000-00000000070{suffix}"
+        generation_event = audit_store.append(
+            event_type="content.generate",
+            status="success",
+            student_id=student_id,
+            payload={
+                "generation_id": f"guided-{suffix}",
+                "learning_session_id": f"persisted-guided-{suffix}",
+                "content_type": "worked_example",
+                "prompt_template_name": "worked_example.guided_reflection",
+                "prompt_template_variant": "guided_reflection",
+                "quality_score": quality_score,
+                "validation_passed": True,
+                "grounding_count": 1,
+            },
+        )
+        audit_store.append(
+            event_type="learning.run.summary",
+            status="success",
+            student_id=student_id,
+            payload={
+                "source_generation_event_id": generation_event.event_id,
+                "generation_id": f"guided-{suffix}",
+                "run_summary_score": run_score,
+                "run_calibration_signal": signal,
+                "run_calibration_confidence": 0.82,
+                "run_direct_source_count": 2,
+                "run_event_count": 4,
+            },
+        )
+
+    for suffix, quality_score, run_score, signal in (
+        ("1", 0.88, 0.42, "negative"),
+        ("2", 0.87, 0.4, "negative"),
+    ):
+        student_id = f"00000000-0000-0000-0000-00000000080{suffix}"
+        generation_event = audit_store.append(
+            event_type="content.generate",
+            status="success",
+            student_id=student_id,
+            payload={
+                "generation_id": f"baseline-{suffix}",
+                "learning_session_id": f"persisted-baseline-{suffix}",
+                "content_type": "worked_example",
+                "prompt_template_name": "worked_example.baseline",
+                "prompt_template_variant": "baseline",
+                "quality_score": quality_score,
+                "validation_passed": True,
+                "grounding_count": 1,
+            },
+        )
+        audit_store.append(
+            event_type="learning.run.summary",
+            status="success",
+            student_id=student_id,
+            payload={
+                "source_generation_event_id": generation_event.event_id,
+                "generation_id": f"baseline-{suffix}",
+                "run_summary_score": run_score,
+                "run_calibration_signal": signal,
+                "run_calibration_confidence": 0.81,
+                "run_direct_source_count": 2,
+                "run_event_count": 4,
+            },
+        )
+
+    assert (
+        selector.select_variant(content_type=RequestedContentType.worked_example, fallback_variant="baseline")
+        == "guided_reflection"
+    )
+
+
 def test_generation_prompt_selector_can_prefer_better_cross_generation_session_outcome(tmp_path):
     database_path = str(tmp_path / "generation-selector-session-run.db")
     ensure_database(database_path)

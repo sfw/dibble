@@ -426,3 +426,71 @@ def test_generation_prompt_outcome_scorer_uses_later_same_session_run_outcome(tm
     assert sample.run_calibration_signal == "positive"
     assert sample.run_event_count == 2
     assert sample.composite_score > sample.quality_score
+
+
+def test_generation_prompt_outcome_scorer_prefers_persisted_run_summary_for_matching_generation(tmp_path):
+    database_path = str(tmp_path / "generation-outcomes-persisted-summary.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = str(uuid4())
+    generation_event = audit_store.append(
+        event_type="content.generate",
+        status="success",
+        student_id=student_id,
+        payload={
+            "generation_id": "gen-persisted",
+            "learning_session_id": "learn-persisted-1",
+            "content_type": "worked_example",
+            "prompt_template_name": "worked_example.guided_reflection",
+            "prompt_template_variant": "guided_reflection",
+            "quality_score": 0.74,
+            "validation_passed": True,
+            "grounding_count": 1,
+            "target_kc_ids": ["KC-1"],
+        },
+    )
+    observation_event = audit_store.append(
+        event_type="learner.observe",
+        status="success",
+        student_id=student_id,
+        payload={
+            "generation_id": "gen-persisted",
+            "learning_session_id": "learn-persisted-1",
+            "observed_content_type": "worked_example",
+            "task_type": "worked_example",
+            "target_kc_ids": ["KC-1"],
+            "engagement": "high",
+            "frustration": "low",
+            "total_load": 0.22,
+            "confidence_calibration": 0.83,
+            "help_seeking": "low",
+        },
+    )
+    persisted_summary = audit_store.append(
+        event_type="learning.run.summary",
+        status="success",
+        student_id=student_id,
+        payload={
+            "source_generation_event_id": generation_event.event_id,
+            "generation_id": "gen-persisted",
+            "run_summary_score": 0.41,
+            "run_calibration_signal": "negative",
+            "run_calibration_confidence": 0.91,
+            "run_direct_source_count": 2,
+            "run_event_count": 5,
+        },
+    )
+
+    sample = GenerationPromptOutcomeScorer().score(
+        generation_event=generation_event,
+        candidate_observations=[observation_event],
+        candidate_run_summaries=[persisted_summary],
+    )
+
+    assert sample.downstream_observation_score is not None
+    assert sample.run_summary_score == 0.41
+    assert sample.run_calibration_signal == "negative"
+    assert sample.run_calibration_confidence == 0.91
+    assert sample.run_event_count == 5
+    assert sample.run_summary_source == "persisted"
+    assert sample.run_summary_event_id == persisted_summary.event_id

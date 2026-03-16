@@ -229,6 +229,51 @@ def test_telemetry_snapshot_includes_cross_generation_session_outcomes(tmp_path)
     assert performance.average_session_generation_depth == 1.0
 
 
+def test_telemetry_snapshot_reports_persisted_run_summary_coverage(tmp_path):
+    database_path = str(tmp_path / "generation-persisted-summary-telemetry.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    telemetry = TelemetryService(audit_store)
+    student_id = str(uuid4())
+
+    generation_event = audit_store.append(
+        event_type="content.generate",
+        status="success",
+        student_id=student_id,
+        payload={
+            "generation_id": "gen-telemetry-persisted",
+            "learning_session_id": "learn-session-persisted",
+            "content_type": "worked_example",
+            "quality_score": 0.76,
+            "validation_passed": True,
+            "grounding_count": 1,
+            "prompt_template_name": "worked_example.guided_reflection",
+            "prompt_template_variant": "guided_reflection",
+        },
+    )
+    audit_store.append(
+        event_type="learning.run.summary",
+        status="success",
+        student_id=student_id,
+        payload={
+            "source_generation_event_id": generation_event.event_id,
+            "generation_id": "gen-telemetry-persisted",
+            "run_summary_score": 0.84,
+            "run_calibration_signal": "positive",
+            "run_calibration_confidence": 0.8,
+            "run_direct_source_count": 2,
+            "run_event_count": 4,
+        },
+    )
+
+    snapshot = telemetry.snapshot()
+
+    performance = snapshot.generation_prompt_performances[0]
+    assert performance.run_summary_rate == 1.0
+    assert performance.persisted_run_summary_rate == 1.0
+    assert performance.average_run_outcome_score == 0.84
+
+
 def test_telemetry_snapshot_includes_socratic_assessment_metrics(tmp_path):
     database_path = str(tmp_path / "socratic-telemetry.db")
     ensure_database(database_path)

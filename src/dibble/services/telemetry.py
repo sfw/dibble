@@ -44,6 +44,7 @@ class TelemetryService:
         generation_prompt_groups: dict[tuple[str, str | None, str | None], list[object]] = {}
         observation_events = [event for event in events if event.event_type == "learner.observe"]
         assessment_events = [event for event in events if event.event_type == "assessment.socratic"]
+        run_summary_events = [event for event in events if event.event_type == "learning.run.summary"]
         for event in generation_events:
             template_name = event.payload.get("prompt_template_name")
             if not template_name:
@@ -59,6 +60,7 @@ class TelemetryService:
                     candidate_generations=generation_events,
                     candidate_observations=observation_events,
                     candidate_assessments=assessment_events,
+                    candidate_run_summaries=run_summary_events,
                 )
             )
         socratic_evidence_scores = [
@@ -155,6 +157,7 @@ class TelemetryService:
         composite_scores = [sample.composite_score for sample in samples]
         run_scores = [sample.run_summary_score for sample in samples if sample.run_summary_score is not None]
         run_summary_matches = sum(1 for sample in samples if sample.run_summary_score is not None)
+        persisted_run_summary_matches = sum(1 for sample in samples if sample.run_summary_source == "persisted")
         positive_run_signals = sum(1 for sample in samples if sample.run_calibration_signal == "positive")
         run_signal_confidence_total = sum(sample.run_calibration_confidence for sample in samples)
         downstream_matches = sum(1 for sample in samples if sample.downstream_observation_score is not None)
@@ -173,6 +176,7 @@ class TelemetryService:
             average_run_outcome_score=round(sum(run_scores) / len(run_scores), 2) if run_scores else 0.0,
             average_run_signal_confidence=round(run_signal_confidence_total / event_count, 2) if event_count else 0.0,
             run_summary_rate=round(run_summary_matches / event_count, 2) if event_count else 0.0,
+            persisted_run_summary_rate=round(persisted_run_summary_matches / event_count, 2) if event_count else 0.0,
             positive_run_signal_rate=round(positive_run_signals / event_count, 2) if event_count else 0.0,
             downstream_observation_rate=round(downstream_matches / event_count, 2) if event_count else 0.0,
             downstream_assessment_rate=round(assessment_matches / event_count, 2) if event_count else 0.0,

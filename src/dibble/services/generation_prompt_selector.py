@@ -36,6 +36,7 @@ class GenerationPromptSelector:
             return fallback_variant
         observation_events = [event for event in events if event.event_type == "learner.observe"]
         assessment_events = [event for event in events if event.event_type == "assessment.socratic"]
+        run_summary_events = [event for event in events if event.event_type == "learning.run.summary"]
 
         grouped: dict[str, list[float]] = {}
         validation_counts: dict[str, int] = {}
@@ -44,6 +45,7 @@ class GenerationPromptSelector:
         assessment_counts: dict[str, int] = {}
         session_outcome_counts: dict[str, int] = {}
         run_summary_counts: dict[str, int] = {}
+        persisted_run_summary_counts: dict[str, int] = {}
         positive_run_signal_counts: dict[str, int] = {}
         negative_run_signal_counts: dict[str, int] = {}
         run_signal_confidence_totals: dict[str, float] = {}
@@ -56,6 +58,7 @@ class GenerationPromptSelector:
                 candidate_generations=all_generation_events,
                 candidate_observations=observation_events,
                 candidate_assessments=assessment_events,
+                candidate_run_summaries=run_summary_events,
             )
             grouped.setdefault(sample.variant, []).append(sample.composite_score)
             validation_counts[sample.variant] = validation_counts.get(sample.variant, 0) + (
@@ -75,6 +78,9 @@ class GenerationPromptSelector:
             )
             run_summary_counts[sample.variant] = run_summary_counts.get(sample.variant, 0) + (
                 1 if sample.run_summary_score is not None else 0
+            )
+            persisted_run_summary_counts[sample.variant] = persisted_run_summary_counts.get(sample.variant, 0) + (
+                1 if sample.run_summary_source == "persisted" else 0
             )
             positive_run_signal_counts[sample.variant] = positive_run_signal_counts.get(sample.variant, 0) + (
                 1 if sample.run_calibration_signal == "positive" else 0
@@ -113,6 +119,7 @@ class GenerationPromptSelector:
             assessment_rate = assessment_counts.get(variant, 0) / event_count
             session_outcome_rate = session_outcome_counts.get(variant, 0) / event_count
             run_summary_rate = run_summary_counts.get(variant, 0) / event_count
+            persisted_run_summary_rate = persisted_run_summary_counts.get(variant, 0) / event_count
             positive_run_signal_rate = positive_run_signal_counts.get(variant, 0) / event_count
             negative_run_signal_rate = negative_run_signal_counts.get(variant, 0) / event_count
             average_run_signal_confidence = run_signal_confidence_totals.get(variant, 0.0) / event_count
@@ -127,6 +134,7 @@ class GenerationPromptSelector:
                 + (assessment_rate * 0.08)
                 + (session_outcome_rate * 0.06)
                 + (run_summary_rate * 0.08)
+                + (persisted_run_summary_rate * 0.06)
                 + (positive_run_signal_rate * 0.08)
                 - (negative_run_signal_rate * 0.08)
                 + (average_run_signal_confidence * 0.06)
