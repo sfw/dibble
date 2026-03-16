@@ -31,6 +31,7 @@ def test_profile_round_trip_and_summary(client, student_id):
     assert summary_response.json()["progress"]["source"] == "insufficient"
     assert summary_response.json()["strategy"]["source"] == "insufficient"
     assert summary_response.json()["state_profile"]["source"] == "insufficient"
+    assert summary_response.json()["trait_profile"]["source"] == "insufficient"
     assert summary_response.json()["recent_activity"]["generation_count"] == 0
     assert profile_response.json()["profile_metadata"]["student_id"] == str(student_id)
     assert str(student_id) in list_response.json()
@@ -128,6 +129,19 @@ def test_profile_summary_exposes_recent_calibration_and_activity(client, student
             "self_monitoring": 0.8,
         },
     )
+    audit_store.append(
+        event_type="learning.cognitive_trait.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "matched_observation_count": 6,
+            "matched_session_count": 2,
+            "profile_signal": "stable",
+            "processing_speed": {"value": 0.75, "confidence": 0.78},
+            "working_memory": {"value": 0.71, "confidence": 0.77},
+            "spatial_reasoning": {"value": 0.66, "confidence": 0.63},
+        },
+    )
 
     response = client.get(f"/api/learners/{student_id}/summary")
 
@@ -149,6 +163,9 @@ def test_profile_summary_exposes_recent_calibration_and_activity(client, student
     assert payload["state_profile"]["source"] == "state_profile"
     assert payload["state_profile"]["signal"] == "independence_ready"
     assert payload["state_profile"]["total_load"] == 0.44
+    assert payload["trait_profile"]["source"] == "trait_profile"
+    assert payload["trait_profile"]["processing_speed"]["value"] == 0.75
+    assert payload["trait_profile"]["working_memory"]["value"] == 0.71
     assert payload["recent_activity"]["generation_count"] == 1
     assert payload["recent_activity"]["last_generation_id"] == "summary-gen-1"
     assert payload["recent_activity"]["last_learning_session_id"] == "summary-session-1"

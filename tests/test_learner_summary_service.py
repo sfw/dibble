@@ -5,6 +5,7 @@ from uuid import uuid4
 from dibble.models.profile import LearnerProfile
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.learning_state_profiles import LearnerStateSignalService
+from dibble.services.learning_trait_profiles import LearnerTraitProfileSignalService
 from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
 from dibble.services.learner_summary_service import LearnerSummaryService
 from dibble.services.profile_store import SQLiteProfileStore
@@ -125,12 +126,26 @@ def test_learner_summary_service_prefers_calibration_profile_and_recent_activity
             "self_monitoring": 0.81,
         },
     )
+    audit_store.append(
+        event_type="learning.cognitive_trait.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "matched_observation_count": 6,
+            "matched_session_count": 3,
+            "profile_signal": "stable",
+            "processing_speed": {"value": 0.76, "confidence": 0.79},
+            "working_memory": {"value": 0.72, "confidence": 0.77},
+            "spatial_reasoning": {"value": 0.68, "confidence": 0.65},
+        },
+    )
 
     summary = LearnerSummaryService(
         profile_store=profile_store,
         audit_store=audit_store,
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
         state_signal_service=LearnerStateSignalService(audit_store=audit_store),
+        trait_profile_signal_service=LearnerTraitProfileSignalService(audit_store=audit_store),
     ).build_for_student(student_id=student_id)
 
     assert summary is not None
@@ -150,6 +165,9 @@ def test_learner_summary_service_prefers_calibration_profile_and_recent_activity
     assert summary.state_profile.source == "state_profile"
     assert summary.state_profile.signal == "independence_ready"
     assert summary.state_profile.total_load == 0.43
+    assert summary.trait_profile.source == "trait_profile"
+    assert summary.trait_profile.processing_speed is not None
+    assert summary.trait_profile.processing_speed.value == 0.76
     assert summary.recent_activity.generation_count == 1
     assert summary.recent_activity.observation_count == 1
     assert summary.recent_activity.socratic_assessment_count == 1
@@ -187,6 +205,7 @@ def test_learner_summary_service_falls_back_to_run_summary_when_profile_missing(
         audit_store=audit_store,
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
         state_signal_service=LearnerStateSignalService(audit_store=audit_store),
+        trait_profile_signal_service=LearnerTraitProfileSignalService(audit_store=audit_store),
     ).build_for_student(student_id=student_id)
 
     assert summary is not None
@@ -196,4 +215,5 @@ def test_learner_summary_service_falls_back_to_run_summary_when_profile_missing(
     assert summary.progress.source == "insufficient"
     assert summary.strategy.source == "insufficient"
     assert summary.state_profile.source == "insufficient"
+    assert summary.trait_profile.source == "insufficient"
     assert summary.recent_activity.last_generation_id == "fallback-gen"

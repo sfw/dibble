@@ -1,16 +1,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from uuid import UUID
 
 from dibble.models.observations import LearnerObservation
-from dibble.models.profile import CognitiveTraitScore
+from dibble.models.profile import CognitiveTraitScore, LearnerTraitProfileSummary
+from dibble.services.learning_trait_profiles import LearnerTraitProfileSignalService
 
 
 @dataclass(slots=True)
 class CognitiveTraitInferenceService:
+    trait_profile_signal_service: LearnerTraitProfileSignalService | None = None
+
     def infer(
         self,
         *,
+        student_id: UUID | None = None,
         observations: list[LearnerObservation],
         existing_traits: dict[str, CognitiveTraitScore],
     ) -> dict[str, CognitiveTraitScore]:
@@ -30,6 +35,24 @@ class CognitiveTraitInferenceService:
             if inferred is None:
                 continue
             updates[name] = self._merge(existing_traits.get(name), inferred)
+
+        durable_profile = (
+            self.trait_profile_signal_service.latest_for_student(student_id=student_id)
+            if self.trait_profile_signal_service is not None and student_id is not None
+            else LearnerTraitProfileSummary()
+        )
+        if self._should_apply_durable_profile(durable_profile):
+            for name, inferred in (
+                ("processing_speed", durable_profile.processing_speed),
+                ("working_memory", durable_profile.working_memory),
+                ("spatial_reasoning", durable_profile.spatial_reasoning),
+            ):
+                if inferred is None:
+                    continue
+                updates[name] = self._merge_with_durable(
+                    current=updates.get(name) or existing_traits.get(name),
+                    durable=inferred,
+                )
 
         return {**existing_traits, **updates}
 
@@ -98,4 +121,29 @@ class CognitiveTraitInferenceService:
             value=round(merged_value, 2),
             confidence=round(total_confidence / 2.0, 2),
             assessed_at=inferred.assessed_at,
+        )
+
+    def _should_apply_durable_profile(self, profile: LearnerTraitProfileSummary) -> bool:
+        return (
+            profile.source != "insufficient"
+            and profile.signal in {"stable", "tentative"}
+            and profile.matched_session_count >= 2
+            and profile.matched_observation_count >= 4
+        )
+
+    def _merge_with_durable(
+        self,
+        *,
+        current: CognitiveTraitScore | None,
+        durable: CognitiveTraitScore,
+    ) -> CognitiveTraitScore:
+        if current is None:
+            return durable
+        durable_weight = min(0.45, 0.16 + (durable.confidence * 0.28))
+        merged_value = (current.value * (1.0 - durable_weight)) + (durable.value * durable_weight)
+        merged_confidence = min(0.92, current.confidence + (durable.confidence * 0.2))
+        return CognitiveTraitScore(
+            value=round(merged_value, 2),
+            confidence=round(merged_confidence, 2),
+            assessed_at=durable.assessed_at,
         )

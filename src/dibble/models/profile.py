@@ -214,6 +214,18 @@ class LearnerStateProfileSummary(BaseModel):
     updated_at: datetime | None = None
 
 
+class LearnerTraitProfileSummary(BaseModel):
+    signal: str = "insufficient"
+    source: str = "insufficient"
+    matched_observation_count: int = Field(default=0, ge=0)
+    matched_session_count: int = Field(default=0, ge=0)
+    processing_speed: CognitiveTraitScore | None = None
+    working_memory: CognitiveTraitScore | None = None
+    spatial_reasoning: CognitiveTraitScore | None = None
+    rationale: str | None = None
+    updated_at: datetime | None = None
+
+
 class RecentLearnerActivity(BaseModel):
     generation_count: int = Field(default=0, ge=0)
     observation_count: int = Field(default=0, ge=0)
@@ -238,6 +250,7 @@ class ProfileSummary(BaseModel):
     progress: LearnerProgressSummary = Field(default_factory=LearnerProgressSummary)
     strategy: LearnerStrategySummary = Field(default_factory=LearnerStrategySummary)
     state_profile: LearnerStateProfileSummary = Field(default_factory=LearnerStateProfileSummary)
+    trait_profile: LearnerTraitProfileSummary = Field(default_factory=LearnerTraitProfileSummary)
     recent_activity: RecentLearnerActivity = Field(default_factory=RecentLearnerActivity)
     updated_at: datetime
 
@@ -250,6 +263,7 @@ class ProfileSummary(BaseModel):
         progress: LearnerProgressSummary | None = None,
         strategy: LearnerStrategySummary | None = None,
         state_profile: LearnerStateProfileSummary | None = None,
+        trait_profile: LearnerTraitProfileSummary | None = None,
         recent_activity: RecentLearnerActivity | None = None,
     ) -> "ProfileSummary":
         return cls(
@@ -267,6 +281,7 @@ class ProfileSummary(BaseModel):
             progress=progress or LearnerProgressSummary(),
             strategy=strategy or LearnerStrategySummary(),
             state_profile=state_profile or LearnerStateProfileSummary(),
+            trait_profile=trait_profile or LearnerTraitProfileSummary(),
             recent_activity=recent_activity or RecentLearnerActivity(),
             updated_at=profile.updated_at,
         )

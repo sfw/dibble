@@ -25,6 +25,10 @@ from dibble.services.learning_state_profiles import (
     LearnerStateSignalService,
     LearningStateProfileRecorder,
 )
+from dibble.services.learning_trait_profiles import (
+    LearnerTraitProfileSignalService,
+    LearningTraitProfileRecorder,
+)
 from dibble.services.learner_strategy_profiles import (
     LearnerStrategySignalService,
     LearningStrategyProfileRecorder,
@@ -92,6 +96,7 @@ class ApplicationServices:
     learning_progress_profile_recorder: LearningProgressProfileRecorder
     learning_strategy_profile_recorder: LearningStrategyProfileRecorder
     learning_state_profile_recorder: LearningStateProfileRecorder
+    learning_trait_profile_recorder: LearningTraitProfileRecorder
     learner_summary_service: LearnerSummaryService
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_invalidator: PredictiveContentInvalidator
@@ -119,6 +124,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     plugins = build_generation_plugins(settings, curriculum_store=curriculum_store)
     learner_strategy_signal_service = LearnerStrategySignalService(audit_store=audit_store)
     learner_state_signal_service = LearnerStateSignalService(audit_store=audit_store)
+    learner_trait_profile_signal_service = LearnerTraitProfileSignalService(audit_store=audit_store)
     within_session_adaptation_service = WithinSessionAdaptationService(audit_store=audit_store)
     router_plugin = CalibratedRouter(
         base_router=plugins.router,
@@ -155,7 +161,9 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         knowledge_state_migrator=KnowledgeStateMigrator(knowledge_component_store=knowledge_component_store)
     )
     state_inference_service = LearnerStateInferenceService()
-    cognitive_trait_inference_service = CognitiveTraitInferenceService()
+    cognitive_trait_inference_service = CognitiveTraitInferenceService(
+        trait_profile_signal_service=learner_trait_profile_signal_service
+    )
     learner_state_calibrator = LearnerStateCalibrator(
         calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
         state_signal_service=learner_state_signal_service,
@@ -170,11 +178,13 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     learning_progress_profile_recorder = LearningProgressProfileRecorder(audit_store=audit_store)
     learning_strategy_profile_recorder = LearningStrategyProfileRecorder(audit_store=audit_store)
     learning_state_profile_recorder = LearningStateProfileRecorder(audit_store=audit_store)
+    learning_trait_profile_recorder = LearningTraitProfileRecorder(audit_store=audit_store)
     learner_summary_service = LearnerSummaryService(
         profile_store=profile_store,
         audit_store=audit_store,
         strategy_signal_service=learner_strategy_signal_service,
         state_signal_service=learner_state_signal_service,
+        trait_profile_signal_service=learner_trait_profile_signal_service,
     )
     misconception_profile_recorder = LearningMisconceptionProfileRecorder(audit_store=audit_store)
     content_warmer = ContentWarmer(
@@ -237,6 +247,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         learning_progress_profile_recorder=learning_progress_profile_recorder,
         learning_strategy_profile_recorder=learning_strategy_profile_recorder,
         learning_state_profile_recorder=learning_state_profile_recorder,
+        learning_trait_profile_recorder=learning_trait_profile_recorder,
         learner_summary_service=learner_summary_service,
         generation_mode_calibrator=generation_mode_calibrator,
         predictive_content_invalidator=predictive_content_invalidator,
