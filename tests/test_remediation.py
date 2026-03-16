@@ -325,7 +325,74 @@ def test_remediation_planner_adds_same_lo_bridge_between_repair_and_return(tmp_p
     assert plan.kc_sequence.bridge_kc_ids == ["KC-2"]
     assert plan.module_blueprint["bridge_target_kc_ids"] == ["KC-2"]
     assert [step["phase"] for step in plan.module_blueprint["steps"]] == ["step_back", "repair", "bridge", "return"]
-    assert "same-LO bridge KC(s) KC-2" in (plan.kc_sequence.rationale or "")
+    assert "nearby bridge KC(s) KC-2" in (plan.kc_sequence.rationale or "")
+
+
+def test_remediation_planner_can_bridge_through_curated_taxonomy_neighbor(tmp_path):
+    database_path = str(tmp_path / "remediation-taxonomy-bridge.db")
+    ensure_database(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(database_path)
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component(
+                "KC-1",
+                name="Identify numerator and denominator",
+                concept_family="fraction-sense",
+                taxonomy_cluster_id="fractions-core",
+            )
+        )
+    )
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component(
+                "KC-2",
+                parent_lo_id="LO-3",
+                prerequisite_kc_ids=["KC-1"],
+                name="Use benchmark fractions to compare amounts",
+                concept_family="fraction-equivalence",
+                taxonomy_cluster_id="fractions-core",
+                nearby_kc_ids=["KC-3"],
+            )
+        )
+    )
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component(
+                "KC-3",
+                parent_lo_id="LO-2",
+                prerequisite_kc_ids=["KC-1"],
+                name="Generate equivalent fractions",
+                concept_family="fraction-equivalence",
+                taxonomy_cluster_id="fractions-core",
+                common_misconceptions=[
+                    {
+                        "misconception_id": "fraction-part-role-swap",
+                        "label": "Swaps numerator and denominator roles",
+                        "description": "The learner treats the top and bottom numbers as interchangeable.",
+                        "trigger_terms": ["numerator", "denominator", "swap"],
+                        "prerequisite_kc_ids": ["KC-1"],
+                        "remediation_hint": "Anchor each number to what it counts before generating an equivalent fraction.",
+                    }
+                ],
+            )
+        )
+    )
+    profile = LearnerProfile.model_validate(
+        build_profile(uuid4(), kc_mastery={"KC-1": 0.26, "KC-2": 0.53, "KC-3": 0.41})
+    )
+    planner = RemediationPlanner(kc_store, MisconceptionDetector(kc_store))
+
+    plan = planner.plan(
+        profile,
+        "KC-3",
+        misconception_description="The learner swaps numerator and denominator language while generating equivalent fractions.",
+        curriculum_context=["Equivalent fractions"],
+    )
+
+    assert plan.focus_kc_ids == ["KC-1", "KC-2", "KC-3"]
+    assert plan.kc_sequence.bridge_kc_ids == ["KC-2"]
+    assert plan.module_blueprint["bridge_target_kc_ids"] == ["KC-2"]
+    assert [step["phase"] for step in plan.module_blueprint["steps"]] == ["step_back", "repair", "bridge", "return"]
 
 
 def test_misconception_detector_uses_profile_signals_to_reinforce_prior_patterns(tmp_path):

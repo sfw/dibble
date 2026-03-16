@@ -92,7 +92,7 @@ class RemediationModuleBlueprintBuilder:
                     "title": "Bridge through a nearby knowledge component",
                     "target_kc_ids": ordered_bridge_targets,
                     "support_level": "medium",
-                    "objective": "Reconnect the repaired idea through a nearby knowledge component in the same learning objective before returning to the target.",
+                    "objective": "Reconnect the repaired idea through a nearby knowledge component before returning to the target.",
                     "misconception_ids": [],
                     "guidance": "Use a closely related example that shares the repaired prerequisite, then fade support before the target transfer check.",
                 }

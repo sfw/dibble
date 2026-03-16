@@ -157,7 +157,7 @@ def test_remediation_workflow_coordinator_carries_bridge_sequence_context(tmp_pa
                     "phase": "bridge",
                     "target_kc_ids": ["KC-2"],
                     "support_level": "medium",
-                    "objective": "Bridge through a nearby same-LO knowledge component.",
+                    "objective": "Bridge through a nearby knowledge component.",
                     "guidance": "Fade support a bit before the target return.",
                 },
                 {
@@ -175,14 +175,14 @@ def test_remediation_workflow_coordinator_carries_bridge_sequence_context(tmp_pa
             ordered_kc_ids=["KC-1", "KC-2", "KC-3"],
             bridge_kc_ids=["KC-2"],
             deferred_kc_ids=["KC-3"],
-            rationale="Use nearby same-LO bridge KC(s) KC-2 before returning fully to the target.",
+            rationale="Use nearby bridge KC(s) KC-2 before returning fully to the target.",
         ),
     )
 
     session = coordinator.start_session(
         student_id=uuid4(),
         target_kc_id="KC-3",
-        misconception_description="The learner needs a same-LO bridge before returning to the target.",
+        misconception_description="The learner needs a nearby bridge before returning to the target.",
         curriculum_context=["Equivalent fractions"],
         plan=plan,
         strategy_summary=LearnerStrategySummary(
@@ -204,4 +204,4 @@ def test_remediation_workflow_coordinator_carries_bridge_sequence_context(tmp_pa
     assert loaded_session.session_id == session.session_id
     assert current_step.phase == "bridge"
     assert current_step.recommended_content_type == "remedial_micro_module"
-    assert any("Bridge through nearby same-LO KC(s) KC-2" in item for item in generation_request.curriculum_context)
+    assert any("Bridge through nearby KC(s) KC-2" in item for item in generation_request.curriculum_context)

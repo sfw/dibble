@@ -153,7 +153,7 @@ class KcSequencePlanner:
         if not bridge_kc_ids:
             return rationale
         bridge_fragment = ", ".join(bridge_kc_ids)
-        return f"{rationale} Use nearby same-LO bridge KC(s) {bridge_fragment} before returning fully to the target."
+        return f"{rationale} Use nearby bridge KC(s) {bridge_fragment} before returning fully to the target."
 
 
 def _unique(values: list[str]) -> list[str]:

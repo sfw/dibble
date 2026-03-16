@@ -40,7 +40,10 @@ class KnowledgeComponentUpsert(BaseModel):
     parent_lo_id: str
     grade_level: str
     subject: str
+    taxonomy_cluster_id: str | None = None
+    concept_family: str | None = None
     prerequisite_kc_ids: list[str] = Field(default_factory=list)
+    nearby_kc_ids: list[str] = Field(default_factory=list)
     difficulty: float = Field(default=0.5, ge=0.0, le=1.0)
     estimated_time_minutes: int = Field(default=10, ge=1)
     tags: list[str] = Field(default_factory=list)

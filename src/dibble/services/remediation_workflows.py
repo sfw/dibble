@@ -205,7 +205,7 @@ class RemediationWorkflowCoordinator:
             context.append(f"Stay centered on {kc_sequence.primary_kc_id} before moving on.")
         if kc_sequence.bridge_kc_ids:
             context.append(
-                "Bridge through nearby same-LO KC(s) "
+                "Bridge through nearby KC(s) "
                 + ", ".join(kc_sequence.bridge_kc_ids)
                 + " before the final target return."
             )

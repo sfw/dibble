@@ -57,6 +57,56 @@ def test_knowledge_component_graph_surfaces_same_lo_bridge_candidates():
     assert [relation.component.kc_id for relation in siblings] == ["KC-2", "KC-4"]
     assert [relation.component.kc_id for relation in bridges] == ["KC-2"]
     assert bridges[0].path_weight > siblings[0].path_weight
+    assert bridges[0].relation_kind == "same_lo"
+
+
+def test_knowledge_component_graph_surfaces_curated_local_neighbors_across_taxonomy():
+    graph = KnowledgeComponentGraph(
+        [
+            _build_component(
+                "KC-1",
+                parent_lo_id="LO-1",
+                concept_family="fraction-sense",
+                taxonomy_cluster_id="fractions-core",
+                difficulty=0.24,
+            ),
+            _build_component(
+                "KC-2",
+                parent_lo_id="LO-2",
+                prerequisite_kc_ids=["KC-1"],
+                concept_family="fraction-equivalence",
+                taxonomy_cluster_id="fractions-core",
+                nearby_kc_ids=["KC-4"],
+                difficulty=0.45,
+            ),
+            _build_component(
+                "KC-3",
+                parent_lo_id="LO-2",
+                prerequisite_kc_ids=["KC-1"],
+                concept_family="fraction-equivalence",
+                taxonomy_cluster_id="fractions-core",
+                nearby_kc_ids=["KC-4"],
+                difficulty=0.61,
+            ),
+            _build_component(
+                "KC-4",
+                parent_lo_id="LO-3",
+                prerequisite_kc_ids=["KC-1"],
+                concept_family="fraction-equivalence",
+                taxonomy_cluster_id="fractions-core",
+                difficulty=0.4,
+            ),
+        ]
+    )
+
+    neighborhood = graph.neighborhood_relations_for("KC-3")
+    bridges = graph.bridge_candidates_for("KC-3", anchor_kc_ids=["KC-1"])
+
+    assert [relation.component.kc_id for relation in neighborhood[:2]] == ["KC-4", "KC-2"]
+    assert neighborhood[0].relation_kind == "curated_neighbor"
+    assert [relation.component.kc_id for relation in bridges[:2]] == ["KC-4", "KC-2"]
+    assert bridges[0].relation_kind == "curated_neighbor"
+    assert bridges[0].path_weight >= bridges[1].path_weight
 
 
 def _build_component(
@@ -65,6 +115,9 @@ def _build_component(
     parent_lo_id: str,
     prerequisite_kc_ids: list[str] | None = None,
     difficulty: float = 0.5,
+    taxonomy_cluster_id: str | None = None,
+    concept_family: str | None = None,
+    nearby_kc_ids: list[str] | None = None,
 ) -> KnowledgeComponent:
     return KnowledgeComponent(
         kc_id=kc_id,
@@ -72,7 +125,10 @@ def _build_component(
         parent_lo_id=parent_lo_id,
         grade_level="5",
         subject="math",
+        taxonomy_cluster_id=taxonomy_cluster_id,
+        concept_family=concept_family,
         prerequisite_kc_ids=prerequisite_kc_ids or [],
+        nearby_kc_ids=nearby_kc_ids or [],
         difficulty=difficulty,
         estimated_time_minutes=10,
         tags=[],
