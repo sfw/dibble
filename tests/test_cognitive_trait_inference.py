@@ -95,8 +95,12 @@ def test_cognitive_trait_inference_blends_durable_trait_profile(tmp_path):
             "processing_speed": {"value": 0.82, "confidence": 0.8},
             "working_memory": {"value": 0.77, "confidence": 0.78},
             "spatial_reasoning": {"value": 0.71, "confidence": 0.68},
+            "processing_speed_reliability": 0.78,
+            "working_memory_reliability": 0.74,
+            "spatial_reasoning_reliability": 0.62,
             "trait_stability": 0.8,
             "challenge_tolerance": 0.68,
+            "challenge_evidence_strength": 0.7,
         },
     )
     service = CognitiveTraitInferenceService(
@@ -141,8 +145,12 @@ def test_cognitive_trait_inference_uses_trait_stability_and_challenge_tolerance_
             "profile_signal": "stable",
             "processing_speed": {"value": 0.86, "confidence": 0.84},
             "working_memory": {"value": 0.79, "confidence": 0.8},
+            "processing_speed_reliability": 0.8,
+            "working_memory_reliability": 0.78,
+            "spatial_reasoning_reliability": 0.0,
             "trait_stability": 0.82,
             "challenge_tolerance": 0.78,
+            "challenge_evidence_strength": 0.8,
         },
     )
     service = CognitiveTraitInferenceService(
@@ -186,8 +194,12 @@ def test_cognitive_trait_inference_downweights_mismatched_tentative_durable_prof
             "profile_signal": "tentative",
             "processing_speed": {"value": 0.88, "confidence": 0.8},
             "working_memory": {"value": 0.9, "confidence": 0.82},
+            "processing_speed_reliability": 0.5,
+            "working_memory_reliability": 0.54,
+            "spatial_reasoning_reliability": 0.0,
             "trait_stability": 0.54,
             "challenge_tolerance": 0.4,
+            "challenge_evidence_strength": 0.42,
         },
     )
     service = CognitiveTraitInferenceService(
@@ -245,8 +257,12 @@ def test_cognitive_trait_inference_downweights_stable_durable_profile_when_curre
             "profile_signal": "stable",
             "processing_speed": {"value": 0.9, "confidence": 0.86},
             "working_memory": {"value": 0.88, "confidence": 0.84},
+            "processing_speed_reliability": 0.82,
+            "working_memory_reliability": 0.8,
+            "spatial_reasoning_reliability": 0.0,
             "trait_stability": 0.85,
             "challenge_tolerance": 0.42,
+            "challenge_evidence_strength": 0.82,
         },
     )
     baseline_service = CognitiveTraitInferenceService()
@@ -321,8 +337,12 @@ def test_cognitive_trait_inference_uses_stable_durable_profile_more_when_current
             "processing_speed": {"value": 0.84, "confidence": 0.82},
             "working_memory": {"value": 0.8, "confidence": 0.8},
             "spatial_reasoning": {"value": 0.76, "confidence": 0.74},
+            "processing_speed_reliability": 0.82,
+            "working_memory_reliability": 0.78,
+            "spatial_reasoning_reliability": 0.74,
             "trait_stability": 0.84,
             "challenge_tolerance": 0.76,
+            "challenge_evidence_strength": 0.76,
         },
     )
     baseline_service = CognitiveTraitInferenceService()
@@ -351,3 +371,68 @@ def test_cognitive_trait_inference_uses_stable_durable_profile_more_when_current
 
     assert blended["spatial_reasoning"].value > baseline["spatial_reasoning"].value
     assert blended["processing_speed"].value > baseline["processing_speed"].value
+
+
+def test_cognitive_trait_inference_prefers_reliable_durable_traits_over_unreliable_ones(tmp_path):
+    database_path = str(tmp_path / "cognitive-trait-profile-reliability.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = uuid4()
+    audit_store.append(
+        event_type="learning.cognitive_trait.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "matched_observation_count": 8,
+            "matched_session_count": 4,
+            "profile_signal": "stable",
+            "processing_speed": {"value": 0.9, "confidence": 0.84},
+            "working_memory": {"value": 0.86, "confidence": 0.82},
+            "processing_speed_reliability": 0.24,
+            "working_memory_reliability": 0.84,
+            "spatial_reasoning_reliability": 0.0,
+            "trait_stability": 0.82,
+            "challenge_tolerance": 0.74,
+            "challenge_evidence_strength": 0.82,
+        },
+    )
+    baseline_service = CognitiveTraitInferenceService()
+    blended_service = CognitiveTraitInferenceService(
+        trait_profile_signal_service=LearnerTraitProfileSignalService(audit_store=audit_store)
+    )
+    observations = [
+        LearnerObservation(
+            observation_id="obs-1",
+            student_id=student_id,
+            response_time_ms=18000,
+            expected_duration_ms=12000,
+            hints_used=1,
+            error_count=1,
+            pause_count=1,
+            modality_switches=0,
+            completed=True,
+            confidence=0.7,
+            task_type="practice",
+            support_level="low",
+        ),
+        LearnerObservation(
+            observation_id="obs-2",
+            student_id=student_id,
+            response_time_ms=17000,
+            expected_duration_ms=12000,
+            hints_used=1,
+            error_count=1,
+            pause_count=1,
+            modality_switches=0,
+            completed=True,
+            confidence=0.68,
+            task_type="assessment",
+            support_level="low",
+        ),
+    ]
+
+    baseline = baseline_service.infer(student_id=student_id, observations=observations, existing_traits={})
+    blended = blended_service.infer(student_id=student_id, observations=observations, existing_traits={})
+
+    assert blended["working_memory"].value - baseline["working_memory"].value >= 0.04
+    assert blended["processing_speed"].value <= baseline["processing_speed"].value + 0.03

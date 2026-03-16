@@ -212,11 +212,21 @@ class LearnerStateCalibrator:
             return (
                 profile.recovery_stability >= 0.58
                 and profile.metacognitive_reliability >= 0.52
+                and max(
+                    profile.affective_reliability,
+                    profile.load_reliability,
+                    profile.metacognitive_reliability,
+                )
+                >= 0.52
                 and profile.overload_risk <= 0.68
                 and observation_strain < 0.72
             )
         if profile.signal == "support_needed":
-            return profile.overload_risk >= 0.44 or observation_strain >= 0.36
+            return (
+                profile.overload_risk >= 0.44
+                or profile.load_reliability >= 0.5
+                or observation_strain >= 0.36
+            )
         return profile.recovery_stability >= 0.5
 
     def _blend_with_state_profile(
@@ -231,6 +241,12 @@ class LearnerStateCalibrator:
             observation=observation,
             state=state,
         )
+        affective_weight = min(0.5, max(0.12, weight + (profile.affective_reliability * 0.12) - 0.04))
+        load_weight = min(0.54, max(0.14, weight + (profile.load_reliability * 0.14) - 0.03))
+        metacognitive_weight = min(
+            0.54,
+            max(0.14, weight + (profile.metacognitive_reliability * 0.12) - 0.02),
+        )
         return state.model_copy(
             update={
                 "affective_state": state.affective_state.model_copy(
@@ -238,18 +254,18 @@ class LearnerStateCalibrator:
                         "engagement": self._blend_signal_level(
                             state.affective_state.engagement,
                             profile.engagement,
-                            weight=weight,
+                            weight=affective_weight,
                         ),
                         "frustration": self._blend_signal_level(
                             state.affective_state.frustration,
                             profile.frustration,
-                            weight=weight,
+                            weight=affective_weight,
                         ),
                         "confidence": round(
                             self._blend_numeric(
                                 state.affective_state.confidence,
                                 target=self._profile_confidence_target(profile),
-                                weight=weight,
+                                weight=affective_weight,
                             ),
                             2,
                         ),
@@ -258,26 +274,42 @@ class LearnerStateCalibrator:
                 "cognitive_load": state.cognitive_load.model_copy(
                     update={
                         "intrinsic_load": round(
-                            self._blend_numeric(state.cognitive_load.intrinsic_load, target=self._profile_intrinsic_load(profile), weight=weight),
+                            self._blend_numeric(
+                                state.cognitive_load.intrinsic_load,
+                                target=self._profile_intrinsic_load(profile),
+                                weight=load_weight,
+                            ),
                             2,
                         ),
                         "extraneous_load": round(
-                            self._blend_numeric(state.cognitive_load.extraneous_load, target=self._profile_extraneous_load(profile), weight=weight),
+                            self._blend_numeric(
+                                state.cognitive_load.extraneous_load,
+                                target=self._profile_extraneous_load(profile),
+                                weight=load_weight,
+                            ),
                             2,
                         ),
                         "germane_load": round(
-                            self._blend_numeric(state.cognitive_load.germane_load, target=self._profile_germane_load(profile), weight=weight),
+                            self._blend_numeric(
+                                state.cognitive_load.germane_load,
+                                target=self._profile_germane_load(profile),
+                                weight=load_weight,
+                            ),
                             2,
                         ),
                         "total_load": round(
-                            self._blend_numeric(state.cognitive_load.total_load, target=profile.total_load, weight=weight),
+                            self._blend_numeric(
+                                state.cognitive_load.total_load,
+                                target=profile.total_load,
+                                weight=load_weight,
+                            ),
                             2,
                         ),
                         "capacity_utilization": round(
                             self._blend_numeric(
                                 state.cognitive_load.capacity_utilization,
                                 target=min(1.0, profile.total_load + (0.1 if profile.frustration in {SignalLevel.medium, SignalLevel.high} else 0.0)),
-                                weight=weight,
+                                weight=load_weight,
                             ),
                             2,
                         ),
@@ -289,20 +321,20 @@ class LearnerStateCalibrator:
                             self._blend_numeric(
                                 state.metacognitive_state.confidence_calibration,
                                 target=profile.confidence_calibration,
-                                weight=weight,
+                                weight=metacognitive_weight,
                             ),
                             2,
                         ),
                         "help_seeking": self._blend_signal_level(
                             state.metacognitive_state.help_seeking,
                             profile.help_seeking,
-                            weight=weight,
+                            weight=metacognitive_weight,
                         ),
                         "help_seeking_effectiveness": round(
                             self._blend_numeric(
                                 state.metacognitive_state.help_seeking_effectiveness,
                                 target=self._profile_help_seeking_effectiveness(profile),
-                                weight=weight,
+                                weight=metacognitive_weight,
                             ),
                             2,
                         ),
@@ -310,7 +342,7 @@ class LearnerStateCalibrator:
                             self._blend_numeric(
                                 state.metacognitive_state.self_monitoring,
                                 target=profile.self_monitoring,
-                                weight=weight,
+                                weight=metacognitive_weight,
                             ),
                             2,
                         ),

@@ -144,6 +144,8 @@ def test_state_inference_blends_high_confidence_durable_state_profile(tmp_path):
             "confidence_calibration": 0.34,
             "help_seeking": "high",
             "self_monitoring": 0.32,
+            "affective_reliability": 0.74,
+            "load_reliability": 0.82,
             "recovery_stability": 0.34,
             "overload_risk": 0.84,
             "metacognitive_reliability": 0.78,
@@ -184,8 +186,8 @@ def test_state_inference_blends_high_confidence_durable_state_profile(tmp_path):
     inferred = service.infer(student_id=student_id, observations=observations)
 
     assert inferred.cognitive_load.total_load >= 0.55
-    assert inferred.metacognitive_state.self_monitoring < 0.65
-    assert inferred.metacognitive_state.help_seeking in {SignalLevel.medium, SignalLevel.high}
+    assert inferred.metacognitive_state.confidence_calibration < 0.8
+    assert inferred.metacognitive_state.self_monitoring < 0.7
 
 
 def test_state_inference_ignores_weak_mismatched_durable_profile(tmp_path):
@@ -209,6 +211,8 @@ def test_state_inference_ignores_weak_mismatched_durable_profile(tmp_path):
             "confidence_calibration": 0.2,
             "help_seeking": "high",
             "self_monitoring": 0.22,
+            "affective_reliability": 0.46,
+            "load_reliability": 0.5,
             "recovery_stability": 0.36,
             "overload_risk": 0.88,
             "metacognitive_reliability": 0.42,
@@ -275,6 +279,8 @@ def test_state_inference_downweights_high_confidence_durable_profile_when_curren
             "confidence_calibration": 0.86,
             "help_seeking": "low",
             "self_monitoring": 0.84,
+            "affective_reliability": 0.82,
+            "load_reliability": 0.8,
             "recovery_stability": 0.8,
             "overload_risk": 0.22,
             "metacognitive_reliability": 0.83,
@@ -332,3 +338,80 @@ def test_state_inference_downweights_high_confidence_durable_profile_when_curren
     assert blended.cognitive_load.total_load >= baseline.cognitive_load.total_load - 0.04
     assert blended.metacognitive_state.self_monitoring <= baseline.metacognitive_state.self_monitoring + 0.06
     assert blended.metacognitive_state.help_seeking in {SignalLevel.medium, SignalLevel.high}
+
+
+def test_state_inference_blends_durable_load_more_than_affect_when_reliability_is_dimension_specific(tmp_path):
+    database_path = str(tmp_path / "state-inference-dimension-specific.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = uuid4()
+    audit_store.append(
+        event_type="learning.state.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "average_run_outcome_score": 0.5,
+            "average_run_confidence": 0.84,
+            "matched_run_count": 7,
+            "matched_session_count": 4,
+            "state_profile_signal": "support_needed",
+            "engagement": "low",
+            "frustration": "high",
+            "total_load": 0.86,
+            "confidence_calibration": 0.4,
+            "help_seeking": "high",
+            "self_monitoring": 0.36,
+            "affective_reliability": 0.22,
+            "load_reliability": 0.86,
+            "recovery_stability": 0.42,
+            "overload_risk": 0.88,
+            "metacognitive_reliability": 0.58,
+        },
+    )
+    baseline_service = LearnerStateInferenceService()
+    blended_service = LearnerStateInferenceService(
+        state_profile_signal_service=LearnerStateSignalService(audit_store=audit_store)
+    )
+    observations = [
+        LearnerObservation(
+            observation_id="obs-1",
+            student_id=student_id,
+            response_time_ms=15000,
+            hints_used=1,
+            error_count=1,
+            pause_count=0,
+            modality_switches=0,
+            completed=True,
+            confidence=0.72,
+            task_type="practice",
+            support_level="medium",
+        ),
+        LearnerObservation(
+            observation_id="obs-2",
+            student_id=student_id,
+            response_time_ms=16000,
+            hints_used=1,
+            error_count=1,
+            pause_count=0,
+            modality_switches=0,
+            completed=True,
+            confidence=0.7,
+            task_type="practice",
+            support_level="medium",
+        ),
+    ]
+
+    baseline = baseline_service.infer(student_id=student_id, observations=observations)
+    blended = blended_service.infer(student_id=student_id, observations=observations)
+
+    assert blended.cognitive_load.total_load - baseline.cognitive_load.total_load >= 0.08
+    assert abs(_signal_rank(blended.affective_state.frustration) - _signal_rank(baseline.affective_state.frustration)) <= 1
+
+
+def _signal_rank(value: SignalLevel) -> int:
+    return {
+        SignalLevel.none: 0,
+        SignalLevel.low: 1,
+        SignalLevel.medium: 2,
+        SignalLevel.high: 3,
+    }[value]

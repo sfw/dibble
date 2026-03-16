@@ -55,8 +55,11 @@ def test_learning_trait_profile_recorder_compacts_recent_observations(tmp_path):
     assert event.payload["profile_signal"] == "stable"
     assert event.payload["processing_speed"]["value"] > 0.7
     assert event.payload["working_memory"]["value"] > 0.6
+    assert event.payload["processing_speed_reliability"] > 0.5
+    assert event.payload["working_memory_reliability"] > 0.45
     assert event.payload["trait_stability"] >= 0.55
     assert event.payload["challenge_tolerance"] > 0.6
+    assert event.payload["challenge_evidence_strength"] > 0.5
 
 
 def test_learner_trait_profile_signal_service_returns_latest_profile(tmp_path):
@@ -90,5 +93,7 @@ def test_learner_trait_profile_signal_service_returns_latest_profile(tmp_path):
     assert summary.processing_speed.value == 0.74
     assert summary.working_memory is not None
     assert summary.working_memory.value == 0.69
+    assert summary.processing_speed_reliability == 0.0
+    assert summary.challenge_evidence_strength == 0.0
     assert summary.trait_stability == 0.78
     assert summary.challenge_tolerance == 0.66

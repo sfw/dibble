@@ -21,8 +21,12 @@ class LearningTraitProfileSnapshot:
     processing_speed: CognitiveTraitScore | None = None
     working_memory: CognitiveTraitScore | None = None
     spatial_reasoning: CognitiveTraitScore | None = None
+    processing_speed_reliability: float = 0.0
+    working_memory_reliability: float = 0.0
+    spatial_reasoning_reliability: float = 0.0
     trait_stability: float = 0.0
     challenge_tolerance: float = 0.0
+    challenge_evidence_strength: float = 0.0
     rationale: str | None = None
 
 
@@ -59,12 +63,30 @@ class LearningTraitProfileBuilder:
         processing_speed = self._processing_speed(matched_events, context=context)
         working_memory = self._working_memory(matched_events, context=context)
         spatial_reasoning = self._spatial_reasoning(matched_events, context=context)
+        processing_speed_reliability = self._processing_speed_reliability(
+            events=matched_events,
+            matched_session_count=matched_session_count,
+        )
+        working_memory_reliability = self._working_memory_reliability(
+            events=matched_events,
+            matched_session_count=matched_session_count,
+            context=context,
+        )
+        spatial_reasoning_reliability = self._spatial_reasoning_reliability(
+            events=matched_events,
+            matched_session_count=matched_session_count,
+            context=context,
+        )
         trait_stability = self._trait_stability(
             events=matched_events,
             matched_session_count=matched_session_count,
             traits=[processing_speed, working_memory, spatial_reasoning],
         )
         challenge_tolerance = self._challenge_tolerance(matched_events, context=context)
+        challenge_evidence_strength = self._challenge_evidence_strength(
+            events=matched_events,
+            matched_session_count=matched_session_count,
+        )
 
         return LearningTraitProfileSnapshot(
             signal=self._signal_label(
@@ -72,14 +94,23 @@ class LearningTraitProfileBuilder:
                 matched_session_count=matched_session_count,
                 traits=[processing_speed, working_memory, spatial_reasoning],
                 trait_stability=trait_stability,
+                reliabilities=[
+                    processing_speed_reliability,
+                    working_memory_reliability,
+                    spatial_reasoning_reliability,
+                ],
             ),
             matched_observation_count=len(matched_events),
             matched_session_count=matched_session_count,
             processing_speed=processing_speed,
             working_memory=working_memory,
             spatial_reasoning=spatial_reasoning,
+            processing_speed_reliability=processing_speed_reliability,
+            working_memory_reliability=working_memory_reliability,
+            spatial_reasoning_reliability=spatial_reasoning_reliability,
             trait_stability=trait_stability,
             challenge_tolerance=challenge_tolerance,
+            challenge_evidence_strength=challenge_evidence_strength,
             rationale=self._rationale(
                 observation_count=len(matched_events),
                 session_count=matched_session_count,
@@ -182,11 +213,14 @@ class LearningTraitProfileBuilder:
         matched_session_count: int,
         traits: list[CognitiveTraitScore | None],
         trait_stability: float,
+        reliabilities: list[float],
     ) -> str:
         available = [trait for trait in traits if trait is not None]
         if not available:
             return "insufficient"
         average_confidence = sum(trait.confidence for trait in available) / len(available)
+        available_reliabilities = [reliability for trait, reliability in zip(traits, reliabilities) if trait is not None]
+        average_reliability = sum(available_reliabilities) / max(1, len(available_reliabilities))
         if (
             matched_session_count < self.minimum_session_count_for_stable_signal
             or matched_observation_count < self.minimum_observation_count_for_stable_signal
@@ -194,9 +228,99 @@ class LearningTraitProfileBuilder:
             return "tentative"
         if average_confidence < 0.55:
             return "tentative"
+        if average_reliability < 0.52:
+            return "tentative"
         if trait_stability < 0.52:
             return "tentative"
         return "stable"
+
+    def _processing_speed_reliability(
+        self,
+        *,
+        events: list[AuditEvent],
+        matched_session_count: int,
+    ) -> float:
+        ratios = [
+            float(event.payload.get("response_time_ms", 0.0))
+            / max(1.0, float(event.payload.get("expected_duration_ms", 15000) or 15000))
+            for event in events
+        ]
+        speed_spread = 0.0 if not ratios else min(1.0, max(ratios) - min(ratios))
+        completion_rate = sum(1 for event in events if bool(event.payload.get("completed", True))) / len(events)
+        return round(
+            _clamp(
+                0.22
+                + min(0.18, len(events) * 0.03)
+                + min(0.12, matched_session_count * 0.04)
+                + (completion_rate * 0.18)
+                - (speed_spread * 0.26)
+            ),
+            2,
+        )
+
+    def _working_memory_reliability(
+        self,
+        *,
+        events: list[AuditEvent],
+        matched_session_count: int,
+        context: dict[str, float | str],
+    ) -> float:
+        challenge_events = [
+            event
+            for event in events
+            if event.payload.get("task_type") in {"practice", "assessment"}
+            and event.payload.get("support_level") == "low"
+        ]
+        relevant = challenge_events or events
+        completion_rate = sum(1 for event in relevant if bool(event.payload.get("completed", True))) / len(relevant)
+        hints = sum(float(event.payload.get("hints_used", 0.0)) for event in relevant) / len(relevant)
+        errors = sum(float(event.payload.get("error_count", 0.0)) for event in relevant) / len(relevant)
+        challenge_share = len(challenge_events) / len(events)
+        load_penalty = max(0.0, float(context.get("total_load", 0.4)) - 0.6) * 0.16
+        return round(
+            _clamp(
+                0.18
+                + min(0.16, len(relevant) * 0.04)
+                + min(0.12, matched_session_count * 0.04)
+                + (challenge_share * 0.16)
+                + (completion_rate * 0.12)
+                - min(hints, 4.0) * 0.03
+                - min(errors, 4.0) * 0.03
+                - load_penalty
+            ),
+            2,
+        )
+
+    def _spatial_reasoning_reliability(
+        self,
+        *,
+        events: list[AuditEvent],
+        matched_session_count: int,
+        context: dict[str, float | str],
+    ) -> float:
+        relevant = [
+            event
+            for event in events
+            if event.payload.get("task_type") in {"worked_example", "explanation", "remediation"}
+        ]
+        if not relevant:
+            return 0.0
+        completion_rate = sum(1 for event in relevant if bool(event.payload.get("completed", True))) / len(relevant)
+        errors = sum(float(event.payload.get("error_count", 0.0)) for event in relevant) / len(relevant)
+        engagement_bonus = (
+            0.08 if context.get("engagement") == "high" else 0.03 if context.get("engagement") == "medium" else 0.0
+        )
+        return round(
+            _clamp(
+                0.2
+                + min(0.16, len(relevant) * 0.05)
+                + min(0.12, matched_session_count * 0.04)
+                + (completion_rate * 0.16)
+                + engagement_bonus
+                - min(errors, 3.0) * 0.05
+            ),
+            2,
+        )
 
     def _trait_stability(
         self,
@@ -257,6 +381,35 @@ class LearningTraitProfileBuilder:
                 - min(hints, 4.0) * 0.07
                 - min(errors, 4.0) * 0.08
                 - load_penalty
+            ),
+            2,
+        )
+
+    def _challenge_evidence_strength(
+        self,
+        *,
+        events: list[AuditEvent],
+        matched_session_count: int,
+    ) -> float:
+        challenge_events = [
+            event
+            for event in events
+            if event.payload.get("task_type") in {"practice", "assessment"}
+            and event.payload.get("support_level") == "low"
+        ]
+        if not challenge_events:
+            return round(_clamp(0.12 + min(0.12, matched_session_count * 0.03)), 2)
+        challenge_share = len(challenge_events) / len(events)
+        completion_rate = sum(1 for event in challenge_events if bool(event.payload.get("completed", True))) / len(
+            challenge_events
+        )
+        return round(
+            _clamp(
+                0.22
+                + min(0.2, len(challenge_events) * 0.05)
+                + min(0.12, matched_session_count * 0.04)
+                + (challenge_share * 0.2)
+                + (completion_rate * 0.08)
             ),
             2,
         )
@@ -331,8 +484,12 @@ class LearningTraitProfileRecorder:
                         "processing_speed": self._dump_trait(snapshot.processing_speed),
                         "working_memory": self._dump_trait(snapshot.working_memory),
                         "spatial_reasoning": self._dump_trait(snapshot.spatial_reasoning),
+                        "processing_speed_reliability": snapshot.processing_speed_reliability,
+                        "working_memory_reliability": snapshot.working_memory_reliability,
+                        "spatial_reasoning_reliability": snapshot.spatial_reasoning_reliability,
                         "trait_stability": snapshot.trait_stability,
                         "challenge_tolerance": snapshot.challenge_tolerance,
+                        "challenge_evidence_strength": snapshot.challenge_evidence_strength,
                         "trait_profile_rationale": snapshot.rationale,
                     },
                 )
@@ -385,8 +542,12 @@ class LearnerTraitProfileSignalService:
             processing_speed=self._trait_from_payload(event.payload.get("processing_speed")),
             working_memory=self._trait_from_payload(event.payload.get("working_memory")),
             spatial_reasoning=self._trait_from_payload(event.payload.get("spatial_reasoning")),
+            processing_speed_reliability=float(event.payload.get("processing_speed_reliability", 0.0)),
+            working_memory_reliability=float(event.payload.get("working_memory_reliability", 0.0)),
+            spatial_reasoning_reliability=float(event.payload.get("spatial_reasoning_reliability", 0.0)),
             trait_stability=float(event.payload.get("trait_stability", 0.0)),
             challenge_tolerance=float(event.payload.get("challenge_tolerance", 0.0)),
+            challenge_evidence_strength=float(event.payload.get("challenge_evidence_strength", 0.0)),
             rationale=str(event.payload.get("trait_profile_rationale"))
             if event.payload.get("trait_profile_rationale") is not None
             else None,

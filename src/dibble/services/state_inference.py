@@ -208,18 +208,26 @@ class LearnerStateInferenceService:
             if durable_profile.average_run_outcome_score is not None
             else 0.0
         )
-        contradiction = _state_profile_contradiction(inferred=inferred, durable_profile=durable_profile)
+        contradictions = _state_profile_contradictions(inferred=inferred, durable_profile=durable_profile)
         if performance_gap > 0.38 and durable_profile.confidence < 0.82:
             return False
-        contradiction_limit = 0.38 if durable_profile.signal == "independence_ready" else 0.62
-        if contradiction >= contradiction_limit and evidence.current_reliability >= 0.62:
+        if max(
+            durable_profile.affective_reliability,
+            durable_profile.load_reliability,
+            durable_profile.metacognitive_reliability,
+        ) < 0.44:
             return False
-        if contradiction >= 0.55 and durable_profile.confidence < 0.86:
+        contradiction_limit = 0.42 if durable_profile.signal == "independence_ready" else 0.68
+        if contradictions.overall >= contradiction_limit and evidence.current_reliability >= 0.7:
+            return False
+        if contradictions.overall >= 0.58 and durable_profile.confidence < 0.86:
             return False
         return (
-            durable_profile.recovery_stability >= 0.35
-            or durable_profile.overload_risk >= 0.55
+            durable_profile.affective_reliability >= 0.46
+            or durable_profile.load_reliability >= 0.46
             or durable_profile.metacognitive_reliability >= 0.5
+            or durable_profile.recovery_stability >= 0.35
+            or durable_profile.overload_risk >= 0.55
         )
 
     def _blend_with_durable(
@@ -229,14 +237,13 @@ class LearnerStateInferenceService:
         durable_profile: LearnerStateProfileSummary,
         evidence: "_StateEvidence",
     ) -> InferredLearnerState:
-        contradiction = _state_profile_contradiction(inferred=inferred, durable_profile=durable_profile)
-        weight = 0.12 + (durable_profile.confidence * 0.16) + (durable_profile.recovery_stability * 0.12)
-        weight += durable_profile.metacognitive_reliability * 0.08
+        contradictions = _state_profile_contradictions(inferred=inferred, durable_profile=durable_profile)
+        weight = 0.12 + (durable_profile.confidence * 0.16) + (durable_profile.recovery_stability * 0.1)
         if durable_profile.overload_risk >= 0.7 and inferred.cognitive_load.total_load >= 0.55:
             weight += 0.06
         if (
             evidence.current_reliability >= 0.58
-            and contradiction >= 0.28
+            and contradictions.overall >= 0.28
             and durable_profile.signal == "independence_ready"
         ):
             weight -= min(0.12, evidence.current_reliability * 0.12)
@@ -246,31 +253,65 @@ class LearnerStateInferenceService:
             weight -= 0.04
         if evidence.support_intensity >= 0.6 and durable_profile.overload_risk >= 0.6:
             weight += 0.03
-        if contradiction >= 0.28:
-            multiplier = 1.55 if durable_profile.signal == "independence_ready" else 0.8
-            floor = 0.26 if durable_profile.signal == "independence_ready" else 0.62
-            weight *= max(floor, 1.0 - (contradiction * multiplier))
-        metacognitive_weight = min(0.48, weight + (durable_profile.metacognitive_reliability * 0.1))
-        if durable_profile.signal == "independence_ready" and contradiction >= 0.28:
-            metacognitive_weight *= 0.65
-        weight = min(0.42, max(0.1, weight))
+        affective_weight = _state_dimension_weight(
+            base_weight=weight,
+            reliability=durable_profile.affective_reliability,
+            contradiction=contradictions.affective,
+            current_reliability=evidence.current_reliability,
+            signal=durable_profile.signal,
+            cap=0.42,
+        )
+        load_weight = _state_dimension_weight(
+            base_weight=weight + 0.02,
+            reliability=durable_profile.load_reliability,
+            contradiction=contradictions.load,
+            current_reliability=evidence.current_reliability,
+            signal=durable_profile.signal,
+            cap=0.48,
+        )
+        metacognitive_weight = _state_dimension_weight(
+            base_weight=weight,
+            reliability=durable_profile.metacognitive_reliability,
+            contradiction=contradictions.metacognitive,
+            current_reliability=evidence.current_reliability,
+            signal=durable_profile.signal,
+            cap=0.48,
+        )
         return inferred.model_copy(
             update={
                 "affective_state": inferred.affective_state.model_copy(
                     update={
-                        "engagement": _blend_signal(inferred.affective_state.engagement, durable_profile.engagement, weight),
-                        "frustration": _blend_signal(inferred.affective_state.frustration, durable_profile.frustration, weight),
-                        "confidence": round(_blend(inferred.affective_state.confidence, durable_profile.confidence, weight), 2),
+                        "engagement": _blend_signal(
+                            inferred.affective_state.engagement,
+                            durable_profile.engagement,
+                            affective_weight,
+                        ),
+                        "frustration": _blend_signal(
+                            inferred.affective_state.frustration,
+                            durable_profile.frustration,
+                            affective_weight,
+                        ),
+                        "confidence": round(
+                            _blend(
+                                inferred.affective_state.confidence,
+                                durable_profile.confidence,
+                                affective_weight,
+                            ),
+                            2,
+                        ),
                     }
                 ),
                 "cognitive_load": inferred.cognitive_load.model_copy(
                     update={
-                        "total_load": round(_blend(inferred.cognitive_load.total_load, durable_profile.total_load, weight), 2),
+                        "total_load": round(
+                            _blend(inferred.cognitive_load.total_load, durable_profile.total_load, load_weight),
+                            2,
+                        ),
                         "capacity_utilization": round(
                             _blend(
                                 inferred.cognitive_load.capacity_utilization,
                                 max(durable_profile.total_load, durable_profile.overload_risk),
-                                min(0.5, weight + 0.06),
+                                min(0.5, load_weight + 0.06),
                             ),
                             2,
                         ),
@@ -282,7 +323,7 @@ class LearnerStateInferenceService:
                             _blend(
                                 inferred.metacognitive_state.confidence_calibration,
                                 durable_profile.confidence_calibration,
-                                min(metacognitive_weight, weight + (durable_profile.metacognitive_reliability * 0.08)),
+                                metacognitive_weight,
                             ),
                             2,
                         ),
@@ -291,7 +332,7 @@ class LearnerStateInferenceService:
                             durable_profile.help_seeking,
                             min(
                                 0.58 if durable_profile.signal == "support_needed" and durable_profile.overload_risk >= 0.7 else 0.45,
-                                weight
+                                metacognitive_weight
                                 + (
                                     0.12
                                     if durable_profile.signal == "support_needed" and durable_profile.overload_risk >= 0.7
@@ -335,6 +376,14 @@ class _StateEvidence:
     support_intensity: float
 
 
+@dataclass(frozen=True, slots=True)
+class _StateContradictions:
+    affective: float
+    load: float
+    metacognitive: float
+    overall: float
+
+
 def _state_evidence(observations: list[LearnerObservation]) -> _StateEvidence:
     if not observations:
         return _StateEvidence(current_reliability=0.0, task_diversity=0.0, support_intensity=0.0)
@@ -354,15 +403,17 @@ def _state_evidence(observations: list[LearnerObservation]) -> _StateEvidence:
     )
 
 
-def _state_profile_contradiction(
+def _state_profile_contradictions(
     *,
     inferred: InferredLearnerState,
     durable_profile: LearnerStateProfileSummary,
-) -> float:
+) -> _StateContradictions:
     overload_gap = abs(inferred.cognitive_load.total_load - durable_profile.total_load)
+    utilization_gap = abs(inferred.cognitive_load.capacity_utilization - max(durable_profile.total_load, durable_profile.overload_risk))
     confidence_gap = abs(
         inferred.metacognitive_state.confidence_calibration - durable_profile.confidence_calibration
     )
+    monitoring_gap = abs(inferred.metacognitive_state.self_monitoring - durable_profile.self_monitoring)
     engagement_gap = abs(
         _signal_value(inferred.affective_state.engagement) - _signal_value(durable_profile.engagement)
     )
@@ -372,17 +423,42 @@ def _state_profile_contradiction(
     help_gap = abs(
         _signal_value(inferred.metacognitive_state.help_seeking) - _signal_value(durable_profile.help_seeking)
     )
-    return round(
+    affective = round(min(1.0, (engagement_gap * 0.45) + (frustration_gap * 0.45) + (confidence_gap * 0.1)), 2)
+    load = round(min(1.0, (overload_gap * 0.7) + (utilization_gap * 0.3)), 2)
+    metacognitive = round(
         min(
             1.0,
-            (overload_gap * 0.35)
-            + (confidence_gap * 0.2)
-            + (engagement_gap * 0.15)
-            + (frustration_gap * 0.15)
-            + (help_gap * 0.15),
+            (confidence_gap * 0.36) + (help_gap * 0.34) + (monitoring_gap * 0.3),
         ),
         2,
     )
+    return _StateContradictions(
+        affective=affective,
+        load=load,
+        metacognitive=metacognitive,
+        overall=round(min(1.0, (affective * 0.28) + (load * 0.4) + (metacognitive * 0.32)), 2),
+    )
+
+
+def _state_dimension_weight(
+    *,
+    base_weight: float,
+    reliability: float,
+    contradiction: float,
+    current_reliability: float,
+    signal: str,
+    cap: float,
+) -> float:
+    weight = base_weight + (reliability * 0.14)
+    if current_reliability >= 0.6:
+        weight -= min(0.1, current_reliability * 0.08)
+    if contradiction >= 0.22:
+        multiplier = 1.45 if signal == "independence_ready" else 0.92
+        floor = 0.0 if current_reliability >= 0.72 else 0.08
+        weight *= max(floor, 1.0 - (contradiction * multiplier))
+    elif reliability >= 0.72:
+        weight += 0.03
+    return min(cap, max(0.0, weight))
 
 
 def _signal_value(signal: SignalLevel) -> float:

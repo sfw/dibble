@@ -140,10 +140,14 @@ def test_observation_endpoint_updates_inferred_state_and_profile(client, student
     }
     assert "recovery_stability" in state_profile_event["payload"]
     assert "overload_risk" in state_profile_event["payload"]
+    assert "affective_reliability" in state_profile_event["payload"]
+    assert "load_reliability" in state_profile_event["payload"]
     assert trait_profile_event["payload"]["source_observation_event_id"] == learner_observe_event["event_id"]
     assert trait_profile_event["payload"]["profile_signal"] in {"stable", "tentative"}
     assert "trait_stability" in trait_profile_event["payload"]
     assert "challenge_tolerance" in trait_profile_event["payload"]
+    assert "processing_speed_reliability" in trait_profile_event["payload"]
+    assert "challenge_evidence_strength" in trait_profile_event["payload"]
     assert "working_memory" in trait_profile_event["payload"]
 
 

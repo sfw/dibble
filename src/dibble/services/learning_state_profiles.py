@@ -34,6 +34,8 @@ class LearningStateProfileSnapshot:
     help_seeking: SignalLevel = SignalLevel.low
     help_seeking_effectiveness: float = 0.5
     self_monitoring: float = 0.5
+    affective_reliability: float = 0.0
+    load_reliability: float = 0.0
     recovery_stability: float = 0.0
     overload_risk: float = 0.0
     metacognitive_reliability: float = 0.0
@@ -253,6 +255,15 @@ def _build_snapshot(
         - (decline * 0.12)
         - (relapse_penalty * 0.4)
     )
+    affective_reliability = _clamp(
+        0.2
+        + (average_run_confidence * 0.24)
+        + (0.06 if matched_session_count >= 4 else 0.03 if matched_session_count >= 2 else 0.0)
+        + (improvement * 0.08)
+        - (decline * 0.12)
+        - (volatility_penalty * 0.5)
+        - (plateau_penalty * 0.3)
+    )
     recovery_stability = _clamp(
         0.2
         + (performance * 0.24)
@@ -274,6 +285,15 @@ def _build_snapshot(
         + (relapse_penalty * 0.75)
         - (improvement * 0.08)
         - (independence_bonus * 0.4)
+    )
+    load_reliability = _clamp(
+        0.22
+        + (average_run_confidence * 0.22)
+        + (0.06 if matched_session_count >= 4 else 0.03 if matched_session_count >= 2 else 0.0)
+        + (recovery_stability * 0.12)
+        + (overload_risk * 0.08)
+        - (volatility_penalty * 0.42)
+        - abs(total_load - capacity_utilization) * 0.12
     )
     metacognitive_reliability = _clamp(
         0.18
@@ -309,6 +329,8 @@ def _build_snapshot(
         help_seeking=_signal_from_score(help_seeking_score),
         help_seeking_effectiveness=round(help_seeking_effectiveness, 2),
         self_monitoring=round(self_monitoring, 2),
+        affective_reliability=round(affective_reliability, 2),
+        load_reliability=round(load_reliability, 2),
         recovery_stability=round(recovery_stability, 2),
         overload_risk=round(overload_risk, 2),
         metacognitive_reliability=round(metacognitive_reliability, 2),
@@ -471,6 +493,8 @@ class LearningStateProfileRecorder:
                         "help_seeking": snapshot.help_seeking.value,
                         "help_seeking_effectiveness": snapshot.help_seeking_effectiveness,
                         "self_monitoring": snapshot.self_monitoring,
+                        "affective_reliability": snapshot.affective_reliability,
+                        "load_reliability": snapshot.load_reliability,
                         "recovery_stability": snapshot.recovery_stability,
                         "overload_risk": snapshot.overload_risk,
                         "metacognitive_reliability": snapshot.metacognitive_reliability,
@@ -665,6 +689,8 @@ class LearnerStateSignalService:
             confidence_calibration=round(self._weighted_average(profile_events, "confidence_calibration"), 2),
             help_seeking=self._average_signal_level(profile_events, "help_seeking"),
             self_monitoring=round(self._weighted_average(profile_events, "self_monitoring"), 2),
+            affective_reliability=round(self._weighted_average(profile_events, "affective_reliability"), 2),
+            load_reliability=round(self._weighted_average(profile_events, "load_reliability"), 2),
             recovery_stability=round(self._weighted_average(profile_events, "recovery_stability"), 2),
             overload_risk=round(self._weighted_average(profile_events, "overload_risk"), 2),
             metacognitive_reliability=round(
@@ -706,6 +732,8 @@ class LearnerStateSignalService:
             confidence_calibration=float(payload.get("confidence_calibration", 0.5)),
             help_seeking=self._signal_level(payload.get("help_seeking")),
             self_monitoring=float(payload.get("self_monitoring", 0.5)),
+            affective_reliability=float(payload.get("affective_reliability", 0.0)),
+            load_reliability=float(payload.get("load_reliability", 0.0)),
             recovery_stability=float(payload.get("recovery_stability", 0.0)),
             overload_risk=float(payload.get("overload_risk", 0.0)),
             metacognitive_reliability=float(payload.get("metacognitive_reliability", 0.0)),

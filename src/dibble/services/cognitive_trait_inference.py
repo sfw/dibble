@@ -55,10 +55,21 @@ class CognitiveTraitInferenceService:
             ):
                 if inferred is None:
                     continue
+                reliability = self._trait_reliability(profile=durable_profile, name=name)
+                if not self._should_apply_durable_trait(
+                    profile=durable_profile,
+                    name=name,
+                    reliability=reliability,
+                    challenge_index=challenge_index,
+                    evidence=evidence,
+                ):
+                    continue
                 updates[name] = self._merge_with_durable(
+                    name=name,
                     current=updates.get(name) or existing_traits.get(name),
                     durable=inferred,
                     profile=durable_profile,
+                    reliability=reliability,
                     challenge_index=challenge_index,
                     evidence=evidence,
                 )
@@ -145,36 +156,87 @@ class CognitiveTraitInferenceService:
             and profile.matched_session_count >= 2
             and profile.matched_observation_count >= 4
             and profile.trait_stability >= 0.48
+            and max(
+                profile.processing_speed_reliability,
+                profile.working_memory_reliability,
+                profile.spatial_reasoning_reliability,
+            )
+            >= 0.44
             and not (
                 evidence.current_reliability >= 0.6
                 and evidence.challenge_exposure >= 0.6
                 and challenge_index >= 0.72
                 and profile.challenge_tolerance < 0.55
             )
-            and not (evidence.current_reliability >= 0.7 and evidence.challenge_exposure >= 0.6 and challenge_index >= 0.72 and profile.signal == "tentative")
+            and not (
+                evidence.current_reliability >= 0.7
+                and evidence.challenge_exposure >= 0.6
+                and challenge_index >= 0.72
+                and profile.signal == "tentative"
+            )
             and not (profile.signal == "tentative" and challenge_index >= 0.72 and profile.challenge_tolerance < 0.45)
         )
+
+    def _should_apply_durable_trait(
+        self,
+        *,
+        profile: LearnerTraitProfileSummary,
+        name: str,
+        reliability: float,
+        challenge_index: float,
+        evidence: "_TraitEvidence",
+    ) -> bool:
+        if reliability < 0.44:
+            return False
+        if (
+            name == "working_memory"
+            and evidence.current_reliability >= 0.62
+            and evidence.challenge_exposure >= 0.55
+            and challenge_index >= 0.65
+            and profile.challenge_evidence_strength < 0.48
+        ):
+            return False
+        if profile.signal == "tentative" and reliability < 0.52 and evidence.current_reliability >= 0.62:
+            return False
+        return True
+
+    def _trait_reliability(self, *, profile: LearnerTraitProfileSummary, name: str) -> float:
+        return {
+            "processing_speed": profile.processing_speed_reliability,
+            "working_memory": profile.working_memory_reliability,
+            "spatial_reasoning": profile.spatial_reasoning_reliability,
+        }.get(name, 0.0)
 
     def _merge_with_durable(
         self,
         *,
+        name: str,
         current: CognitiveTraitScore | None,
         durable: CognitiveTraitScore,
         profile: LearnerTraitProfileSummary,
+        reliability: float,
         challenge_index: float,
         evidence: "_TraitEvidence",
     ) -> CognitiveTraitScore:
         if current is None:
             return durable
-        durable_weight = 0.12 + (durable.confidence * 0.18) + (profile.trait_stability * 0.14)
+        durable_weight = 0.08 + (durable.confidence * 0.16) + (profile.trait_stability * 0.1) + (reliability * 0.18)
         if challenge_index >= 0.6:
             durable_weight += 0.06 if profile.challenge_tolerance >= 0.6 else -0.08
         elif challenge_index <= 0.3 and profile.challenge_tolerance >= 0.7:
             durable_weight += 0.03
+        if name == "working_memory":
+            durable_weight += profile.challenge_evidence_strength * 0.1
+        elif name == "processing_speed":
+            durable_weight += reliability * 0.04
+        elif name == "spatial_reasoning":
+            durable_weight += reliability * 0.02
         if evidence.current_reliability >= 0.6:
             durable_weight -= min(0.12, evidence.current_reliability * 0.1)
         if evidence.challenge_exposure >= 0.55 and challenge_index >= 0.65 and profile.challenge_tolerance < 0.55:
             durable_weight -= 0.06
+        if name == "working_memory" and profile.challenge_evidence_strength < 0.52:
+            durable_weight -= 0.08
         if evidence.challenge_exposure <= 0.25 and profile.trait_stability >= 0.78:
             durable_weight += 0.04
         consistency = 1.0 - abs(current.value - durable.value)
@@ -184,6 +246,8 @@ class CognitiveTraitInferenceService:
             durable_weight *= 0.82
         if current.confidence < 0.45 and profile.trait_stability >= 0.75:
             durable_weight += 0.04
+        if reliability >= 0.72 and consistency >= 0.7:
+            durable_weight += 0.03
         durable_weight = min(0.5, max(0.08, durable_weight))
         merged_value = (current.value * (1.0 - durable_weight)) + (durable.value * durable_weight)
         merged_confidence = min(0.92, current.confidence + (durable.confidence * 0.2))
