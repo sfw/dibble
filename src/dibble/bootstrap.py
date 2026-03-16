@@ -11,6 +11,7 @@ from dibble.services.auth_sessions import SQLiteAuthSessionStore
 from dibble.services.calibrated_router import CalibratedRouter
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.content_workflow import ContentWorkflowService
+from dibble.services.cognitive_trait_inference import CognitiveTraitInferenceService
 from dibble.services.curriculum_store import SQLiteCurriculumStore
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
@@ -62,6 +63,7 @@ class ApplicationServices:
     socratic_profile_updater: SocraticProfileUpdater
     socratic_session_store: SocraticSessionStore
     state_inference_service: LearnerStateInferenceService
+    cognitive_trait_inference_service: CognitiveTraitInferenceService
     learner_state_calibrator: LearnerStateCalibrator
     learning_run_summary_recorder: LearningRunSummaryRecorder
     learning_calibration_profile_recorder: LearningCalibrationProfileRecorder
@@ -109,6 +111,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     )
     socratic_profile_updater = SocraticProfileUpdater()
     state_inference_service = LearnerStateInferenceService()
+    cognitive_trait_inference_service = CognitiveTraitInferenceService()
     learner_state_calibrator = LearnerStateCalibrator(
         calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
     )
@@ -142,6 +145,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         socratic_profile_updater=socratic_profile_updater,
         socratic_session_store=socratic_session_store,
         state_inference_service=state_inference_service,
+        cognitive_trait_inference_service=cognitive_trait_inference_service,
         learner_state_calibrator=learner_state_calibrator,
         learning_run_summary_recorder=learning_run_summary_recorder,
         learning_calibration_profile_recorder=learning_calibration_profile_recorder,

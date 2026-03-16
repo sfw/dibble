@@ -18,7 +18,7 @@ The backend now covers a meaningful slice of the revised Phase 1 and early Phase
 The biggest remaining gaps are no longer basic plumbing. They are adaptive intelligence depth:
 
 - true learner-state inference rather than manually supplied profile fields
-- KC prerequisite graphs and misconception classification
+- KC prerequisite graphs and misconception classification depth
 - richer remedial generation and deeper generation-template selection beyond the current specialized modes
 - broader cross-session use of the new run-summary calibration signals
 - proactive pre-generation beyond the current explicit warmup endpoint
@@ -41,20 +41,20 @@ Legend:
 | `GEN-001` On-the-fly explanation generation | Implemented | Current unified generation routes produce grounded explanations |
 | `GEN-002` Practice problem synthesis | Partial | Dedicated problem generation now carries difficulty-band metadata, but there is no calibrated difficulty model or distractor synthesis |
 | `GEN-003` Worked example generation with fading | Partial | Dedicated worked-example generation now carries adaptive fading metadata and can be auto-selected from the unified generation path, but the template library and fading progression are still heuristic |
-| `GEN-004` Remedial micro-module creation | Partial | Remedial trigger now steps through prerequisite KCs, but misconception classification and richer module assembly are still shallow |
+| `GEN-004` Remedial micro-module creation | Partial | Remedial trigger now steps through prerequisite KCs, can consume catalogued KC misconception patterns, emits structured remediation blueprints, and carries richer misconception ids/hints into generation context, but the generated module is still single-shot rather than a fuller multi-step remediation workflow |
 | `GEN-005` Multi-modal synthesis | Missing | No diagram, interactive, simulation, or code generation layer |
-| `PROF-001` Cognitive trait assessment | Partial | Profile schema stores traits, but no assessment or inference pipeline populates them |
+| `PROF-001` Cognitive trait assessment | Partial | Profile schema stores traits and the observation pipeline now refreshes lightweight processing-speed, working-memory, and spatial-reasoning estimates from recent interaction patterns, but there is still no dedicated diagnostic assessment workflow or richer validation loop |
 | `PROF-002` Affective state detection | Partial | Observation-driven inference now updates affective state with task-aware normalization, but the logic is still heuristic rather than a richer classifier |
 | `PROF-003` Real-time cognitive load estimation | Partial | Observation-driven load inference now updates the profile with task-aware normalization, but it remains heuristic rather than calibrated from real outcome data |
 | `PROF-004` KC granularity | Partial | KC mastery exists in the profile and there is now a persisted KC graph, but taxonomy depth and mastery migration are still limited |
 | `PROF-005` Metacognitive tracking | Partial | Observation-driven confidence calibration and help-seeking signals now exist, are task-aware, influence routing/generation selection, can now be updated from Socratic assessment outcomes, and now also receive conservative run-summary adjustments in both router feedback and learner-state persistence, but they remain heuristic rather than calibrated |
 | `ADAPT-001` Thompson Sampling router | Implemented | Thompson-style policy with safety constraints is in the production path, and a calibration wrapper now feeds compact cross-session calibration profiles, then recent same-target run summaries, back into final support selection |
 | `ADAPT-002` Within-session adaptation | Partial | Streaming generation exists, but there is no continuous state-updating adaptive loop |
-| `ADAPT-003` Misconception detection/classification | Partial | Rule-based misconception signals now guide remediation planning, but there is no richer classifier or taxonomy yet |
+| `ADAPT-003` Misconception detection/classification | Partial | Misconception detection now combines rule-based mastery gaps with optional KC-level misconception catalogs, confidence scoring, remediation hints, and recommended repair targets, but it is still a lightweight heuristic taxonomy rather than a learned classifier |
 | `ADAPT-004` Automatic step-back intervention | Implemented | Router and generation path support step-back content generation |
 | `ADAPT-005` Conversational/Socratic assessment | Partial | A persisted Socratic assessment flow now scores the current learner response with modular evidence dimensions, stores multi-turn session state, chooses follow-up prompt style with an outcome-aware turn policy, feeds outcomes back into learner-profile mastery and metacognitive state, and can now contribute same-session plus later-session evidence to explicit generation run summaries and calibration signals, but it still lacks richer discourse modeling and broader outcome calibration across full learning traces |
 | `API-001` `POST /api/content/generate` | Implemented | Current unified generation endpoint returns persisted generated-content metadata |
-| `API-002` `POST /api/remedial/trigger` | Partial | Implemented as a lightweight wrapper; deeper remedial orchestration still missing |
+| `API-002` `POST /api/remedial/trigger` | Partial | Now returns richer misconception metadata plus a structured remediation blueprint, but still stops short of a longer-running remedial orchestration workflow |
 | `API-003` `GET /api/learners/{id}/profile` | Implemented | Current unified learner-profile endpoint returns the extended dimensions |
 | `API-004` `POST /api/llm/stream` | Implemented | Current unified streaming surface |
 | `DATA-001` KnowledgeComponent entity and prerequisite graph | Implemented | Persisted KC entity plus prerequisite traversal API and remediation-planner integration |
@@ -67,8 +67,8 @@ Legend:
 Based on `planning/4 - revised-spec/implementation-roadmap.md` and `planning/5 - dev-handoff-revised-spec/requirements-traceability.csv`, the strongest next backend slices are:
 
 1. `PROF-004`: expand the KC graph from a persistence/API layer into broader taxonomy coverage and mastery migration support.
-2. `ADAPT-003`: evolve the new misconception signals into a richer taxonomy and confidence-calibrated classifier.
-3. `PROF-002` + `PROF-003` + `PROF-005`: replace the new heuristic learner-state inference path with stronger calibrated models trained from real outcome data.
+2. `ADAPT-003`: evolve the new misconception signals from the current richer taxonomy and confidence scoring into a stronger learned classifier.
+3. `PROF-001` + `PROF-002` + `PROF-003` + `PROF-005`: replace the new heuristic learner-state and lightweight trait inference path with stronger calibrated models trained from real outcome data.
 4. `INFRA-003`: move from explicit warmup requests to anticipatory scheduling and smarter cache invalidation for likely next-step content.
 5. `ADAPT-005` + `LLM-002`: promote the new persisted run summaries and compact calibration profiles beyond the current router, learner-state, prompt-calibration, and learner-summary wrappers into longer-horizon learner-outcome feedback so the Socratic-to-profile feedback loop and adaptive prompt-selection loop can learn across sessions rather than mainly within recent audit windows.
 

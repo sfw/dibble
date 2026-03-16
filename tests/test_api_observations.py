@@ -86,7 +86,9 @@ def test_observation_endpoint_updates_inferred_state_and_profile(client, student
     assert profile["affective_state"]["frustration"] == observed["affective_state"]["frustration"]
     assert profile["cognitive_load"]["total_load"] == observed["cognitive_load"]["total_load"]
     assert profile["metacognitive_state"]["confidence_calibration"] == observed["metacognitive_state"]["confidence_calibration"]
+    assert "processing_speed" in profile["cognitive_traits"]
     assert "confidence_calibration" in learner_observe_event["payload"]
+    assert "processing_speed" in learner_observe_event["payload"]["updated_cognitive_traits"]
     assert learner_observe_event["payload"]["task_type"] == "assessment"
     assert learner_observe_event["payload"]["support_level"] == "low"
     assert learner_observe_event["payload"]["learning_session_id"] == "learn-session-1"

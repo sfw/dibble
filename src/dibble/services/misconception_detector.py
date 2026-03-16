@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 
+from dibble.models.curriculum import KnowledgeComponent, KnowledgeComponentMisconception
 from dibble.models.generation import MisconceptionSignal
 from dibble.models.profile import LearnerProfile
 from dibble.services.protocols import KnowledgeComponentStore
@@ -52,6 +53,11 @@ class MisconceptionDetector:
         prerequisite_components = self.knowledge_component_store.list_prerequisites(target_kc_id)
         signals: list[MisconceptionSignal] = []
 
+        for component in [*prerequisite_components, target_component]:
+            if component is None:
+                continue
+            signals.extend(self._catalog_signals(component=component, profile=profile, evidence_terms=evidence_terms))
+
         for component in prerequisite_components:
             mastery = profile.knowledge_state.kc_mastery.get(component.kc_id, 0.0)
             overlap_terms = self._overlap_terms(component.name, component.tags, evidence_terms)
@@ -70,6 +76,8 @@ class MisconceptionDetector:
                     category="prerequisite_gap",
                     confidence=round(confidence, 2),
                     rationale=rationale,
+                    source="heuristic",
+                    recommended_kc_ids=[component.kc_id],
                     evidence_terms=overlap_terms,
                 )
             )
@@ -92,11 +100,20 @@ class MisconceptionDetector:
                         f"{target_name} still appears fragile with mastery {target_mastery:.2f}"
                         + (f" and overlap on {', '.join(target_overlap)}." if target_overlap else ".")
                     ),
+                    source="heuristic",
+                    recommended_kc_ids=[target_kc_id],
                     evidence_terms=target_overlap,
                 )
             )
 
-        signals.sort(key=lambda item: (-item.confidence, item.kc_id))
+        signals.sort(
+            key=lambda item: (
+                -item.confidence,
+                0 if item.source == "catalog" else 1,
+                item.kc_id,
+                item.category,
+            )
+        )
         return signals
 
     def _overlap_terms(self, name: str, tags: list[str], evidence_terms: set[str]) -> list[str]:
@@ -104,3 +121,42 @@ class MisconceptionDetector:
         for tag in tags:
             component_terms.update(_normalize_terms(tag))
         return sorted(component_terms.intersection(evidence_terms))
+
+    def _catalog_signals(
+        self,
+        *,
+        component: KnowledgeComponent,
+        profile: LearnerProfile,
+        evidence_terms: set[str],
+    ) -> list[MisconceptionSignal]:
+        signals: list[MisconceptionSignal] = []
+        mastery = profile.knowledge_state.kc_mastery.get(component.kc_id, 0.0)
+        mastery_gap = max(0.85 - mastery, 0.0)
+        for misconception in component.common_misconceptions:
+            trigger_terms = set()
+            for term in misconception.trigger_terms:
+                trigger_terms.update(_normalize_terms(term))
+            trigger_terms.update(_normalize_terms(misconception.label))
+            trigger_terms.update(_normalize_terms(misconception.description))
+            matched_terms = sorted(trigger_terms.intersection(evidence_terms))
+            if not matched_terms:
+                continue
+            overlap_ratio = len(matched_terms) / max(1, len(trigger_terms))
+            confidence = min(0.98, 0.55 + (overlap_ratio * 0.25) + (mastery_gap * 0.25))
+            signals.append(
+                MisconceptionSignal(
+                    kc_id=component.kc_id,
+                    category="known_misconception",
+                    confidence=round(confidence, 2),
+                    rationale=(
+                        f"{component.name} matches the misconception pattern '{misconception.label}'"
+                        f" based on {', '.join(matched_terms)}."
+                    ),
+                    source="catalog",
+                    misconception_id=misconception.misconception_id,
+                    recommended_kc_ids=misconception.prerequisite_kc_ids or [component.kc_id],
+                    remediation_hint=misconception.remediation_hint,
+                    evidence_terms=matched_terms,
+                )
+            )
+        return signals

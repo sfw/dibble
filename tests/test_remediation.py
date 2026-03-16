@@ -38,6 +38,45 @@ def test_misconception_detector_prefers_low_mastery_prerequisites(tmp_path):
     assert signals[0].confidence > 0.7
 
 
+def test_misconception_detector_matches_catalogued_misconception_patterns(tmp_path):
+    database_path = str(tmp_path / "misconceptions-catalog.db")
+    ensure_database(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(database_path)
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component(
+                "KC-2",
+                name="Generate equivalent fractions",
+                common_misconceptions=[
+                    {
+                        "misconception_id": "fraction-whole-number-bias",
+                        "label": "Treats numerator and denominator like unrelated whole numbers",
+                        "description": "The learner compares fraction parts separately instead of the overall amount.",
+                        "trigger_terms": ["numerator", "denominator", "whole number", "separately"],
+                        "prerequisite_kc_ids": ["KC-1"],
+                        "remediation_hint": "Use one visual model to compare the whole fraction amount before naming each part.",
+                    }
+                ],
+            )
+        )
+    )
+    profile = LearnerProfile.model_validate(build_profile(uuid4(), kc_mastery={"KC-2": 0.42}))
+    detector = MisconceptionDetector(kc_store)
+
+    signals = detector.detect(
+        profile,
+        target_kc_id="KC-2",
+        misconception_description="The learner compares the numerator and denominator separately like whole numbers.",
+        curriculum_context=["Equivalent fractions"],
+    )
+
+    assert signals[0].category == "known_misconception"
+    assert signals[0].source == "catalog"
+    assert signals[0].misconception_id == "fraction-whole-number-bias"
+    assert signals[0].recommended_kc_ids == ["KC-1"]
+    assert signals[0].remediation_hint is not None
+
+
 def test_remediation_planner_uses_misconception_signals_to_order_focus(tmp_path):
     database_path = str(tmp_path / "remediation-plan.db")
     ensure_database(database_path)
@@ -66,3 +105,56 @@ def test_remediation_planner_uses_misconception_signals_to_order_focus(tmp_path)
     assert plan.prerequisite_kc_ids == ["KC-1"]
     assert plan.misconception_signals[0].kc_id == "KC-1"
     assert "prerequisite knowledge components" in plan.rationale
+
+
+def test_remediation_planner_builds_structured_blueprint_for_known_misconceptions(tmp_path):
+    database_path = str(tmp_path / "remediation-blueprint.db")
+    ensure_database(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(database_path)
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component(
+                "KC-1",
+                name="Identify numerator and denominator",
+            )
+        )
+    )
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component(
+                "KC-2",
+                prerequisite_kc_ids=["KC-1"],
+                name="Generate equivalent fractions",
+                common_misconceptions=[
+                    {
+                        "misconception_id": "fraction-part-role-swap",
+                        "label": "Swaps numerator and denominator roles",
+                        "description": "The learner treats the top and bottom numbers as interchangeable.",
+                        "trigger_terms": ["numerator", "denominator", "swap"],
+                        "prerequisite_kc_ids": ["KC-1"],
+                        "remediation_hint": "Anchor each number to what it counts before generating an equivalent fraction.",
+                    }
+                ],
+            )
+        )
+    )
+    profile = LearnerProfile.model_validate(build_profile(uuid4(), kc_mastery={"KC-1": 0.3, "KC-2": 0.52}))
+    planner = RemediationPlanner(kc_store, MisconceptionDetector(kc_store))
+
+    plan = planner.plan(
+        profile,
+        "KC-2",
+        misconception_description="The learner swaps numerator and denominator language while generating equivalent fractions.",
+        curriculum_context=["Equivalent fractions"],
+    )
+
+    catalog_signal = next(
+        signal
+        for signal in plan.misconception_signals
+        if signal.misconception_id == "fraction-part-role-swap"
+    )
+    assert catalog_signal.source == "catalog"
+    assert plan.module_blueprint["trigger"] == "misconception_detected"
+    assert plan.module_blueprint["primary_misconception_id"] == "fraction-part-role-swap"
+    assert plan.module_blueprint["repair_target_kc_ids"] == ["KC-1"]
+    assert [step["phase"] for step in plan.module_blueprint["steps"]] == ["step_back", "repair", "return"]

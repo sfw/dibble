@@ -52,8 +52,13 @@ def build_learner_router(context: ApiContext) -> APIRouter:
             inferred_state=inferred_state,
         )
         inferred_state = calibration.state
+        inferred_cognitive_traits = services.cognitive_trait_inference_service.infer(
+            observations=recent_observations,
+            existing_traits=profile.cognitive_traits,
+        )
         updated_profile = profile.model_copy(
             update={
+                "cognitive_traits": inferred_cognitive_traits,
                 "affective_state": inferred_state.affective_state,
                 "cognitive_load": inferred_state.cognitive_load,
                 "metacognitive_state": inferred_state.metacognitive_state,
@@ -82,6 +87,7 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 "total_load": inferred_state.cognitive_load.total_load,
                 "confidence_calibration": inferred_state.metacognitive_state.confidence_calibration,
                 "help_seeking": inferred_state.metacognitive_state.help_seeking.value,
+                "updated_cognitive_traits": sorted(inferred_cognitive_traits.keys()),
                 "state_calibration_signal": calibration.signal,
                 "state_calibration_confidence": calibration.confidence,
                 "state_calibration_run_count": calibration.matched_run_count,

@@ -141,11 +141,19 @@ class ContentWorkflowService:
             intent="remediation",
             requested_content_type="remedial_micro_module",
             learner_prompt=(
-                f"{request.learner_prompt} Step back through prerequisite components before returning to the target."
+                f"{request.learner_prompt} Step back through prerequisite components, repair the misconception explicitly, and return to the target with a transfer check."
                 if request.learner_prompt
-                else "Step back through prerequisite components before returning to the target."
+                else "Step back through prerequisite components, repair the misconception explicitly, and return to the target with a transfer check."
             ),
-            curriculum_context=[request.misconception_description, *request.curriculum_context],
+            curriculum_context=[
+                request.misconception_description,
+                *[
+                    signal.remediation_hint
+                    for signal in plan.misconception_signals
+                    if signal.remediation_hint is not None
+                ],
+                *request.curriculum_context,
+            ],
         )
         generated_content = self.generate_content(generation_request)
         enriched_request_context = {
@@ -156,6 +164,7 @@ class ContentWorkflowService:
             "misconception_description": request.misconception_description,
             "misconception_signals": [signal.model_dump(mode="json") for signal in plan.misconception_signals],
             "remediation_rationale": plan.rationale,
+            "remediation_blueprint": plan.module_blueprint,
         }
         enriched_content = generated_content.model_copy(update={"request_context": enriched_request_context})
         self.audit_store.append(
@@ -168,6 +177,7 @@ class ContentWorkflowService:
                 "prerequisite_kc_ids": plan.prerequisite_kc_ids,
                 "misconception_signal_count": len(plan.misconception_signals),
                 "misconception_signals": [signal.model_dump(mode="json") for signal in plan.misconception_signals],
+                "remediation_blueprint": plan.module_blueprint,
                 "generation_id": enriched_content.generation_id,
                 "rationale": plan.rationale,
             },

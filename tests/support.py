@@ -74,6 +74,7 @@ def build_knowledge_component(
     prerequisite_kc_ids=None,
     parent_lo_id="LO-1",
     name="Understand equivalent fractions with visual models",
+    common_misconceptions=None,
 ):
     return {
         "kc_id": kc_id,
@@ -85,4 +86,5 @@ def build_knowledge_component(
         "difficulty": 0.5,
         "estimated_time_minutes": 8,
         "tags": ["fractions", "remediation"],
+        "common_misconceptions": common_misconceptions or [],
     }

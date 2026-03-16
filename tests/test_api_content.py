@@ -125,6 +125,16 @@ def test_remedial_trigger_returns_remedial_generated_content(client, student_id)
             "KC-2",
             prerequisite_kc_ids=["KC-1"],
             name="Generate equivalent fractions",
+            common_misconceptions=[
+                {
+                    "misconception_id": "fraction-whole-number-bias",
+                    "label": "Treats fraction parts like unrelated whole numbers",
+                    "description": "The learner compares numerator and denominator separately instead of the whole amount.",
+                    "trigger_terms": ["different amounts", "numerator", "denominator", "whole number"],
+                    "prerequisite_kc_ids": ["KC-1"],
+                    "remediation_hint": "Use one visual model to compare the total amount before naming the parts.",
+                }
+            ],
         ),
     )
 
@@ -140,18 +150,32 @@ def test_remedial_trigger_returns_remedial_generated_content(client, student_id)
 
     assert response.status_code == 200
     payload = response.json()
+    signals = payload["request_context"]["misconception_signals"]
+    prerequisite_signal = next(signal for signal in signals if signal["category"] == "prerequisite_gap")
+    catalog_signal = next(signal for signal in signals if signal.get("misconception_id") == "fraction-whole-number-bias")
     assert payload["content_type"] == "remedial_micro_module"
     assert payload["response"]["route"]["intervention_type"] == "step_back"
     assert payload["quality"]["validation_passed"] is True
     assert payload["request_context"]["target_kc_ids"] == ["KC-1", "KC-2"]
     assert payload["request_context"]["prerequisite_kc_ids"] == ["KC-1"]
-    assert payload["request_context"]["misconception_signals"][0]["kc_id"] == "KC-1"
+    assert prerequisite_signal["kc_id"] == "KC-1"
+    assert catalog_signal["source"] == "catalog"
     assert "prerequisite knowledge components" in payload["request_context"]["remediation_rationale"]
+    assert payload["request_context"]["remediation_blueprint"]["trigger"] == "misconception_detected"
+    assert payload["request_context"]["remediation_blueprint"]["primary_misconception_id"] == "fraction-whole-number-bias"
+    assert [step["phase"] for step in payload["request_context"]["remediation_blueprint"]["steps"]] == [
+        "step_back",
+        "repair",
+        "return",
+    ]
 
     audit_response = client.get("/api/audit/events")
     assert audit_response.status_code == 200
     assert audit_response.json()[0]["event_type"] == "remediation.trigger"
     assert audit_response.json()[0]["payload"]["misconception_signal_count"] >= 1
+    assert audit_response.json()[0]["payload"]["remediation_blueprint"]["primary_misconception_id"] == (
+        "fraction-whole-number-bias"
+    )
 
 
 def test_explanations_and_problems_endpoints_specialize_generation(client, student_id):

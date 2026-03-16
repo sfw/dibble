@@ -6,6 +6,7 @@ from dibble.models.generation import MisconceptionSignal
 from dibble.models.profile import LearnerProfile
 from dibble.services.misconception_detector import MisconceptionDetector
 from dibble.services.protocols import KnowledgeComponentStore
+from dibble.services.remediation_module_blueprints import RemediationModuleBlueprintBuilder
 
 
 @dataclass(slots=True)
@@ -14,6 +15,7 @@ class RemediationPlan:
     prerequisite_kc_ids: list[str]
     misconception_signals: list[MisconceptionSignal]
     rationale: str
+    module_blueprint: dict[str, object]
 
 
 class RemediationPlanner:
@@ -21,9 +23,11 @@ class RemediationPlanner:
         self,
         knowledge_component_store: KnowledgeComponentStore,
         misconception_detector: MisconceptionDetector,
+        module_blueprint_builder: RemediationModuleBlueprintBuilder | None = None,
     ) -> None:
         self.knowledge_component_store = knowledge_component_store
         self.misconception_detector = misconception_detector
+        self.module_blueprint_builder = module_blueprint_builder or RemediationModuleBlueprintBuilder()
 
     def plan(
         self,
@@ -45,15 +49,42 @@ class RemediationPlanner:
             for signal in signals
             if signal.category == "prerequisite_gap"
         ]
+        misconception_repair_targets = [
+            kc_id
+            for signal in signals
+            if signal.category == "known_misconception"
+            for kc_id in signal.recommended_kc_ids
+        ]
 
         focus_kc_ids: list[str] = []
+        for kc_id in misconception_repair_targets:
+            if kc_id not in focus_kc_ids:
+                focus_kc_ids.append(kc_id)
         for kc_id in prerequisite_gaps:
             if kc_id not in focus_kc_ids:
                 focus_kc_ids.append(kc_id)
         if target_kc_id not in focus_kc_ids:
             focus_kc_ids.append(target_kc_id)
 
-        if prerequisite_gaps:
+        matched_misconceptions = [
+            signal
+            for signal in signals
+            if signal.category == "known_misconception" and signal.misconception_id is not None
+        ]
+        if matched_misconceptions:
+            labels = ", ".join(
+                signal.misconception_id or signal.category
+                for signal in matched_misconceptions[:2]
+            )
+            rationale = (
+                f"Misconception signals matched catalogued patterns ({labels}), so remediation should explicitly repair that reasoning"
+                + (
+                    " while stepping back through prerequisite knowledge components."
+                    if prerequisite_gaps
+                    else " before returning to the target."
+                )
+            )
+        elif prerequisite_gaps:
             prerequisite_names = [
                 self.knowledge_component_store.get(kc_id).name
                 for kc_id in prerequisite_gaps
@@ -73,4 +104,9 @@ class RemediationPlanner:
             prerequisite_kc_ids=prerequisite_gaps,
             misconception_signals=signals,
             rationale=rationale,
+            module_blueprint=self.module_blueprint_builder.build(
+                target_kc_id=target_kc_id,
+                prerequisite_kc_ids=prerequisite_gaps,
+                misconception_signals=signals,
+            ),
         )

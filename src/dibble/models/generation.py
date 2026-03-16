@@ -107,6 +107,10 @@ class MisconceptionSignal(BaseModel):
     category: str
     confidence: float = Field(ge=0.0, le=1.0)
     rationale: str
+    source: str = "heuristic"
+    misconception_id: str | None = None
+    recommended_kc_ids: list[str] = Field(default_factory=list)
+    remediation_hint: str | None = None
     evidence_terms: list[str] = Field(default_factory=list)
 
 

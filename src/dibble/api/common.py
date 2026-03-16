@@ -14,6 +14,7 @@ from dibble.services.auth import (
 )
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.content_workflow import ContentWorkflowService
+from dibble.services.cognitive_trait_inference import CognitiveTraitInferenceService
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.learning_calibration_profiles import LearningCalibrationProfileRecorder
 from dibble.services.learning_run_summary_recorder import LearningRunSummaryRecorder
@@ -51,6 +52,7 @@ class ApiServices(Protocol):
     socratic_profile_updater: SocraticProfileUpdater
     socratic_session_store: SocraticSessionStore
     state_inference_service: LearnerStateInferenceService
+    cognitive_trait_inference_service: CognitiveTraitInferenceService
     learner_state_calibrator: LearnerStateCalibrator
     learning_run_summary_recorder: LearningRunSummaryRecorder
     learning_calibration_profile_recorder: LearningCalibrationProfileRecorder
