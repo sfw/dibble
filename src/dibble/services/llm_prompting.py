@@ -26,7 +26,11 @@ def build_generation_prompts(
 ) -> GenerationPrompts:
     manager = prompt_manager or PromptManager()
     plan = build_generation_mode_plan(profile, request, route)
-    selection = manager.select(student_id=profile.student_id, content_type=plan.content_type)
+    selection = manager.select(
+        student_id=profile.student_id,
+        content_type=plan.content_type,
+        mode_calibration=request.mode_calibration,
+    )
     focus = request.target_kc_ids or request.target_lo_ids or ["current lesson"]
     preferred_modalities = sorted(
         profile.learning_preferences.modality_affinity.items(),
@@ -42,6 +46,7 @@ def build_generation_prompts(
         if profile.learning_preferences.example_domain_preferences
         else "general classroom examples"
     )
+    socratic_follow_up = _socratic_follow_up_text(request.mode_calibration)
 
     system_prompt = (
         "You generate curriculum-aligned adaptive learning content for Dibble. "
@@ -71,6 +76,7 @@ def build_generation_prompts(
         f"Learner prompt: {learner_prompt}\n"
         f"Requested content type: {plan.content_type.value}\n"
         f"Prompt variant: {selection.template_variant}\n"
+        f"Recent Socratic steering: {socratic_follow_up}\n"
         f"Generation guidance: {plan.prompt_guidance}\n"
         f"Template guidance: {selection.user_directives}\n"
         "Generate 2 or 3 blocks that are specific, age-appropriate, and grounded in the listed curriculum context."
@@ -103,4 +109,19 @@ def build_stream_generation_prompts(
         template_name=prompts.template_name,
         template_version=prompts.template_version,
         template_variant=prompts.template_variant,
+    )
+
+
+def _socratic_follow_up_text(mode_calibration) -> str:
+    if (
+        mode_calibration is None
+        or mode_calibration.session_assessment_count <= 0
+        or mode_calibration.session_source == "insufficient"
+    ):
+        return "none"
+    style = mode_calibration.session_latest_prompt_style or "unspecified"
+    return (
+        f"{mode_calibration.socratic_steering_action} "
+        f"(last_style={style}, next_action={mode_calibration.session_latest_next_action}, "
+        f"evidence={mode_calibration.session_latest_evidence_strength})"
     )

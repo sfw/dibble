@@ -29,6 +29,10 @@ class WithinSessionControllerState(BaseModel):
     positive_streak: int = Field(default=0, ge=0)
     negative_streak: int = Field(default=0, ge=0)
     mixed_streak: int = Field(default=0, ge=0)
+    latest_assessment_prompt_style: str | None = None
+    latest_assessment_next_action: str = "monitor"
+    latest_assessment_evidence_strength: str = "insufficient"
+    socratic_steering_action: str = "steady"
     last_generated_content_type: str | None = None
     last_generation_id: str | None = None
     rationale: str | None = None

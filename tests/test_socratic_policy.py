@@ -107,3 +107,108 @@ def test_socratic_policy_advances_to_transfer_when_evidence_is_demonstrated():
     )
 
     assert decision.prompt_style == SocraticPromptStyle.transfer_check
+
+
+def test_socratic_policy_uses_clarification_after_recovery_from_step_back():
+    student_id = uuid4()
+    policy = SocraticTurnPolicy()
+    prior_evaluation = SocraticAssessmentEvaluation(
+        evidence_strength=SocraticEvidenceStrength.insufficient,
+        evidence_score=0.22,
+        evidence_dimensions=SocraticEvidenceDimensions(misconception_risk=0.62),
+        inferred_mastery=0.21,
+        rationale="Needed prerequisite repair.",
+        next_action=SocraticNextAction.step_back,
+    )
+    current_evaluation = SocraticAssessmentEvaluation(
+        evidence_strength=SocraticEvidenceStrength.demonstrated,
+        evidence_score=0.74,
+        evidence_dimensions=SocraticEvidenceDimensions(
+            lexical_alignment=0.72,
+            reasoning_signal=0.61,
+            confidence_alignment=0.42,
+            progression_signal=0.48,
+            misconception_risk=0.18,
+        ),
+        inferred_mastery=0.71,
+        rationale="The learner recovered but still sounds tentative.",
+        next_action=SocraticNextAction.advance,
+    )
+    session = SocraticAssessmentSession(
+        session_id="session-4",
+        student_id=student_id,
+        turns=[
+            SocraticTurnRecord(
+                turn_id="turn-1",
+                prompt="What does the denominator count?",
+                prompt_style=SocraticPromptStyle.scaffolded_step_back,
+                policy_rationale="Step back.",
+                learner_response="It counts the equal parts.",
+                evaluation=prior_evaluation,
+            )
+        ],
+    )
+
+    decision = policy.decide(
+        session,
+        SocraticAssessmentRequest(
+            student_id=student_id,
+            learner_response="It counts the equal parts, but I am not fully sure.",
+            learner_confidence=0.41,
+        ),
+        current_evaluation,
+    )
+
+    assert decision.prompt_style == SocraticPromptStyle.clarification
+
+
+def test_socratic_policy_clarifies_after_failed_transfer_check_when_gap_is_narrow():
+    student_id = uuid4()
+    policy = SocraticTurnPolicy()
+    transfer_evaluation = SocraticAssessmentEvaluation(
+        evidence_strength=SocraticEvidenceStrength.demonstrated,
+        evidence_score=0.8,
+        evidence_dimensions=SocraticEvidenceDimensions(misconception_risk=0.12),
+        inferred_mastery=0.79,
+        rationale="Strong transfer attempt.",
+        next_action=SocraticNextAction.advance,
+    )
+    current_evaluation = SocraticAssessmentEvaluation(
+        evidence_strength=SocraticEvidenceStrength.insufficient,
+        evidence_score=0.33,
+        evidence_dimensions=SocraticEvidenceDimensions(
+            lexical_alignment=0.3,
+            reasoning_signal=0.36,
+            confidence_alignment=0.5,
+            progression_signal=0.38,
+            misconception_risk=0.22,
+        ),
+        inferred_mastery=0.41,
+        rationale="The transfer failed, but the misunderstanding looks narrow.",
+        next_action=SocraticNextAction.clarify,
+    )
+    session = SocraticAssessmentSession(
+        session_id="session-5",
+        student_id=student_id,
+        turns=[
+            SocraticTurnRecord(
+                turn_id="turn-1",
+                prompt="How would this work with 3/6 and 1/2?",
+                prompt_style=SocraticPromptStyle.transfer_check,
+                policy_rationale="Check transfer.",
+                learner_response="I think they are the same.",
+                evaluation=transfer_evaluation,
+            )
+        ],
+    )
+
+    decision = policy.decide(
+        session,
+        SocraticAssessmentRequest(
+            student_id=student_id,
+            learner_response="I think it is the same but I cannot explain why.",
+        ),
+        current_evaluation,
+    )
+
+    assert decision.prompt_style == SocraticPromptStyle.clarification

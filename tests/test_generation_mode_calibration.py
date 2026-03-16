@@ -345,6 +345,8 @@ def test_generation_mode_calibrator_uses_same_session_assessment_to_attempt_tran
     assert calibrated_request.mode_calibration.support_bias == 1
     assert calibrated_request.mode_calibration.session_signal == "positive"
     assert calibrated_request.mode_calibration.sequence_action == "attempt_transfer"
+    assert calibrated_request.mode_calibration.session_latest_next_action == "advance"
+    assert calibrated_request.mode_calibration.socratic_steering_action == "verify_transfer"
 
 
 def test_generation_mode_calibrator_uses_persisted_session_controller_metadata(tmp_path):
@@ -398,3 +400,45 @@ def test_generation_mode_calibrator_uses_persisted_session_controller_metadata(t
     assert calibrated_request.mode_calibration.sequence_source == "session_controller"
     assert calibrated_request.mode_calibration.session_phase == "stabilize"
     assert calibrated_request.mode_calibration.session_negative_streak == 1
+
+
+def test_generation_mode_calibrator_carries_recent_socratic_prompt_metadata(tmp_path):
+    database_path = str(tmp_path / "generation-mode-session-socratic-steering.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = str(uuid4())
+    audit_store.append(
+        event_type="assessment.socratic",
+        status="success",
+        student_id=student_id,
+        payload={
+            "learning_session_id": "session-steering",
+            "target_kc_ids": ["KC-4"],
+            "prompt_style": "scaffolded_step_back",
+            "evidence_strength": "insufficient",
+            "evidence_score": 0.24,
+            "next_action": "step_back",
+        },
+    )
+
+    request = GenerationRequest.model_validate(
+        {
+            "student_id": student_id,
+            "learning_session_id": "session-steering",
+            "target_kc_ids": ["KC-4"],
+            "intent": "explanation",
+        }
+    )
+    calibrator = GenerationModeCalibrator(
+        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
+    )
+
+    calibrated_request = calibrator.calibrate_request(request=request)
+
+    assert calibrated_request.mode_calibration is not None
+    assert calibrated_request.mode_calibration.session_latest_prompt_style == "scaffolded_step_back"
+    assert calibrated_request.mode_calibration.session_latest_next_action == "step_back"
+    assert calibrated_request.mode_calibration.session_latest_evidence_strength == "insufficient"
+    assert calibrated_request.mode_calibration.socratic_steering_action == "repair_then_model"

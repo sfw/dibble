@@ -42,10 +42,27 @@ class SocraticTurnPolicy:
         repeated_low_signal = all(
             turn.evaluation.evidence_strength == SocraticEvidenceStrength.insufficient for turn in session.turns[-2:]
         )
+        repeated_clarification = (
+            len(session.turns) >= 2
+            and all(turn.prompt_style == SocraticPromptStyle.clarification for turn in session.turns[-2:])
+        )
         already_step_back = any(turn.prompt_style == SocraticPromptStyle.scaffolded_step_back for turn in session.turns[-2:])
         already_checked_transfer = any(turn.prompt_style == SocraticPromptStyle.transfer_check for turn in session.turns[-2:])
+        last_prompt_style = session.turns[-1].prompt_style if session.turns else None
 
         if latest_evaluation.evidence_strength == SocraticEvidenceStrength.demonstrated:
+            if (
+                last_prompt_style == SocraticPromptStyle.scaffolded_step_back
+                and (
+                    request.learner_confidence is not None
+                    and request.learner_confidence < 0.55
+                    or latest_evaluation.evidence_dimensions.progression_signal < 0.55
+                )
+            ):
+                return SocraticPolicyDecision(
+                    prompt_style=SocraticPromptStyle.clarification,
+                    rationale="The learner recovered after a step-back prompt but still needs to restate the repaired idea clearly before transfer.",
+                )
             if request.learner_confidence is not None and request.learner_confidence < 0.45:
                 return SocraticPolicyDecision(
                     prompt_style=SocraticPromptStyle.clarification,
@@ -67,6 +84,25 @@ class SocraticTurnPolicy:
             )
 
         if latest_evaluation.evidence_strength == SocraticEvidenceStrength.emerging:
+            if (
+                last_prompt_style == SocraticPromptStyle.scaffolded_step_back
+                and (
+                    latest_evaluation.evidence_score >= 0.45
+                    or latest_evaluation.evidence_dimensions.progression_signal >= 0.55
+                )
+            ):
+                return SocraticPolicyDecision(
+                    prompt_style=SocraticPromptStyle.clarification,
+                    rationale="The learner is improving after a step-back turn, so the next prompt should refine the repaired reasoning before any transfer check.",
+                )
+            if repeated_clarification and (
+                latest_evaluation.evidence_dimensions.confidence_alignment < 0.4
+                or (request.learner_confidence is not None and request.learner_confidence < 0.45)
+            ):
+                return SocraticPolicyDecision(
+                    prompt_style=SocraticPromptStyle.scaffolded_step_back,
+                    rationale="Repeated clarification has not stabilized the learner's explanation, so the next prompt should step back to a prerequisite anchor.",
+                )
             if mastery_trend < -0.08 and not already_step_back:
                 return SocraticPolicyDecision(
                     prompt_style=SocraticPromptStyle.scaffolded_step_back,
@@ -77,6 +113,14 @@ class SocraticTurnPolicy:
                 rationale="The learner is showing partial understanding, so the next prompt should sharpen their explanation before the system advances.",
             )
 
+        if (
+            last_prompt_style == SocraticPromptStyle.transfer_check
+            and latest_evaluation.evidence_dimensions.misconception_risk < 0.45
+        ):
+            return SocraticPolicyDecision(
+                prompt_style=SocraticPromptStyle.clarification,
+                rationale="The learner did not yet transfer the idea, but the gap looks narrow enough for one focused clarification before a full step-back.",
+            )
         if repeated_low_signal and not already_step_back:
             return SocraticPolicyDecision(
                 prompt_style=SocraticPromptStyle.scaffolded_step_back,

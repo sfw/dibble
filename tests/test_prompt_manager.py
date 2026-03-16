@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from dibble.services.prompt_manager import PromptManager
-from dibble.models.generation import RequestedContentType
+from dibble.models.generation import GenerationModeCalibration, RequestedContentType
 from dibble.services.socratic_prompt_selector import SocraticPromptSelector
 from dibble.services.generation_prompt_selector import GenerationPromptSelector
 from dibble.services.audit_store import SQLiteAuditStore
@@ -147,3 +147,32 @@ def test_prompt_manager_can_adaptively_select_generation_variant(tmp_path):
 
     assert selection.template_variant == "guided_reflection"
     assert selection.template_name == "worked_example.guided_reflection"
+
+
+def test_prompt_manager_can_use_recent_socratic_steering_for_generation_variant(tmp_path):
+    database_path = str(tmp_path / "prompt-manager-socratic-steering.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    manager = PromptManager(
+        library_version="1.0",
+        experiment_enabled=True,
+        adaptive_selection_enabled=True,
+        generation_prompt_selector=GenerationPromptSelector(audit_store),
+    )
+
+    selection = manager.select(
+        student_id=UUID("00000000-0000-0000-0000-000000000123"),
+        content_type=RequestedContentType.practice_problem,
+        mode_calibration=GenerationModeCalibration(
+            session_source="session_controller",
+            session_confidence=0.82,
+            session_assessment_count=1,
+            session_latest_prompt_style="scaffolded_step_back",
+            session_latest_next_action="step_back",
+            session_latest_evidence_strength="insufficient",
+            socratic_steering_action="repair_then_model",
+        ),
+    )
+
+    assert selection.template_variant == "guided_reflection"
+    assert selection.template_name == "practice_problem.guided_reflection"

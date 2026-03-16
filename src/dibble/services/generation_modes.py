@@ -43,7 +43,12 @@ def build_generation_mode_plan(
     route: AdaptiveRouteDecision,
 ) -> GenerationModePlan:
     mode_calibration = request.mode_calibration
-    content_type, selection_mode, selection_rationale = select_content_type(profile, request, route)
+    content_type, selection_mode, selection_rationale = select_content_type(
+        profile,
+        request,
+        route,
+        mode_calibration=mode_calibration,
+    )
     request_context: dict[str, object] = {
         "learning_session_id": request.learning_session_id,
         "intent": request.intent.value,
@@ -82,7 +87,18 @@ def build_generation_mode_plan(
                 "generated_step_count": mode_calibration.session_generated_step_count,
                 "positive_streak": mode_calibration.session_positive_streak,
                 "negative_streak": mode_calibration.session_negative_streak,
+                "latest_prompt_style": mode_calibration.session_latest_prompt_style,
+                "latest_next_action": mode_calibration.session_latest_next_action,
+                "latest_evidence_strength": mode_calibration.session_latest_evidence_strength,
+                "socratic_steering_action": mode_calibration.socratic_steering_action,
                 "rationale": mode_calibration.session_rationale,
+            }
+        if mode_calibration.session_assessment_count > 0:
+            request_context["socratic_follow_up"] = {
+                "action": mode_calibration.socratic_steering_action,
+                "latest_prompt_style": mode_calibration.session_latest_prompt_style,
+                "latest_next_action": mode_calibration.session_latest_next_action,
+                "latest_evidence_strength": mode_calibration.session_latest_evidence_strength,
             }
     if request.predictive_warm:
         request_context["is_predictive_warm"] = True
@@ -102,6 +118,7 @@ def build_generation_mode_plan(
             f"and a brief answer-check instruction. Tune the problem to {progression.difficulty_band.value} difficulty. "
             f"Use {progression.distractor_style.replace('_', ' ')} distractors and structure it for {progression.progression_action.replace('_', ' ')}."
         )
+        prompt_guidance = _append_socratic_guidance(prompt_guidance, mode_calibration=mode_calibration)
     elif content_type == RequestedContentType.worked_example:
         progression = plan_worked_example_progression(profile=profile, request=request, mode_calibration=mode_calibration)
         request_context["fading_strategy"] = progression.fading.value
@@ -109,7 +126,10 @@ def build_generation_mode_plan(
         request_context["worked_example_progression_action"] = progression.progression_action
         request_context["worked_example_fade_focus"] = progression.fade_focus
         request_context["mode_calibration_applied"] = progression.calibration_applied
-        prompt_guidance = _worked_example_guidance(progression.fading, progression.fade_focus)
+        prompt_guidance = _append_socratic_guidance(
+            _worked_example_guidance(progression.fading, progression.fade_focus),
+            mode_calibration=mode_calibration,
+        )
     elif content_type == RequestedContentType.assessment_probe:
         prompt_guidance = (
             "Generate a short diagnostic probe that reveals learner understanding without giving away the full answer."
@@ -122,6 +142,7 @@ def build_generation_mode_plan(
         prompt_guidance = (
             "Focus on clear explanation, one grounded example, and a concise check-for-understanding next step."
         )
+        prompt_guidance = _append_socratic_guidance(prompt_guidance, mode_calibration=mode_calibration)
 
     return GenerationModePlan(
         content_type=content_type,
@@ -146,11 +167,34 @@ def select_content_type(
     profile: LearnerProfile,
     request: GenerationRequest,
     route: AdaptiveRouteDecision,
+    *,
+    mode_calibration: GenerationModeCalibration | None = None,
 ) -> tuple[RequestedContentType, str, str | None]:
     if request.requested_content_type is not None:
         return request.requested_content_type, "explicit", None
 
     default_type = resolve_content_type(request)
+    if (
+        default_type == RequestedContentType.micro_explanation
+        and mode_calibration is not None
+        and mode_calibration.session_assessment_count > 0
+    ):
+        if mode_calibration.socratic_steering_action == "repair_then_model":
+            return (
+                RequestedContentType.worked_example,
+                "socratic_follow_up",
+                "Recent Socratic turns still point to prerequisite repair, so the next generated step should model the correction before freer explanation.",
+            )
+        if (
+            mode_calibration.socratic_steering_action == "verify_transfer"
+            and mode_calibration.session_support_bias > 0
+            and mode_calibration.session_phase == "transfer_check"
+        ):
+            return (
+                RequestedContentType.practice_problem,
+                "socratic_follow_up",
+                "Recent Socratic turns demonstrated understanding, so the next generated step should test independent application instead of re-explaining.",
+            )
     if (
         default_type == RequestedContentType.micro_explanation
         and route.delivery_mode.value != "blended"
@@ -391,6 +435,34 @@ def _worked_steps_visible(fading: WorkedExampleFading) -> int:
         WorkedExampleFading.independent: 1,
     }
     return mapping[fading]
+
+
+def _append_socratic_guidance(
+    guidance: str,
+    *,
+    mode_calibration: GenerationModeCalibration | None,
+) -> str:
+    if (
+        mode_calibration is None
+        or mode_calibration.session_assessment_count <= 0
+        or mode_calibration.session_source == "insufficient"
+    ):
+        return guidance
+    if mode_calibration.socratic_steering_action == "repair_then_model":
+        return (
+            f"{guidance} Start from the exact prerequisite gap surfaced in the recent Socratic turn and make the corrected reasoning explicit before asking for independence."
+        )
+    if mode_calibration.socratic_steering_action == "clarify_then_check":
+        return (
+            f"{guidance} Address the exact wording or reasoning ambiguity surfaced in the recent Socratic follow-up, then end with one short self-explanation check."
+        )
+    if mode_calibration.socratic_steering_action == "verify_transfer":
+        return (
+            f"{guidance} Keep the final cue light and use a nearby transfer context so the learner has to apply the idea, not restate it."
+        )
+    if mode_calibration.socratic_steering_action == "probe_from_new_angle":
+        return f"{guidance} Use a fresh representation or comparison so the next step does not simply repeat the last Socratic wording."
+    return guidance
 
 
 def _average_target_mastery(profile: LearnerProfile, request: GenerationRequest) -> float:

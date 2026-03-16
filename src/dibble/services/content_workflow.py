@@ -266,6 +266,10 @@ class ContentWorkflowService:
             "generated_step_count": session_summary.generated_step_count,
             "positive_streak": session_summary.positive_streak,
             "negative_streak": session_summary.negative_streak,
+            "latest_prompt_style": session_summary.latest_assessment_prompt_style,
+            "latest_next_action": session_summary.latest_assessment_next_action,
+            "latest_evidence_strength": session_summary.latest_assessment_evidence_strength,
+            "socratic_steering_action": session_summary.socratic_steering_action,
             "rationale": session_summary.rationale,
         }
         mode_calibration = request_context.get("mode_calibration")
@@ -285,6 +289,10 @@ class ContentWorkflowService:
                     "session_generated_step_count": session_summary.generated_step_count,
                     "session_positive_streak": session_summary.positive_streak,
                     "session_negative_streak": session_summary.negative_streak,
+                    "session_latest_prompt_style": session_summary.latest_assessment_prompt_style,
+                    "session_latest_next_action": session_summary.latest_assessment_next_action,
+                    "session_latest_evidence_strength": session_summary.latest_assessment_evidence_strength,
+                    "socratic_steering_action": session_summary.socratic_steering_action,
                     "session_rationale": session_summary.rationale,
                     "sequence_source": session_summary.source
                     if session_summary.sequence_action != "monitor"

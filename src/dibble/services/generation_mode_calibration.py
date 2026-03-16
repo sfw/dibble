@@ -104,6 +104,10 @@ class GenerationModeCalibrator:
             session_generated_step_count=session.generated_step_count,
             session_positive_streak=session.positive_streak,
             session_negative_streak=session.negative_streak,
+            session_latest_prompt_style=session.latest_assessment_prompt_style,
+            session_latest_next_action=session.latest_assessment_next_action,
+            session_latest_evidence_strength=session.latest_assessment_evidence_strength,
+            socratic_steering_action=session.socratic_steering_action,
             session_rationale=session.rationale,
             rationale=rationale,
         )
@@ -192,6 +196,18 @@ class GenerationModeCalibrator:
 
     def _rationale(self, *, signal, strategy, session, support_bias: int) -> str:
         if self._is_decisive_session(session):
+            if session.socratic_steering_action == "repair_then_model":
+                return (
+                    "Recent Socratic turns still point to prerequisite repair, so the next generated step should model the correction before expecting freer explanation."
+                )
+            if session.socratic_steering_action == "clarify_then_check":
+                return (
+                    "Recent Socratic turns exposed a narrow reasoning gap, so the next generated step should clarify that language and quickly check the learner's explanation."
+                )
+            if session.socratic_steering_action == "verify_transfer":
+                return (
+                    "Recent Socratic turns demonstrated understanding, so the next generated step should shift from explanation toward independent transfer."
+                )
             return session.rationale or (
                 "Recent same-session evidence was strong enough to update support before relying on cross-session history."
             )

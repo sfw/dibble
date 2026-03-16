@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from dibble.config import Settings
-from dibble.models.generation import RequestedContentType
+from dibble.models.generation import GenerationModeCalibration, RequestedContentType
 from dibble.services.generation_prompt_selector import GenerationPromptSelector
 from dibble.services.socratic_prompt_selector import SocraticPromptSelector
 
@@ -45,7 +45,13 @@ class PromptManager:
             socratic_prompt_selector=socratic_prompt_selector,
         )
 
-    def select(self, *, student_id: UUID, content_type: RequestedContentType) -> PromptSelection:
+    def select(
+        self,
+        *,
+        student_id: UUID,
+        content_type: RequestedContentType,
+        mode_calibration: GenerationModeCalibration | None = None,
+    ) -> PromptSelection:
         variant = self.variant_override or self._variant_for(student_id=student_id, content_type=content_type)
         if (
             self.adaptive_selection_enabled
@@ -59,6 +65,7 @@ class PromptManager:
             variant = self.generation_prompt_selector.select_variant(
                 content_type=content_type,
                 fallback_variant=variant,
+                mode_calibration=mode_calibration,
             )
         if (
             self.adaptive_selection_enabled

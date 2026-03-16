@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from dibble.models.generation import RequestedContentType
+from dibble.models.generation import GenerationModeCalibration, RequestedContentType
 from dibble.services.generation_prompt_outcomes import GenerationPromptOutcomeScorer
 from dibble.services.protocols import AuditStore
 
@@ -19,7 +19,15 @@ class GenerationPromptSelector:
         *,
         content_type: RequestedContentType,
         fallback_variant: str,
+        mode_calibration: GenerationModeCalibration | None = None,
     ) -> str:
+        steered_variant = self._steered_variant(
+            content_type=content_type,
+            fallback_variant=fallback_variant,
+            mode_calibration=mode_calibration,
+        )
+        if steered_variant is not None:
+            return steered_variant
         prefix = f"{content_type.value}."
         events = self.audit_store.list(limit=self.max_events)
         all_generation_events = [event for event in events if event.event_type == "content.generate"]
@@ -146,3 +154,29 @@ class GenerationPromptSelector:
             )
 
         return max(eligible.items(), key=rank)[0]
+
+    def _steered_variant(
+        self,
+        *,
+        content_type: RequestedContentType,
+        fallback_variant: str,
+        mode_calibration: GenerationModeCalibration | None,
+    ) -> str | None:
+        if (
+            mode_calibration is None
+            or mode_calibration.session_source == "insufficient"
+            or mode_calibration.session_confidence < 0.55
+            or mode_calibration.session_assessment_count <= 0
+        ):
+            return None
+        if content_type not in {
+            RequestedContentType.micro_explanation,
+            RequestedContentType.worked_example,
+            RequestedContentType.practice_problem,
+        }:
+            return None
+        if mode_calibration.socratic_steering_action in {"repair_then_model", "clarify_then_check"}:
+            return "guided_reflection"
+        if mode_calibration.socratic_steering_action == "verify_transfer":
+            return "baseline"
+        return fallback_variant if mode_calibration.socratic_steering_action == "probe_from_new_angle" else None

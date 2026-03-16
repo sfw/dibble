@@ -24,6 +24,10 @@ class WithinSessionAdaptationSummary:
     generated_step_count: int = 0
     positive_streak: int = 0
     negative_streak: int = 0
+    latest_assessment_prompt_style: str | None = None
+    latest_assessment_next_action: str = "monitor"
+    latest_assessment_evidence_strength: str = "insufficient"
+    socratic_steering_action: str = "steady"
     rationale: str | None = None
 
 
@@ -123,6 +127,23 @@ class WithinSessionAdaptationService:
         negative_score = 0.0
         positive_score = 0.0
         latest_assessment = assessment_events[0] if assessment_events else None
+        latest_assessment_payload = latest_assessment.payload if latest_assessment is not None else None
+        latest_assessment_prompt_style = (
+            str(latest_assessment_payload.get("prompt_style"))
+            if latest_assessment_payload is not None and latest_assessment_payload.get("prompt_style") is not None
+            else None
+        )
+        latest_assessment_next_action = (
+            str(latest_assessment_payload.get("next_action", "monitor"))
+            if latest_assessment_payload is not None
+            else "monitor"
+        )
+        latest_assessment_evidence_strength = (
+            str(latest_assessment_payload.get("evidence_strength", "insufficient"))
+            if latest_assessment_payload is not None
+            else "insufficient"
+        )
+        socratic_steering_action = self._socratic_steering_action(latest_assessment_payload)
 
         for event in observation_events:
             observation_negative, observation_positive = self._observation_scores(event.payload)
@@ -153,8 +174,12 @@ class WithinSessionAdaptationService:
                     matched_assessment_count=len(assessment_events),
                     phase="transfer_check",
                     recovery_intent="fade_support",
+                    latest_assessment_prompt_style=latest_assessment_prompt_style,
+                    latest_assessment_next_action=latest_assessment_next_action,
+                    latest_assessment_evidence_strength=latest_assessment_evidence_strength,
+                    socratic_steering_action=socratic_steering_action,
                     rationale=self._positive_rationale(
-                        latest_assessment=latest_assessment.payload if latest_assessment is not None else None,
+                        latest_assessment=latest_assessment_payload,
                         observation_count=len(observation_events),
                         assessment_count=len(assessment_events),
                         session_id=request.learning_session_id,
@@ -171,8 +196,12 @@ class WithinSessionAdaptationService:
                 matched_assessment_count=len(assessment_events),
                 phase="stabilize",
                 recovery_intent="stabilize_support",
+                latest_assessment_prompt_style=latest_assessment_prompt_style,
+                latest_assessment_next_action=latest_assessment_next_action,
+                latest_assessment_evidence_strength=latest_assessment_evidence_strength,
+                socratic_steering_action=socratic_steering_action,
                 rationale=self._negative_rationale(
-                    latest_assessment=latest_assessment.payload if latest_assessment is not None else None,
+                    latest_assessment=latest_assessment_payload,
                     observation_count=len(observation_events),
                     assessment_count=len(assessment_events),
                     session_id=request.learning_session_id,
@@ -190,8 +219,12 @@ class WithinSessionAdaptationService:
                 matched_assessment_count=len(assessment_events),
                 phase="transfer_check",
                 recovery_intent="fade_support",
+                latest_assessment_prompt_style=latest_assessment_prompt_style,
+                latest_assessment_next_action=latest_assessment_next_action,
+                latest_assessment_evidence_strength=latest_assessment_evidence_strength,
+                socratic_steering_action=socratic_steering_action,
                 rationale=self._positive_rationale(
-                    latest_assessment=latest_assessment.payload if latest_assessment is not None else None,
+                    latest_assessment=latest_assessment_payload,
                     observation_count=len(observation_events),
                     assessment_count=len(assessment_events),
                     session_id=request.learning_session_id,
@@ -208,6 +241,10 @@ class WithinSessionAdaptationService:
             matched_assessment_count=len(assessment_events),
             phase="monitor",
             recovery_intent="monitor",
+            latest_assessment_prompt_style=latest_assessment_prompt_style,
+            latest_assessment_next_action=latest_assessment_next_action,
+            latest_assessment_evidence_strength=latest_assessment_evidence_strength,
+            socratic_steering_action=socratic_steering_action,
             rationale=(
                 f"Recent same-session evidence in {request.learning_session_id} is mixed, so support should stay steady for now."
                 if event_count > 0
@@ -381,6 +418,10 @@ class WithinSessionAdaptationService:
             generated_step_count=controller.generation_count,
             positive_streak=controller.positive_streak,
             negative_streak=controller.negative_streak,
+            latest_assessment_prompt_style=controller.latest_assessment_prompt_style,
+            latest_assessment_next_action=controller.latest_assessment_next_action,
+            latest_assessment_evidence_strength=controller.latest_assessment_evidence_strength,
+            socratic_steering_action=controller.socratic_steering_action,
             rationale=controller.rationale,
         )
 
@@ -431,6 +472,10 @@ class WithinSessionAdaptationService:
             positive_streak=positive_streak,
             negative_streak=negative_streak,
             mixed_streak=mixed_streak,
+            latest_assessment_prompt_style=raw_summary.latest_assessment_prompt_style,
+            latest_assessment_next_action=raw_summary.latest_assessment_next_action,
+            latest_assessment_evidence_strength=raw_summary.latest_assessment_evidence_strength,
+            socratic_steering_action=raw_summary.socratic_steering_action,
             last_generated_content_type=existing.last_generated_content_type if existing is not None else None,
             last_generation_id=existing.last_generation_id if existing is not None else None,
             rationale=self._controller_rationale(
@@ -490,8 +535,28 @@ class WithinSessionAdaptationService:
             positive_streak=positive_streak,
             negative_streak=negative_streak,
             mixed_streak=mixed_streak,
+            latest_assessment_prompt_style=raw_summary.latest_assessment_prompt_style,
+            latest_assessment_next_action=raw_summary.latest_assessment_next_action,
+            latest_assessment_evidence_strength=raw_summary.latest_assessment_evidence_strength,
+            socratic_steering_action=raw_summary.socratic_steering_action,
             rationale=raw_summary.rationale,
         )
+
+    def _socratic_steering_action(self, latest_assessment: dict[str, object] | None) -> str:
+        if latest_assessment is None:
+            return "steady"
+        next_action = str(latest_assessment.get("next_action", "monitor"))
+        prompt_style = str(latest_assessment.get("prompt_style", ""))
+        evidence_strength = str(latest_assessment.get("evidence_strength", "insufficient"))
+        if next_action == "step_back" or prompt_style == "scaffolded_step_back":
+            return "repair_then_model"
+        if next_action == "clarify" or prompt_style == "clarification":
+            return "clarify_then_check"
+        if next_action == "advance" or prompt_style == "transfer_check":
+            return "verify_transfer" if evidence_strength == "demonstrated" else "clarify_then_check"
+        if prompt_style == "diagnostic":
+            return "probe_from_new_angle"
+        return "steady"
 
     def _updated_streak(self, current: int, is_same_signal: bool) -> int:
         return current + 1 if is_same_signal else 0

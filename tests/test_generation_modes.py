@@ -103,6 +103,104 @@ def test_generation_mode_plan_auto_selects_worked_example_for_high_help_seeking(
     assert "selection_rationale" in plan.request_context
 
 
+def test_generation_mode_plan_uses_recent_socratic_step_back_to_select_worked_example():
+    profile = LearnerProfile.model_validate(
+        build_profile(
+            uuid4(),
+            frustration="low",
+            total_load=0.32,
+            kc_mastery={"KC-1": 0.63},
+            engagement="medium",
+        )
+    )
+    request = GenerationRequest(
+        student_id=profile.student_id,
+        learning_session_id="session-socratic-step-back",
+        target_kc_ids=["KC-1"],
+        intent="explanation",
+        mode_calibration=GenerationModeCalibration(
+            signal="negative",
+            source="session_controller",
+            confidence=0.8,
+            support_bias=-1,
+            session_signal="negative",
+            session_source="session_controller",
+            session_confidence=0.8,
+            session_support_bias=-1,
+            session_assessment_count=1,
+            session_phase="repair",
+            session_recovery_intent="increase_support",
+            session_latest_prompt_style="scaffolded_step_back",
+            session_latest_next_action="step_back",
+            session_latest_evidence_strength="insufficient",
+            socratic_steering_action="repair_then_model",
+            rationale="test",
+        ),
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.reteach,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="medium",
+        reasons=["test"],
+    )
+
+    plan = build_generation_mode_plan(profile, request, route)
+
+    assert plan.content_type == RequestedContentType.worked_example
+    assert plan.request_context["selection_mode"] == "socratic_follow_up"
+    assert plan.request_context["socratic_follow_up"]["action"] == "repair_then_model"
+    assert "selection_rationale" in plan.request_context
+
+
+def test_generation_mode_plan_uses_recent_socratic_transfer_to_select_practice():
+    profile = LearnerProfile.model_validate(
+        build_profile(
+            uuid4(),
+            frustration="low",
+            total_load=0.28,
+            kc_mastery={"KC-1": 0.74},
+            engagement="high",
+        )
+    )
+    request = GenerationRequest(
+        student_id=profile.student_id,
+        learning_session_id="session-socratic-transfer",
+        target_kc_ids=["KC-1"],
+        intent="explanation",
+        mode_calibration=GenerationModeCalibration(
+            signal="positive",
+            source="session_controller",
+            confidence=0.83,
+            support_bias=1,
+            session_signal="positive",
+            session_source="session_controller",
+            session_confidence=0.83,
+            session_support_bias=1,
+            session_assessment_count=1,
+            session_phase="transfer_check",
+            session_recovery_intent="check_transfer",
+            session_latest_prompt_style="transfer_check",
+            session_latest_next_action="advance",
+            session_latest_evidence_strength="demonstrated",
+            socratic_steering_action="verify_transfer",
+            rationale="test",
+        ),
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.reteach,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="low",
+        reasons=["test"],
+    )
+
+    plan = build_generation_mode_plan(profile, request, route)
+
+    assert plan.content_type == RequestedContentType.practice_problem
+    assert plan.request_context["selection_mode"] == "socratic_follow_up"
+    assert plan.request_context["socratic_follow_up"]["action"] == "verify_transfer"
+    assert "selection_rationale" in plan.request_context
+
+
 def test_generation_mode_plan_assigns_independent_fading_for_stable_high_mastery_worked_example():
     profile = LearnerProfile.model_validate(
         build_profile(
