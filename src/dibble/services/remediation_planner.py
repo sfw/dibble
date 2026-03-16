@@ -49,14 +49,23 @@ class RemediationPlanner:
             for signal in signals
             if signal.category == "prerequisite_gap"
         ]
+        recurring_profile_signals = [
+            signal
+            for signal in signals
+            if signal.source == "profile" and signal.recurrence_signal in {"recurring", "relapsing"}
+        ]
         misconception_repair_targets = [
             kc_id
             for signal in signals
-            if signal.category == "known_misconception"
+            if signal.category == "known_misconception" or signal in recurring_profile_signals
             for kc_id in signal.recommended_kc_ids
         ]
 
         focus_kc_ids: list[str] = []
+        for signal in recurring_profile_signals:
+            for kc_id in signal.recommended_kc_ids or [signal.kc_id]:
+                if kc_id not in focus_kc_ids:
+                    focus_kc_ids.append(kc_id)
         for kc_id in misconception_repair_targets:
             if kc_id not in focus_kc_ids:
                 focus_kc_ids.append(kc_id)
@@ -71,7 +80,21 @@ class RemediationPlanner:
             for signal in signals
             if signal.category == "known_misconception" and signal.misconception_id is not None
         ]
-        if matched_misconceptions:
+        if recurring_profile_signals:
+            strongest_profile_signal = recurring_profile_signals[0]
+            recurrence_fragment = (
+                f"{strongest_profile_signal.recurrence_signal} across {strongest_profile_signal.recurrence_session_count} sessions"
+            )
+            rationale = (
+                "Misconception profiles show a repeated pattern "
+                f"({recurrence_fragment}), so remediation should explicitly repair that reasoning"
+                + (
+                    " while stepping back through prerequisite knowledge components."
+                    if prerequisite_gaps
+                    else " before returning to the target."
+                )
+            )
+        elif matched_misconceptions:
             labels = ", ".join(
                 signal.misconception_id or signal.category
                 for signal in matched_misconceptions[:2]

@@ -138,6 +138,10 @@ class MisconceptionSignal(BaseModel):
     recommended_kc_ids: list[str] = Field(default_factory=list)
     remediation_hint: str | None = None
     evidence_terms: list[str] = Field(default_factory=list)
+    recurrence_count: int = Field(default=0, ge=0)
+    recurrence_session_count: int = Field(default=0, ge=0)
+    recurrence_signal: str = "none"
+    last_seen_at: datetime | None = None
 
 
 class GenerationMetadata(BaseModel):

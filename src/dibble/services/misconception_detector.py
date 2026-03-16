@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from dibble.models.curriculum import KnowledgeComponent, KnowledgeComponentMisconception
+from dibble.models.curriculum import KnowledgeComponent
 from dibble.models.generation import MisconceptionSignal
 from dibble.models.profile import LearnerProfile
 from dibble.services.misconception_profiles import LearningMisconceptionProfileResolver
@@ -131,9 +131,13 @@ class MisconceptionDetector:
 
         signals = _deduplicate_signals(signals)
         source_priority = {"profile": 0, "catalog": 1, "heuristic": 2}
+        recurrence_priority = {"relapsing": 0, "recurring": 1, "repeated": 2, "tentative": 3, "none": 4}
         signals.sort(
             key=lambda item: (
                 -item.confidence,
+                -item.recurrence_session_count,
+                -item.recurrence_count,
+                -max(0, 4 - recurrence_priority.get(item.recurrence_signal, 4)),
                 source_priority.get(item.source, 3),
                 item.kc_id,
                 item.category,

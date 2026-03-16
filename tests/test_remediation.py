@@ -196,8 +196,10 @@ def test_misconception_detector_uses_profile_signals_to_reinforce_prior_patterns
             "category": "known_misconception",
             "misconception_id": "fraction-whole-number-bias",
             "matched_signal_count": 2,
+            "matched_session_count": 2,
             "average_confidence": 0.8,
             "profile_signal": "persistent",
+            "recurrence_signal": "recurring",
             "recommended_kc_ids": ["KC-1"],
             "evidence_terms": ["numerator", "denominator"],
             "remediation_hint": "Use one visual model to compare the whole amount.",
@@ -214,8 +216,10 @@ def test_misconception_detector_uses_profile_signals_to_reinforce_prior_patterns
             "category": "known_misconception",
             "misconception_id": "fraction-whole-number-bias",
             "matched_signal_count": 2,
+            "matched_session_count": 2,
             "average_confidence": 0.8,
             "profile_signal": "persistent",
+            "recurrence_signal": "recurring",
             "recommended_kc_ids": ["KC-1"],
             "evidence_terms": ["numerator", "denominator"],
             "remediation_hint": "Use one visual model to compare the whole amount.",
@@ -237,3 +241,69 @@ def test_misconception_detector_uses_profile_signals_to_reinforce_prior_patterns
 
     assert signals[0].source == "profile"
     assert signals[0].misconception_id == "fraction-whole-number-bias"
+    assert signals[0].recurrence_signal == "relapsing"
+
+
+def test_remediation_planner_prioritizes_recurring_profile_patterns(tmp_path):
+    from dibble.services.audit_store import SQLiteAuditStore
+
+    database_path = str(tmp_path / "remediation-recurring-profile.db")
+    ensure_database(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = uuid4()
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component("KC-1", name="Identify numerator and denominator")
+        )
+    )
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component(
+                "KC-2",
+                prerequisite_kc_ids=["KC-1"],
+                name="Generate equivalent fractions",
+            )
+        )
+    )
+    audit_store.append(
+        event_type="learning.misconception.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "target_kc_id": "KC-2",
+            "kc_id": "KC-2",
+            "category": "known_misconception",
+            "misconception_id": "fraction-whole-number-bias",
+            "matched_signal_count": 3,
+            "matched_session_count": 3,
+            "average_confidence": 0.84,
+            "profile_signal": "persistent",
+            "recurrence_signal": "relapsing",
+            "recommended_kc_ids": ["KC-1"],
+            "evidence_terms": ["numerator", "denominator"],
+            "remediation_hint": "Use one visual model to compare the whole amount.",
+        },
+    )
+    profile = LearnerProfile.model_validate(build_profile(student_id, kc_mastery={"KC-1": 0.4, "KC-2": 0.48}))
+    planner = RemediationPlanner(
+        kc_store,
+        MisconceptionDetector(
+            kc_store,
+            audit_store=audit_store,
+            misconception_profile_resolver=LearningMisconceptionProfileResolver(),
+        ),
+    )
+
+    plan = planner.plan(
+        profile,
+        "KC-2",
+        misconception_description="The learner still compares numerator counts before considering the whole fraction.",
+        curriculum_context=["Equivalent fractions"],
+    )
+
+    assert plan.misconception_signals[0].source == "profile"
+    assert plan.misconception_signals[0].recurrence_signal == "relapsing"
+    assert "repeated pattern" in plan.rationale
+    assert plan.module_blueprint["primary_misconception_source"] == "profile"
+    assert plan.module_blueprint["primary_recurrence_signal"] == "relapsing"

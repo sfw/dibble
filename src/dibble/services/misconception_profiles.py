@@ -47,6 +47,12 @@ class LearningMisconceptionProfileRecorder:
             ]
             if not matched_signals:
                 continue
+            matched_sessions = {
+                str(event.payload.get("remediation_session_id") or event.event_id)
+                for event in remediation_events
+                for candidate_signal in _misconception_signals(event)
+                if _signal_key(candidate_signal) == signal_key
+            }
 
             average_confidence = round(
                 sum(float(item.get("confidence", 0.0)) for item in matched_signals) / len(matched_signals),
@@ -68,7 +74,12 @@ class LearningMisconceptionProfileRecorder:
                     if kc_id is not None
                 }
             )
-            profile_signal = "persistent" if len(matched_signals) >= 2 and average_confidence >= 0.6 else "tentative"
+            recurrence_signal = _recurrence_signal(
+                matched_signal_count=len(matched_signals),
+                matched_session_count=len(matched_sessions),
+                average_confidence=average_confidence,
+            )
+            profile_signal = "persistent" if recurrence_signal in {"recurring", "relapsing"} else "tentative"
             recorded.append(
                 self.audit_store.append(
                     event_type="learning.misconception.profile",
@@ -80,11 +91,14 @@ class LearningMisconceptionProfileRecorder:
                         "category": raw_signal.get("category"),
                         "misconception_id": raw_signal.get("misconception_id"),
                         "matched_signal_count": len(matched_signals),
+                        "matched_session_count": len(matched_sessions),
                         "average_confidence": average_confidence,
                         "profile_signal": profile_signal,
+                        "recurrence_signal": recurrence_signal,
                         "recommended_kc_ids": recommended_kc_ids,
                         "evidence_terms": evidence_terms,
                         "remediation_hint": raw_signal.get("remediation_hint"),
+                        "last_seen_at": remediation_event.created_at.isoformat(),
                     },
                 )
             )
@@ -122,8 +136,18 @@ class LearningMisconceptionProfileResolver:
             if evidence_terms and not matched_terms and event.payload.get("profile_signal") != "persistent":
                 continue
 
-            matched_signal_count = max(1, int(event.payload.get("matched_signal_count", 1)))
-            confidence = min(0.99, average_confidence + min(0.18, matched_signal_count * 0.05))
+            prior_signal_count = max(1, int(event.payload.get("matched_signal_count", 1)))
+            prior_session_count = max(1, int(event.payload.get("matched_session_count", prior_signal_count)))
+            current_occurrence_count = prior_signal_count + (1 if matched_terms or not evidence_terms else 0)
+            current_session_count = prior_session_count + (1 if matched_terms or not evidence_terms else 0)
+            recurrence_signal = _recurrence_signal(
+                matched_signal_count=current_occurrence_count,
+                matched_session_count=current_session_count,
+                average_confidence=average_confidence,
+            )
+            confidence = min(0.99, average_confidence + min(0.18, current_occurrence_count * 0.05))
+            if recurrence_signal == "relapsing":
+                confidence = min(0.99, confidence + 0.05)
             signals.append(
                 MisconceptionSignal(
                     kc_id=str(event.payload.get("kc_id") or target_kc_id),
@@ -131,6 +155,11 @@ class LearningMisconceptionProfileResolver:
                     confidence=round(confidence, 2),
                     rationale=(
                         "Prior remediation runs repeatedly surfaced this misconception pattern"
+                        + (
+                            f" ({recurrence_signal} across {current_session_count} sessions)"
+                            if recurrence_signal in {"recurring", "relapsing"}
+                            else ""
+                        )
                         + (f" with overlap on {', '.join(matched_terms)}." if matched_terms else ".")
                     ),
                     source="profile",
@@ -140,9 +169,28 @@ class LearningMisconceptionProfileResolver:
                     ],
                     remediation_hint=_string_or_none(event.payload.get("remediation_hint")),
                     evidence_terms=matched_terms or sorted(prior_terms),
+                    recurrence_count=current_occurrence_count,
+                    recurrence_session_count=current_session_count,
+                    recurrence_signal=recurrence_signal,
+                    last_seen_at=_datetime_or_none(event.payload.get("last_seen_at")),
                 )
             )
         return signals
+
+
+def _recurrence_signal(
+    *,
+    matched_signal_count: int,
+    matched_session_count: int,
+    average_confidence: float,
+) -> str:
+    if matched_session_count >= 3 and average_confidence >= 0.7:
+        return "relapsing"
+    if matched_session_count >= 2 and average_confidence >= 0.6:
+        return "recurring"
+    if matched_signal_count >= 2:
+        return "repeated"
+    return "tentative"
 
 
 def _misconception_signals(event: AuditEvent) -> list[dict[str, object]]:
@@ -164,3 +212,12 @@ def _string_or_none(value: object) -> str | None:
     if value is None:
         return None
     return str(value)
+
+
+def _datetime_or_none(value: object) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None

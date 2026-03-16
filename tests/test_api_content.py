@@ -460,12 +460,16 @@ def test_remedial_trigger_records_and_reuses_misconception_profiles(client, stud
     assert second_response.status_code == 200
 
     second_signals = second_response.json()["request_context"]["misconception_signals"]
-    assert any(signal["source"] == "profile" for signal in second_signals)
+    profile_signal = next(signal for signal in second_signals if signal["source"] == "profile")
+    assert profile_signal["recurrence_signal"] in {"recurring", "relapsing"}
+    assert profile_signal["recurrence_count"] >= 1
+    assert profile_signal["recurrence_session_count"] >= 1
     profile_event = next(
         event for event in audit_response.json() if event["event_type"] == "learning.misconception.profile"
     )
     assert profile_event["payload"]["target_kc_id"] == "KC-2"
     assert profile_event["payload"]["matched_signal_count"] >= 1
+    assert profile_event["payload"]["recurrence_signal"] in {"tentative", "recurring", "relapsing"}
 
 
 def test_remediation_session_endpoints_advance_multi_step_workflow(client, student_id):
