@@ -126,7 +126,9 @@ def _socratic_follow_up_text(mode_calibration) -> str:
     style = mode_calibration.session_latest_prompt_style or "unspecified"
     return (
         f"{mode_calibration.socratic_steering_action} "
-        f"(last_style={style}, next_action={mode_calibration.session_latest_next_action}, "
+        f"(arc_action={mode_calibration.session_arc_action}, "
+        f"loop_risk={mode_calibration.session_stuck_loop_risk}, "
+        f"last_style={style}, next_action={mode_calibration.session_latest_next_action}, "
         f"evidence={mode_calibration.session_latest_evidence_strength})"
     )
 

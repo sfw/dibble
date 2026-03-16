@@ -21,6 +21,10 @@ class WithinSessionAdaptationSummary:
     matched_assessment_count: int = 0
     phase: str = "monitor"
     recovery_intent: str = "monitor"
+    support_step_budget: int = 0
+    support_steps_remaining: int = 0
+    stuck_loop_risk: str = "low"
+    arc_action: str = "steady"
     generated_step_count: int = 0
     positive_streak: int = 0
     negative_streak: int = 0
@@ -96,8 +100,35 @@ class WithinSessionAdaptationService:
         updated = existing.model_copy(
             update={
                 "generation_count": existing.generation_count + 1,
+                "support_steps_remaining": self._remaining_steps_after_generation(existing),
+                "stuck_loop_risk": self._stuck_loop_risk_for(
+                    phase=existing.phase,
+                    support_steps_remaining=self._remaining_steps_after_generation(existing),
+                    raw_summary=self._summary_from_controller(existing),
+                    generation_count=existing.generation_count + 1,
+                    negative_streak=existing.negative_streak,
+                    phase_changed=False,
+                ),
+                "arc_action": self._arc_action_for(
+                    phase=existing.phase,
+                    raw_summary=self._summary_from_controller(existing),
+                    stuck_loop_risk=self._stuck_loop_risk_for(
+                        phase=existing.phase,
+                        support_steps_remaining=self._remaining_steps_after_generation(existing),
+                        raw_summary=self._summary_from_controller(existing),
+                        generation_count=existing.generation_count + 1,
+                        negative_streak=existing.negative_streak,
+                        phase_changed=False,
+                    ),
+                ),
                 "last_generated_content_type": content_type,
                 "last_generation_id": generation_id,
+                "rationale": self._generation_step_rationale(
+                    learning_session_id=request.learning_session_id,
+                    existing=existing,
+                    support_steps_remaining=self._remaining_steps_after_generation(existing),
+                    generation_count=existing.generation_count + 1,
+                ),
                 "updated_at": datetime.now(timezone.utc),
             }
         )
@@ -415,6 +446,10 @@ class WithinSessionAdaptationService:
             matched_assessment_count=controller.assessment_count,
             phase=controller.phase,
             recovery_intent=controller.recovery_intent,
+            support_step_budget=controller.support_step_budget,
+            support_steps_remaining=controller.support_steps_remaining,
+            stuck_loop_risk=controller.stuck_loop_risk,
+            arc_action=controller.arc_action,
             generated_step_count=controller.generation_count,
             positive_streak=controller.positive_streak,
             negative_streak=controller.negative_streak,
@@ -449,8 +484,42 @@ class WithinSessionAdaptationService:
         mixed_streak = self._updated_streak(existing.mixed_streak if existing is not None else 0, raw_summary.signal == "mixed")
         phase = self._phase_for(raw_summary=raw_summary, existing=existing)
         recovery_intent = self._recovery_intent_for(raw_summary=raw_summary, existing=existing)
-        signal, support_bias, sequence_action = self._controller_signal(raw_summary=raw_summary, existing=existing, phase=phase, positive_streak=positive_streak, negative_streak=negative_streak)
-        confidence = self._controller_confidence(raw_summary=raw_summary, phase=phase, positive_streak=positive_streak, negative_streak=negative_streak)
+        phase_changed = existing is None or existing.phase != phase
+        support_step_budget = self._support_step_budget_for(phase=phase, raw_summary=raw_summary)
+        support_steps_remaining = self._support_steps_remaining_for(
+            phase=phase,
+            existing=existing,
+            raw_summary=raw_summary,
+            support_step_budget=support_step_budget,
+            phase_changed=phase_changed,
+        )
+        stuck_loop_risk = self._stuck_loop_risk_for(
+            phase=phase,
+            support_steps_remaining=support_steps_remaining,
+            raw_summary=raw_summary,
+            generation_count=existing.generation_count if existing is not None else 0,
+            negative_streak=negative_streak,
+            phase_changed=phase_changed,
+        )
+        arc_action = self._arc_action_for(
+            phase=phase,
+            raw_summary=raw_summary,
+            stuck_loop_risk=stuck_loop_risk,
+        )
+        signal, support_bias, sequence_action = self._controller_signal(
+            raw_summary=raw_summary,
+            existing=existing,
+            phase=phase,
+            positive_streak=positive_streak,
+            negative_streak=negative_streak,
+        )
+        confidence = self._controller_confidence(
+            raw_summary=raw_summary,
+            phase=phase,
+            positive_streak=positive_streak,
+            negative_streak=negative_streak,
+            stuck_loop_risk=stuck_loop_risk,
+        )
         observation_count = raw_summary.matched_observation_count
         assessment_count = raw_summary.matched_assessment_count
         generation_count = existing.generation_count if existing is not None else 0
@@ -466,6 +535,10 @@ class WithinSessionAdaptationService:
             primary_kc_id=raw_summary.primary_kc_id or (existing.primary_kc_id if existing is not None else None),
             phase=phase,
             recovery_intent=recovery_intent,
+            support_step_budget=support_step_budget,
+            support_steps_remaining=support_steps_remaining,
+            stuck_loop_risk=stuck_loop_risk,
+            arc_action=arc_action,
             observation_count=observation_count,
             assessment_count=assessment_count,
             generation_count=generation_count,
@@ -485,6 +558,8 @@ class WithinSessionAdaptationService:
                 raw_summary=raw_summary,
                 positive_streak=positive_streak,
                 negative_streak=negative_streak,
+                stuck_loop_risk=stuck_loop_risk,
+                arc_action=arc_action,
                 event_type=event_type,
             ),
             created_at=existing.created_at if existing is not None else datetime.now(timezone.utc),
@@ -512,6 +587,27 @@ class WithinSessionAdaptationService:
             positive_streak=positive_streak,
             negative_streak=negative_streak,
         )
+        support_step_budget = self._support_step_budget_for(phase=phase, raw_summary=raw_summary)
+        support_steps_remaining = self._support_steps_remaining_for(
+            phase=phase,
+            existing=None,
+            raw_summary=raw_summary,
+            support_step_budget=support_step_budget,
+            phase_changed=True,
+        )
+        stuck_loop_risk = self._stuck_loop_risk_for(
+            phase=phase,
+            support_steps_remaining=support_steps_remaining,
+            raw_summary=raw_summary,
+            generation_count=generation_count,
+            negative_streak=negative_streak,
+            phase_changed=True,
+        )
+        arc_action = self._arc_action_for(
+            phase=phase,
+            raw_summary=raw_summary,
+            stuck_loop_risk=stuck_loop_risk,
+        )
         return WithinSessionControllerState(
             learning_session_id=request.learning_session_id or "",
             student_id=request.student_id,
@@ -523,12 +619,17 @@ class WithinSessionAdaptationService:
                 phase=phase,
                 positive_streak=positive_streak,
                 negative_streak=negative_streak,
+                stuck_loop_risk=stuck_loop_risk,
             ),
             support_bias=support_bias,
             sequence_action=sequence_action,
             primary_kc_id=raw_summary.primary_kc_id,
             phase=phase,
             recovery_intent=recovery_intent,
+            support_step_budget=support_step_budget,
+            support_steps_remaining=support_steps_remaining,
+            stuck_loop_risk=stuck_loop_risk,
+            arc_action=arc_action,
             observation_count=raw_summary.matched_observation_count,
             assessment_count=raw_summary.matched_assessment_count,
             generation_count=generation_count,
@@ -560,6 +661,98 @@ class WithinSessionAdaptationService:
 
     def _updated_streak(self, current: int, is_same_signal: bool) -> int:
         return current + 1 if is_same_signal else 0
+
+    def _tracks_support_budget(self, phase: str) -> bool:
+        return phase in {"stabilize", "repair", "consolidate", "bridge"}
+
+    def _support_step_budget_for(self, *, phase: str, raw_summary: WithinSessionAdaptationSummary) -> int:
+        base_budget = {
+            "stabilize": 1,
+            "repair": 2,
+            "consolidate": 1,
+            "bridge": 1,
+        }.get(phase, 0)
+        if phase in {"stabilize", "repair"} and raw_summary.latest_assessment_next_action == "step_back":
+            return base_budget + 1
+        return base_budget
+
+    def _support_steps_remaining_for(
+        self,
+        *,
+        phase: str,
+        existing: WithinSessionControllerState | None,
+        raw_summary: WithinSessionAdaptationSummary,
+        support_step_budget: int,
+        phase_changed: bool,
+    ) -> int:
+        if not self._tracks_support_budget(phase):
+            return 0
+        if existing is None or phase_changed:
+            return support_step_budget
+        if raw_summary.signal == "positive" and phase in {"consolidate", "bridge"} and existing.signal in {"negative", "mixed", "recovering"}:
+            return support_step_budget
+        return min(support_step_budget, existing.support_steps_remaining)
+
+    def _remaining_steps_after_generation(self, controller: WithinSessionControllerState) -> int:
+        if not self._tracks_support_budget(controller.phase):
+            return 0
+        return max(0, controller.support_steps_remaining - 1)
+
+    def _stuck_loop_risk_for(
+        self,
+        *,
+        phase: str,
+        support_steps_remaining: int,
+        raw_summary: WithinSessionAdaptationSummary,
+        generation_count: int,
+        negative_streak: int,
+        phase_changed: bool,
+    ) -> str:
+        if not self._tracks_support_budget(phase):
+            return "low"
+        if (
+            support_steps_remaining <= 0
+            and (
+                generation_count >= 2
+                or raw_summary.signal == "mixed"
+                or raw_summary.latest_assessment_next_action in {"clarify", "step_back"}
+            )
+        ):
+            return "high"
+        if support_steps_remaining <= 0:
+            return "moderate"
+        if phase_changed:
+            return "low"
+        if (
+            support_steps_remaining <= 1
+            and generation_count >= 1
+            and (
+                negative_streak >= 2
+                or raw_summary.latest_assessment_next_action in {"clarify", "step_back"}
+                or raw_summary.socratic_steering_action == "probe_from_new_angle"
+            )
+        ):
+            return "moderate"
+        return "low"
+
+    def _arc_action_for(
+        self,
+        *,
+        phase: str,
+        raw_summary: WithinSessionAdaptationSummary,
+        stuck_loop_risk: str,
+    ) -> str:
+        if stuck_loop_risk == "high" or raw_summary.socratic_steering_action == "probe_from_new_angle":
+            return "reprobe_new_angle"
+        if phase in {"stabilize", "repair"}:
+            return "model_repair"
+        if phase == "consolidate":
+            return "restate_then_apply"
+        if phase == "bridge":
+            return "bridge_with_target"
+        if phase == "transfer_check":
+            return "attempt_transfer"
+        return "steady"
 
     def _phase_for(
         self,
@@ -643,10 +836,12 @@ class WithinSessionAdaptationService:
         phase: str,
         positive_streak: int,
         negative_streak: int,
+        stuck_loop_risk: str,
     ) -> float:
         streak_bonus = min(0.14, ((positive_streak + negative_streak) * 0.04))
         phase_bonus = 0.04 if phase in {"repair", "consolidate", "bridge", "transfer_check"} else 0.0
-        return round(min(0.95, raw_summary.confidence + streak_bonus + phase_bonus), 2)
+        loop_penalty = 0.08 if stuck_loop_risk == "high" else 0.04 if stuck_loop_risk == "moderate" else 0.0
+        return round(max(0.0, min(0.95, raw_summary.confidence + streak_bonus + phase_bonus - loop_penalty)), 2)
 
     def _controller_rationale(
         self,
@@ -657,8 +852,15 @@ class WithinSessionAdaptationService:
         raw_summary: WithinSessionAdaptationSummary,
         positive_streak: int,
         negative_streak: int,
+        stuck_loop_risk: str,
+        arc_action: str,
         event_type: str,
     ) -> str:
+        if stuck_loop_risk == "high":
+            return (
+                f"Within-session controller for {learning_session_id} has exhausted its guided support budget during {phase}, "
+                f"so after {event_type} it is changing angle instead of repeating the same scaffold."
+            )
         if phase == "repair":
             return (
                 f"Within-session controller for {learning_session_id} has seen {negative_streak} consecutive struggle signals, "
@@ -683,6 +885,27 @@ class WithinSessionAdaptationService:
                 f"Within-session controller for {learning_session_id} has seen {positive_streak} consecutive strong signals, "
                 "so the next generated step can test transfer."
             )
+        if arc_action == "reprobe_new_angle":
+            return (
+                f"Within-session controller for {learning_session_id} is avoiding a support loop by probing the same target from a new angle."
+            )
         return raw_summary.rationale or (
             f"Within-session controller for {learning_session_id} is monitoring the active recovery intent {recovery_intent}."
+        )
+
+    def _generation_step_rationale(
+        self,
+        *,
+        learning_session_id: str,
+        existing: WithinSessionControllerState,
+        support_steps_remaining: int,
+        generation_count: int,
+    ) -> str:
+        if self._tracks_support_budget(existing.phase) and support_steps_remaining <= 0:
+            return (
+                f"Within-session controller for {learning_session_id} has used {generation_count} generated support steps in {existing.phase}, "
+                "so the next move should change representation or check reasoning instead of adding another similar scaffold."
+            )
+        return (
+            f"Within-session controller for {learning_session_id} has delivered {generation_count} generated steps in the current {existing.phase} arc."
         )

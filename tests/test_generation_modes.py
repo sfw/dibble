@@ -202,6 +202,58 @@ def test_generation_mode_plan_uses_recent_socratic_transfer_to_select_practice()
     assert "selection_rationale" in plan.request_context
 
 
+def test_generation_mode_plan_uses_bridge_arc_to_select_guided_practice():
+    profile = LearnerProfile.model_validate(
+        build_profile(
+            uuid4(),
+            frustration="low",
+            total_load=0.34,
+            kc_mastery={"KC-1": 0.68},
+            engagement="medium",
+        )
+    )
+    request = GenerationRequest(
+        student_id=profile.student_id,
+        learning_session_id="session-bridge-arc",
+        target_kc_ids=["KC-1"],
+        intent="explanation",
+        mode_calibration=GenerationModeCalibration(
+            signal="recovering",
+            source="session_controller",
+            confidence=0.76,
+            support_bias=0,
+            session_signal="recovering",
+            session_source="session_controller",
+            session_confidence=0.76,
+            session_support_bias=0,
+            session_assessment_count=2,
+            session_phase="bridge",
+            session_recovery_intent="bridge_target",
+            session_support_step_budget=1,
+            session_support_steps_remaining=1,
+            session_arc_action="bridge_with_target",
+            session_latest_prompt_style="clarification",
+            session_latest_next_action="advance",
+            session_latest_evidence_strength="emerging",
+            socratic_steering_action="clarify_then_check",
+            rationale="test",
+        ),
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.targeted_practice,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="medium",
+        reasons=["test"],
+    )
+
+    plan = build_generation_mode_plan(profile, request, route)
+
+    assert plan.content_type == RequestedContentType.practice_problem
+    assert plan.request_context["selection_mode"] == "session_arc"
+    assert plan.request_context["session_adaptation"]["arc_action"] == "bridge_with_target"
+    assert "guided bridge" in plan.prompt_guidance
+
+
 def test_generation_mode_plan_assigns_independent_fading_for_stable_high_mastery_worked_example():
     profile = LearnerProfile.model_validate(
         build_profile(
@@ -363,6 +415,7 @@ def test_generation_mode_plan_surfaces_session_controller_metadata():
 
     assert plan.request_context["session_adaptation"]["source"] == "session_controller"
     assert plan.request_context["session_adaptation"]["phase"] == "repair"
+    assert plan.request_context["session_adaptation"]["support_step_budget"] == 0
     assert plan.request_context["session_adaptation"]["generated_step_count"] == 1
     assert plan.request_context["session_adaptation"]["negative_streak"] == 2
 
@@ -406,6 +459,59 @@ def test_generation_mode_plan_holds_support_practice_during_repair_phase():
     assert plan.request_context["difficulty_progression_action"] == "repair_rebuild"
     assert plan.request_context["practice_distractor_style"] == "misconception_contrast"
     assert "repair rebuild" in plan.prompt_guidance
+
+
+def test_generation_mode_plan_surfaces_loop_risk_in_session_context():
+    profile = LearnerProfile.model_validate(
+        build_profile(
+            uuid4(),
+            frustration="medium",
+            total_load=0.46,
+            kc_mastery={"KC-1": 0.49},
+            engagement="medium",
+        )
+    )
+    request = GenerationRequest(
+        student_id=profile.student_id,
+        learning_session_id="session-loop-risk",
+        target_kc_ids=["KC-1"],
+        intent="practice",
+        mode_calibration=GenerationModeCalibration(
+            signal="negative",
+            source="session_controller",
+            confidence=0.71,
+            support_bias=-1,
+            session_signal="negative",
+            session_source="session_controller",
+            session_confidence=0.71,
+            session_support_bias=-1,
+            session_assessment_count=1,
+            session_phase="repair",
+            session_recovery_intent="increase_support",
+            session_support_step_budget=2,
+            session_support_steps_remaining=0,
+            session_stuck_loop_risk="high",
+            session_arc_action="reprobe_new_angle",
+            session_latest_prompt_style="clarification",
+            session_latest_next_action="clarify",
+            session_latest_evidence_strength="emerging",
+            socratic_steering_action="clarify_then_check",
+            rationale="test",
+        ),
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.targeted_practice,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="medium",
+        reasons=["test"],
+    )
+
+    plan = build_generation_mode_plan(profile, request, route)
+
+    assert plan.request_context["session_adaptation"]["stuck_loop_risk"] == "high"
+    assert plan.request_context["session_adaptation"]["support_steps_remaining"] == 0
+    assert plan.request_context["socratic_follow_up"]["arc_action"] == "reprobe_new_angle"
+    assert "Change the representation" in plan.prompt_guidance
 
 
 def test_generation_mode_plan_uses_target_kc_misconceptions_to_focus_distractors():

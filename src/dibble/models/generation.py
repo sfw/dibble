@@ -105,6 +105,10 @@ class GenerationModeCalibration(BaseModel):
     session_assessment_count: int = Field(default=0, ge=0)
     session_phase: str = "monitor"
     session_recovery_intent: str = "monitor"
+    session_support_step_budget: int = Field(default=0, ge=0)
+    session_support_steps_remaining: int = Field(default=0, ge=0)
+    session_stuck_loop_risk: str = "low"
+    session_arc_action: str = "steady"
     session_generated_step_count: int = Field(default=0, ge=0)
     session_positive_streak: int = Field(default=0, ge=0)
     session_negative_streak: int = Field(default=0, ge=0)

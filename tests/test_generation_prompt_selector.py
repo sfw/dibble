@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dibble.models.generation import RequestedContentType
+from dibble.models.generation import GenerationModeCalibration, RequestedContentType
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.generation_prompt_selector import GenerationPromptSelector
 from dibble.storage import ensure_database
@@ -280,6 +280,29 @@ def test_generation_prompt_selector_can_prefer_deeper_session_trace(tmp_path):
     assert (
         selector.select_variant(content_type=RequestedContentType.worked_example, fallback_variant="baseline")
         == "guided_reflection"
+    )
+
+
+def test_generation_prompt_selector_uses_session_arc_to_break_support_loop(tmp_path):
+    database_path = str(tmp_path / "generation-selector-session-arc.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    selector = GenerationPromptSelector(audit_store=audit_store, min_samples_per_variant=2)
+
+    assert (
+        selector.select_variant(
+            content_type=RequestedContentType.practice_problem,
+            fallback_variant="guided_reflection",
+            mode_calibration=GenerationModeCalibration(
+                session_source="session_controller",
+                session_confidence=0.78,
+                session_assessment_count=2,
+                session_stuck_loop_risk="high",
+                session_arc_action="reprobe_new_angle",
+                socratic_steering_action="clarify_then_check",
+            ),
+        )
+        == "baseline"
     )
 
 

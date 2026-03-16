@@ -23,6 +23,10 @@ class WithinSessionControllerState(BaseModel):
     primary_kc_id: str | None = None
     phase: str = "monitor"
     recovery_intent: str = "monitor"
+    support_step_budget: int = Field(default=0, ge=0)
+    support_steps_remaining: int = Field(default=0, ge=0)
+    stuck_loop_risk: str = "low"
+    arc_action: str = "steady"
     observation_count: int = Field(default=0, ge=0)
     assessment_count: int = Field(default=0, ge=0)
     generation_count: int = Field(default=0, ge=0)

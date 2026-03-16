@@ -101,6 +101,10 @@ class GenerationModeCalibrator:
             session_assessment_count=session.matched_assessment_count,
             session_phase=session.phase,
             session_recovery_intent=session.recovery_intent,
+            session_support_step_budget=session.support_step_budget,
+            session_support_steps_remaining=session.support_steps_remaining,
+            session_stuck_loop_risk=session.stuck_loop_risk,
+            session_arc_action=session.arc_action,
             session_generated_step_count=session.generated_step_count,
             session_positive_streak=session.positive_streak,
             session_negative_streak=session.negative_streak,
@@ -196,6 +200,18 @@ class GenerationModeCalibrator:
 
     def _rationale(self, *, signal, strategy, session, support_bias: int) -> str:
         if self._is_decisive_session(session):
+            if session.arc_action == "reprobe_new_angle":
+                return (
+                    "Recent same-session support has started to loop, so the next generated step should change representation or reasoning frame instead of adding another similar scaffold."
+                )
+            if session.arc_action == "bridge_with_target":
+                return (
+                    "Recent same-session recovery looks stable enough for one guided target application before a full transfer check."
+                )
+            if session.arc_action == "restate_then_apply":
+                return (
+                    "Recent same-session recovery is consolidating, so the next generated step should ask for a brief restatement and one guided application."
+                )
             if session.socratic_steering_action == "repair_then_model":
                 return (
                     "Recent Socratic turns still point to prerequisite repair, so the next generated step should model the correction before expecting freer explanation."

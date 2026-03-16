@@ -20,6 +20,10 @@ def test_within_session_controller_store_round_trips_state(tmp_path):
         primary_kc_id="KC-1",
         phase="repair",
         recovery_intent="increase_support",
+        support_step_budget=2,
+        support_steps_remaining=1,
+        stuck_loop_risk="moderate",
+        arc_action="model_repair",
         observation_count=2,
         generation_count=1,
         negative_streak=2,
@@ -33,4 +37,6 @@ def test_within_session_controller_store_round_trips_state(tmp_path):
     assert loaded.learning_session_id == "session-1"
     assert loaded.phase == "repair"
     assert loaded.generation_count == 1
+    assert loaded.support_steps_remaining == 1
+    assert loaded.stuck_loop_risk == "moderate"
     assert loaded.negative_streak == 2

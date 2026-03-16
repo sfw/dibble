@@ -212,3 +212,70 @@ def test_socratic_policy_clarifies_after_failed_transfer_check_when_gap_is_narro
     )
 
     assert decision.prompt_style == SocraticPromptStyle.clarification
+
+
+def test_socratic_policy_reprobes_from_new_angle_when_clarification_loops():
+    student_id = uuid4()
+    policy = SocraticTurnPolicy()
+    prior_evaluation = SocraticAssessmentEvaluation(
+        evidence_strength=SocraticEvidenceStrength.emerging,
+        evidence_score=0.46,
+        evidence_dimensions=SocraticEvidenceDimensions(
+            lexical_alignment=0.44,
+            reasoning_signal=0.42,
+            confidence_alignment=0.48,
+            progression_signal=0.4,
+            misconception_risk=0.28,
+        ),
+        inferred_mastery=0.48,
+        rationale="Partially correct but still vague.",
+        next_action=SocraticNextAction.clarify,
+    )
+    current_evaluation = SocraticAssessmentEvaluation(
+        evidence_strength=SocraticEvidenceStrength.emerging,
+        evidence_score=0.45,
+        evidence_dimensions=SocraticEvidenceDimensions(
+            lexical_alignment=0.43,
+            reasoning_signal=0.41,
+            confidence_alignment=0.5,
+            progression_signal=0.42,
+            misconception_risk=0.26,
+        ),
+        inferred_mastery=0.5,
+        rationale="Still circling the same gap.",
+        next_action=SocraticNextAction.clarify,
+    )
+    session = SocraticAssessmentSession(
+        session_id="session-clarification-loop",
+        student_id=student_id,
+        turns=[
+            SocraticTurnRecord(
+                turn_id="turn-1",
+                prompt="Can you say why those fractions match?",
+                prompt_style=SocraticPromptStyle.clarification,
+                policy_rationale="Clarify the explanation.",
+                learner_response="Because they both change the same way.",
+                evaluation=prior_evaluation,
+            ),
+            SocraticTurnRecord(
+                turn_id="turn-2",
+                prompt="What exactly stays the same?",
+                prompt_style=SocraticPromptStyle.clarification,
+                policy_rationale="Clarify again.",
+                learner_response="The amount stays the same, I think.",
+                evaluation=prior_evaluation,
+            ),
+        ],
+    )
+
+    decision = policy.decide(
+        session,
+        SocraticAssessmentRequest(
+            student_id=student_id,
+            learner_response="The amount stays the same, but I still cannot explain it clearly.",
+            learner_confidence=0.48,
+        ),
+        current_evaluation,
+    )
+
+    assert decision.prompt_style == SocraticPromptStyle.diagnostic

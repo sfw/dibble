@@ -147,6 +147,64 @@ def test_within_session_controller_persists_repair_state_across_steps(tmp_path):
     assert service.adaptation_for(student_id=student_id, request=request).source == "session_controller"
 
 
+def test_within_session_controller_detects_support_loop_after_budget_is_used(tmp_path):
+    database_path = str(tmp_path / "within-session-controller-loop-risk.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    controller_store = SQLiteWithinSessionControllerStore(database_path)
+    student_id = uuid4()
+    service = WithinSessionAdaptationService(
+        audit_store=audit_store,
+        controller_store=controller_store,
+    )
+    request = GenerationRequest(
+        student_id=student_id,
+        learning_session_id="session-loop-risk",
+        target_kc_ids=["KC-1"],
+        intent="practice",
+        requested_content_type="practice_problem",
+    )
+
+    observation_payload = {
+        "learning_session_id": "session-loop-risk",
+        "target_kc_ids": ["KC-1"],
+        "error_count": 3,
+        "hints_used": 2,
+        "support_level": "low",
+        "frustration": "high",
+        "total_load": 0.84,
+        "confidence_calibration": 0.2,
+        "help_seeking": "high",
+    }
+    for _ in range(2):
+        audit_store.append(
+            event_type="learner.observe",
+            status="success",
+            student_id=str(student_id),
+            payload=observation_payload,
+        )
+        repair_summary = service.record_observation_event(student_id=student_id, event_payload=observation_payload)
+
+    first_generation = service.record_generation_step(
+        request=request,
+        content_type="practice_problem",
+        generation_id="gen-1",
+    )
+    second_generation = service.record_generation_step(
+        request=request,
+        content_type="practice_problem",
+        generation_id="gen-2",
+    )
+
+    assert repair_summary.phase == "repair"
+    assert repair_summary.support_step_budget == 2
+    assert first_generation.support_steps_remaining == 1
+    assert first_generation.stuck_loop_risk == "moderate"
+    assert second_generation.support_steps_remaining == 0
+    assert second_generation.stuck_loop_risk == "high"
+    assert second_generation.arc_action == "reprobe_new_angle"
+
+
 def test_within_session_controller_moves_from_repair_to_transfer_check_after_recovery(tmp_path):
     database_path = str(tmp_path / "within-session-controller-recovery.db")
     ensure_database(database_path)
@@ -205,6 +263,7 @@ def test_within_session_controller_moves_from_repair_to_transfer_check_after_rec
     assert recovery_summary.phase == "transfer_check"
     assert recovery_summary.sequence_action == "attempt_transfer"
     assert recovery_summary.positive_streak == 3
+    assert recovery_summary.arc_action == "attempt_transfer"
     assert final_summary.signal == "positive"
     assert final_summary.phase == "transfer_check"
     assert final_summary.recovery_intent == "check_transfer"

@@ -175,6 +175,10 @@ class GenerationPromptSelector:
             RequestedContentType.practice_problem,
         }:
             return None
+        if mode_calibration.session_arc_action == "reprobe_new_angle":
+            return "baseline"
+        if mode_calibration.session_arc_action in {"model_repair", "restate_then_apply", "bridge_with_target"}:
+            return "guided_reflection"
         if mode_calibration.socratic_steering_action in {"repair_then_model", "clarify_then_check"}:
             return "guided_reflection"
         if mode_calibration.socratic_steering_action == "verify_transfer":

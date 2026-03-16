@@ -91,6 +91,10 @@ def build_generation_mode_plan(
                 "assessment_count": mode_calibration.session_assessment_count,
                 "phase": mode_calibration.session_phase,
                 "recovery_intent": mode_calibration.session_recovery_intent,
+                "support_step_budget": mode_calibration.session_support_step_budget,
+                "support_steps_remaining": mode_calibration.session_support_steps_remaining,
+                "stuck_loop_risk": mode_calibration.session_stuck_loop_risk,
+                "arc_action": mode_calibration.session_arc_action,
                 "generated_step_count": mode_calibration.session_generated_step_count,
                 "positive_streak": mode_calibration.session_positive_streak,
                 "negative_streak": mode_calibration.session_negative_streak,
@@ -103,6 +107,8 @@ def build_generation_mode_plan(
         if mode_calibration.session_assessment_count > 0:
             request_context["socratic_follow_up"] = {
                 "action": mode_calibration.socratic_steering_action,
+                "arc_action": mode_calibration.session_arc_action,
+                "stuck_loop_risk": mode_calibration.session_stuck_loop_risk,
                 "latest_prompt_style": mode_calibration.session_latest_prompt_style,
                 "latest_next_action": mode_calibration.session_latest_next_action,
                 "latest_evidence_strength": mode_calibration.session_latest_evidence_strength,
@@ -203,6 +209,12 @@ def select_content_type(
         and mode_calibration is not None
         and mode_calibration.session_assessment_count > 0
     ):
+        if mode_calibration.session_arc_action == "bridge_with_target" and mode_calibration.session_phase == "bridge":
+            return (
+                RequestedContentType.practice_problem,
+                "session_arc",
+                "Within-session recovery is in a bridge phase, so the next generated step should use one guided target problem before a freer transfer check.",
+            )
         if mode_calibration.socratic_steering_action == "repair_then_model":
             return (
                 RequestedContentType.worked_example,
@@ -504,6 +516,18 @@ def _append_socratic_guidance(
     if mode_calibration.socratic_steering_action == "repair_then_model":
         return (
             f"{guidance} Start from the exact prerequisite gap surfaced in the recent Socratic turn and make the corrected reasoning explicit before asking for independence."
+        )
+    if mode_calibration.session_arc_action == "bridge_with_target":
+        return (
+            f"{guidance} Keep this as a guided bridge on the current target, then end with one light application that prepares the learner for transfer."
+        )
+    if mode_calibration.session_arc_action == "restate_then_apply":
+        return (
+            f"{guidance} Ask the learner to restate the repaired idea briefly, then apply it once in a closely related case."
+        )
+    if mode_calibration.session_arc_action == "reprobe_new_angle":
+        return (
+            f"{guidance} Change the representation or comparison and avoid adding another full scaffold in the same wording."
         )
     if mode_calibration.socratic_steering_action == "clarify_then_check":
         return (

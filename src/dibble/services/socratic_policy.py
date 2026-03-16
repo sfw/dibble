@@ -46,9 +46,26 @@ class SocraticTurnPolicy:
             len(session.turns) >= 2
             and all(turn.prompt_style == SocraticPromptStyle.clarification for turn in session.turns[-2:])
         )
+        repeated_step_back = (
+            len(session.turns) >= 2
+            and all(turn.prompt_style == SocraticPromptStyle.scaffolded_step_back for turn in session.turns[-2:])
+        )
         already_step_back = any(turn.prompt_style == SocraticPromptStyle.scaffolded_step_back for turn in session.turns[-2:])
         already_checked_transfer = any(turn.prompt_style == SocraticPromptStyle.transfer_check for turn in session.turns[-2:])
         last_prompt_style = session.turns[-1].prompt_style if session.turns else None
+        stalled_recent_progress = len(recent_mastery) >= 2 and abs(mastery_trend) < 0.05
+        clarification_loop = (
+            repeated_clarification
+            and stalled_recent_progress
+            and latest_evaluation.evidence_score < 0.6
+            and latest_evaluation.evidence_dimensions.misconception_risk < 0.45
+        )
+        step_back_loop = (
+            repeated_step_back
+            and stalled_recent_progress
+            and latest_evaluation.evidence_dimensions.progression_signal < 0.55
+            and latest_evaluation.evidence_dimensions.misconception_risk < 0.5
+        )
 
         if latest_evaluation.evidence_strength == SocraticEvidenceStrength.demonstrated:
             if (
@@ -84,6 +101,16 @@ class SocraticTurnPolicy:
             )
 
         if latest_evaluation.evidence_strength == SocraticEvidenceStrength.emerging:
+            if clarification_loop:
+                return SocraticPolicyDecision(
+                    prompt_style=SocraticPromptStyle.diagnostic,
+                    rationale="Recent clarification turns are circling the same gap, so the next prompt should probe from a new angle instead of repeating the same wording.",
+                )
+            if step_back_loop:
+                return SocraticPolicyDecision(
+                    prompt_style=SocraticPromptStyle.diagnostic,
+                    rationale="Repeated step-back turns are no longer moving the learner forward, so the next prompt should test the idea through a new representation before adding more scaffold.",
+                )
             if (
                 last_prompt_style == SocraticPromptStyle.scaffolded_step_back
                 and (
@@ -120,6 +147,11 @@ class SocraticTurnPolicy:
             return SocraticPolicyDecision(
                 prompt_style=SocraticPromptStyle.clarification,
                 rationale="The learner did not yet transfer the idea, but the gap looks narrow enough for one focused clarification before a full step-back.",
+            )
+        if clarification_loop or step_back_loop:
+            return SocraticPolicyDecision(
+                prompt_style=SocraticPromptStyle.diagnostic,
+                rationale="Recent Socratic turns have started to loop, so the next prompt should re-probe the learner's thinking from a new angle.",
             )
         if repeated_low_signal and not already_step_back:
             return SocraticPolicyDecision(

@@ -284,10 +284,14 @@ def test_generation_uses_within_session_observation_adaptation(client, student_i
     assert payload["request_context"]["session_adaptation"]["source"] == "session_controller"
     assert payload["request_context"]["session_adaptation"]["sequence_action"] == "hold_target"
     assert payload["request_context"]["session_adaptation"]["phase"] == "stabilize"
+    assert payload["request_context"]["session_adaptation"]["support_step_budget"] == 1
+    assert payload["request_context"]["session_adaptation"]["support_steps_remaining"] == 0
+    assert payload["request_context"]["session_adaptation"]["arc_action"] == "model_repair"
     assert payload["request_context"]["session_adaptation"]["generated_step_count"] == 1
     assert payload["request_context"]["mode_calibration"]["source"] == "session_controller"
     assert payload["request_context"]["mode_calibration"]["session_signal"] == "negative"
     assert payload["request_context"]["mode_calibration"]["session_phase"] == "stabilize"
+    assert payload["request_context"]["mode_calibration"]["session_support_steps_remaining"] == 0
     assert payload["request_context"]["mode_calibration"]["session_generated_step_count"] == 1
     assert payload["request_context"]["difficulty_band"] == "support"
     assert any("Same-session adaptation was negative" in reason for reason in payload["response"]["route"]["reasons"])

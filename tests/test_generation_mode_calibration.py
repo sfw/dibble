@@ -402,6 +402,63 @@ def test_generation_mode_calibrator_uses_persisted_session_controller_metadata(t
     assert calibrated_request.mode_calibration.session_negative_streak == 1
 
 
+def test_generation_mode_calibrator_carries_session_arc_loop_metadata(tmp_path):
+    database_path = str(tmp_path / "generation-mode-session-loop-risk.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    controller_store = SQLiteWithinSessionControllerStore(database_path)
+    student_id = uuid4()
+    service = WithinSessionAdaptationService(
+        audit_store=audit_store,
+        controller_store=controller_store,
+    )
+    request = GenerationRequest.model_validate(
+        {
+            "student_id": student_id,
+            "learning_session_id": "session-loop-risk",
+            "target_kc_ids": ["KC-4"],
+            "intent": "practice",
+            "requested_content_type": "practice_problem",
+        }
+    )
+    observation_payload = {
+        "learning_session_id": "session-loop-risk",
+        "target_kc_ids": ["KC-4"],
+        "error_count": 3,
+        "hints_used": 2,
+        "support_level": "low",
+        "frustration": "high",
+        "total_load": 0.84,
+        "confidence_calibration": 0.24,
+        "help_seeking": "high",
+    }
+    for _ in range(2):
+        audit_store.append(
+            event_type="learner.observe",
+            status="success",
+            student_id=str(student_id),
+            payload=observation_payload,
+        )
+        service.record_observation_event(student_id=student_id, event_payload=observation_payload)
+    service.record_generation_step(request=request, content_type="practice_problem", generation_id="gen-1")
+    service.record_generation_step(request=request, content_type="practice_problem", generation_id="gen-2")
+
+    calibrator = GenerationModeCalibrator(
+        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
+        within_session_adaptation_service=service,
+    )
+
+    calibrated_request = calibrator.calibrate_request(request=request)
+
+    assert calibrated_request.mode_calibration is not None
+    assert calibrated_request.mode_calibration.session_support_step_budget == 2
+    assert calibrated_request.mode_calibration.session_support_steps_remaining == 0
+    assert calibrated_request.mode_calibration.session_stuck_loop_risk == "high"
+    assert calibrated_request.mode_calibration.session_arc_action == "reprobe_new_angle"
+    assert "change representation" in calibrated_request.mode_calibration.rationale
+
+
 def test_generation_mode_calibrator_carries_recent_socratic_prompt_metadata(tmp_path):
     database_path = str(tmp_path / "generation-mode-session-socratic-steering.db")
     ensure_database(database_path)
