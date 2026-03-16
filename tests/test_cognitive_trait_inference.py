@@ -169,3 +169,62 @@ def test_cognitive_trait_inference_uses_trait_stability_and_challenge_tolerance_
 
     assert traits["working_memory"].value > 0.6
     assert traits["processing_speed"].value > 0.55
+
+
+def test_cognitive_trait_inference_downweights_mismatched_tentative_durable_profile(tmp_path):
+    database_path = str(tmp_path / "cognitive-trait-profile-mismatch.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = uuid4()
+    audit_store.append(
+        event_type="learning.cognitive_trait.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "matched_observation_count": 5,
+            "matched_session_count": 2,
+            "profile_signal": "tentative",
+            "processing_speed": {"value": 0.88, "confidence": 0.8},
+            "working_memory": {"value": 0.9, "confidence": 0.82},
+            "trait_stability": 0.54,
+            "challenge_tolerance": 0.4,
+        },
+    )
+    service = CognitiveTraitInferenceService(
+        trait_profile_signal_service=LearnerTraitProfileSignalService(audit_store=audit_store)
+    )
+    observations = [
+        LearnerObservation(
+            observation_id="obs-1",
+            student_id=student_id,
+            response_time_ms=28000,
+            expected_duration_ms=12000,
+            hints_used=3,
+            error_count=3,
+            pause_count=2,
+            modality_switches=2,
+            completed=False,
+            confidence=0.35,
+            task_type="practice",
+            support_level="low",
+        ),
+        LearnerObservation(
+            observation_id="obs-2",
+            student_id=student_id,
+            response_time_ms=26000,
+            expected_duration_ms=12000,
+            hints_used=2,
+            error_count=2,
+            pause_count=2,
+            modality_switches=1,
+            completed=False,
+            confidence=0.38,
+            task_type="assessment",
+            support_level="low",
+        ),
+    ]
+
+    traits = service.infer(student_id=student_id, observations=observations, existing_traits={})
+
+    assert traits["working_memory"].value < 0.65
+    assert traits["processing_speed"].value < 0.65

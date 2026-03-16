@@ -156,6 +156,13 @@ class CognitiveTraitInferenceService:
             durable_weight += 0.06 if profile.challenge_tolerance >= 0.6 else -0.08
         elif challenge_index <= 0.3 and profile.challenge_tolerance >= 0.7:
             durable_weight += 0.03
+        consistency = 1.0 - abs(current.value - durable.value)
+        if consistency < 0.45:
+            durable_weight *= 0.45 if profile.signal == "tentative" else 0.68
+        elif consistency < 0.65:
+            durable_weight *= 0.82
+        if current.confidence < 0.45 and profile.trait_stability >= 0.75:
+            durable_weight += 0.04
         durable_weight = min(0.5, max(0.08, durable_weight))
         merged_value = (current.value * (1.0 - durable_weight)) + (durable.value * durable_weight)
         merged_confidence = min(0.92, current.confidence + (durable.confidence * 0.2))

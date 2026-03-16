@@ -1,13 +1,24 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from uuid import UUID
 
 from dibble.models.observations import InferredLearnerState, LearnerObservation
-from dibble.models.profile import AffectiveState, CognitiveLoadState, MetacognitiveState, SignalLevel
+from dibble.models.profile import (
+    AffectiveState,
+    CognitiveLoadState,
+    LearnerStateProfileSummary,
+    MetacognitiveState,
+    SignalLevel,
+)
+from dibble.services.learning_state_profiles import LearnerStateSignalService
 from dibble.services.state_calibration import summarize_observations
 
 
+@dataclass(slots=True)
 class LearnerStateInferenceService:
+    state_profile_signal_service: LearnerStateSignalService | None = None
+
     def infer(self, *, student_id: UUID, observations: list[LearnerObservation]) -> InferredLearnerState:
         if not observations:
             return InferredLearnerState(
@@ -87,7 +98,7 @@ class LearnerStateInferenceService:
         )
         capacity_utilization = min(1.0, total_load + (0.1 if frustration in {SignalLevel.medium, SignalLevel.high} else 0.0))
 
-        return InferredLearnerState(
+        inferred = InferredLearnerState(
             student_id=student_id,
             affective_state=AffectiveState(
                 engagement=engagement,
@@ -111,6 +122,18 @@ class LearnerStateInferenceService:
             observation_count=len(observations),
             last_observation_at=max(item.created_at for item in observations),
         )
+        durable_profile = (
+            self.state_profile_signal_service.latest_for_student(student_id=student_id)
+            if self.state_profile_signal_service is not None
+            else LearnerStateProfileSummary()
+        )
+        if self._should_apply_durable_profile(
+            durable_profile=durable_profile,
+            observation_count=len(observations),
+            performance_estimate=calibrated.performance_estimate,
+        ):
+            return self._blend_with_durable(inferred=inferred, durable_profile=durable_profile)
+        return inferred
 
     def _frustration_level(self, avg_errors: float, avg_hints: float, avg_pauses: float) -> SignalLevel:
         score = (avg_errors * 0.5) + (avg_hints * 0.3) + (avg_pauses * 0.2)
@@ -157,3 +180,114 @@ class LearnerStateInferenceService:
         if score >= 0.25:
             return SignalLevel.low
         return SignalLevel.none
+
+    def _should_apply_durable_profile(
+        self,
+        *,
+        durable_profile: LearnerStateProfileSummary,
+        observation_count: int,
+        performance_estimate: float,
+    ) -> bool:
+        if durable_profile.source == "insufficient":
+            return False
+        if durable_profile.confidence < 0.6 or durable_profile.matched_session_count < 2:
+            return False
+        if observation_count < 2 and durable_profile.confidence < 0.72:
+            return False
+        performance_gap = (
+            abs((durable_profile.average_run_outcome_score or performance_estimate) - performance_estimate)
+            if durable_profile.average_run_outcome_score is not None
+            else 0.0
+        )
+        if performance_gap > 0.38 and durable_profile.confidence < 0.82:
+            return False
+        return (
+            durable_profile.recovery_stability >= 0.35
+            or durable_profile.overload_risk >= 0.55
+            or durable_profile.metacognitive_reliability >= 0.5
+        )
+
+    def _blend_with_durable(
+        self,
+        *,
+        inferred: InferredLearnerState,
+        durable_profile: LearnerStateProfileSummary,
+    ) -> InferredLearnerState:
+        weight = 0.12 + (durable_profile.confidence * 0.16) + (durable_profile.recovery_stability * 0.12)
+        weight += durable_profile.metacognitive_reliability * 0.08
+        if durable_profile.overload_risk >= 0.7 and inferred.cognitive_load.total_load >= 0.55:
+            weight += 0.06
+        weight = min(0.42, max(0.1, weight))
+        return inferred.model_copy(
+            update={
+                "affective_state": inferred.affective_state.model_copy(
+                    update={
+                        "engagement": _blend_signal(inferred.affective_state.engagement, durable_profile.engagement, weight),
+                        "frustration": _blend_signal(inferred.affective_state.frustration, durable_profile.frustration, weight),
+                        "confidence": round(_blend(inferred.affective_state.confidence, durable_profile.confidence, weight), 2),
+                    }
+                ),
+                "cognitive_load": inferred.cognitive_load.model_copy(
+                    update={
+                        "total_load": round(_blend(inferred.cognitive_load.total_load, durable_profile.total_load, weight), 2),
+                        "capacity_utilization": round(
+                            _blend(
+                                inferred.cognitive_load.capacity_utilization,
+                                max(durable_profile.total_load, durable_profile.overload_risk),
+                                min(0.5, weight + 0.06),
+                            ),
+                            2,
+                        ),
+                    }
+                ),
+                "metacognitive_state": inferred.metacognitive_state.model_copy(
+                    update={
+                        "confidence_calibration": round(
+                            _blend(
+                                inferred.metacognitive_state.confidence_calibration,
+                                durable_profile.confidence_calibration,
+                                min(0.48, weight + (durable_profile.metacognitive_reliability * 0.08)),
+                            ),
+                            2,
+                        ),
+                        "help_seeking": _blend_signal(
+                            inferred.metacognitive_state.help_seeking,
+                            durable_profile.help_seeking,
+                            min(0.45, weight + 0.04),
+                        ),
+                        "self_monitoring": round(
+                            _blend(
+                                inferred.metacognitive_state.self_monitoring,
+                                durable_profile.self_monitoring,
+                                min(0.48, weight + (durable_profile.metacognitive_reliability * 0.1)),
+                            ),
+                            2,
+                        ),
+                    }
+                ),
+            }
+        )
+
+
+def _blend(current: float, durable: float, weight: float) -> float:
+    return (current * (1.0 - weight)) + (durable * weight)
+
+
+def _blend_signal(current: SignalLevel, durable: SignalLevel, weight: float) -> SignalLevel:
+    numeric = _blend(_signal_value(current), _signal_value(durable), weight)
+    if numeric >= 0.8:
+        return SignalLevel.high
+    if numeric >= 0.5:
+        return SignalLevel.medium
+    if numeric >= 0.2:
+        return SignalLevel.low
+    return SignalLevel.none
+
+
+def _signal_value(signal: SignalLevel) -> float:
+    return {
+        SignalLevel.none: 0.0,
+        SignalLevel.low: 0.3,
+        SignalLevel.medium: 0.6,
+        SignalLevel.high: 0.9,
+    }[signal]

@@ -166,7 +166,9 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     socratic_profile_updater = SocraticProfileUpdater(
         knowledge_state_migrator=KnowledgeStateMigrator(knowledge_component_store=knowledge_component_store)
     )
-    state_inference_service = LearnerStateInferenceService()
+    state_inference_service = LearnerStateInferenceService(
+        state_profile_signal_service=learner_state_signal_service
+    )
     cognitive_trait_inference_service = CognitiveTraitInferenceService(
         trait_profile_signal_service=learner_trait_profile_signal_service
     )

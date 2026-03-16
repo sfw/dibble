@@ -2,7 +2,10 @@ from uuid import uuid4
 
 from dibble.models.observations import LearnerObservation
 from dibble.models.profile import SignalLevel
+from dibble.services.audit_store import SQLiteAuditStore
+from dibble.services.learning_state_profiles import LearnerStateSignalService
 from dibble.services.state_inference import LearnerStateInferenceService
+from dibble.storage import ensure_database
 
 
 def test_state_inference_detects_high_frustration_and_load():
@@ -118,3 +121,134 @@ def test_state_inference_is_task_aware_for_supported_vs_assessment_work():
     assert assessed.affective_state.confusion.value in {"low", "medium", "high"}
     assert assessed.metacognitive_state.help_seeking in {SignalLevel.medium, SignalLevel.high}
     assert supported.metacognitive_state.help_seeking in {SignalLevel.none, SignalLevel.low}
+
+
+def test_state_inference_blends_high_confidence_durable_state_profile(tmp_path):
+    database_path = str(tmp_path / "state-inference-durable.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = uuid4()
+    audit_store.append(
+        event_type="learning.state.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "average_run_outcome_score": 0.42,
+            "average_run_confidence": 0.82,
+            "matched_run_count": 6,
+            "matched_session_count": 4,
+            "state_profile_signal": "support_needed",
+            "engagement": "low",
+            "frustration": "high",
+            "total_load": 0.82,
+            "confidence_calibration": 0.34,
+            "help_seeking": "high",
+            "self_monitoring": 0.32,
+            "recovery_stability": 0.34,
+            "overload_risk": 0.84,
+            "metacognitive_reliability": 0.78,
+        },
+    )
+    service = LearnerStateInferenceService(
+        state_profile_signal_service=LearnerStateSignalService(audit_store=audit_store)
+    )
+    observations = [
+        LearnerObservation(
+            observation_id="obs-1",
+            student_id=student_id,
+            response_time_ms=18000,
+            hints_used=1,
+            error_count=1,
+            pause_count=1,
+            modality_switches=0,
+            completed=True,
+            confidence=0.7,
+            task_type="practice",
+            support_level="medium",
+        ),
+        LearnerObservation(
+            observation_id="obs-2",
+            student_id=student_id,
+            response_time_ms=17000,
+            hints_used=1,
+            error_count=1,
+            pause_count=1,
+            modality_switches=0,
+            completed=True,
+            confidence=0.68,
+            task_type="practice",
+            support_level="medium",
+        ),
+    ]
+
+    inferred = service.infer(student_id=student_id, observations=observations)
+
+    assert inferred.cognitive_load.total_load >= 0.55
+    assert inferred.metacognitive_state.self_monitoring < 0.65
+    assert inferred.metacognitive_state.help_seeking in {SignalLevel.medium, SignalLevel.high}
+
+
+def test_state_inference_ignores_weak_mismatched_durable_profile(tmp_path):
+    database_path = str(tmp_path / "state-inference-durable-mismatch.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = uuid4()
+    audit_store.append(
+        event_type="learning.state.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "average_run_outcome_score": 0.15,
+            "average_run_confidence": 0.61,
+            "matched_run_count": 2,
+            "matched_session_count": 2,
+            "state_profile_signal": "support_needed",
+            "engagement": "low",
+            "frustration": "high",
+            "total_load": 0.9,
+            "confidence_calibration": 0.2,
+            "help_seeking": "high",
+            "self_monitoring": 0.22,
+            "recovery_stability": 0.36,
+            "overload_risk": 0.88,
+            "metacognitive_reliability": 0.42,
+        },
+    )
+    baseline_service = LearnerStateInferenceService()
+    blended_service = LearnerStateInferenceService(
+        state_profile_signal_service=LearnerStateSignalService(audit_store=audit_store)
+    )
+    observations = [
+        LearnerObservation(
+            observation_id="obs-1",
+            student_id=student_id,
+            response_time_ms=9000,
+            hints_used=0,
+            error_count=0,
+            pause_count=0,
+            modality_switches=0,
+            completed=True,
+            confidence=0.86,
+            task_type="practice",
+            support_level="low",
+        ),
+        LearnerObservation(
+            observation_id="obs-2",
+            student_id=student_id,
+            response_time_ms=10000,
+            hints_used=0,
+            error_count=0,
+            pause_count=0,
+            modality_switches=0,
+            completed=True,
+            confidence=0.84,
+            task_type="assessment",
+            support_level="low",
+        ),
+    ]
+
+    baseline = baseline_service.infer(student_id=student_id, observations=observations)
+    blended = blended_service.infer(student_id=student_id, observations=observations)
+
+    assert blended.cognitive_load.total_load == baseline.cognitive_load.total_load
+    assert blended.metacognitive_state.self_monitoring == baseline.metacognitive_state.self_monitoring
