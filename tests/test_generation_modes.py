@@ -266,3 +266,126 @@ def test_generation_mode_plan_surfaces_session_controller_metadata():
     assert plan.request_context["session_adaptation"]["phase"] == "repair"
     assert plan.request_context["session_adaptation"]["generated_step_count"] == 1
     assert plan.request_context["session_adaptation"]["negative_streak"] == 2
+
+
+def test_generation_mode_plan_holds_support_practice_during_repair_phase():
+    profile = LearnerProfile.model_validate(
+        build_profile(
+            uuid4(),
+            frustration="low",
+            total_load=0.25,
+            kc_mastery={"KC-1": 0.72},
+            engagement="medium",
+        )
+    )
+    request = GenerationRequest(
+        student_id=profile.student_id,
+        target_kc_ids=["KC-1"],
+        intent="practice",
+        mode_calibration=GenerationModeCalibration(
+            signal="negative",
+            source="session_controller",
+            confidence=0.8,
+            support_bias=1,
+            session_signal="negative",
+            session_source="session_controller",
+            session_phase="repair",
+            session_recovery_intent="increase_support",
+            rationale="test",
+        ),
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.targeted_practice,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="medium",
+        reasons=["test"],
+    )
+
+    plan = build_generation_mode_plan(profile, request, route)
+
+    assert plan.request_context["difficulty_band"] == "support"
+    assert plan.request_context["difficulty_progression_action"] == "repair_rebuild"
+    assert plan.request_context["practice_distractor_style"] == "misconception_contrast"
+    assert "repair rebuild" in plan.prompt_guidance
+
+
+def test_generation_mode_plan_uses_bridge_progression_for_worked_examples():
+    profile = LearnerProfile.model_validate(
+        build_profile(
+            uuid4(),
+            frustration="low",
+            total_load=0.3,
+            kc_mastery={"KC-1": 0.78},
+            engagement="high",
+            confidence_calibration=0.78,
+            help_seeking="low",
+            self_monitoring=0.8,
+        )
+    )
+    request = GenerationRequest(
+        student_id=profile.student_id,
+        target_kc_ids=["KC-1"],
+        requested_content_type="worked_example",
+        mode_calibration=GenerationModeCalibration(
+            signal="recovering",
+            source="session_controller",
+            confidence=0.81,
+            support_bias=0,
+            session_signal="recovering",
+            session_source="session_controller",
+            session_phase="bridge",
+            session_recovery_intent="bridge_target",
+            rationale="test",
+        ),
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.reteach,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="medium",
+        reasons=["test"],
+    )
+
+    plan = build_generation_mode_plan(profile, request, route)
+
+    assert plan.request_context["fading_strategy"] == "completion"
+    assert plan.request_context["worked_example_progression_action"] == "bridge_release"
+    assert plan.request_context["worked_example_fade_focus"] == "a near-target example with the transfer move left unfinished"
+    assert "near-target example" in plan.prompt_guidance
+
+
+def test_generation_mode_plan_advances_practice_after_improving_progress():
+    profile = LearnerProfile.model_validate(
+        build_profile(
+            uuid4(),
+            frustration="low",
+            total_load=0.28,
+            kc_mastery={"KC-1": 0.64},
+            engagement="high",
+        )
+    )
+    request = GenerationRequest(
+        student_id=profile.student_id,
+        target_kc_ids=["KC-1"],
+        intent="practice",
+        mode_calibration=GenerationModeCalibration(
+            signal="positive",
+            source="progress_profile",
+            confidence=0.82,
+            support_bias=1,
+            progress_signal="improving",
+            strategy_trajectory_state="accelerating",
+            rationale="test",
+        ),
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.targeted_practice,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="low",
+        reasons=["test"],
+    )
+
+    plan = build_generation_mode_plan(profile, request, route)
+
+    assert plan.request_context["difficulty_band"] == "stretch"
+    assert plan.request_context["difficulty_progression_action"] == "advance_after_improvement"
+    assert plan.request_context["practice_distractor_style"] == "near_transfer"
