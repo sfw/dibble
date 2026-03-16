@@ -268,3 +268,95 @@ def test_predictive_warm_queue_store_defers_retry_until_backoff_expires(tmp_path
 
     assert len(claimed_retry) == 1
     assert claimed_retry[0].attempt_count == 2
+
+
+def test_predictive_warm_queue_store_sweep_requeues_stale_processing_tasks(tmp_path):
+    database_path = str(tmp_path / "predictive-warm-queue-sweep.db")
+    ensure_database(database_path)
+    store = SQLitePredictiveWarmQueueStore(database_path, processing_timeout_seconds=30)
+    task = store.enqueue(
+        request=GenerationRequest.model_validate(
+            {
+                "student_id": str(uuid4()),
+                "learning_session_id": "session-sweep",
+                "target_kc_ids": ["KC-1"],
+                "intent": "practice",
+                "requested_content_type": "practice_problem",
+                "predictive_warm": True,
+                "warm_reason": "test",
+                "source_generation_id": "gen-1",
+            }
+        )
+    )
+
+    assert task is not None
+    claimed = store.claim_pending(limit=1)
+    assert claimed
+
+    from datetime import datetime, timedelta, timezone
+    import sqlite3
+
+    with sqlite3.connect(database_path) as connection:
+        stale_time = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
+        connection.execute(
+            """
+            UPDATE predictive_warm_queue
+            SET updated_at = ?
+            WHERE task_id = ?
+            """,
+            (stale_time, task.task_id),
+        )
+        connection.commit()
+
+    sweep_result = store.sweep()
+
+    assert sweep_result.requeued_tasks == 1
+    assert store.stats()["deferred"] == 1
+
+
+def test_predictive_warm_queue_store_uses_lower_retry_cap_for_routine_tasks(tmp_path):
+    database_path = str(tmp_path / "predictive-warm-queue-routine-cap.db")
+    ensure_database(database_path)
+    store = SQLitePredictiveWarmQueueStore(database_path, max_retry_attempts=3)
+    task = store.enqueue(
+        request=GenerationRequest.model_validate(
+            {
+                "student_id": str(uuid4()),
+                "learning_session_id": "session-routine-cap",
+                "target_kc_ids": ["KC-1"],
+                "intent": "explanation",
+                "requested_content_type": "micro_explanation",
+                "predictive_warm": True,
+                "warm_reason": "quick recap",
+                "source_generation_id": "gen-1",
+            }
+        )
+    )
+
+    assert task is not None
+    first_claim = store.claim_pending(limit=1)
+    assert first_claim
+    first_defer = store.defer_retry(task_id=first_claim[0].task_id, error="timeout")
+    assert first_defer is not None
+
+    from datetime import datetime, timedelta, timezone
+    import sqlite3
+
+    with sqlite3.connect(database_path) as connection:
+        ready_time = (datetime.now(timezone.utc) - timedelta(seconds=5)).isoformat()
+        connection.execute(
+            """
+            UPDATE predictive_warm_queue
+            SET next_attempt_at = ?
+            WHERE task_id = ?
+            """,
+            (ready_time, task.task_id),
+        )
+        connection.commit()
+
+    second_claim = store.claim_pending(limit=1)
+    assert second_claim
+    second_defer = store.defer_retry(task_id=second_claim[0].task_id, error="timeout")
+
+    assert second_defer is None
+    assert store.stats()["failed"] == 1

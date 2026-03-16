@@ -94,10 +94,12 @@ class TelemetrySnapshot(BaseModel):
     predictive_cache_invalidations: int = 0
     pending_predictive_warm_tasks: int = 0
     deferred_predictive_warm_tasks: int = 0
+    aged_routine_predictive_warm_tasks: int = 0
     completed_predictive_warm_tasks: int = 0
     failed_predictive_warm_tasks: int = 0
     canceled_predictive_warm_tasks: int = 0
     retried_predictive_warm_tasks: int = 0
+    requeued_predictive_warm_tasks: int = 0
     dropped_predictive_warm_tasks: int = 0
     generated_content_entries: int = 0
     fresh_generated_content_entries: int = 0

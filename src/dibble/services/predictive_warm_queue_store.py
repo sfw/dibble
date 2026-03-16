@@ -6,7 +6,12 @@ from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 from uuid import uuid4
 
-from dibble.models.generation import GenerationRequest, PredictiveWarmTask, RequestedContentType
+from dibble.models.generation import (
+    GenerationRequest,
+    PredictiveWarmSweepResult,
+    PredictiveWarmTask,
+    RequestedContentType,
+)
 
 
 class SQLitePredictiveWarmQueueStore:
@@ -18,12 +23,16 @@ class SQLitePredictiveWarmQueueStore:
         claim_scan_limit: int = 100,
         max_retry_attempts: int = 3,
         retry_backoff_seconds: int = 30,
+        processing_timeout_seconds: int = 120,
+        routine_starvation_minutes: int = 5,
     ) -> None:
         self.database_path = database_path
         self.stale_after_minutes = stale_after_minutes
         self.claim_scan_limit = claim_scan_limit
         self.max_retry_attempts = max(1, max_retry_attempts)
         self.retry_backoff_seconds = max(5, retry_backoff_seconds)
+        self.processing_timeout_seconds = max(30, processing_timeout_seconds)
+        self.routine_starvation_minutes = max(1, routine_starvation_minutes)
 
     def enqueue(self, *, request: GenerationRequest) -> PredictiveWarmTask | None:
         fingerprint = _request_fingerprint(request)
@@ -135,6 +144,68 @@ class SQLitePredictiveWarmQueueStore:
             for task_id in task_ids
         ]
 
+    def sweep(self, *, limit: int = 200) -> PredictiveWarmSweepResult:
+        now = datetime.now(timezone.utc)
+        processing_cutoff = now - timedelta(seconds=self.processing_timeout_seconds)
+        with sqlite3.connect(self.database_path) as connection:
+            rows = connection.execute(
+                """
+                SELECT task_id, student_id, request_payload, request_fingerprint, status, priority_class, attempt_count,
+                       created_at, updated_at, next_attempt_at, last_error
+                FROM predictive_warm_queue
+                WHERE status IN ('pending', 'deferred', 'processing')
+                ORDER BY updated_at ASC, task_id ASC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+            if not rows:
+                return PredictiveWarmSweepResult()
+            tasks = [_task_from_row(row, stale_after_minutes=self.stale_after_minutes) for row in rows]
+            expired_ids = [task.task_id for task in tasks if task.expires_at is not None and task.expires_at <= now]
+            if expired_ids:
+                _mark_canceled(connection, task_ids=expired_ids, last_error="Predictive warm task expired before processing.")
+
+            requeued = 0
+            for task in tasks:
+                if task.task_id in expired_ids:
+                    continue
+                if task.status != "processing" or task.updated_at > processing_cutoff:
+                    continue
+                if task.attempt_count >= self._max_retry_attempts_for(task.priority_class):
+                    connection.execute(
+                        """
+                        UPDATE predictive_warm_queue
+                        SET status = 'failed', updated_at = ?, next_attempt_at = NULL, last_error = ?
+                        WHERE task_id = ?
+                        """,
+                        (
+                            now.isoformat(),
+                            "Predictive warm task exceeded retry budget after a stale processing recovery.",
+                            task.task_id,
+                        ),
+                    )
+                    continue
+                next_attempt_at = now + timedelta(
+                    seconds=self.retry_backoff_seconds * (2 ** max(0, task.attempt_count - 1))
+                )
+                connection.execute(
+                    """
+                    UPDATE predictive_warm_queue
+                    SET status = 'deferred', updated_at = ?, next_attempt_at = ?, last_error = ?
+                    WHERE task_id = ?
+                    """,
+                    (
+                        now.isoformat(),
+                        next_attempt_at.isoformat(),
+                        "Recovered stale processing task after processing timeout.",
+                        task.task_id,
+                    ),
+                )
+                requeued += 1
+            connection.commit()
+        return PredictiveWarmSweepResult(requeued_tasks=requeued, expired_tasks=len(expired_ids))
+
     def claim_tasks(self, *, task_ids: list[str]) -> list[PredictiveWarmTask]:
         if not task_ids:
             return []
@@ -196,7 +267,7 @@ class SQLitePredictiveWarmQueueStore:
             if row is None:
                 return None
             task = _task_from_row(row, stale_after_minutes=self.stale_after_minutes)
-            if task.attempt_count >= self.max_retry_attempts:
+            if task.attempt_count >= self._max_retry_attempts_for(task.priority_class):
                 self._update_status(task_id=task_id, status="failed", last_error=error, next_attempt_at=None)
                 return None
             delay_seconds = self.retry_backoff_seconds * (2 ** max(0, task.attempt_count - 1))
@@ -271,7 +342,15 @@ class SQLitePredictiveWarmQueueStore:
         return len(canceled_ids)
 
     def stats(self) -> dict[str, int]:
-        counts = {"pending": 0, "processing": 0, "deferred": 0, "completed": 0, "failed": 0, "canceled": 0}
+        counts = {
+            "pending": 0,
+            "processing": 0,
+            "deferred": 0,
+            "completed": 0,
+            "failed": 0,
+            "canceled": 0,
+            "aged_routine": 0,
+        }
         with sqlite3.connect(self.database_path) as connection:
             rows = connection.execute(
                 """
@@ -280,8 +359,21 @@ class SQLitePredictiveWarmQueueStore:
                 GROUP BY status
                 """
             ).fetchall()
+            aged_routine_row = connection.execute(
+                """
+                SELECT count(*)
+                FROM predictive_warm_queue
+                WHERE priority_class = 'routine'
+                  AND status IN ('pending', 'deferred')
+                  AND created_at <= ?
+                """,
+                (
+                    (datetime.now(timezone.utc) - timedelta(minutes=self.routine_starvation_minutes)).isoformat(),
+                ),
+            ).fetchone()
         for status, count in rows:
             counts[str(status)] = int(count)
+        counts["aged_routine"] = int(aged_routine_row[0]) if aged_routine_row is not None else 0
         return counts
 
     def _update_status(
@@ -308,6 +400,14 @@ class SQLitePredictiveWarmQueueStore:
                 ),
             )
             connection.commit()
+
+    def _max_retry_attempts_for(self, priority_class: str) -> int:
+        class_caps = {
+            "urgent": self.max_retry_attempts + 1,
+            "high": self.max_retry_attempts,
+            "routine": max(1, self.max_retry_attempts - 1),
+        }
+        return class_caps.get(priority_class, self.max_retry_attempts)
 
 
 def _mark_processing(connection: sqlite3.Connection, *, task_ids: list[str]) -> None:

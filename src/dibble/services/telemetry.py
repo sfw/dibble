@@ -152,11 +152,15 @@ class TelemetryService:
             ),
             pending_predictive_warm_tasks=queue_stats["pending"],
             deferred_predictive_warm_tasks=queue_stats.get("deferred", 0),
+            aged_routine_predictive_warm_tasks=queue_stats.get("aged_routine", 0),
             completed_predictive_warm_tasks=queue_stats["completed"],
             failed_predictive_warm_tasks=queue_stats["failed"],
             canceled_predictive_warm_tasks=queue_stats["canceled"],
             retried_predictive_warm_tasks=sum(
                 int(event.payload.get("retried_tasks", 0)) for event in predictive_warm_process_events
+            ),
+            requeued_predictive_warm_tasks=sum(
+                int(event.payload.get("requeued_tasks", 0)) for event in predictive_warm_process_events
             ),
             dropped_predictive_warm_tasks=sum(
                 int(event.payload.get("dropped_tasks", 0)) for event in predictive_warm_process_events

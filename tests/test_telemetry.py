@@ -125,7 +125,7 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     audit_store.append(
         event_type="content.warm.predictive.process",
         status="success",
-        payload={"attempted_tasks": 1, "completed_tasks": 1, "retried_tasks": 1, "dropped_tasks": 0},
+        payload={"attempted_tasks": 1, "completed_tasks": 1, "retried_tasks": 1, "requeued_tasks": 1, "dropped_tasks": 0},
     )
     audit_store.append(
         event_type="learning.progress.profile",
@@ -151,7 +151,9 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     assert snapshot.declining_progress_signals == 1
     assert snapshot.pending_predictive_warm_tasks == 0
     assert snapshot.deferred_predictive_warm_tasks == 1
+    assert snapshot.aged_routine_predictive_warm_tasks == 0
     assert snapshot.retried_predictive_warm_tasks == 1
+    assert snapshot.requeued_predictive_warm_tasks == 1
     assert snapshot.dropped_predictive_warm_tasks == 0
     assert snapshot.generated_content_entries == 0
     assert snapshot.prompt_template_usages[0].template_name == "micro_explanation.baseline"

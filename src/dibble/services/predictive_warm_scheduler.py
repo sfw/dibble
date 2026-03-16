@@ -44,16 +44,25 @@ class PredictiveWarmScheduler:
     def process_inline(self, *, task_ids: list[str]) -> PredictiveWarmProcessResult:
         if self.inline_process_limit <= 0 or not task_ids:
             return PredictiveWarmProcessResult(pending_tasks=self._backlog_count())
+        sweep_result = self.queue_store.sweep()
         return self._process_tasks(
             self.queue_store.claim_tasks(task_ids=task_ids[: self.inline_process_limit]),
+            requeued_tasks=sweep_result.requeued_tasks,
         )
 
     def process_pending(self, *, limit: int = 10) -> PredictiveWarmProcessResult:
-        return self._process_tasks(self.queue_store.claim_pending(limit=limit))
+        sweep_result = self.queue_store.sweep()
+        return self._process_tasks(
+            self.queue_store.claim_pending(limit=limit),
+            requeued_tasks=sweep_result.requeued_tasks,
+        )
 
-    def _process_tasks(self, tasks) -> PredictiveWarmProcessResult:
+    def _process_tasks(self, tasks, *, requeued_tasks: int = 0) -> PredictiveWarmProcessResult:
         if not tasks:
-            return PredictiveWarmProcessResult(pending_tasks=self._backlog_count())
+            return PredictiveWarmProcessResult(
+                pending_tasks=self._backlog_count(),
+                requeued_tasks=requeued_tasks,
+            )
 
         completed = 0
         failed = 0
@@ -96,6 +105,7 @@ class PredictiveWarmScheduler:
             completed_tasks=completed,
             failed_tasks=failed,
             retried_tasks=retried,
+            requeued_tasks=requeued_tasks,
             deferred_tasks=deferred,
             dropped_tasks=dropped,
             skipped_tasks=skipped,

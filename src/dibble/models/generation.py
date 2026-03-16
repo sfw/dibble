@@ -297,6 +297,7 @@ class PredictiveWarmProcessResult(BaseModel):
     completed_tasks: int = Field(default=0, ge=0)
     failed_tasks: int = Field(default=0, ge=0)
     retried_tasks: int = Field(default=0, ge=0)
+    requeued_tasks: int = Field(default=0, ge=0)
     deferred_tasks: int = Field(default=0, ge=0)
     dropped_tasks: int = Field(default=0, ge=0)
     skipped_tasks: int = Field(default=0, ge=0)
@@ -305,3 +306,8 @@ class PredictiveWarmProcessResult(BaseModel):
     cache_misses: int = Field(default=0, ge=0)
     generation_ids: list[str] = Field(default_factory=list)
     processed_at: datetime = Field(default_factory=utc_now)
+
+
+class PredictiveWarmSweepResult(BaseModel):
+    requeued_tasks: int = Field(default=0, ge=0)
+    expired_tasks: int = Field(default=0, ge=0)
