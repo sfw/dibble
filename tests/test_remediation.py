@@ -78,6 +78,41 @@ def test_misconception_detector_matches_catalogued_misconception_patterns(tmp_pa
     assert signals[0].remediation_hint is not None
 
 
+def test_misconception_detector_matches_alias_terms_for_catalogued_patterns(tmp_path):
+    database_path = str(tmp_path / "misconceptions-alias-catalog.db")
+    ensure_database(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(database_path)
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component(
+                "KC-2",
+                name="Generate equivalent fractions",
+                common_misconceptions=[
+                    {
+                        "misconception_id": "fraction-part-role-swap",
+                        "label": "Swaps numerator and denominator roles",
+                        "description": "The learner treats the top and bottom numbers as interchangeable.",
+                        "trigger_terms": ["numerator", "denominator", "interchangeable"],
+                        "prerequisite_kc_ids": ["KC-1"],
+                    }
+                ],
+            )
+        )
+    )
+    profile = LearnerProfile.model_validate(build_profile(uuid4(), kc_mastery={"KC-2": 0.46}))
+    detector = MisconceptionDetector(kc_store)
+
+    signals = detector.detect(
+        profile,
+        target_kc_id="KC-2",
+        misconception_description="The learner swaps the top and bottom numbers while solving the problem.",
+        curriculum_context=["Equivalent fractions"],
+    )
+
+    assert signals[0].misconception_id == "fraction-part-role-swap"
+    assert set(signals[0].evidence_terms) >= {"top", "bottom", "swap"}
+
+
 def test_remediation_planner_uses_misconception_signals_to_order_focus(tmp_path):
     database_path = str(tmp_path / "remediation-plan.db")
     ensure_database(database_path)
@@ -106,6 +141,44 @@ def test_remediation_planner_uses_misconception_signals_to_order_focus(tmp_path)
     assert plan.prerequisite_kc_ids == ["KC-1"]
     assert plan.misconception_signals[0].kc_id == "KC-1"
     assert "prerequisite knowledge components" in plan.rationale
+
+
+def test_misconception_detector_weights_nearby_prerequisites_above_deeper_links(tmp_path):
+    database_path = str(tmp_path / "misconceptions-prereq-depth.db")
+    ensure_database(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(database_path)
+    kc_store.upsert(KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1", name="Understand fraction language")))
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component(
+                "KC-2",
+                prerequisite_kc_ids=["KC-1"],
+                name="Identify denominator roles",
+            )
+        )
+    )
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component(
+                "KC-3",
+                prerequisite_kc_ids=["KC-2"],
+                name="Generate equivalent fractions",
+            )
+        )
+    )
+    profile = LearnerProfile.model_validate(build_profile(uuid4(), kc_mastery={"KC-1": 0.2, "KC-2": 0.24, "KC-3": 0.55}))
+    detector = MisconceptionDetector(kc_store)
+
+    signals = detector.detect(
+        profile,
+        target_kc_id="KC-3",
+        misconception_description="The learner is still confused while generating equivalent fractions.",
+        curriculum_context=["Equivalent fractions"],
+    )
+
+    prerequisite_signals = [signal for signal in signals if signal.category == "prerequisite_gap"]
+    assert [signal.kc_id for signal in prerequisite_signals[:2]] == ["KC-2", "KC-1"]
+    assert "depth-1 prerequisite" in prerequisite_signals[0].rationale
 
 
 def test_remediation_planner_builds_structured_blueprint_for_known_misconceptions(tmp_path):

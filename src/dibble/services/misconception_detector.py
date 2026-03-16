@@ -5,6 +5,7 @@ import re
 from dibble.models.curriculum import KnowledgeComponent
 from dibble.models.generation import MisconceptionSignal
 from dibble.models.profile import LearnerProfile
+from dibble.services.knowledge_component_graph import KnowledgeComponentGraph
 from dibble.services.misconception_disambiguation import MisconceptionDisambiguationService
 from dibble.services.misconception_profiles import LearningMisconceptionProfileResolver
 from dibble.services.protocols import AuditStore, KnowledgeComponentStore
@@ -25,14 +26,33 @@ _STOPWORDS = {
     "while",
     "with",
 }
+_TERM_ALIASES = {
+    "top": {"numerator"},
+    "bottom": {"denominator"},
+    "numerator": {"top"},
+    "denominator": {"bottom"},
+    "swap": {"interchangeable", "swaps", "swapping"},
+    "swaps": {"swap", "interchangeable"},
+    "swapping": {"swap", "interchangeable"},
+    "interchangeable": {"swap"},
+    "separate": {"separately"},
+    "separately": {"separate"},
+    "whole": {"whole_number"},
+    "numbers": {"number"},
+    "number": {"numbers"},
+}
 
 
 def _normalize_terms(value: str) -> set[str]:
-    return {
+    normalized = {
         word.lower()
         for word in _WORD_PATTERN.findall(value)
         if len(word) >= 3 and word.lower() not in _STOPWORDS
     }
+    expanded = set(normalized)
+    for term in normalized:
+        expanded.update(_TERM_ALIASES.get(term, set()))
+    return expanded
 
 
 class MisconceptionDetector:
@@ -64,7 +84,11 @@ class MisconceptionDetector:
             evidence_terms.update(_normalize_terms(item))
 
         target_component = self.knowledge_component_store.get(target_kc_id)
-        prerequisite_components = self.knowledge_component_store.list_prerequisites(target_kc_id)
+        all_components = self.knowledge_component_store.list()
+        graph = KnowledgeComponentGraph(all_components)
+        prerequisite_relations = graph.prerequisites_for(target_kc_id)
+        prerequisite_components = [relation.component for relation in prerequisite_relations]
+        prerequisite_relations_by_id = {relation.component.kc_id: relation for relation in prerequisite_relations}
         signals: list[MisconceptionSignal] = []
 
         if self.audit_store is not None and self.misconception_profile_resolver is not None:
@@ -92,11 +116,20 @@ class MisconceptionDetector:
             mastery_gap = max(0.75 - mastery, 0.0)
             if mastery_gap <= 0 and not overlap_terms:
                 continue
+            relation = prerequisite_relations_by_id.get(component.kc_id)
+            relation_bonus = 0.0
+            if relation is not None:
+                relation_bonus = max(0.0, (relation.path_weight * 0.18) - ((relation.depth - 1) * 0.05))
 
-            confidence = min(0.95, 0.45 + (mastery_gap * 0.6) + (len(overlap_terms) * 0.08))
+            confidence = min(0.95, 0.42 + (mastery_gap * 0.55) + (len(overlap_terms) * 0.08) + relation_bonus)
             rationale = (
                 f"{component.name} looks like a prerequisite gap because mastery is {mastery:.2f}"
                 + (f" and the misconception language overlaps on {', '.join(overlap_terms)}." if overlap_terms else ".")
+                + (
+                    f" It is a depth-{relation.depth} prerequisite with path weight {relation.path_weight:.2f}."
+                    if relation is not None
+                    else ""
+                )
             )
             signals.append(
                 MisconceptionSignal(
@@ -168,6 +201,9 @@ class MisconceptionDetector:
         signals: list[MisconceptionSignal] = []
         mastery = profile.knowledge_state.kc_mastery.get(component.kc_id, 0.0)
         mastery_gap = max(0.85 - mastery, 0.0)
+        component_terms = _normalize_terms(component.name)
+        for tag in component.tags:
+            component_terms.update(_normalize_terms(tag))
         for misconception in component.common_misconceptions:
             trigger_terms = set()
             for term in misconception.trigger_terms:
@@ -177,8 +213,18 @@ class MisconceptionDetector:
             matched_terms = sorted(trigger_terms.intersection(evidence_terms))
             if not matched_terms:
                 continue
+            distinctive_terms = sorted(term for term in matched_terms if term not in component_terms)
             overlap_ratio = len(matched_terms) / max(1, len(trigger_terms))
-            confidence = min(0.98, 0.55 + (overlap_ratio * 0.25) + (mastery_gap * 0.25))
+            distinctive_ratio = len(distinctive_terms) / max(1, len(matched_terms))
+            repair_target_bonus = 0.06 if misconception.prerequisite_kc_ids else 0.0
+            confidence = min(
+                0.98,
+                0.5
+                + (overlap_ratio * 0.2)
+                + (distinctive_ratio * 0.12)
+                + (mastery_gap * 0.22)
+                + repair_target_bonus,
+            )
             signals.append(
                 MisconceptionSignal(
                     kc_id=component.kc_id,
@@ -186,13 +232,13 @@ class MisconceptionDetector:
                     confidence=round(confidence, 2),
                     rationale=(
                         f"{component.name} matches the misconception pattern '{misconception.label}'"
-                        f" based on {', '.join(matched_terms)}."
+                        f" based on {', '.join(distinctive_terms or matched_terms)}."
                     ),
                     source="catalog",
                     misconception_id=misconception.misconception_id,
                     recommended_kc_ids=misconception.prerequisite_kc_ids or [component.kc_id],
                     remediation_hint=misconception.remediation_hint,
-                    evidence_terms=matched_terms,
+                    evidence_terms=distinctive_terms or matched_terms,
                 )
             )
         return signals
