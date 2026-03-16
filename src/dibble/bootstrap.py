@@ -17,6 +17,7 @@ from dibble.services.generation_engine import GenerationEngine
 from dibble.services.generation_mode_calibration import GenerationModeCalibrator
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
 from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
+from dibble.services.knowledge_state_migration import KnowledgeStateMigrator
 from dibble.services.learning_calibration_profiles import LearningCalibrationProfileRecorder
 from dibble.services.learning_run_summary_recorder import LearningRunSummaryRecorder
 from dibble.services.learner_state_calibration import LearnerStateCalibrator
@@ -114,7 +115,9 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         evidence_scorer=SocraticEvidenceScorer(curriculum_store),
         turn_policy=SocraticTurnPolicy(),
     )
-    socratic_profile_updater = SocraticProfileUpdater()
+    socratic_profile_updater = SocraticProfileUpdater(
+        knowledge_state_migrator=KnowledgeStateMigrator(knowledge_component_store=knowledge_component_store)
+    )
     state_inference_service = LearnerStateInferenceService()
     cognitive_trait_inference_service = CognitiveTraitInferenceService()
     learner_state_calibrator = LearnerStateCalibrator(

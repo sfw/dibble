@@ -46,7 +46,7 @@ Legend:
 | `PROF-001` Cognitive trait assessment | Partial | Profile schema stores traits and the observation pipeline now refreshes lightweight processing-speed, working-memory, and spatial-reasoning estimates from recent interaction patterns, but there is still no dedicated diagnostic assessment workflow or richer validation loop |
 | `PROF-002` Affective state detection | Partial | Observation-driven inference now updates affective state with task-aware normalization, but the logic is still heuristic rather than a richer classifier |
 | `PROF-003` Real-time cognitive load estimation | Partial | Observation-driven load inference now updates the profile with task-aware normalization, but it remains heuristic rather than calibrated from real outcome data |
-| `PROF-004` KC granularity | Partial | KC mastery exists in the profile and there is now a persisted KC graph, but taxonomy depth and mastery migration are still limited |
+| `PROF-004` KC granularity | Partial | KC mastery exists in the profile, there is now a persisted KC graph, and Socratic mastery updates can now conservatively propagate through prerequisite/dependent KC relationships while recomputing affected LO mastery, but taxonomy depth and migration logic are still limited |
 | `PROF-005` Metacognitive tracking | Partial | Observation-driven confidence calibration and help-seeking signals now exist, are task-aware, influence routing/generation selection, can now be updated from Socratic assessment outcomes, and now also receive conservative run-summary adjustments in both router feedback and learner-state persistence, but they remain heuristic rather than calibrated |
 | `ADAPT-001` Thompson Sampling router | Implemented | Thompson-style policy with safety constraints is in the production path, and a calibration wrapper now feeds compact cross-session calibration profiles, then recent same-target run summaries, back into final support selection |
 | `ADAPT-002` Within-session adaptation | Partial | Streaming generation exists, but there is no continuous state-updating adaptive loop |
@@ -66,7 +66,7 @@ Legend:
 
 Based on `planning/4 - revised-spec/implementation-roadmap.md` and `planning/5 - dev-handoff-revised-spec/requirements-traceability.csv`, the strongest next backend slices are:
 
-1. `PROF-004`: expand the KC graph from a persistence/API layer into broader taxonomy coverage and mastery migration support.
+1. `PROF-004`: expand the KC graph from the current persistence plus conservative mastery-migration layer into broader taxonomy coverage and richer migration support.
 2. `ADAPT-003`: evolve the new misconception signals from the current richer taxonomy and confidence scoring into a stronger learned classifier.
 3. `PROF-001` + `PROF-002` + `PROF-003` + `PROF-005`: replace the new heuristic learner-state and lightweight trait inference path with stronger calibrated models trained from real outcome data.
 4. `ADAPT-005` + `LLM-002`: promote the new persisted run summaries and compact calibration profiles beyond the current router, learner-state, prompt-calibration, generation-mode, and learner-summary wrappers into longer-horizon learner-outcome feedback so the Socratic-to-profile feedback loop and adaptive prompt-selection loop can learn across sessions rather than mainly within recent audit windows.

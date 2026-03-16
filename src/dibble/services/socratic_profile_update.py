@@ -10,6 +10,7 @@ from dibble.models.assessment import (
     SocraticEvidenceStrength,
 )
 from dibble.models.profile import LearnerProfile, SignalLevel
+from dibble.services.knowledge_state_migration import KnowledgeStateMigrator
 
 
 def _clamp(value: float, *, lower: float = 0.0, upper: float = 1.0) -> float:
@@ -46,6 +47,8 @@ class SocraticProfileUpdateResult:
     applied: bool
     kc_mastery_updates: dict[str, float]
     lo_mastery_updates: dict[str, float]
+    propagated_kc_mastery_updates: dict[str, float] | None = None
+    propagated_lo_mastery_updates: dict[str, float] | None = None
     confidence_calibration: float | None = None
     self_monitoring: float | None = None
     help_seeking: SignalLevel | None = None
@@ -53,6 +56,8 @@ class SocraticProfileUpdateResult:
 
 @dataclass(slots=True)
 class SocraticProfileUpdater:
+    knowledge_state_migrator: KnowledgeStateMigrator | None = None
+
     def apply(
         self,
         profile: LearnerProfile,
@@ -95,6 +100,17 @@ class SocraticProfileUpdater:
             inferred_mastery=response.evaluation.inferred_mastery,
             evidence_weight=evidence_weight,
             evidence_strength=response.evaluation.evidence_strength,
+        )
+        migration_result = (
+            self.knowledge_state_migrator.migrate(
+                kc_mastery=new_kc_mastery,
+                lo_mastery=new_lo_mastery,
+                direct_kc_updates=kc_updates,
+                direct_lo_updates=lo_updates,
+                evidence_strength=response.evaluation.evidence_strength,
+            )
+            if self.knowledge_state_migrator is not None
+            else None
         )
 
         metacognitive_weight = min(0.65, evidence_weight + 0.1)
@@ -150,6 +166,12 @@ class SocraticProfileUpdater:
             applied=True,
             kc_mastery_updates=kc_updates,
             lo_mastery_updates=lo_updates,
+            propagated_kc_mastery_updates=(
+                migration_result.kc_mastery_updates if migration_result is not None else {}
+            ),
+            propagated_lo_mastery_updates=(
+                migration_result.lo_mastery_updates if migration_result is not None else {}
+            ),
             confidence_calibration=updated_profile.metacognitive_state.confidence_calibration,
             self_monitoring=updated_profile.metacognitive_state.self_monitoring,
             help_seeking=updated_help_seeking,

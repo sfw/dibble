@@ -46,6 +46,8 @@ def build_assessment_router(context: ApiContext) -> APIRouter:
                 "profile_update_applied": profile_update.applied,
                 "updated_kc_mastery": profile_update.kc_mastery_updates,
                 "updated_lo_mastery": profile_update.lo_mastery_updates,
+                "propagated_kc_mastery": profile_update.propagated_kc_mastery_updates or {},
+                "propagated_lo_mastery": profile_update.propagated_lo_mastery_updates or {},
                 "updated_confidence_calibration": profile_update.confidence_calibration,
                 "updated_self_monitoring": profile_update.self_monitoring,
                 "updated_help_seeking": (

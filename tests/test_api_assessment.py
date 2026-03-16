@@ -222,3 +222,53 @@ def test_socratic_assessment_invalidates_matching_predictive_cache_entries(clien
         if event["event_type"] == "content.cache.invalidate" and event["payload"]["trigger_event_type"] == "assessment.socratic"
     )
     assert invalidation_event["payload"]["expired_entries"] >= 1
+
+
+def test_socratic_assessment_propagates_mastery_to_prerequisites_and_parent_lo(client, student_id):
+    from tests.support import build_knowledge_component
+
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(
+            student_id,
+            frustration="low",
+            total_load=0.2,
+            kc_mastery={"KC-1": 0.42, "KC-2": 0.78},
+            engagement="high",
+            confidence_calibration=0.3,
+            help_seeking="high",
+            self_monitoring=0.35,
+        ),
+    )
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/knowledge-components/KC-1", json=build_knowledge_component("KC-1", parent_lo_id="LO-1"))
+    client.put(
+        "/api/knowledge-components/KC-2",
+        json=build_knowledge_component("KC-2", parent_lo_id="LO-1", prerequisite_kc_ids=["KC-1"]),
+    )
+
+    assessment_response = client.post(
+        "/api/assessments/socratic",
+        json={
+            "student_id": str(student_id),
+            "target_kc_ids": ["KC-2"],
+            "curriculum_context": ["Equivalent fractions"],
+            "learner_response": "Equivalent fractions are the same amount because 1/2 and 2/4 cover equal space on the model.",
+            "learner_confidence": 0.88,
+        },
+    )
+    profile_response = client.get(f"/api/learners/{student_id}/profile")
+    audit_response = client.get("/api/audit/events")
+
+    assert assessment_response.status_code == 200
+    assert profile_response.status_code == 200
+    assert audit_response.status_code == 200
+
+    profile_payload = profile_response.json()
+    assessment_event = next(
+        event for event in audit_response.json() if event["event_type"] == "assessment.socratic"
+    )
+    assert profile_payload["knowledge_state"]["kc_mastery"]["KC-1"] > 0.42
+    assert profile_payload["knowledge_state"]["lo_mastery"]["LO-1"] > 0.6
+    assert assessment_event["payload"]["propagated_kc_mastery"]["KC-1"] > 0.42
+    assert assessment_event["payload"]["propagated_lo_mastery"]["LO-1"] > 0.6
