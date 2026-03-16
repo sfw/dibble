@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from dibble.models.generation import AdaptiveRouteDecision, DeliveryMode, GenerationRequest, InterventionType
 from dibble.models.profile import LearnerProfile, SignalLevel
 from dibble.plugins.contracts import RouterPlugin
+from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
 from dibble.services.router_calibration_signals import RouterCalibrationSignalService
 
 
@@ -12,19 +13,32 @@ from dibble.services.router_calibration_signals import RouterCalibrationSignalSe
 class CalibratedRouter:
     base_router: RouterPlugin
     calibration_signal_service: RouterCalibrationSignalService
+    strategy_signal_service: LearnerStrategySignalService
     positive_confidence_threshold: float = 0.7
     negative_confidence_threshold: float = 0.6
+    strategy_confidence_threshold: float = 0.68
     minimum_outcome_for_improving_relaxation: float = 0.7
     maximum_outcome_for_declining_support_raise: float = 0.72
 
     def route(self, profile: LearnerProfile, request: GenerationRequest) -> AdaptiveRouteDecision:
         decision = self.base_router.route(profile, request)
         calibration = self.calibration_signal_service.signal_for(student_id=profile.student_id, request=request)
+        strategy = self.strategy_signal_service.strategy_for(student_id=profile.student_id, request=request)
         calibrated_decision = decision.model_copy(update={"calibration": calibration})
         if self._should_raise_support(calibration):
             return self._raise_support(calibrated_decision)
         if self._should_relax_support(profile=profile, calibration=calibration):
             return self._relax_support(calibrated_decision)
+        if self._should_raise_support_from_strategy(strategy):
+            return self._raise_support_with_reason(
+                calibrated_decision,
+                reason=self._strategy_reason(strategy=strategy),
+            )
+        if self._should_relax_support_from_strategy(profile=profile, strategy=strategy):
+            return self._relax_support_with_reason(
+                calibrated_decision,
+                reason=self._strategy_reason(strategy=strategy),
+            )
         if calibration.signal in {"mixed", "tentative"}:
             return calibrated_decision.model_copy(
                 update={
@@ -43,9 +57,9 @@ class CalibratedRouter:
         return calibrated_decision
 
     def _raise_support(self, decision: AdaptiveRouteDecision) -> AdaptiveRouteDecision:
-        reasons = [
-            *decision.reasons,
-            self._calibration_reason(
+        return self._raise_support_with_reason(
+            decision,
+            reason=self._calibration_reason(
                 signal="negative",
                 confidence=decision.calibration.confidence if decision.calibration is not None else 0.0,
                 average_run_outcome_score=(
@@ -54,6 +68,12 @@ class CalibratedRouter:
                 progress_signal=(decision.calibration.progress_signal if decision.calibration is not None else "insufficient"),
                 progress_delta=(decision.calibration.progress_delta if decision.calibration is not None else 0.0),
             ),
+        )
+
+    def _raise_support_with_reason(self, decision: AdaptiveRouteDecision, *, reason: str) -> AdaptiveRouteDecision:
+        reasons = [
+            *decision.reasons,
+            reason,
         ]
         if decision.intervention_type == InterventionType.stretch:
             return decision.model_copy(
@@ -69,10 +89,26 @@ class CalibratedRouter:
             update={
                 "scaffolding_level": self._increase_scaffolding(decision.scaffolding_level),
                 "reasons": reasons + ["Recent run outcomes were weak enough that the router increased scaffolding."],
-            }
-        )
+                }
+            )
 
     def _relax_support(self, decision: AdaptiveRouteDecision) -> AdaptiveRouteDecision:
+        return self._relax_support_with_reason(
+            decision,
+            reason=self._calibration_reason(
+                signal="positive",
+                confidence=decision.calibration.confidence if decision.calibration is not None else 0.0,
+                average_run_outcome_score=(
+                    decision.calibration.average_run_outcome_score if decision.calibration is not None else None
+                ),
+                progress_signal=(
+                    decision.calibration.progress_signal if decision.calibration is not None else "insufficient"
+                ),
+                progress_delta=(decision.calibration.progress_delta if decision.calibration is not None else 0.0),
+            ),
+        )
+
+    def _relax_support_with_reason(self, decision: AdaptiveRouteDecision, *, reason: str) -> AdaptiveRouteDecision:
         if decision.intervention_type not in {InterventionType.reteach, InterventionType.targeted_practice}:
             return decision
         updated_scaffolding = self._decrease_scaffolding(decision.scaffolding_level)
@@ -83,17 +119,7 @@ class CalibratedRouter:
                 "scaffolding_level": updated_scaffolding,
                 "reasons": [
                     *decision.reasons,
-                    self._calibration_reason(
-                        signal="positive",
-                        confidence=decision.calibration.confidence if decision.calibration is not None else 0.0,
-                        average_run_outcome_score=(
-                            decision.calibration.average_run_outcome_score if decision.calibration is not None else None
-                        ),
-                        progress_signal=(
-                            decision.calibration.progress_signal if decision.calibration is not None else "insufficient"
-                        ),
-                        progress_delta=(decision.calibration.progress_delta if decision.calibration is not None else 0.0),
-                    ),
+                    reason,
                     "Recent run outcomes were strong enough that the router relaxed scaffolding by one level.",
                 ],
             }
@@ -131,6 +157,16 @@ class CalibratedRouter:
             and calibration.average_run_outcome_score >= self.minimum_outcome_for_improving_relaxation
         )
 
+    def _should_raise_support_from_strategy(self, strategy) -> bool:
+        return strategy.support_bias < 0 and strategy.confidence >= self.strategy_confidence_threshold
+
+    def _should_relax_support_from_strategy(self, *, profile: LearnerProfile, strategy) -> bool:
+        return (
+            strategy.support_bias > 0
+            and strategy.confidence >= self.strategy_confidence_threshold
+            and not self._is_safety_constrained(profile)
+        )
+
     def _increase_scaffolding(self, value: str) -> str:
         return {"low": "medium", "medium": "high", "high": "high"}.get(value, "medium")
 
@@ -154,4 +190,15 @@ class CalibratedRouter:
         return (
             f"Recent run-level calibration on similar targets was {signal} "
             f"(score {average_run_outcome_score:.2f}, confidence {confidence:.2f}{trend_fragment})."
+        )
+
+    def _strategy_reason(self, *, strategy) -> str:
+        if strategy.rationale is not None:
+            return (
+                f"Long-horizon learner strategy was {strategy.signal} "
+                f"with focus {strategy.recovery_focus}: {strategy.rationale}"
+            )
+        return (
+            f"Long-horizon learner strategy was {strategy.signal} "
+            f"with focus {strategy.recovery_focus}."
         )

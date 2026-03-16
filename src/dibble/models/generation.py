@@ -75,6 +75,10 @@ class GenerationModeCalibration(BaseModel):
     progress_signal: str = "insufficient"
     progress_delta: float = 0.0
     support_bias: int = Field(default=0, ge=-1, le=1)
+    strategy_signal: str = "insufficient"
+    strategy_recovery_focus: str = "monitor"
+    strategy_source: str = "insufficient"
+    strategy_rationale: str | None = None
     rationale: str | None = None
 
 

@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from dibble.models.generation import GeneratedContent, RequestedContentType
+from dibble.models.profile import LearnerStrategySummary
 
 
 def utc_now() -> datetime:
@@ -35,6 +36,7 @@ class RemediationWorkflowSession(BaseModel):
     curriculum_context: list[str] = Field(default_factory=list)
     rationale: str
     blueprint: dict[str, object] = Field(default_factory=dict)
+    strategy_summary: LearnerStrategySummary = Field(default_factory=LearnerStrategySummary)
     steps: list[RemediationWorkflowStep] = Field(default_factory=list)
     current_step_index: int | None = None
     completed_generation_ids: list[str] = Field(default_factory=list)

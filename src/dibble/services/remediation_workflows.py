@@ -6,6 +6,7 @@ from uuid import UUID
 from uuid import uuid4
 
 from dibble.models.generation import ContentIntent, GenerationRequest, RequestedContentType
+from dibble.models.profile import LearnerStrategySummary
 from dibble.models.remediation import RemediationWorkflowSession, RemediationWorkflowStep
 from dibble.services.protocols import RemediationSessionStore
 from dibble.services.remediation_planner import RemediationPlan
@@ -35,6 +36,7 @@ class RemediationWorkflowCoordinator:
         misconception_description: str,
         curriculum_context: list[str],
         plan: RemediationPlan,
+        strategy_summary: LearnerStrategySummary | None = None,
     ) -> RemediationWorkflowSession:
         steps = self._build_steps(plan)
         if steps:
@@ -49,6 +51,7 @@ class RemediationWorkflowCoordinator:
             curriculum_context=curriculum_context,
             rationale=plan.rationale,
             blueprint=plan.module_blueprint,
+            strategy_summary=strategy_summary or LearnerStrategySummary(),
             steps=steps,
             current_step_index=0 if steps else None,
         )
@@ -85,6 +88,7 @@ class RemediationWorkflowCoordinator:
                 session.misconception_description,
                 current_step.objective,
                 current_step.guidance,
+                *self._strategy_curriculum_context(session.strategy_summary),
                 *session.curriculum_context,
                 *(curriculum_context or []),
             ],
@@ -174,3 +178,19 @@ class RemediationWorkflowCoordinator:
         if learner_prompt:
             return f"{learner_prompt} {workflow_prompt}".strip()
         return workflow_prompt
+
+    def _strategy_curriculum_context(self, strategy_summary: LearnerStrategySummary) -> list[str]:
+        if strategy_summary.signal == "insufficient":
+            return []
+        context = [f"Learner strategy: {strategy_summary.signal} ({strategy_summary.recovery_focus})."]
+        if strategy_summary.rationale is not None:
+            context.append(strategy_summary.rationale)
+        if strategy_summary.recovery_focus == "prerequisite_rebuild":
+            context.append("Rebuild prerequisite understanding before asking for transfer back to the target.")
+        elif strategy_summary.recovery_focus == "targeted_repair":
+            context.append("Keep support explicit and verify each repair step before fading support.")
+        elif strategy_summary.recovery_focus == "independent_practice":
+            context.append("Fade support sooner and end with an independent check on the target skill.")
+        elif strategy_summary.recovery_focus == "guided_practice":
+            context.append("Keep guidance present, but start fading support once the learner is stable.")
+        return context

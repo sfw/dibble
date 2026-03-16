@@ -24,6 +24,7 @@ from dibble.services.content_warmer import ContentWarmer
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.generation_mode_calibration import GenerationModeCalibrator
 from dibble.services.generation_modes import build_generation_mode_plan
+from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
 from dibble.services.misconception_profiles import LearningMisconceptionProfileRecorder
 from dibble.services.predictive_content_warming import PredictiveContentWarmer
 from dibble.services.predictive_warm_scheduler import PredictiveWarmScheduler
@@ -52,12 +53,14 @@ class ContentWorkflowService:
     predictive_warm_scheduler: PredictiveWarmScheduler
     remediation_planner: RemediationPlanner
     remediation_workflow_coordinator: RemediationWorkflowCoordinator
+    strategy_signal_service: LearnerStrategySignalService
     misconception_profile_recorder: LearningMisconceptionProfileRecorder
     audit_store: AuditStore
 
     def decide_route(self, request: GenerationRequest) -> AdaptiveRouteDecision:
         profile = self._load_profile(request.student_id)
         decision = self.router.route(profile, request)
+        strategy = self.strategy_signal_service.strategy_for(student_id=request.student_id, request=request)
         self.audit_store.append(
             event_type="adaptive.decide",
             status="success",
@@ -83,6 +86,10 @@ class ContentWorkflowService:
                 "calibration_progress_delta": (
                     decision.calibration.progress_delta if decision.calibration is not None else 0.0
                 ),
+                "strategy_signal": strategy.signal,
+                "strategy_source": strategy.source,
+                "strategy_support_bias": strategy.support_bias,
+                "strategy_recovery_focus": strategy.recovery_focus,
             },
         )
         return decision
@@ -145,6 +152,21 @@ class ContentWorkflowService:
                     calibrated_request.mode_calibration.support_bias
                     if calibrated_request.mode_calibration is not None
                     else 0
+                ),
+                "mode_strategy_signal": (
+                    calibrated_request.mode_calibration.strategy_signal
+                    if calibrated_request.mode_calibration is not None
+                    else None
+                ),
+                "mode_strategy_source": (
+                    calibrated_request.mode_calibration.strategy_source
+                    if calibrated_request.mode_calibration is not None
+                    else None
+                ),
+                "mode_strategy_recovery_focus": (
+                    calibrated_request.mode_calibration.strategy_recovery_focus
+                    if calibrated_request.mode_calibration is not None
+                    else None
                 ),
                 "mode_calibration_applied": bool(plan.request_context.get("mode_calibration_applied", False)),
                 "route_calibration_signal": (
@@ -235,12 +257,21 @@ class ContentWorkflowService:
             misconception_description=request.misconception_description,
             curriculum_context=request.curriculum_context,
         )
+        strategy_summary = self.strategy_signal_service.strategy_for(
+            student_id=request.student_id,
+            request=GenerationRequest(
+                student_id=request.student_id,
+                target_kc_ids=[request.target_kc_id],
+                intent="remediation",
+            ),
+        )
         session = self.remediation_workflow_coordinator.start_session(
             student_id=request.student_id,
             target_kc_id=request.target_kc_id,
             misconception_description=request.misconception_description,
             curriculum_context=request.curriculum_context,
             plan=plan,
+            strategy_summary=strategy_summary,
         )
         executed_step, updated_session, generated_content = self._execute_remediation_session_step(
             session_id=session.session_id,
@@ -277,6 +308,9 @@ class ContentWorkflowService:
                 "executed_phase": executed_step.phase,
                 "next_phase": self._next_remediation_phase(updated_session),
                 "step_count": len(updated_session.steps),
+                "strategy_signal": strategy_summary.signal,
+                "strategy_support_bias": strategy_summary.support_bias,
+                "strategy_recovery_focus": strategy_summary.recovery_focus,
             },
         )
         self.misconception_profile_recorder.record_from_remediation_event(remediation_event=remediation_event)
@@ -372,6 +406,7 @@ class ContentWorkflowService:
             "remediation_rationale": session.rationale,
             "remediation_blueprint": session.blueprint,
             "remediation_session_id": session.session_id,
+            "learner_strategy": session.strategy_summary.model_dump(mode="json"),
             "remediation_workflow": {
                 "status": "complete" if session.current_step_index is None else "in_progress",
                 "executed_phase": executed_step.phase,

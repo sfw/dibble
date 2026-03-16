@@ -174,6 +174,21 @@ class LearnerProgressSummary(BaseModel):
     updated_at: datetime | None = None
 
 
+class LearnerStrategySummary(BaseModel):
+    signal: str = "insufficient"
+    source: str = "insufficient"
+    support_bias: int = Field(default=0, ge=-1, le=1)
+    recovery_focus: str = "monitor"
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    average_run_outcome_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    matched_run_count: int = Field(default=0, ge=0)
+    matched_session_count: int = Field(default=0, ge=0)
+    progress_signal: str = "insufficient"
+    progress_delta: float = 0.0
+    rationale: str | None = None
+    updated_at: datetime | None = None
+
+
 class RecentLearnerActivity(BaseModel):
     generation_count: int = Field(default=0, ge=0)
     observation_count: int = Field(default=0, ge=0)
@@ -196,6 +211,7 @@ class ProfileSummary(BaseModel):
     help_seeking: SignalLevel
     calibration: LearnerCalibrationSummary = Field(default_factory=LearnerCalibrationSummary)
     progress: LearnerProgressSummary = Field(default_factory=LearnerProgressSummary)
+    strategy: LearnerStrategySummary = Field(default_factory=LearnerStrategySummary)
     recent_activity: RecentLearnerActivity = Field(default_factory=RecentLearnerActivity)
     updated_at: datetime
 
@@ -206,6 +222,7 @@ class ProfileSummary(BaseModel):
         *,
         calibration: LearnerCalibrationSummary | None = None,
         progress: LearnerProgressSummary | None = None,
+        strategy: LearnerStrategySummary | None = None,
         recent_activity: RecentLearnerActivity | None = None,
     ) -> "ProfileSummary":
         return cls(
@@ -221,6 +238,7 @@ class ProfileSummary(BaseModel):
             help_seeking=profile.metacognitive_state.help_seeking,
             calibration=calibration or LearnerCalibrationSummary(),
             progress=progress or LearnerProgressSummary(),
+            strategy=strategy or LearnerStrategySummary(),
             recent_activity=recent_activity or RecentLearnerActivity(),
             updated_at=profile.updated_at,
         )

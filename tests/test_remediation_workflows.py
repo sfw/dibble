@@ -2,6 +2,7 @@ from uuid import uuid4
 
 import pytest
 
+from dibble.models.profile import LearnerStrategySummary
 from dibble.services.remediation_planner import RemediationPlan
 from dibble.services.remediation_session_store import SQLiteRemediationSessionStore
 from dibble.services.remediation_workflows import (
@@ -57,10 +58,21 @@ def test_remediation_workflow_coordinator_persists_and_advances_steps(tmp_path):
         misconception_description="The learner compares numerator and denominator like whole numbers.",
         curriculum_context=["Equivalent fractions"],
         plan=plan,
+        strategy_summary=LearnerStrategySummary(
+            signal="support_intensive",
+            source="strategy_profile",
+            support_bias=-1,
+            recovery_focus="prerequisite_rebuild",
+            confidence=0.79,
+            matched_run_count=4,
+            matched_session_count=3,
+            rationale="The learner has struggled across sessions and should step back before transfer.",
+        ),
     )
 
     assert session.current_step_index == 0
     assert [step.status for step in session.steps] == ["active", "pending", "pending"]
+    assert session.strategy_summary.signal == "support_intensive"
 
     loaded_session, current_step, generation_request = coordinator.generation_request_for_current_step(
         session_id=session.session_id,
@@ -76,6 +88,8 @@ def test_remediation_workflow_coordinator_persists_and_advances_steps(tmp_path):
     assert "Keep it visual." in (generation_request.learner_prompt or "")
     assert "Use one simple example." in (generation_request.learner_prompt or "")
     assert "Reconnect the prerequisite concept." in generation_request.curriculum_context
+    assert any("Learner strategy: support_intensive" in item for item in generation_request.curriculum_context)
+    assert any("Rebuild prerequisite understanding" in item for item in generation_request.curriculum_context)
 
     updated_session = coordinator.complete_current_step(
         session_id=session.session_id,

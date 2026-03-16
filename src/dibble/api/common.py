@@ -20,6 +20,7 @@ from dibble.services.generation_mode_calibration import GenerationModeCalibrator
 from dibble.services.learning_calibration_profiles import LearningCalibrationProfileRecorder
 from dibble.services.learning_progress_profiles import LearningProgressProfileRecorder
 from dibble.services.learning_run_summary_recorder import LearningRunSummaryRecorder
+from dibble.services.learner_strategy_profiles import LearningStrategyProfileRecorder
 from dibble.services.learner_state_calibration import LearnerStateCalibrator
 from dibble.services.learner_summary_service import LearnerSummaryService
 from dibble.services.predictive_content_invalidator import PredictiveContentInvalidator
@@ -61,6 +62,7 @@ class ApiServices(Protocol):
     learning_run_summary_recorder: LearningRunSummaryRecorder
     learning_calibration_profile_recorder: LearningCalibrationProfileRecorder
     learning_progress_profile_recorder: LearningProgressProfileRecorder
+    learning_strategy_profile_recorder: LearningStrategyProfileRecorder
     learner_summary_service: LearnerSummaryService
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_invalidator: PredictiveContentInvalidator

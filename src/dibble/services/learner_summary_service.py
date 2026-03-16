@@ -3,7 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from dibble.models.profile import LearnerCalibrationSummary, LearnerProgressSummary, ProfileSummary, RecentLearnerActivity
+from dibble.models.profile import (
+    LearnerCalibrationSummary,
+    LearnerProgressSummary,
+    ProfileSummary,
+    RecentLearnerActivity,
+)
+from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
 from dibble.services.protocols import AuditStore, ProfileStore
 
 
@@ -11,6 +17,7 @@ from dibble.services.protocols import AuditStore, ProfileStore
 class LearnerSummaryService:
     profile_store: ProfileStore
     audit_store: AuditStore
+    strategy_signal_service: LearnerStrategySignalService
     max_events: int = 200
 
     def build_for_student(self, *, student_id: UUID) -> ProfileSummary | None:
@@ -22,6 +29,7 @@ class LearnerSummaryService:
             profile,
             calibration=self._latest_calibration(events),
             progress=self._latest_progress(events),
+            strategy=self.strategy_signal_service.latest_for_student(student_id=student_id),
             recent_activity=self._recent_activity(events),
         )
 
@@ -82,7 +90,6 @@ class LearnerSummaryService:
             progress_delta=float(progress_event.payload.get("progress_delta", 0.0)),
             updated_at=progress_event.created_at,
         )
-
     def _recent_activity(self, events) -> RecentLearnerActivity:
         return RecentLearnerActivity(
             generation_count=sum(1 for event in events if event.event_type == "content.generate"),

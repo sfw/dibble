@@ -310,9 +310,31 @@ def test_negative_practice_generation_predictively_warms_worked_example(client, 
     assert predictive_event["payload"]["predicted_content_types"] == ["worked_example"]
 
 
-def test_remedial_trigger_returns_remedial_generated_content(client, student_id):
+def test_remedial_trigger_returns_remedial_generated_content(client, student_id, app_settings):
+    from dibble.services.audit_store import SQLiteAuditStore
+
+    audit_store = SQLiteAuditStore(app_settings.database_path)
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    audit_store.append(
+        event_type="learning.strategy.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "intent": "remediation",
+            "content_type": "remedial_micro_module",
+            "target_kc_ids": ["KC-2"],
+            "average_run_outcome_score": 0.5,
+            "average_run_confidence": 0.8,
+            "matched_run_count": 4,
+            "matched_session_count": 3,
+            "progress_signal": "declining",
+            "progress_delta": -0.12,
+            "strategy_signal": "support_intensive",
+            "strategy_support_bias": -1,
+            "strategy_recovery_focus": "prerequisite_rebuild",
+        },
+    )
     client.put(
         "/api/knowledge-components/KC-1",
         json=build_knowledge_component("KC-1", name="Identify numerator and denominator"),
@@ -370,6 +392,8 @@ def test_remedial_trigger_returns_remedial_generated_content(client, student_id)
     assert payload["request_context"]["remediation_workflow"]["executed_phase"] == "step_back"
     assert payload["request_context"]["remediation_workflow"]["next_phase"] == "repair"
     assert payload["request_context"]["remediation_workflow"]["completed_step_count"] == 1
+    assert payload["request_context"]["learner_strategy"]["signal"] == "support_intensive"
+    assert payload["request_context"]["learner_strategy"]["recovery_focus"] == "prerequisite_rebuild"
 
     audit_response = client.get("/api/audit/events")
     assert audit_response.status_code == 200
@@ -381,6 +405,7 @@ def test_remedial_trigger_returns_remedial_generated_content(client, student_id)
     assert remediation_event["payload"]["remediation_blueprint"]["primary_misconception_id"] == (
         "fraction-whole-number-bias"
     )
+    assert remediation_event["payload"]["strategy_signal"] == "support_intensive"
 
 
 def test_remedial_trigger_records_and_reuses_misconception_profiles(client, student_id):

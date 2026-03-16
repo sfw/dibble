@@ -29,6 +29,7 @@ def test_profile_round_trip_and_summary(client, student_id):
     assert summary_response.json()["confidence_calibration"] == 0.5
     assert summary_response.json()["calibration"]["source"] == "insufficient"
     assert summary_response.json()["progress"]["source"] == "insufficient"
+    assert summary_response.json()["strategy"]["source"] == "insufficient"
     assert summary_response.json()["recent_activity"]["generation_count"] == 0
     assert profile_response.json()["profile_metadata"]["student_id"] == str(student_id)
     assert str(student_id) in list_response.json()
@@ -81,6 +82,25 @@ def test_profile_summary_exposes_recent_calibration_and_activity(client, student
             "progress_signal": "improving",
         },
     )
+    audit_store.append(
+        event_type="learning.strategy.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "intent": "practice",
+            "content_type": "practice_problem",
+            "target_kc_ids": ["KC-1"],
+            "average_run_outcome_score": 0.78,
+            "average_run_confidence": 0.73,
+            "matched_run_count": 4,
+            "matched_session_count": 2,
+            "progress_signal": "improving",
+            "progress_delta": 0.13,
+            "strategy_signal": "independence_ready",
+            "strategy_support_bias": 1,
+            "strategy_recovery_focus": "independent_practice",
+        },
+    )
 
     response = client.get(f"/api/learners/{student_id}/summary")
 
@@ -94,6 +114,9 @@ def test_profile_summary_exposes_recent_calibration_and_activity(client, student
     assert payload["progress"]["source"] == "profile"
     assert payload["progress"]["signal"] == "improving"
     assert payload["progress"]["progress_delta"] == 0.13
+    assert payload["strategy"]["source"] == "strategy_profile"
+    assert payload["strategy"]["signal"] == "independence_ready"
+    assert payload["strategy"]["support_bias"] == 1
     assert payload["recent_activity"]["generation_count"] == 1
     assert payload["recent_activity"]["last_generation_id"] == "summary-gen-1"
     assert payload["recent_activity"]["last_learning_session_id"] == "summary-session-1"
