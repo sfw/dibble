@@ -42,7 +42,12 @@ class CognitiveTraitInferenceService:
             else LearnerTraitProfileSummary()
         )
         challenge_index = self._current_challenge_index(observations)
-        if self._should_apply_durable_profile(durable_profile, challenge_index=challenge_index):
+        evidence = self._current_trait_evidence(observations)
+        if self._should_apply_durable_profile(
+            durable_profile,
+            challenge_index=challenge_index,
+            evidence=evidence,
+        ):
             for name, inferred in (
                 ("processing_speed", durable_profile.processing_speed),
                 ("working_memory", durable_profile.working_memory),
@@ -55,6 +60,7 @@ class CognitiveTraitInferenceService:
                     durable=inferred,
                     profile=durable_profile,
                     challenge_index=challenge_index,
+                    evidence=evidence,
                 )
 
         return {**existing_traits, **updates}
@@ -131,6 +137,7 @@ class CognitiveTraitInferenceService:
         profile: LearnerTraitProfileSummary,
         *,
         challenge_index: float,
+        evidence: "_TraitEvidence",
     ) -> bool:
         return (
             profile.source != "insufficient"
@@ -138,6 +145,13 @@ class CognitiveTraitInferenceService:
             and profile.matched_session_count >= 2
             and profile.matched_observation_count >= 4
             and profile.trait_stability >= 0.48
+            and not (
+                evidence.current_reliability >= 0.6
+                and evidence.challenge_exposure >= 0.6
+                and challenge_index >= 0.72
+                and profile.challenge_tolerance < 0.55
+            )
+            and not (evidence.current_reliability >= 0.7 and evidence.challenge_exposure >= 0.6 and challenge_index >= 0.72 and profile.signal == "tentative")
             and not (profile.signal == "tentative" and challenge_index >= 0.72 and profile.challenge_tolerance < 0.45)
         )
 
@@ -148,6 +162,7 @@ class CognitiveTraitInferenceService:
         durable: CognitiveTraitScore,
         profile: LearnerTraitProfileSummary,
         challenge_index: float,
+        evidence: "_TraitEvidence",
     ) -> CognitiveTraitScore:
         if current is None:
             return durable
@@ -156,6 +171,12 @@ class CognitiveTraitInferenceService:
             durable_weight += 0.06 if profile.challenge_tolerance >= 0.6 else -0.08
         elif challenge_index <= 0.3 and profile.challenge_tolerance >= 0.7:
             durable_weight += 0.03
+        if evidence.current_reliability >= 0.6:
+            durable_weight -= min(0.12, evidence.current_reliability * 0.1)
+        if evidence.challenge_exposure >= 0.55 and challenge_index >= 0.65 and profile.challenge_tolerance < 0.55:
+            durable_weight -= 0.06
+        if evidence.challenge_exposure <= 0.25 and profile.trait_stability >= 0.78:
+            durable_weight += 0.04
         consistency = 1.0 - abs(current.value - durable.value)
         if consistency < 0.45:
             durable_weight *= 0.45 if profile.signal == "tentative" else 0.68
@@ -195,3 +216,27 @@ class CognitiveTraitInferenceService:
             ),
             2,
         )
+
+    def _current_trait_evidence(self, observations: list[LearnerObservation]) -> "_TraitEvidence":
+        if not observations:
+            return _TraitEvidence(current_reliability=0.0, challenge_exposure=0.0)
+        active = [
+            observation
+            for observation in observations
+            if observation.task_type.value in {"practice", "assessment"}
+        ] or observations
+        challenge_exposure = sum(1 for observation in active if observation.support_level.value == "low") / len(active)
+        current_reliability = min(
+            1.0,
+            0.18 + (len(observations) * 0.12) + (min(len(active), 3) * 0.06),
+        )
+        return _TraitEvidence(
+            current_reliability=round(current_reliability, 2),
+            challenge_exposure=round(challenge_exposure, 2),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class _TraitEvidence:
+    current_reliability: float
+    challenge_exposure: float

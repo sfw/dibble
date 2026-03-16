@@ -228,3 +228,126 @@ def test_cognitive_trait_inference_downweights_mismatched_tentative_durable_prof
 
     assert traits["working_memory"].value < 0.65
     assert traits["processing_speed"].value < 0.65
+
+
+def test_cognitive_trait_inference_downweights_stable_durable_profile_when_current_challenge_evidence_is_strong(tmp_path):
+    database_path = str(tmp_path / "cognitive-trait-profile-strong-current.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = uuid4()
+    audit_store.append(
+        event_type="learning.cognitive_trait.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "matched_observation_count": 8,
+            "matched_session_count": 4,
+            "profile_signal": "stable",
+            "processing_speed": {"value": 0.9, "confidence": 0.86},
+            "working_memory": {"value": 0.88, "confidence": 0.84},
+            "trait_stability": 0.85,
+            "challenge_tolerance": 0.42,
+        },
+    )
+    baseline_service = CognitiveTraitInferenceService()
+    blended_service = CognitiveTraitInferenceService(
+        trait_profile_signal_service=LearnerTraitProfileSignalService(audit_store=audit_store)
+    )
+    observations = [
+        LearnerObservation(
+            observation_id="obs-1",
+            student_id=student_id,
+            response_time_ms=28000,
+            expected_duration_ms=12000,
+            hints_used=3,
+            error_count=3,
+            pause_count=2,
+            modality_switches=2,
+            completed=False,
+            confidence=0.32,
+            task_type="practice",
+            support_level="low",
+        ),
+        LearnerObservation(
+            observation_id="obs-2",
+            student_id=student_id,
+            response_time_ms=26000,
+            expected_duration_ms=12000,
+            hints_used=2,
+            error_count=2,
+            pause_count=1,
+            modality_switches=1,
+            completed=False,
+            confidence=0.34,
+            task_type="assessment",
+            support_level="low",
+        ),
+        LearnerObservation(
+            observation_id="obs-3",
+            student_id=student_id,
+            response_time_ms=24000,
+            expected_duration_ms=12000,
+            hints_used=2,
+            error_count=2,
+            pause_count=1,
+            modality_switches=1,
+            completed=False,
+            confidence=0.36,
+            task_type="practice",
+            support_level="low",
+        ),
+    ]
+
+    baseline = baseline_service.infer(student_id=student_id, observations=observations, existing_traits={})
+    blended = blended_service.infer(student_id=student_id, observations=observations, existing_traits={})
+
+    assert blended["working_memory"].value <= baseline["working_memory"].value + 0.05
+    assert blended["processing_speed"].value <= baseline["processing_speed"].value + 0.05
+
+
+def test_cognitive_trait_inference_uses_stable_durable_profile_more_when_current_evidence_is_sparse(tmp_path):
+    database_path = str(tmp_path / "cognitive-trait-profile-sparse-current.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = uuid4()
+    audit_store.append(
+        event_type="learning.cognitive_trait.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "matched_observation_count": 7,
+            "matched_session_count": 4,
+            "profile_signal": "stable",
+            "processing_speed": {"value": 0.84, "confidence": 0.82},
+            "working_memory": {"value": 0.8, "confidence": 0.8},
+            "spatial_reasoning": {"value": 0.76, "confidence": 0.74},
+            "trait_stability": 0.84,
+            "challenge_tolerance": 0.76,
+        },
+    )
+    baseline_service = CognitiveTraitInferenceService()
+    blended_service = CognitiveTraitInferenceService(
+        trait_profile_signal_service=LearnerTraitProfileSignalService(audit_store=audit_store)
+    )
+    observations = [
+        LearnerObservation(
+            observation_id="obs-1",
+            student_id=student_id,
+            response_time_ms=19000,
+            expected_duration_ms=16000,
+            hints_used=1,
+            error_count=1,
+            pause_count=1,
+            modality_switches=0,
+            completed=True,
+            confidence=0.66,
+            task_type="worked_example",
+            support_level="high",
+        )
+    ]
+
+    baseline = baseline_service.infer(student_id=student_id, observations=observations, existing_traits={})
+    blended = blended_service.infer(student_id=student_id, observations=observations, existing_traits={})
+
+    assert blended["spatial_reasoning"].value > baseline["spatial_reasoning"].value
+    assert blended["processing_speed"].value > baseline["processing_speed"].value
