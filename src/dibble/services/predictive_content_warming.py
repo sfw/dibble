@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from dibble.models.generation import ContentIntent, ContentWarmResult, GeneratedContent, GenerationRequest, RequestedContentType
 from dibble.services.content_warmer import ContentWarmer
+from dibble.services.predictive_next_step_planner import PredictiveNextStepPlanner
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,6 +23,7 @@ class PredictiveWarmOutcome:
 @dataclass(slots=True)
 class PredictiveContentWarmer:
     content_warmer: ContentWarmer
+    next_step_planner: PredictiveNextStepPlanner = field(default_factory=PredictiveNextStepPlanner)
 
     def warm_follow_ups(self, generated_content: GeneratedContent) -> PredictiveWarmOutcome | None:
         plan = self.plan_follow_ups(generated_content)
@@ -35,16 +37,11 @@ class PredictiveContentWarmer:
         if bool(request_context.get("is_predictive_warm")):
             return PredictiveWarmPlan(requests=[], content_types=[], reasons=[])
 
-        content_type = str(
-            request_context.get("selected_content_type")
-            or request_context.get("requested_content_type")
-            or generated_content.content_type
-        )
         target_kc_ids = _string_list(request_context.get("target_kc_ids"))
         target_lo_ids = _string_list(request_context.get("target_lo_ids"))
         curriculum_context = _string_list(request_context.get("curriculum_context"))
         learning_session_id = _string_or_none(request_context.get("learning_session_id"))
-        requested_types = _predicted_content_types(content_type)
+        requested_types = self.next_step_planner.plan(generated_content)
         requests = [
             GenerationRequest(
                 student_id=generated_content.student_id,
@@ -65,42 +62,6 @@ class PredictiveContentWarmer:
             content_types=[item.requested_content_type.value for item in requests if item.requested_content_type is not None],
             reasons=[item.warm_reason for item in requests if item.warm_reason is not None],
         )
-
-
-def _predicted_content_types(content_type: str) -> list[tuple[RequestedContentType, str]]:
-    if content_type == RequestedContentType.micro_explanation.value:
-        return [
-            (
-                RequestedContentType.practice_problem,
-                "Practice immediately after explanation while the concept is still active.",
-            )
-        ]
-    if content_type == RequestedContentType.worked_example.value:
-        return [
-            (
-                RequestedContentType.practice_problem,
-                "Fade from modeled support into a near-term practice problem.",
-            ),
-            (
-                RequestedContentType.assessment_probe,
-                "Prepare a quick diagnostic probe after the worked example.",
-            ),
-        ]
-    if content_type == RequestedContentType.practice_problem.value:
-        return [
-            (
-                RequestedContentType.assessment_probe,
-                "Prepare a quick transfer check after practice.",
-            )
-        ]
-    if content_type == RequestedContentType.remedial_micro_module.value:
-        return [
-            (
-                RequestedContentType.practice_problem,
-                "Warm a repair-focused practice problem after remediation.",
-            )
-        ]
-    return []
 
 
 def _intent_for_content_type(content_type: RequestedContentType) -> ContentIntent:

@@ -9,6 +9,7 @@ from dibble.models.generation import (
     GenerationMetadata,
     GenerationResponse,
     InterventionType,
+    RouteCalibrationSummary,
 )
 from dibble.services.predictive_content_warming import PredictiveContentWarmer
 
@@ -50,6 +51,38 @@ def test_predictive_content_warmer_skips_existing_predictive_content():
 
     assert plan.requests == []
     assert plan.content_types == []
+
+
+def test_predictive_content_warmer_uses_adaptive_follow_up_selection_for_negative_practice():
+    generated_content = _build_generated_content(
+        content_type="practice_problem",
+        request_context={
+            "learning_session_id": "session-1",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": ["LO-1"],
+            "curriculum_context": ["Equivalent fractions"],
+            "selected_content_type": "practice_problem",
+            "mode_calibration": {"support_bias": -1},
+        },
+    )
+    generated_content.response.route.calibration = {
+        "signal": "negative",
+        "source": "progress_profile",
+        "confidence": 0.78,
+        "average_run_outcome_score": 0.42,
+        "matched_run_count": 4,
+        "positive_run_rate": 0.0,
+        "negative_run_rate": 0.75,
+        "progress_signal": "declining",
+        "progress_delta": -0.14,
+    }
+    generated_content.response.route.calibration = RouteCalibrationSummary.model_validate(
+        generated_content.response.route.calibration
+    )
+
+    plan = PredictiveContentWarmer(content_warmer=None).plan_follow_ups(generated_content)
+
+    assert plan.content_types == ["worked_example"]
 
 
 def _build_generated_content(*, content_type: str, request_context: dict[str, object]) -> GeneratedContent:

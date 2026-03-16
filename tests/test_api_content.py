@@ -247,6 +247,69 @@ def test_predictive_warm_process_endpoint_drains_pending_queue(tmp_path, student
         assert problem_response.json()["quality"]["cache_hit"] is True
 
 
+def test_negative_practice_generation_predictively_warms_worked_example(client, student_id, app_settings):
+    from dibble.services.audit_store import SQLiteAuditStore
+
+    audit_store = SQLiteAuditStore(app_settings.database_path)
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, frustration="low", total_load=0.2, kc_mastery={"KC-1": 0.45}),
+    )
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    audit_store.append(
+        event_type="learning.progress.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "intent": "practice",
+            "content_type": "practice_problem",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": [],
+            "average_run_outcome_score": 0.44,
+            "average_run_confidence": 0.8,
+            "matched_run_count": 4,
+            "matched_session_count": 3,
+            "positive_run_rate": 0.0,
+            "negative_run_rate": 0.75,
+            "recent_average_run_outcome_score": 0.38,
+            "prior_average_run_outcome_score": 0.56,
+            "progress_delta": -0.18,
+            "progress_signal": "declining",
+        },
+    )
+
+    practice_response = client.post(
+        "/api/problems/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "session-negative-practice",
+            "target_kc_ids": ["KC-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    worked_example_response = client.post(
+        "/api/worked-examples/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "session-negative-practice",
+            "target_kc_ids": ["KC-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    audit_response = client.get("/api/audit/events")
+
+    assert practice_response.status_code == 200
+    assert worked_example_response.status_code == 200
+    assert worked_example_response.json()["quality"]["cache_hit"] is True
+    predictive_event = next(
+        event
+        for event in audit_response.json()
+        if event["event_type"] == "content.warm.predictive"
+        and event["payload"]["source_generation_id"] == practice_response.json()["generation_id"]
+    )
+    assert predictive_event["payload"]["predicted_content_types"] == ["worked_example"]
+
+
 def test_remedial_trigger_returns_remedial_generated_content(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
