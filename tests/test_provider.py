@@ -3,7 +3,14 @@ from uuid import uuid4
 import pytest
 
 from dibble.config import Settings
-from dibble.models.generation import AdaptiveRouteDecision, DeliveryMode, GenerationRequest, InterventionType
+from dibble.models.generation import (
+    AdaptiveRouteDecision,
+    DeliveryMode,
+    GenerationRequest,
+    InterventionType,
+    RequestedContentType,
+    TargetKcGenerationHint,
+)
 from dibble.models.profile import LearnerProfile
 from dibble.plugins.loader import build_generation_plugins
 from dibble.services.content_provider import MockLLMProvider
@@ -97,6 +104,32 @@ def test_prompt_builder_mentions_grounding_and_preferences(sample_profile, sampl
     assert prompts.template_name.startswith("remedial_micro_module.")
     assert prompts.template_version == "1.0"
     assert prompts.template_variant == "baseline"
+
+
+def test_prompt_builder_includes_distractor_and_fade_plans(sample_profile, sample_route):
+    prompts = build_generation_prompts(
+        sample_profile,
+        GenerationRequest(
+            student_id=sample_profile.student_id,
+            target_kc_ids=["KC-1"],
+            requested_content_type=RequestedContentType.practice_problem,
+            target_kc_hints=[
+                TargetKcGenerationHint(
+                    kc_id="KC-1",
+                    kc_name="Generate equivalent fractions",
+                    misconception_ids=["fraction-whole-number-bias"],
+                    misconception_labels=["Whole-number bias"],
+                    remediation_hints=["Compare the whole amount first."],
+                )
+            ],
+        ),
+        sample_route,
+        ["Equivalent Fractions Foundations"],
+    )
+
+    assert "Practice distractor plan:" in prompts.user_prompt
+    assert "Whole-number bias" in prompts.user_prompt
+    assert "Worked example fade plan: none" in prompts.user_prompt
 
 
 def test_provider_uses_llm_output_when_response_is_valid(sample_profile, sample_request, sample_route):

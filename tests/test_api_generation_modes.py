@@ -1,4 +1,4 @@
-from tests.support import build_curriculum_resource, build_profile
+from tests.support import build_curriculum_resource, build_knowledge_component, build_profile
 
 
 def test_worked_examples_endpoint_returns_fading_metadata(client, student_id):
@@ -7,6 +7,21 @@ def test_worked_examples_endpoint_returns_fading_metadata(client, student_id):
         json=build_profile(student_id, frustration="low", total_load=0.45, kc_mastery={"KC-1": 0.55}, engagement="medium"),
     )
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put(
+        "/api/knowledge-components/KC-1",
+        json=build_knowledge_component(
+            "KC-1",
+            name="Generate equivalent fractions",
+            nearby_kc_ids=["KC-2"],
+        ),
+    )
+    client.put(
+        "/api/knowledge-components/KC-2",
+        json=build_knowledge_component(
+            "KC-2",
+            name="Compare equivalent fractions",
+        ),
+    )
 
     response = client.post(
         "/api/worked-examples/generate",
@@ -24,6 +39,9 @@ def test_worked_examples_endpoint_returns_fading_metadata(client, student_id):
     assert payload["request_context"]["selected_content_type"] == "worked_example"
     assert payload["request_context"]["selection_mode"] == "explicit"
     assert payload["request_context"]["fading_strategy"] == "completion"
+    assert payload["request_context"]["worked_example_visible_step_roles"] == ["setup", "worked step"]
+    assert payload["request_context"]["worked_example_hidden_step_role"] == "target completion"
+    assert "Generate equivalent fractions" in payload["request_context"]["worked_example_transfer_move"]
     assert any(block["kind"] == "worked_example" for block in payload["response"]["blocks"])
     assert any(block["kind"] == "instruction" for block in payload["response"]["blocks"])
 
@@ -34,6 +52,22 @@ def test_problem_endpoint_returns_difficulty_band_metadata(client, student_id):
         json=build_profile(student_id, frustration="low", total_load=0.2, kc_mastery={"KC-1": 0.2}, engagement="medium"),
     )
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put(
+        "/api/knowledge-components/KC-1",
+        json=build_knowledge_component(
+            "KC-1",
+            name="Generate equivalent fractions",
+            common_misconceptions=[
+                {
+                    "misconception_id": "fraction-whole-number-bias",
+                    "label": "Whole-number bias",
+                    "description": "The learner compares the numerator and denominator separately like whole numbers.",
+                    "trigger_terms": ["numerator", "denominator"],
+                    "remediation_hint": "Compare the whole amount before comparing the parts.",
+                }
+            ],
+        ),
+    )
 
     response = client.post(
         "/api/problems/generate",
@@ -51,6 +85,12 @@ def test_problem_endpoint_returns_difficulty_band_metadata(client, student_id):
     assert payload["request_context"]["selected_content_type"] == "practice_problem"
     assert payload["request_context"]["selection_mode"] == "explicit"
     assert payload["request_context"]["difficulty_band"] == "support"
+    assert "Whole-number bias" in payload["request_context"]["practice_distractor_focus"]
+    assert payload["request_context"]["practice_distractor_misconception_ids"] == ["fraction-whole-number-bias"]
+    assert (
+        payload["request_context"]["practice_distractor_remediation_hint"]
+        == "Compare the whole amount before comparing the parts."
+    )
     assert any(block["kind"] == "practice" for block in payload["response"]["blocks"])
 
 
@@ -146,3 +186,56 @@ def test_generation_modes_use_persisted_progress_profiles(client, student_id, ap
     assert payload["request_context"]["mode_calibration"]["progress_signal"] == "improving"
     assert payload["request_context"]["mode_calibration"]["support_bias"] == 1
     assert payload["request_context"]["mode_calibration_applied"] is True
+
+
+def test_warmed_generation_reuses_hydrated_target_kc_hints(client, student_id):
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, frustration="low", total_load=0.2, kc_mastery={"KC-1": 0.2}, engagement="medium"),
+    )
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put(
+        "/api/knowledge-components/KC-1",
+        json=build_knowledge_component(
+            "KC-1",
+            name="Generate equivalent fractions",
+            common_misconceptions=[
+                {
+                    "misconception_id": "fraction-whole-number-bias",
+                    "label": "Whole-number bias",
+                    "description": "The learner compares the numerator and denominator separately like whole numbers.",
+                    "trigger_terms": ["numerator", "denominator"],
+                    "remediation_hint": "Compare the whole amount before comparing the parts.",
+                }
+            ],
+        ),
+    )
+
+    warm_response = client.post(
+        "/api/content/warm",
+        json={
+            "requests": [
+                {
+                    "student_id": str(student_id),
+                    "target_kc_ids": ["KC-1"],
+                    "intent": "practice",
+                    "requested_content_type": "practice_problem",
+                    "curriculum_context": ["Equivalent fractions"],
+                }
+            ]
+        },
+    )
+    generate_response = client.post(
+        "/api/problems/generate",
+        json={
+            "student_id": str(student_id),
+            "target_kc_ids": ["KC-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+
+    assert warm_response.status_code == 200
+    assert generate_response.status_code == 200
+    payload = generate_response.json()
+    assert payload["quality"]["cache_hit"] is True
+    assert "Whole-number bias" in payload["request_context"]["practice_distractor_focus"]

@@ -65,13 +65,14 @@ class MockLLMProvider:
         prompt_fragment: str,
     ) -> list[GeneratedBlock]:
         if plan.content_type.value == "practice_problem":
+            distractor_focus = str(plan.request_context.get("practice_distractor_focus", "a clear structural contrast"))
             return [
                 GeneratedBlock(
                     kind="practice",
                     title="Try a problem",
                     body=(
                         f"Solve one {plan.request_context['difficulty_band']}-difficulty {focus} problem using {grounding_text}. "
-                        "Show one worked cue before the learner completes the final step."
+                        f"Show one worked cue before the learner completes the final step and make the distractor contrast center on {distractor_focus}."
                     ),
                 ),
                 GeneratedBlock(
@@ -86,20 +87,24 @@ class MockLLMProvider:
 
         if plan.content_type.value == "worked_example":
             fading = str(plan.request_context["fading_strategy"])
+            visible_roles = ", ".join(plan.request_context.get("worked_example_visible_step_roles", []))
+            hidden_step_role = str(plan.request_context.get("worked_example_hidden_step_role", "the next step"))
+            transfer_move = str(plan.request_context.get("worked_example_transfer_move", "a nearby application"))
             return [
                 GeneratedBlock(
                     kind="worked_example",
                     title="See it solved",
                     body=(
                         f"Model {focus} with {grounding_text}. "
-                        f"Use a {fading} fading pattern so the learner sees only the support needed for the next step."
+                        f"Use a {fading} fading pattern with visible roles {visible_roles} so the learner owns {hidden_step_role}. "
+                        f"Aim the fade toward {transfer_move}."
                     ),
                 ),
                 GeneratedBlock(
                     kind="instruction",
                     title="Now you try",
                     body=(
-                        f"Provide {route.scaffolding_level}-scaffold support for {focus} with {fading} fading. "
+                        f"Provide {route.scaffolding_level}-scaffold support for {focus} with {fading} fading and a named learner step of {hidden_step_role}. "
                         f"Honor the learner's pace preference of {pace_preference}. {prompt_fragment}"
                     ),
                 ),

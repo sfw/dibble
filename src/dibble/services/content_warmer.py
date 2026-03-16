@@ -5,13 +5,15 @@ from dataclasses import dataclass
 from dibble.models.generation import ContentWarmResult, GenerationRequest
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.generation_mode_calibration import GenerationModeCalibrator
-from dibble.services.protocols import ProfileStore
+from dibble.services.generation_request_hydrator import hydrate_target_kc_hints
+from dibble.services.protocols import KnowledgeComponentStore, ProfileStore
 
 
 @dataclass(slots=True)
 class ContentWarmer:
     profile_store: ProfileStore
     generation_engine: GenerationEngine
+    knowledge_component_store: KnowledgeComponentStore | None = None
     generation_mode_calibrator: GenerationModeCalibrator | None = None
 
     def warm(self, requests: list[GenerationRequest]) -> ContentWarmResult:
@@ -23,10 +25,14 @@ class ContentWarmer:
             profile = self.profile_store.get(request.student_id)
             if profile is None:
                 continue
+            enriched_request = hydrate_target_kc_hints(
+                request=request,
+                knowledge_component_store=self.knowledge_component_store,
+            )
             calibrated_request = (
-                self.generation_mode_calibrator.calibrate_request(request=request)
+                self.generation_mode_calibrator.calibrate_request(request=enriched_request)
                 if self.generation_mode_calibrator is not None
-                else request
+                else enriched_request
             )
             response = self.generation_engine.generate(profile, calibrated_request)
             if response.generation_id is not None:

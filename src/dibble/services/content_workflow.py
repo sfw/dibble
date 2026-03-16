@@ -23,12 +23,13 @@ from dibble.plugins.contracts import RouterPlugin
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.generation_mode_calibration import GenerationModeCalibrator
+from dibble.services.generation_request_hydrator import hydrate_target_kc_hints
 from dibble.services.generation_modes import build_generation_mode_plan
 from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
 from dibble.services.misconception_profiles import LearningMisconceptionProfileRecorder
 from dibble.services.predictive_content_warming import PredictiveContentWarmer
 from dibble.services.predictive_warm_scheduler import PredictiveWarmScheduler
-from dibble.services.protocols import AuditStore, ProfileStore
+from dibble.services.protocols import AuditStore, KnowledgeComponentStore, ProfileStore
 from dibble.services.remediation_planner import RemediationPlanner
 from dibble.services.remediation_workflows import (
     RemediationWorkflowCoordinator,
@@ -46,6 +47,7 @@ class LearnerProfileNotFoundError(LookupError):
 @dataclass(slots=True)
 class ContentWorkflowService:
     profile_store: ProfileStore
+    knowledge_component_store: KnowledgeComponentStore
     router: RouterPlugin
     generation_engine: GenerationEngine
     content_warmer: ContentWarmer
@@ -98,7 +100,11 @@ class ContentWorkflowService:
 
     def generate_content(self, request: GenerationRequest) -> GeneratedContent:
         profile = self._load_profile(request.student_id)
-        calibrated_request = self.generation_mode_calibrator.calibrate_request(request=request)
+        enriched_request = hydrate_target_kc_hints(
+            request=request,
+            knowledge_component_store=self.knowledge_component_store,
+        )
+        calibrated_request = self.generation_mode_calibrator.calibrate_request(request=enriched_request)
         response = self.generation_engine.generate(profile, calibrated_request)
         plan = build_generation_mode_plan(profile, calibrated_request, response.route)
         metadata = response.generation_metadata

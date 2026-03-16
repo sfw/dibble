@@ -7,6 +7,7 @@ from dibble.models.generation import (
     GenerationRequest,
     InterventionType,
     RequestedContentType,
+    TargetKcGenerationHint,
 )
 from dibble.models.profile import LearnerProfile
 from dibble.services.generation_modes import build_generation_mode_plan
@@ -407,6 +408,49 @@ def test_generation_mode_plan_holds_support_practice_during_repair_phase():
     assert "repair rebuild" in plan.prompt_guidance
 
 
+def test_generation_mode_plan_uses_target_kc_misconceptions_to_focus_distractors():
+    profile = LearnerProfile.model_validate(
+        build_profile(
+            uuid4(),
+            frustration="low",
+            total_load=0.25,
+            kc_mastery={"KC-1": 0.44},
+            engagement="medium",
+        )
+    )
+    request = GenerationRequest(
+        student_id=profile.student_id,
+        target_kc_ids=["KC-1"],
+        intent="practice",
+        target_kc_hints=[
+            TargetKcGenerationHint(
+                kc_id="KC-1",
+                kc_name="Generate equivalent fractions",
+                misconception_ids=["fraction-whole-number-bias"],
+                misconception_labels=["Whole-number bias"],
+                remediation_hints=["Compare the total amount before comparing the parts."],
+            )
+        ],
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.targeted_practice,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="medium",
+        reasons=["test"],
+    )
+
+    plan = build_generation_mode_plan(profile, request, route)
+
+    assert "Whole-number bias" in plan.request_context["practice_distractor_focus"]
+    assert plan.request_context["practice_distractor_misconception_ids"] == ["fraction-whole-number-bias"]
+    assert (
+        plan.request_context["practice_distractor_remediation_hint"]
+        == "Compare the total amount before comparing the parts."
+    )
+    assert "Whole-number bias" in plan.prompt_guidance
+    assert "Compare the total amount before comparing the parts." in plan.prompt_guidance
+
+
 def test_generation_mode_plan_uses_bridge_progression_for_worked_examples():
     profile = LearnerProfile.model_validate(
         build_profile(
@@ -449,6 +493,61 @@ def test_generation_mode_plan_uses_bridge_progression_for_worked_examples():
     assert plan.request_context["worked_example_progression_action"] == "bridge_release"
     assert plan.request_context["worked_example_fade_focus"] == "a near-target example with the transfer move left unfinished"
     assert "near-target example" in plan.prompt_guidance
+
+
+def test_generation_mode_plan_names_visible_and_hidden_worked_example_roles():
+    profile = LearnerProfile.model_validate(
+        build_profile(
+            uuid4(),
+            frustration="low",
+            total_load=0.28,
+            kc_mastery={"KC-1": 0.83},
+            engagement="high",
+            confidence_calibration=0.8,
+            help_seeking="low",
+            self_monitoring=0.82,
+        )
+    )
+    request = GenerationRequest(
+        student_id=profile.student_id,
+        target_kc_ids=["KC-1"],
+        requested_content_type="worked_example",
+        target_kc_hints=[
+            TargetKcGenerationHint(
+                kc_id="KC-1",
+                kc_name="Generate equivalent fractions",
+                nearby_kc_names=["Compare equivalent fractions"],
+            )
+        ],
+        mode_calibration=GenerationModeCalibration(
+            signal="positive",
+            source="session_controller",
+            confidence=0.84,
+            support_bias=1,
+            session_signal="positive",
+            session_source="session_controller",
+            session_phase="transfer_check",
+            session_recovery_intent="check_transfer",
+            rationale="test",
+        ),
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.stretch,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="low",
+        reasons=["test"],
+    )
+
+    plan = build_generation_mode_plan(profile, request, route)
+
+    assert plan.request_context["worked_example_visible_step_roles"] == ["cue"]
+    assert plan.request_context["worked_example_hidden_step_role"] == "independent application"
+    assert (
+        plan.request_context["worked_example_transfer_move"]
+        == "apply Generate equivalent fractions in Compare equivalent fractions"
+    )
+    assert "visible step roles (cue)" in plan.prompt_guidance
+    assert "independent application" in plan.prompt_guidance
 
 
 def test_generation_mode_plan_advances_practice_after_improving_progress():

@@ -47,6 +47,8 @@ def build_generation_prompts(
         else "general classroom examples"
     )
     socratic_follow_up = _socratic_follow_up_text(request.mode_calibration)
+    practice_distractor_plan = _practice_distractor_plan_text(plan.request_context)
+    worked_example_fade_plan = _worked_example_fade_plan_text(plan.request_context)
 
     system_prompt = (
         "You generate curriculum-aligned adaptive learning content for Dibble. "
@@ -77,6 +79,8 @@ def build_generation_prompts(
         f"Requested content type: {plan.content_type.value}\n"
         f"Prompt variant: {selection.template_variant}\n"
         f"Recent Socratic steering: {socratic_follow_up}\n"
+        f"Practice distractor plan: {practice_distractor_plan}\n"
+        f"Worked example fade plan: {worked_example_fade_plan}\n"
         f"Generation guidance: {plan.prompt_guidance}\n"
         f"Template guidance: {selection.user_directives}\n"
         "Generate 2 or 3 blocks that are specific, age-appropriate, and grounded in the listed curriculum context."
@@ -125,3 +129,29 @@ def _socratic_follow_up_text(mode_calibration) -> str:
         f"(last_style={style}, next_action={mode_calibration.session_latest_next_action}, "
         f"evidence={mode_calibration.session_latest_evidence_strength})"
     )
+
+
+def _practice_distractor_plan_text(request_context: dict[str, object]) -> str:
+    focus = request_context.get("practice_distractor_focus")
+    if not isinstance(focus, str):
+        return "none"
+    misconception_ids = request_context.get("practice_distractor_misconception_ids") or []
+    remediation_hint = request_context.get("practice_distractor_remediation_hint")
+    fragments = [focus]
+    if misconception_ids:
+        fragments.append(f"misconception_ids={','.join(str(item) for item in misconception_ids)}")
+    if isinstance(remediation_hint, str) and remediation_hint:
+        fragments.append(f"remediation_hint={remediation_hint}")
+    return "; ".join(fragments)
+
+
+def _worked_example_fade_plan_text(request_context: dict[str, object]) -> str:
+    visible_roles = request_context.get("worked_example_visible_step_roles")
+    hidden_step_role = request_context.get("worked_example_hidden_step_role")
+    transfer_move = request_context.get("worked_example_transfer_move")
+    if not isinstance(visible_roles, list) or not isinstance(hidden_step_role, str):
+        return "none"
+    roles = ", ".join(str(role) for role in visible_roles)
+    if isinstance(transfer_move, str) and transfer_move:
+        return f"visible_roles={roles}; hidden_step_role={hidden_step_role}; transfer_move={transfer_move}"
+    return f"visible_roles={roles}; hidden_step_role={hidden_step_role}"

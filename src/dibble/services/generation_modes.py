@@ -9,6 +9,7 @@ from dibble.models.generation import (
     GenerationRequest,
     PracticeDifficultyBand,
     RequestedContentType,
+    TargetKcGenerationHint,
     WorkedExampleFading,
 )
 from dibble.models.profile import LearnerProfile, SignalLevel
@@ -26,6 +27,9 @@ class PracticeProgressionPlan:
     difficulty_band: PracticeDifficultyBand
     progression_action: str
     distractor_style: str
+    distractor_focus: str
+    target_misconception_ids: list[str]
+    remediation_anchor: str | None
     calibration_applied: bool
 
 
@@ -34,6 +38,9 @@ class WorkedExampleProgressionPlan:
     fading: WorkedExampleFading
     progression_action: str
     fade_focus: str
+    visible_step_roles: list[str]
+    hidden_step_role: str
+    transfer_move: str
     calibration_applied: bool
 
 
@@ -112,12 +119,20 @@ def build_generation_mode_plan(
         request_context["difficulty_band"] = progression.difficulty_band.value
         request_context["difficulty_progression_action"] = progression.progression_action
         request_context["practice_distractor_style"] = progression.distractor_style
+        request_context["practice_distractor_focus"] = progression.distractor_focus
+        request_context["practice_distractor_misconception_ids"] = progression.target_misconception_ids
+        request_context["practice_distractor_remediation_hint"] = progression.remediation_anchor
         request_context["mode_calibration_applied"] = progression.calibration_applied
         prompt_guidance = (
             "Create one practice problem with a clear success target, one concise worked cue, "
             f"and a brief answer-check instruction. Tune the problem to {progression.difficulty_band.value} difficulty. "
-            f"Use {progression.distractor_style.replace('_', ' ')} distractors and structure it for {progression.progression_action.replace('_', ' ')}."
+            f"Use {progression.distractor_style.replace('_', ' ')} distractors and structure it for {progression.progression_action.replace('_', ' ')}. "
+            f"Distractor focus: {progression.distractor_focus}."
         )
+        if progression.remediation_anchor is not None:
+            prompt_guidance = (
+                f"{prompt_guidance} If you include a hint, anchor it in this corrective move: {progression.remediation_anchor}."
+            )
         prompt_guidance = _append_socratic_guidance(prompt_guidance, mode_calibration=mode_calibration)
     elif content_type == RequestedContentType.worked_example:
         progression = plan_worked_example_progression(profile=profile, request=request, mode_calibration=mode_calibration)
@@ -125,9 +140,18 @@ def build_generation_mode_plan(
         request_context["worked_steps_visible"] = _worked_steps_visible(progression.fading)
         request_context["worked_example_progression_action"] = progression.progression_action
         request_context["worked_example_fade_focus"] = progression.fade_focus
+        request_context["worked_example_visible_step_roles"] = progression.visible_step_roles
+        request_context["worked_example_hidden_step_role"] = progression.hidden_step_role
+        request_context["worked_example_transfer_move"] = progression.transfer_move
         request_context["mode_calibration_applied"] = progression.calibration_applied
         prompt_guidance = _append_socratic_guidance(
-            _worked_example_guidance(progression.fading, progression.fade_focus),
+            _worked_example_guidance(
+                progression.fading,
+                progression.fade_focus,
+                visible_step_roles=progression.visible_step_roles,
+                hidden_step_role=progression.hidden_step_role,
+                transfer_move=progression.transfer_move,
+            ),
             mode_calibration=mode_calibration,
         )
     elif content_type == RequestedContentType.assessment_probe:
@@ -336,10 +360,19 @@ def plan_practice_progression(
     else:
         progression_action = "hold_on_grade"
 
+    distractor_focus, target_misconception_ids, remediation_anchor = _practice_distractor_focus(
+        request=request,
+        distractor_style=distractor_style,
+        progression_action=progression_action,
+    )
+
     return PracticeProgressionPlan(
         difficulty_band=difficulty_band,
         progression_action=progression_action,
         distractor_style=distractor_style,
+        distractor_focus=distractor_focus,
+        target_misconception_ids=target_misconception_ids,
+        remediation_anchor=remediation_anchor,
         calibration_applied=difficulty_band != baseline_band,
     )
 
@@ -403,28 +436,48 @@ def plan_worked_example_progression(
         progression_action = "independent_transfer"
         fade_focus = "a quick cue before independent target completion"
 
+    visible_step_roles, hidden_step_role, transfer_move = _worked_example_roles(
+        request=request,
+        fading=fading,
+        progression_action=progression_action,
+    )
+
     return WorkedExampleProgressionPlan(
         fading=fading,
         progression_action=progression_action,
         fade_focus=fade_focus,
+        visible_step_roles=visible_step_roles,
+        hidden_step_role=hidden_step_role,
+        transfer_move=transfer_move,
         calibration_applied=fading != baseline_fading,
     )
 
 
-def _worked_example_guidance(fading: WorkedExampleFading, fade_focus: str) -> str:
+def _worked_example_guidance(
+    fading: WorkedExampleFading,
+    fade_focus: str,
+    *,
+    visible_step_roles: list[str],
+    hidden_step_role: str,
+    transfer_move: str,
+) -> str:
+    visible_roles = ", ".join(visible_step_roles)
     if fading == WorkedExampleFading.full:
         return (
             "Generate one fully worked example with step-by-step reasoning, then ask the learner to explain why the final step works. "
-            f"Keep the fade focus on {fade_focus}."
+            f"Keep the fade focus on {fade_focus}. Name the visible step roles ({visible_roles}) and reserve {hidden_step_role} for the learner. "
+            f"Use the example to prepare this transfer move: {transfer_move}."
         )
     if fading == WorkedExampleFading.completion:
         return (
             "Generate one mostly worked example, then leave the final step for the learner to complete with a clear cue. "
-            f"Keep the fade focus on {fade_focus}."
+            f"Keep the fade focus on {fade_focus}. Name the visible step roles ({visible_roles}) and reserve {hidden_step_role} for the learner. "
+            f"Use the example to prepare this transfer move: {transfer_move}."
         )
     return (
         "Generate one concise example as a cue, then shift quickly to independent learner completion of a parallel step. "
-        f"Keep the fade focus on {fade_focus}."
+        f"Keep the fade focus on {fade_focus}. Name the visible step roles ({visible_roles}) and reserve {hidden_step_role} for the learner. "
+        f"Use the example to prepare this transfer move: {transfer_move}."
     )
 
 
@@ -463,6 +516,85 @@ def _append_socratic_guidance(
     if mode_calibration.socratic_steering_action == "probe_from_new_angle":
         return f"{guidance} Use a fresh representation or comparison so the next step does not simply repeat the last Socratic wording."
     return guidance
+
+
+def _practice_distractor_focus(
+    *,
+    request: GenerationRequest,
+    distractor_style: str,
+    progression_action: str,
+) -> tuple[str, list[str], str | None]:
+    hint = _primary_target_hint(request)
+    if hint is None:
+        return _default_practice_distractor_focus(distractor_style, progression_action), [], None
+
+    misconception_ids = hint.misconception_ids[:1]
+    misconception_label = hint.misconception_labels[0] if hint.misconception_labels else None
+    remediation_anchor = hint.remediation_hints[0] if hint.remediation_hints else None
+    concept_anchor = hint.kc_name
+    if misconception_label is None:
+        return _default_practice_distractor_focus(distractor_style, progression_action), misconception_ids, remediation_anchor
+
+    style_map = {
+        "misconception_contrast": (
+            f"Include one distractor that mirrors the common misconception '{misconception_label}' around {concept_anchor} without reusing the learner's exact wording."
+        ),
+        "scaffolded_near_miss": (
+            f"Include one near miss that brushes against '{misconception_label}' for {concept_anchor} and one cleaner structural contrast."
+        ),
+        "target_return": (
+            f"Use one bridge distractor that revisits '{misconception_label}' before returning the learner to {concept_anchor}."
+        ),
+        "near_transfer": (
+            f"Use one nearby-transfer distractor that changes the surface context but still checks against '{misconception_label}' in {concept_anchor}."
+        ),
+        "single_contrast": (
+            f"Make the main contrast expose '{misconception_label}' in {concept_anchor} instead of relying on a generic wrong answer."
+        ),
+    }
+    return style_map.get(
+        distractor_style,
+        _default_practice_distractor_focus(distractor_style, progression_action),
+    ), misconception_ids, remediation_anchor
+
+
+def _default_practice_distractor_focus(distractor_style: str, progression_action: str) -> str:
+    style_map = {
+        "misconception_contrast": "Contrast one likely wrong move with one clearly correct structural alternative.",
+        "scaffolded_near_miss": "Use one close near miss and one simpler structural contrast so the learner has to discriminate, not guess.",
+        "target_return": "Use one bridge option that almost works before returning the learner to the exact target move.",
+        "near_transfer": "Use one distractor that changes the surface story but preserves the same underlying decision.",
+        "single_contrast": "Use one concise contrast that makes the target structure visible without adding noise.",
+    }
+    return style_map.get(
+        distractor_style,
+        f"Use distractors that support {progression_action.replace('_', ' ')} without adding random variation.",
+    )
+
+
+def _worked_example_roles(
+    *,
+    request: GenerationRequest,
+    fading: WorkedExampleFading,
+    progression_action: str,
+) -> tuple[list[str], str, str]:
+    hint = _primary_target_hint(request)
+    concept_anchor = hint.kc_name if hint is not None else "the target concept"
+    nearby_anchor = hint.nearby_kc_names[0] if hint is not None and hint.nearby_kc_names else "a nearby parallel case"
+
+    if progression_action in {"rebuild_with_full_model", "stabilize_with_modeling", "hold_full_model"}:
+        return ["setup", "reasoning", "check"], "self-explanation", f"explain why the repaired reasoning works in {concept_anchor}"
+    if progression_action == "bridge_release":
+        return ["setup", "worked bridge"], "target return", f"carry the repaired idea from {nearby_anchor} back into {concept_anchor}"
+    if progression_action in {"independent_transfer", "accelerate_fade"} or fading == WorkedExampleFading.independent:
+        return ["cue"], "independent application", f"apply {concept_anchor} in {nearby_anchor}"
+    return ["setup", "worked step"], "target completion", f"finish the final {concept_anchor} move independently"
+
+
+def _primary_target_hint(request: GenerationRequest) -> TargetKcGenerationHint | None:
+    if not request.target_kc_hints:
+        return None
+    return request.target_kc_hints[0]
 
 
 def _average_target_mastery(profile: LearnerProfile, request: GenerationRequest) -> float:

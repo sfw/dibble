@@ -63,6 +63,7 @@ class GenerationRequest(BaseModel):
     predictive_warm: bool = False
     warm_reason: str | None = None
     source_generation_id: str | None = None
+    target_kc_hints: list["TargetKcGenerationHint"] = Field(default_factory=list)
     mode_calibration: "GenerationModeCalibration | None" = None
 
 
@@ -174,6 +175,18 @@ class MisconceptionSignal(BaseModel):
     primary_for_kc: bool = False
     disambiguation_score: float = Field(default=0.0, ge=0.0)
     disambiguation_rationale: str | None = None
+
+
+class TargetKcGenerationHint(BaseModel):
+    kc_id: str
+    kc_name: str
+    concept_family: str | None = None
+    taxonomy_cluster_id: str | None = None
+    nearby_kc_names: list[str] = Field(default_factory=list)
+    misconception_ids: list[str] = Field(default_factory=list)
+    misconception_labels: list[str] = Field(default_factory=list)
+    misconception_descriptions: list[str] = Field(default_factory=list)
+    remediation_hints: list[str] = Field(default_factory=list)
 
 
 class GenerationMetadata(BaseModel):

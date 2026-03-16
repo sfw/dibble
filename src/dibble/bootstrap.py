@@ -198,6 +198,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     content_warmer = ContentWarmer(
         profile_store,
         generation_engine,
+        knowledge_component_store=knowledge_component_store,
         generation_mode_calibrator=generation_mode_calibrator,
     )
     predictive_content_warmer = PredictiveContentWarmer(content_warmer=content_warmer)
@@ -213,6 +214,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     )
     content_workflow_service = ContentWorkflowService(
         profile_store=profile_store,
+        knowledge_component_store=knowledge_component_store,
         router=router_plugin,
         generation_engine=generation_engine,
         content_warmer=content_warmer,
