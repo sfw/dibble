@@ -94,11 +94,24 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
         status="success",
         payload={"total_requests": 2, "cache_hits": 1, "cache_misses": 1},
     )
+    audit_store.append(
+        event_type="content.warm.predictive",
+        status="success",
+        payload={"predicted_request_count": 3, "cache_hits": 2, "cache_misses": 1},
+    )
+    audit_store.append(
+        event_type="content.cache.invalidate",
+        status="success",
+        payload={"expired_entries": 2},
+    )
 
     snapshot = telemetry.snapshot()
 
     assert snapshot.cache_hit_generations == 1
-    assert snapshot.warm_requests == 2
+    assert snapshot.warm_requests == 5
+    assert snapshot.predictive_warm_events == 1
+    assert snapshot.predictive_warm_requests == 3
+    assert snapshot.predictive_cache_invalidations == 2
     assert snapshot.generated_content_entries == 0
     assert snapshot.prompt_template_usages[0].template_name == "micro_explanation.baseline"
     assert snapshot.prompt_template_usages[0].event_count == 1

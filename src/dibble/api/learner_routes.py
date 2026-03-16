@@ -95,6 +95,7 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 "state_calibration_applied": calibration.applied,
             },
         )
+        services.predictive_content_invalidator.invalidate_from_trigger_event(observation_audit_event)
         summary_events = services.learning_run_summary_recorder.record_from_trigger_event(
             trigger_event=observation_audit_event
         )

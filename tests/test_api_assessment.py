@@ -160,3 +160,65 @@ def test_socratic_assessment_updates_profile_and_unblocks_stretch_routing(client
     assert profile_payload["metacognitive_state"]["confidence_calibration"] > 0.45
     assert profile_payload["metacognitive_state"]["help_seeking"] in {"none", "low", "medium"}
     assert after_payload["intervention_type"] == "stretch"
+
+
+def test_socratic_assessment_invalidates_matching_predictive_cache_entries(client, student_id):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+
+    client.post(
+        "/api/worked-examples/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "session-invalidate-assessment",
+            "target_kc_ids": ["KC-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    first_assessment_probe_response = client.post(
+        "/api/content/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "session-invalidate-assessment",
+            "target_kc_ids": ["KC-1"],
+            "intent": "assessment",
+            "requested_content_type": "assessment_probe",
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    assessment_response = client.post(
+        "/api/assessments/socratic",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "session-invalidate-assessment",
+            "target_kc_ids": ["KC-1"],
+            "curriculum_context": ["Equivalent fractions"],
+            "learner_response": "They are the same amount because the model shows equal space.",
+            "learner_confidence": 0.75,
+        },
+    )
+    second_assessment_probe_response = client.post(
+        "/api/content/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "session-invalidate-assessment",
+            "target_kc_ids": ["KC-1"],
+            "intent": "assessment",
+            "requested_content_type": "assessment_probe",
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    audit_response = client.get("/api/audit/events")
+
+    assert first_assessment_probe_response.status_code == 200
+    assert assessment_response.status_code == 200
+    assert second_assessment_probe_response.status_code == 200
+    assert first_assessment_probe_response.json()["quality"]["cache_hit"] is True
+    assert second_assessment_probe_response.json()["quality"]["cache_hit"] is False
+
+    invalidation_event = next(
+        event
+        for event in audit_response.json()
+        if event["event_type"] == "content.cache.invalidate" and event["payload"]["trigger_event_type"] == "assessment.socratic"
+    )
+    assert invalidation_event["payload"]["expired_entries"] >= 1

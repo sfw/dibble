@@ -29,7 +29,9 @@ class TelemetryService:
         generation_events = [event for event in events if event.event_type.startswith("content.generate")]
         decision_events = [event for event in events if event.event_type == "adaptive.decide"]
         socratic_events = [event for event in events if event.event_type == "assessment.socratic"]
-        warm_events = [event for event in events if event.event_type == "content.warm"]
+        warm_events = [event for event in events if event.event_type in {"content.warm", "content.warm.predictive"}]
+        predictive_warm_events = [event for event in events if event.event_type == "content.warm.predictive"]
+        cache_invalidation_events = [event for event in events if event.event_type == "content.cache.invalidate"]
         provider_events = self.provider_health_store.list(limit=500) if self.provider_health_store is not None else []
         cache_stats = self.generated_content_store.stats() if self.generated_content_store is not None else {
             "total_entries": 0,
@@ -103,7 +105,17 @@ class TelemetryService:
                 1 for event in generation_events if int(event.payload.get("validation_issue_count", 0)) > 0
             ),
             cache_hit_generations=sum(1 for event in generation_events if bool(event.payload.get("cache_hit"))),
-            warm_requests=sum(int(event.payload.get("total_requests", 0)) for event in warm_events),
+            warm_requests=sum(
+                int(event.payload.get("total_requests", event.payload.get("predicted_request_count", 0)))
+                for event in warm_events
+            ),
+            predictive_warm_events=len(predictive_warm_events),
+            predictive_warm_requests=sum(
+                int(event.payload.get("predicted_request_count", 0)) for event in predictive_warm_events
+            ),
+            predictive_cache_invalidations=sum(
+                int(event.payload.get("expired_entries", 0)) for event in cache_invalidation_events
+            ),
             generated_content_entries=cache_stats["total_entries"],
             fresh_generated_content_entries=cache_stats["fresh_entries"],
             provider_failure_events=sum(1 for event in provider_events if event.status == "failure"),

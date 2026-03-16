@@ -1,0 +1,126 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from dibble.models.generation import ContentIntent, ContentWarmResult, GeneratedContent, GenerationRequest, RequestedContentType
+from dibble.services.content_warmer import ContentWarmer
+
+
+@dataclass(frozen=True, slots=True)
+class PredictiveWarmPlan:
+    requests: list[GenerationRequest]
+    content_types: list[str]
+    reasons: list[str]
+
+
+@dataclass(frozen=True, slots=True)
+class PredictiveWarmOutcome:
+    plan: PredictiveWarmPlan
+    result: ContentWarmResult
+
+
+@dataclass(slots=True)
+class PredictiveContentWarmer:
+    content_warmer: ContentWarmer
+
+    def warm_follow_ups(self, generated_content: GeneratedContent) -> PredictiveWarmOutcome | None:
+        plan = self.plan_follow_ups(generated_content)
+        if not plan.requests:
+            return None
+        result = self.content_warmer.warm(plan.requests)
+        return PredictiveWarmOutcome(plan=plan, result=result)
+
+    def plan_follow_ups(self, generated_content: GeneratedContent) -> PredictiveWarmPlan:
+        request_context = generated_content.request_context
+        if bool(request_context.get("is_predictive_warm")):
+            return PredictiveWarmPlan(requests=[], content_types=[], reasons=[])
+
+        content_type = str(
+            request_context.get("selected_content_type")
+            or request_context.get("requested_content_type")
+            or generated_content.content_type
+        )
+        target_kc_ids = _string_list(request_context.get("target_kc_ids"))
+        target_lo_ids = _string_list(request_context.get("target_lo_ids"))
+        curriculum_context = _string_list(request_context.get("curriculum_context"))
+        learning_session_id = _string_or_none(request_context.get("learning_session_id"))
+        requested_types = _predicted_content_types(content_type)
+        requests = [
+            GenerationRequest(
+                student_id=generated_content.student_id,
+                learning_session_id=learning_session_id,
+                target_kc_ids=target_kc_ids,
+                target_lo_ids=target_lo_ids,
+                intent=_intent_for_content_type(predicted_type),
+                requested_content_type=predicted_type,
+                curriculum_context=curriculum_context,
+                predictive_warm=True,
+                warm_reason=reason,
+                source_generation_id=generated_content.generation_id,
+            )
+            for predicted_type, reason in requested_types
+        ]
+        return PredictiveWarmPlan(
+            requests=requests,
+            content_types=[item.requested_content_type.value for item in requests if item.requested_content_type is not None],
+            reasons=[item.warm_reason for item in requests if item.warm_reason is not None],
+        )
+
+
+def _predicted_content_types(content_type: str) -> list[tuple[RequestedContentType, str]]:
+    if content_type == RequestedContentType.micro_explanation.value:
+        return [
+            (
+                RequestedContentType.practice_problem,
+                "Practice immediately after explanation while the concept is still active.",
+            )
+        ]
+    if content_type == RequestedContentType.worked_example.value:
+        return [
+            (
+                RequestedContentType.practice_problem,
+                "Fade from modeled support into a near-term practice problem.",
+            ),
+            (
+                RequestedContentType.assessment_probe,
+                "Prepare a quick diagnostic probe after the worked example.",
+            ),
+        ]
+    if content_type == RequestedContentType.practice_problem.value:
+        return [
+            (
+                RequestedContentType.assessment_probe,
+                "Prepare a quick transfer check after practice.",
+            )
+        ]
+    if content_type == RequestedContentType.remedial_micro_module.value:
+        return [
+            (
+                RequestedContentType.practice_problem,
+                "Warm a repair-focused practice problem after remediation.",
+            )
+        ]
+    return []
+
+
+def _intent_for_content_type(content_type: RequestedContentType) -> ContentIntent:
+    mapping = {
+        RequestedContentType.micro_explanation: ContentIntent.explanation,
+        RequestedContentType.worked_example: ContentIntent.explanation,
+        RequestedContentType.practice_problem: ContentIntent.practice,
+        RequestedContentType.remedial_micro_module: ContentIntent.remediation,
+        RequestedContentType.assessment_probe: ContentIntent.assessment,
+    }
+    return mapping[content_type]
+
+
+def _string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if item is not None]
+
+
+def _string_or_none(value: object) -> str | None:
+    if value is None:
+        return None
+    return str(value)

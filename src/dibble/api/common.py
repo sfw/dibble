@@ -20,6 +20,7 @@ from dibble.services.learning_calibration_profiles import LearningCalibrationPro
 from dibble.services.learning_run_summary_recorder import LearningRunSummaryRecorder
 from dibble.services.learner_state_calibration import LearnerStateCalibrator
 from dibble.services.learner_summary_service import LearnerSummaryService
+from dibble.services.predictive_content_invalidator import PredictiveContentInvalidator
 from dibble.services.protocols import (
     AuditStore,
     CurriculumStore,
@@ -57,6 +58,7 @@ class ApiServices(Protocol):
     learning_run_summary_recorder: LearningRunSummaryRecorder
     learning_calibration_profile_recorder: LearningCalibrationProfileRecorder
     learner_summary_service: LearnerSummaryService
+    predictive_content_invalidator: PredictiveContentInvalidator
 
 
 @dataclass(slots=True)

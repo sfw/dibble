@@ -104,3 +104,71 @@ def test_observation_endpoint_updates_inferred_state_and_profile(client, student
     assert summary_event["payload"]["run_summary_score"] is not None
     assert profile_event["payload"]["source_run_summary_event_id"] == summary_event["event_id"]
     assert profile_event["payload"]["matched_run_count"] >= 1
+
+
+def test_observation_endpoint_invalidates_matching_predictive_cache_entries(client, student_id):
+    from tests.support import build_curriculum_resource
+
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+
+    client.post(
+        "/api/worked-examples/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "session-invalidate-observation",
+            "target_kc_ids": ["KC-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    first_problem_response = client.post(
+        "/api/problems/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "session-invalidate-observation",
+            "target_kc_ids": ["KC-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    observe_response = client.post(
+        f"/api/learners/{student_id}/observations",
+        json={
+            "response_time_ms": 22000,
+            "hints_used": 2,
+            "error_count": 1,
+            "pause_count": 1,
+            "modality_switches": 0,
+            "completed": True,
+            "confidence": 0.45,
+            "task_type": "practice",
+            "support_level": "medium",
+            "learning_session_id": "session-invalidate-observation",
+            "observed_content_type": "practice_problem",
+            "target_kc_ids": ["KC-1"],
+        },
+    )
+    second_problem_response = client.post(
+        "/api/problems/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "session-invalidate-observation",
+            "target_kc_ids": ["KC-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    audit_response = client.get("/api/audit/events")
+
+    assert first_problem_response.status_code == 200
+    assert observe_response.status_code == 200
+    assert second_problem_response.status_code == 200
+    assert first_problem_response.json()["quality"]["cache_hit"] is True
+    assert second_problem_response.json()["quality"]["cache_hit"] is False
+    assert second_problem_response.json()["generation_id"] != first_problem_response.json()["generation_id"]
+
+    invalidation_event = next(
+        event
+        for event in audit_response.json()
+        if event["event_type"] == "content.cache.invalidate" and event["payload"]["trigger_event_type"] == "learner.observe"
+    )
+    assert invalidation_event["payload"]["learning_session_id"] == "session-invalidate-observation"
+    assert invalidation_event["payload"]["expired_entries"] >= 1

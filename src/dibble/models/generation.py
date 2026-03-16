@@ -60,6 +60,9 @@ class GenerationRequest(BaseModel):
     requested_content_type: RequestedContentType | None = None
     learner_prompt: str | None = None
     curriculum_context: list[str] = Field(default_factory=list)
+    predictive_warm: bool = False
+    warm_reason: str | None = None
+    source_generation_id: str | None = None
 
 
 class RouteCalibrationSummary(BaseModel):

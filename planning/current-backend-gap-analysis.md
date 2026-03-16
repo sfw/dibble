@@ -12,7 +12,7 @@ The backend now covers a meaningful slice of the revised Phase 1 and early Phase
 
 - LLM orchestration, retrieval-grounded generation, validation, streaming, auth, audit logging, observability, and provider resilience are implemented.
 - The API surface now includes a single current route set that implements the revised generation/profile contract without carrying `v1` and `v2` path namespaces side by side.
-- Generated content now has a persisted entity with quality and provenance metadata plus a lightweight cache-backed reuse path.
+- Generated content now has a persisted entity with quality and provenance metadata plus a cache-backed reuse path that supports explicit warming, conservative predictive follow-up warming, and overlap-based invalidation when learner evidence changes.
 - The learner summary endpoint now packages recent calibration and activity context into a frontend-ready overview instead of requiring direct audit-log reads.
 
 The biggest remaining gaps are no longer basic plumbing. They are adaptive intelligence depth:
@@ -21,7 +21,7 @@ The biggest remaining gaps are no longer basic plumbing. They are adaptive intel
 - KC prerequisite graphs and misconception classification depth
 - richer remedial generation and deeper generation-template selection beyond the current specialized modes
 - broader cross-session use of the new run-summary calibration signals
-- proactive pre-generation beyond the current explicit warmup endpoint
+- richer scheduling and background execution beyond the current request-coupled predictive warm path
 
 ## Requirement Snapshot
 
@@ -60,7 +60,7 @@ Legend:
 | `DATA-001` KnowledgeComponent entity and prerequisite graph | Implemented | Persisted KC entity plus prerequisite traversal API and remediation-planner integration |
 | `DATA-002` Extended learner profile | Implemented | Current profile model includes cognitive, affective, load, and preference dimensions |
 | `DATA-003` GeneratedContent entity with quality metadata | Implemented | Persisted generated content plus `generation_metadata` and `GeneratedContent` API envelope |
-| `INFRA-003` Pre-generation and intelligent caching | Partial | Request-time generation cache and an explicit warmup endpoint exist; anticipatory scheduling and smarter invalidation do not |
+| `INFRA-003` Pre-generation and intelligent caching | Partial | Request-time generation cache and an explicit warmup endpoint now have conservative anticipatory follow-up warming, predictive request metadata, overlap-based invalidation from observation and Socratic outcomes, and telemetry coverage, but there is still no broader background scheduler, queue, or richer learned prediction policy |
 
 ## Highest-Value Next Gaps
 
@@ -69,15 +69,15 @@ Based on `planning/4 - revised-spec/implementation-roadmap.md` and `planning/5 -
 1. `PROF-004`: expand the KC graph from a persistence/API layer into broader taxonomy coverage and mastery migration support.
 2. `ADAPT-003`: evolve the new misconception signals from the current richer taxonomy and confidence scoring into a stronger learned classifier.
 3. `PROF-001` + `PROF-002` + `PROF-003` + `PROF-005`: replace the new heuristic learner-state and lightweight trait inference path with stronger calibrated models trained from real outcome data.
-4. `INFRA-003`: move from explicit warmup requests to anticipatory scheduling and smarter cache invalidation for likely next-step content.
-5. `ADAPT-005` + `LLM-002`: promote the new persisted run summaries and compact calibration profiles beyond the current router, learner-state, prompt-calibration, and learner-summary wrappers into longer-horizon learner-outcome feedback so the Socratic-to-profile feedback loop and adaptive prompt-selection loop can learn across sessions rather than mainly within recent audit windows.
+4. `ADAPT-005` + `LLM-002`: promote the new persisted run summaries and compact calibration profiles beyond the current router, learner-state, prompt-calibration, and learner-summary wrappers into longer-horizon learner-outcome feedback so the Socratic-to-profile feedback loop and adaptive prompt-selection loop can learn across sessions rather than mainly within recent audit windows.
+5. `INFRA-003`: evolve the new request-coupled predictive warming path into a broader background scheduler with better invalidation signals and stronger next-step prediction than the current rule-based planner.
 
 ## Recommendation
 
 The most coherent next implementation step is now:
 
-- extend the new Socratic-to-profile feedback loop with broader calibration targets so conversational evidence can be trusted across more contexts
-- use the new persisted run-summary signals as a cleaner interface for cross-session adaptation instead of re-reading raw event windows downstream, now that router support calibration, learner-state persistence, prompt calibration, the compact calibration-profile layer, and the learner-summary surface all consume that durable evidence first
-- keep reusing the current generated-content and session stores instead of adding a parallel orchestration layer
+- extend the new run-summary and calibration-profile pipeline into broader cross-session adaptation targets
+- replace more of the remaining heuristic learner-state and misconception logic with better-calibrated models trained from real outcomes
+- keep building on the current predictive cache path rather than introducing a separate orchestration stack too early
 
-That is now more achievable because the Socratic flow no longer relies only on a single last-turn threshold, no longer ends at the assessment response itself, and now feeds into learner-state updates, within-step trace aggregation, later same-session outcome tracing, explicit run-level calibration summaries, persisted run-summary audit events, compact cross-session calibration-profile events, a conservative router calibration layer, conservative learner-state calibration nudges, learner-summary API packaging, and prompt-selection plus telemetry paths that now reuse those persisted summaries before raw reconstruction. The next coherent step is to let those durable summaries and profiles drive more cross-session adaptation instead of remaining mostly local to prompt selection, route support nudges, near-term metacognitive persistence, recent-event observability, and lightweight frontend summaries.
+That is now more achievable because the backend no longer relies only on explicit warmup calls or raw event-window reconstruction. The generation path can now warm likely next steps during normal content delivery, tag those warmed entries as predictive without fragmenting cache reuse, expire them when new same-target learner evidence arrives, and expose that behavior in telemetry. On the adaptation side, Socratic assessment and learner observations already feed learner-state updates, within-step trace aggregation, later same-session outcome tracing, explicit run-level calibration summaries, persisted run-summary audit events, compact cross-session calibration-profile events, a conservative router calibration layer, conservative learner-state calibration nudges, learner-summary API packaging, and prompt-selection plus telemetry paths that now reuse those persisted summaries before raw reconstruction. The next coherent step is to let those durable summaries and profiles drive more cross-session adaptation instead of remaining mostly local to prompt selection, route support nudges, near-term metacognitive persistence, recent-event observability, and lightweight frontend summaries.

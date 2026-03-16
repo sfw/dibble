@@ -38,6 +38,12 @@ def build_generation_mode_plan(
     }
     if selection_rationale is not None:
         request_context["selection_rationale"] = selection_rationale
+    if request.predictive_warm:
+        request_context["is_predictive_warm"] = True
+        if request.warm_reason is not None:
+            request_context["warm_reason"] = request.warm_reason
+        if request.source_generation_id is not None:
+            request_context["source_generation_id"] = request.source_generation_id
 
     if content_type == RequestedContentType.practice_problem:
         difficulty_band = select_practice_difficulty_band(profile, request)

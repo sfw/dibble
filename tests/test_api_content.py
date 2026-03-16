@@ -112,6 +112,98 @@ def test_content_warm_endpoint_primes_generation_cache(client, student_id):
     assert generated_response.json()["quality"]["cache_hit"] is True
 
 
+def test_generation_cache_reuses_predictive_warm_entries_for_real_requests(client, student_id):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+
+    warm_response = client.post(
+        "/api/content/warm",
+        json={
+            "requests": [
+                {
+                    "student_id": str(student_id),
+                    "learning_session_id": "session-predictive",
+                    "target_kc_ids": ["KC-1"],
+                    "intent": "practice",
+                    "requested_content_type": "practice_problem",
+                    "curriculum_context": ["Equivalent fractions"],
+                    "predictive_warm": True,
+                    "warm_reason": "Test predictive reuse",
+                    "source_generation_id": "gen-source",
+                }
+            ]
+        },
+    )
+    generated_response = client.post(
+        "/api/problems/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "session-predictive",
+            "target_kc_ids": ["KC-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+
+    assert warm_response.status_code == 200
+    assert generated_response.status_code == 200
+    payload = generated_response.json()
+    assert payload["quality"]["cache_hit"] is True
+    assert payload["request_context"].get("is_predictive_warm") is None
+    assert payload["request_context"].get("source_generation_id") is None
+
+
+def test_generation_endpoint_predictively_warms_follow_up_content(client, student_id):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+
+    worked_example_response = client.post(
+        "/api/worked-examples/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "session-worked-example",
+            "target_kc_ids": ["KC-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    problem_response = client.post(
+        "/api/problems/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "session-worked-example",
+            "target_kc_ids": ["KC-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    assessment_probe_response = client.post(
+        "/api/content/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "session-worked-example",
+            "target_kc_ids": ["KC-1"],
+            "intent": "assessment",
+            "requested_content_type": "assessment_probe",
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    audit_response = client.get("/api/audit/events")
+
+    assert worked_example_response.status_code == 200
+    assert problem_response.status_code == 200
+    assert assessment_probe_response.status_code == 200
+    assert problem_response.json()["quality"]["cache_hit"] is True
+    assert assessment_probe_response.json()["quality"]["cache_hit"] is True
+
+    predictive_event = next(
+        event
+        for event in audit_response.json()
+        if event["event_type"] == "content.warm.predictive"
+        and event["payload"]["predicted_content_types"] == ["practice_problem", "assessment_probe"]
+    )
+    assert predictive_event["payload"]["source_generation_id"] == worked_example_response.json()["generation_id"]
+    assert predictive_event["payload"]["predicted_request_count"] == 2
+    assert predictive_event["payload"]["predicted_content_types"] == ["practice_problem", "assessment_probe"]
+
+
 def test_remedial_trigger_returns_remedial_generated_content(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
@@ -294,10 +386,12 @@ def test_content_endpoints_write_audit_events(client, student_id):
     assert audit_response.status_code == 200
 
     events = audit_response.json()
-    assert events[0]["event_type"] == "content.generate"
-    assert events[1]["event_type"] == "adaptive.decide"
-    assert events[0]["payload"]["quality_score"] > 0
-    assert events[1]["payload"]["intervention_type"] == "targeted_practice"
+    assert events[0]["event_type"] == "content.warm.predictive"
+    assert events[1]["event_type"] == "content.generate"
+    assert events[2]["event_type"] == "adaptive.decide"
+    assert events[1]["payload"]["quality_score"] > 0
+    assert events[2]["payload"]["intervention_type"] == "targeted_practice"
+    assert events[0]["payload"]["predicted_request_count"] >= 1
 
 
 def test_metrics_endpoint_summarizes_generation_activity(client, student_id):
@@ -325,11 +419,13 @@ def test_metrics_endpoint_summarizes_generation_activity(client, student_id):
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["total_events"] == 2
+    assert payload["total_events"] == 3
     assert payload["decision_events"] == 1
     assert payload["generation_events"] == 1
     assert payload["fallback_generations"] == 1
     assert payload["validation_issue_events"] == 1
+    assert payload["predictive_warm_events"] == 1
+    assert payload["predictive_warm_requests"] == 2
     assert payload["prompt_template_usages"][0]["template_name"] is not None
     assert payload["prompt_template_usages"][0]["event_count"] == 1
 

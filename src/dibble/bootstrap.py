@@ -22,6 +22,8 @@ from dibble.services.learner_state_calibration import LearnerStateCalibrator
 from dibble.services.learner_summary_service import LearnerSummaryService
 from dibble.services.misconception_detector import MisconceptionDetector
 from dibble.services.observation_store import SQLiteObservationStore
+from dibble.services.predictive_content_invalidator import PredictiveContentInvalidator
+from dibble.services.predictive_content_warming import PredictiveContentWarmer
 from dibble.services.provider_health import SQLiteProviderHealthStore
 from dibble.services.profile_store import SQLiteProfileStore
 from dibble.services.protocols import (
@@ -68,6 +70,7 @@ class ApplicationServices:
     learning_run_summary_recorder: LearningRunSummaryRecorder
     learning_calibration_profile_recorder: LearningCalibrationProfileRecorder
     learner_summary_service: LearnerSummaryService
+    predictive_content_invalidator: PredictiveContentInvalidator
     router_plugin: RouterPlugin
 
 
@@ -119,11 +122,17 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     learning_calibration_profile_recorder = LearningCalibrationProfileRecorder(audit_store=audit_store)
     learner_summary_service = LearnerSummaryService(profile_store=profile_store, audit_store=audit_store)
     content_warmer = ContentWarmer(profile_store, generation_engine)
+    predictive_content_warmer = PredictiveContentWarmer(content_warmer=content_warmer)
+    predictive_content_invalidator = PredictiveContentInvalidator(
+        generated_content_store=generated_content_store,
+        audit_store=audit_store,
+    )
     content_workflow_service = ContentWorkflowService(
         profile_store=profile_store,
         router=router_plugin,
         generation_engine=generation_engine,
         content_warmer=content_warmer,
+        predictive_content_warmer=predictive_content_warmer,
         remediation_planner=remediation_planner,
         audit_store=audit_store,
     )
@@ -150,5 +159,6 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         learning_run_summary_recorder=learning_run_summary_recorder,
         learning_calibration_profile_recorder=learning_calibration_profile_recorder,
         learner_summary_service=learner_summary_service,
+        predictive_content_invalidator=predictive_content_invalidator,
         router_plugin=router_plugin,
     )

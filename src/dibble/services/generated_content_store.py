@@ -139,6 +139,59 @@ class SQLiteGeneratedContentStore:
             ) in rows
         ]
 
+    def expire_predictive_content(
+        self,
+        *,
+        student_id: str | None,
+        target_kc_ids: list[str],
+        target_lo_ids: list[str],
+        learning_session_id: str | None = None,
+        now: datetime | None = None,
+        limit: int = 200,
+    ) -> int:
+        if student_id is None:
+            return 0
+
+        comparison_time = now or datetime.now(timezone.utc)
+        with sqlite3.connect(self.database_path) as connection:
+            rows = connection.execute(
+                """
+                SELECT generation_id, request_context, expires_at
+                FROM generated_content
+                WHERE student_id = ?
+                ORDER BY created_at DESC, generation_id DESC
+                LIMIT ?
+                """,
+                (student_id, limit),
+            ).fetchall()
+
+            generation_ids = [
+                str(generation_id)
+                for generation_id, request_context_json, expires_at in rows
+                if _matches_predictive_invalidation(
+                    request_context_json=request_context_json,
+                    expires_at=expires_at,
+                    target_kc_ids=target_kc_ids,
+                    target_lo_ids=target_lo_ids,
+                    learning_session_id=learning_session_id,
+                    comparison_time=comparison_time,
+                )
+            ]
+            if not generation_ids:
+                return 0
+
+            placeholders = ", ".join("?" for _ in generation_ids)
+            connection.execute(
+                f"""
+                UPDATE generated_content
+                SET expires_at = ?
+                WHERE generation_id IN ({placeholders})
+                """,
+                (comparison_time.isoformat(), *generation_ids),
+            )
+            connection.commit()
+        return len(generation_ids)
+
     def stats(self, *, now: datetime | None = None) -> dict[str, int]:
         comparison_time = now or datetime.now(timezone.utc)
         with sqlite3.connect(self.database_path) as connection:
@@ -158,3 +211,39 @@ class SQLiteGeneratedContentStore:
             "fresh_entries": int(fresh_entries),
             "expired_entries": int(total_entries - fresh_entries),
         }
+
+
+def _matches_predictive_invalidation(
+    *,
+    request_context_json: str,
+    expires_at: str | None,
+    target_kc_ids: list[str],
+    target_lo_ids: list[str],
+    learning_session_id: str | None,
+    comparison_time: datetime,
+) -> bool:
+    expires_at_value = _parse_datetime(expires_at)
+    if expires_at_value is not None and expires_at_value <= comparison_time:
+        return False
+
+    request_context = json.loads(request_context_json)
+    if not bool(request_context.get("is_predictive_warm")):
+        return False
+    if learning_session_id is not None and request_context.get("learning_session_id") != learning_session_id:
+        return False
+
+    content_target_kc_ids = _string_list(request_context.get("target_kc_ids"))
+    content_target_lo_ids = _string_list(request_context.get("target_lo_ids"))
+    if not target_kc_ids and not target_lo_ids:
+        return True
+    if set(content_target_kc_ids).intersection(target_kc_ids):
+        return True
+    if set(content_target_lo_ids).intersection(target_lo_ids):
+        return True
+    return False
+
+
+def _string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if item is not None]

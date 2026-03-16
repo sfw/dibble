@@ -1,0 +1,82 @@
+from datetime import datetime, timezone
+from uuid import uuid4
+
+from dibble.models.generation import (
+    AdaptiveRouteDecision,
+    DeliveryMode,
+    GeneratedContent,
+    GeneratedBlock,
+    GenerationMetadata,
+    GenerationResponse,
+    InterventionType,
+)
+from dibble.services.predictive_content_warming import PredictiveContentWarmer
+
+
+def test_predictive_content_warmer_plans_follow_ups_for_worked_examples():
+    generated_content = _build_generated_content(
+        content_type="worked_example",
+        request_context={
+            "learning_session_id": "session-1",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": ["LO-1"],
+            "curriculum_context": ["Equivalent fractions"],
+            "selected_content_type": "worked_example",
+        },
+    )
+
+    plan = PredictiveContentWarmer(content_warmer=None).plan_follow_ups(generated_content)
+
+    assert plan.content_types == ["practice_problem", "assessment_probe"]
+    assert len(plan.requests) == 2
+    assert plan.requests[0].predictive_warm is True
+    assert plan.requests[0].source_generation_id == generated_content.generation_id
+    assert plan.requests[0].learning_session_id == "session-1"
+    assert plan.requests[0].target_kc_ids == ["KC-1"]
+    assert plan.requests[1].intent == "assessment"
+
+
+def test_predictive_content_warmer_skips_existing_predictive_content():
+    generated_content = _build_generated_content(
+        content_type="practice_problem",
+        request_context={
+            "is_predictive_warm": True,
+            "selected_content_type": "practice_problem",
+            "source_generation_id": "source-gen",
+        },
+    )
+
+    plan = PredictiveContentWarmer(content_warmer=None).plan_follow_ups(generated_content)
+
+    assert plan.requests == []
+    assert plan.content_types == []
+
+
+def _build_generated_content(*, content_type: str, request_context: dict[str, object]) -> GeneratedContent:
+    student_id = uuid4()
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.reteach,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="medium",
+        reasons=["test"],
+    )
+    metadata = GenerationMetadata(quality_score=0.8, validation_passed=True, grounding_count=1)
+    response = GenerationResponse(
+        student_id=student_id,
+        route=route,
+        blocks=[GeneratedBlock(kind="summary", title="Summary", body="Example body.")],
+        curriculum_context=["Equivalent fractions"],
+        grounding=[],
+        safety_notes=["test"],
+        generation_id="gen-1",
+        generation_metadata=metadata,
+    )
+    return GeneratedContent(
+        generation_id="gen-1",
+        student_id=student_id,
+        content_type=content_type,
+        request_context=request_context,
+        response=response,
+        quality=metadata,
+        created_at=datetime.now(timezone.utc),
+    )

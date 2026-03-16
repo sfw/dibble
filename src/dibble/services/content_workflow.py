@@ -16,6 +16,7 @@ from dibble.plugins.contracts import RouterPlugin
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.generation_modes import build_generation_mode_plan
+from dibble.services.predictive_content_warming import PredictiveContentWarmer
 from dibble.services.protocols import AuditStore, ProfileStore
 from dibble.services.remediation_planner import RemediationPlanner
 
@@ -32,6 +33,7 @@ class ContentWorkflowService:
     router: RouterPlugin
     generation_engine: GenerationEngine
     content_warmer: ContentWarmer
+    predictive_content_warmer: PredictiveContentWarmer
     remediation_planner: RemediationPlanner
     audit_store: AuditStore
 
@@ -112,6 +114,25 @@ class ContentWorkflowService:
                 "prompt_template_variant": metadata.prompt_template_variant,
             },
         )
+        predictive_warm = self.predictive_content_warmer.warm_follow_ups(generated_content)
+        if predictive_warm is not None:
+            self.audit_store.append(
+                event_type="content.warm.predictive",
+                status="success",
+                student_id=str(request.student_id),
+                payload={
+                    "source_generation_id": generated_content.generation_id,
+                    "learning_session_id": request.learning_session_id,
+                    "target_kc_ids": request.target_kc_ids,
+                    "target_lo_ids": request.target_lo_ids,
+                    "predicted_request_count": len(predictive_warm.plan.requests),
+                    "predicted_content_types": predictive_warm.plan.content_types,
+                    "warm_reasons": predictive_warm.plan.reasons,
+                    "cache_hits": predictive_warm.result.cache_hits,
+                    "cache_misses": predictive_warm.result.cache_misses,
+                    "generation_ids": predictive_warm.result.generation_ids,
+                },
+            )
         return generated_content
 
     def warm_content(self, request: ContentWarmRequest) -> ContentWarmResult:

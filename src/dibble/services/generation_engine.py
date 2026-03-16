@@ -210,12 +210,13 @@ class GenerationEngine:
         self.generated_content_store.upsert(cache_key=cache_key, content=content)
 
     def _cache_key(self, profile: LearnerProfile, request: GenerationRequest, route, grounding) -> str:
+        ignored_request_keys = {"learning_session_id", "predictive_warm", "warm_reason", "source_generation_id"}
         payload = {
             "profile": profile.model_dump(mode="json"),
             "request": {
                 key: value
                 for key, value in request.model_dump(mode="json").items()
-                if key != "learning_session_id"
+                if key not in ignored_request_keys
             },
             "route": route.model_dump(mode="json"),
             "grounding": [item.model_dump(mode="json") for item in grounding],
