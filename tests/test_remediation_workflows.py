@@ -129,3 +129,79 @@ def test_remediation_workflow_coordinator_persists_and_advances_steps(tmp_path):
 
     with pytest.raises(RemediationWorkflowCompleteError):
         coordinator.generation_request_for_current_step(session_id=session.session_id)
+
+
+def test_remediation_workflow_coordinator_carries_bridge_sequence_context(tmp_path):
+    database_path = str(tmp_path / "remediation-workflows-bridge.db")
+    ensure_database(database_path)
+    session_store = SQLiteRemediationSessionStore(database_path)
+    coordinator = RemediationWorkflowCoordinator(session_store=session_store)
+
+    plan = RemediationPlan(
+        focus_kc_ids=["KC-1", "KC-2", "KC-3"],
+        prerequisite_kc_ids=["KC-1"],
+        misconception_signals=[],
+        rationale="Repair the prerequisite, bridge through a nearby KC, then return to the target.",
+        module_blueprint={
+            "trigger": "misconception_detected",
+            "bridge_target_kc_ids": ["KC-2"],
+            "steps": [
+                {
+                    "phase": "step_back",
+                    "target_kc_ids": ["KC-1"],
+                    "support_level": "high",
+                    "objective": "Reconnect the prerequisite concept.",
+                    "guidance": "Use one simple example.",
+                },
+                {
+                    "phase": "bridge",
+                    "target_kc_ids": ["KC-2"],
+                    "support_level": "medium",
+                    "objective": "Bridge through a nearby same-LO knowledge component.",
+                    "guidance": "Fade support a bit before the target return.",
+                },
+                {
+                    "phase": "return",
+                    "target_kc_ids": ["KC-3"],
+                    "support_level": "low",
+                    "objective": "Check transfer on the target.",
+                    "guidance": "End with one transfer check.",
+                },
+            ],
+        },
+        kc_sequence=KcSequenceSummary(
+            action="rebuild_prerequisite_first",
+            primary_kc_id="KC-1",
+            ordered_kc_ids=["KC-1", "KC-2", "KC-3"],
+            bridge_kc_ids=["KC-2"],
+            deferred_kc_ids=["KC-3"],
+            rationale="Use nearby same-LO bridge KC(s) KC-2 before returning fully to the target.",
+        ),
+    )
+
+    session = coordinator.start_session(
+        student_id=uuid4(),
+        target_kc_id="KC-3",
+        misconception_description="The learner needs a same-LO bridge before returning to the target.",
+        curriculum_context=["Equivalent fractions"],
+        plan=plan,
+        strategy_summary=LearnerStrategySummary(
+            signal="support_intensive",
+            source="strategy_profile",
+            recovery_focus="prerequisite_rebuild",
+        ),
+    )
+
+    session = coordinator.complete_current_step(
+        session_id=session.session_id,
+        generation_id="gen-step-back",
+    )
+    loaded_session, current_step, generation_request = coordinator.generation_request_for_current_step(
+        session_id=session.session_id,
+        learner_prompt="Keep it visual.",
+    )
+
+    assert loaded_session.session_id == session.session_id
+    assert current_step.phase == "bridge"
+    assert current_step.recommended_content_type == "remedial_micro_module"
+    assert any("Bridge through nearby same-LO KC(s) KC-2" in item for item in generation_request.curriculum_context)

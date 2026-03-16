@@ -40,6 +40,25 @@ def test_knowledge_component_graph_estimates_missing_kc_mastery_from_lo_and_neig
     assert 0.6 <= estimate <= 0.75
 
 
+def test_knowledge_component_graph_surfaces_same_lo_bridge_candidates():
+    graph = KnowledgeComponentGraph(
+        [
+            _build_component("KC-1", parent_lo_id="LO-1", difficulty=0.28),
+            _build_component("KC-2", parent_lo_id="LO-2", prerequisite_kc_ids=["KC-1"], difficulty=0.48),
+            _build_component("KC-3", parent_lo_id="LO-2", prerequisite_kc_ids=["KC-1"], difficulty=0.6),
+            _build_component("KC-4", parent_lo_id="LO-2", prerequisite_kc_ids=["KC-5"], difficulty=0.92),
+            _build_component("KC-5", parent_lo_id="LO-3", difficulty=0.42),
+        ]
+    )
+
+    siblings = graph.sibling_relations_for("KC-3")
+    bridges = graph.bridge_candidates_for("KC-3", anchor_kc_ids=["KC-1"])
+
+    assert [relation.component.kc_id for relation in siblings] == ["KC-2", "KC-4"]
+    assert [relation.component.kc_id for relation in bridges] == ["KC-2"]
+    assert bridges[0].path_weight > siblings[0].path_weight
+
+
 def _build_component(
     kc_id: str,
     *,

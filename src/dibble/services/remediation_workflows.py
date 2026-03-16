@@ -203,6 +203,12 @@ class RemediationWorkflowCoordinator:
         context = [f"KC sequencing: {kc_sequence.action}."]
         if kc_sequence.primary_kc_id is not None:
             context.append(f"Stay centered on {kc_sequence.primary_kc_id} before moving on.")
+        if kc_sequence.bridge_kc_ids:
+            context.append(
+                "Bridge through nearby same-LO KC(s) "
+                + ", ".join(kc_sequence.bridge_kc_ids)
+                + " before the final target return."
+            )
         if kc_sequence.rationale is not None:
             context.append(kc_sequence.rationale)
         return context

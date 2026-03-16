@@ -52,6 +52,11 @@ class RemediationModuleBlueprintBuilder:
             for kc_id in ordered_focus_kc_ids
             if kc_id in repair_targets and kc_id not in ordered_prerequisite_targets
         ] or repair_targets
+        ordered_bridge_targets = [
+            kc_id
+            for kc_id in ordered_focus_kc_ids
+            if kc_id in kc_sequence.bridge_kc_ids and kc_id not in ordered_repair_targets
+        ] or list(kc_sequence.bridge_kc_ids)
 
         steps: list[dict[str, object]] = []
         if prerequisite_kc_ids and kc_sequence.action == "rebuild_prerequisite_first":
@@ -78,6 +83,18 @@ class RemediationModuleBlueprintBuilder:
                     "guidance": primary_signal.remediation_hint
                     or "Name the misconception explicitly, contrast it with the correct reasoning, and show one corrected example.",
                     "recurrence_signal": primary_signal.recurrence_signal,
+                }
+            )
+        if ordered_bridge_targets:
+            steps.append(
+                {
+                    "phase": "bridge",
+                    "title": "Bridge through a nearby knowledge component",
+                    "target_kc_ids": ordered_bridge_targets,
+                    "support_level": "medium",
+                    "objective": "Reconnect the repaired idea through a nearby knowledge component in the same learning objective before returning to the target.",
+                    "misconception_ids": [],
+                    "guidance": "Use a closely related example that shares the repaired prerequisite, then fade support before the target transfer check.",
                 }
             )
         steps.append(
@@ -107,6 +124,7 @@ class RemediationModuleBlueprintBuilder:
             "repair_target_kc_ids": repair_targets,
             "sequence_action": kc_sequence.action,
             "sequence_primary_kc_id": kc_sequence.primary_kc_id,
+            "bridge_target_kc_ids": ordered_bridge_targets,
             "ordered_focus_kc_ids": ordered_focus_kc_ids,
             "deferred_focus_kc_ids": kc_sequence.deferred_kc_ids,
             "steps": steps,

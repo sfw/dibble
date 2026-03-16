@@ -30,6 +30,7 @@ class KcSequenceSummary(BaseModel):
     action: str = "monitor"
     primary_kc_id: str | None = None
     ordered_kc_ids: list[str] = Field(default_factory=list)
+    bridge_kc_ids: list[str] = Field(default_factory=list)
     deferred_kc_ids: list[str] = Field(default_factory=list)
     rationale: str | None = None
 

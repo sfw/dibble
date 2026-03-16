@@ -45,6 +45,66 @@ class KnowledgeComponentGraph:
     def components_for_lo(self, lo_id: str) -> list[KnowledgeComponent]:
         return list(self._components_by_lo.get(lo_id, []))
 
+    def sibling_relations_for(self, kc_id: str) -> list[KnowledgeComponentRelation]:
+        component = self._components_by_id.get(kc_id)
+        if component is None:
+            return []
+        siblings: list[KnowledgeComponentRelation] = []
+        for sibling in self.components_for_lo(component.parent_lo_id):
+            if sibling.kc_id == kc_id:
+                continue
+            siblings.append(
+                KnowledgeComponentRelation(
+                    component=sibling,
+                    depth=1,
+                    path_weight=round(self.relation_strength(source=component, target=sibling), 3),
+                )
+            )
+        siblings.sort(key=lambda relation: (-relation.path_weight, relation.component.difficulty, relation.component.kc_id))
+        return siblings
+
+    def bridge_candidates_for(
+        self,
+        kc_id: str,
+        *,
+        anchor_kc_ids: list[str] | None = None,
+        limit: int | None = None,
+    ) -> list[KnowledgeComponentRelation]:
+        component = self._components_by_id.get(kc_id)
+        if component is None:
+            return []
+        anchor_ids = {value for value in anchor_kc_ids or [] if value != kc_id}
+        target_prerequisites = set(component.prerequisite_kc_ids)
+        candidates: list[KnowledgeComponentRelation] = []
+        for relation in self.sibling_relations_for(kc_id):
+            sibling = relation.component
+            if sibling.kc_id in anchor_ids:
+                continue
+            shared_anchor_ids = anchor_ids.intersection(sibling.prerequisite_kc_ids)
+            shared_target_prerequisites = target_prerequisites.intersection(sibling.prerequisite_kc_ids)
+            if not shared_anchor_ids and not shared_target_prerequisites:
+                continue
+            bridge_weight = relation.path_weight
+            if shared_anchor_ids:
+                bridge_weight += min(0.18, 0.09 * len(shared_anchor_ids))
+            elif shared_target_prerequisites:
+                bridge_weight += min(0.12, 0.06 * len(shared_target_prerequisites))
+            if sibling.difficulty <= component.difficulty:
+                bridge_weight += 0.08
+            else:
+                bridge_weight -= min(0.12, (sibling.difficulty - component.difficulty) * 0.25)
+            candidates.append(
+                KnowledgeComponentRelation(
+                    component=sibling,
+                    depth=1,
+                    path_weight=round(_clamp(bridge_weight), 3),
+                )
+            )
+        candidates.sort(key=lambda relation: (-relation.path_weight, relation.component.difficulty, relation.component.kc_id))
+        if limit is not None:
+            return candidates[:limit]
+        return candidates
+
     def weighted_lo_mastery(self, *, lo_id: str, kc_mastery: dict[str, float]) -> float | None:
         components = self.components_for_lo(lo_id)
         if not components:

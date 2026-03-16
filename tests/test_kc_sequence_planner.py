@@ -1,4 +1,5 @@
 from dibble.models.profile import LearnerStrategySummary
+from dibble.models.curriculum import KnowledgeComponent
 from dibble.services.kc_sequence_planner import KcSequencePlanner
 
 
@@ -36,3 +37,63 @@ def test_kc_sequence_planner_attempts_transfer_when_strategy_is_independence_rea
     assert sequence.action == "attempt_transfer"
     assert sequence.primary_kc_id == "KC-2"
     assert sequence.ordered_kc_ids == ["KC-2"]
+
+
+def test_kc_sequence_planner_inserts_same_lo_bridge_before_target_return():
+    planner = KcSequencePlanner(
+        knowledge_component_store=_StubKnowledgeComponentStore(
+            [
+                _build_component("KC-1", parent_lo_id="LO-1", difficulty=0.3),
+                _build_component("KC-2", parent_lo_id="LO-2", prerequisite_kc_ids=["KC-1"], difficulty=0.46),
+                _build_component("KC-3", parent_lo_id="LO-2", prerequisite_kc_ids=["KC-1"], difficulty=0.62),
+            ]
+        )
+    )
+
+    sequence = planner.plan(
+        strategy_summary=LearnerStrategySummary(
+            signal="support_intensive",
+            source="strategy_profile",
+            recovery_focus="prerequisite_rebuild",
+            recommended_next_action="rebuild_prerequisite",
+            trajectory_state="relapsing",
+        ),
+        target_kc_ids=["KC-3"],
+        prerequisite_kc_ids=["KC-1"],
+        repair_target_kc_ids=["KC-1"],
+    )
+
+    assert sequence.action == "rebuild_prerequisite_first"
+    assert sequence.ordered_kc_ids == ["KC-1", "KC-2", "KC-3"]
+    assert sequence.bridge_kc_ids == ["KC-2"]
+    assert sequence.deferred_kc_ids == ["KC-3"]
+    assert "same-LO bridge KC(s) KC-2" in (sequence.rationale or "")
+
+
+class _StubKnowledgeComponentStore:
+    def __init__(self, components: list[KnowledgeComponent]) -> None:
+        self._components = components
+
+    def list(self) -> list[KnowledgeComponent]:
+        return list(self._components)
+
+
+def _build_component(
+    kc_id: str,
+    *,
+    parent_lo_id: str,
+    prerequisite_kc_ids: list[str] | None = None,
+    difficulty: float = 0.5,
+) -> KnowledgeComponent:
+    return KnowledgeComponent(
+        kc_id=kc_id,
+        name=kc_id,
+        parent_lo_id=parent_lo_id,
+        grade_level="5",
+        subject="math",
+        prerequisite_kc_ids=prerequisite_kc_ids or [],
+        difficulty=difficulty,
+        estimated_time_minutes=10,
+        tags=[],
+        common_misconceptions=[],
+    )

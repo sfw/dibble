@@ -32,7 +32,9 @@ class RemediationPlanner:
         self.knowledge_component_store = knowledge_component_store
         self.misconception_detector = misconception_detector
         self.module_blueprint_builder = module_blueprint_builder or RemediationModuleBlueprintBuilder()
-        self.kc_sequence_planner = kc_sequence_planner or KcSequencePlanner()
+        self.kc_sequence_planner = kc_sequence_planner or KcSequencePlanner(
+            knowledge_component_store=knowledge_component_store
+        )
 
     def plan(
         self,
