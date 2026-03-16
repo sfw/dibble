@@ -19,6 +19,7 @@ from dibble.services.generated_content_store import SQLiteGeneratedContentStore
 from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
 from dibble.services.knowledge_state_migration import KnowledgeStateMigrator
 from dibble.services.learning_calibration_profiles import LearningCalibrationProfileRecorder
+from dibble.services.learning_progress_profiles import LearningProgressProfileRecorder
 from dibble.services.learning_run_summary_recorder import LearningRunSummaryRecorder
 from dibble.services.learner_state_calibration import LearnerStateCalibrator
 from dibble.services.learner_summary_service import LearnerSummaryService
@@ -75,6 +76,7 @@ class ApplicationServices:
     learner_state_calibrator: LearnerStateCalibrator
     learning_run_summary_recorder: LearningRunSummaryRecorder
     learning_calibration_profile_recorder: LearningCalibrationProfileRecorder
+    learning_progress_profile_recorder: LearningProgressProfileRecorder
     learner_summary_service: LearnerSummaryService
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_invalidator: PredictiveContentInvalidator
@@ -136,6 +138,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     )
     learning_run_summary_recorder = LearningRunSummaryRecorder(audit_store=audit_store)
     learning_calibration_profile_recorder = LearningCalibrationProfileRecorder(audit_store=audit_store)
+    learning_progress_profile_recorder = LearningProgressProfileRecorder(audit_store=audit_store)
     learner_summary_service = LearnerSummaryService(profile_store=profile_store, audit_store=audit_store)
     misconception_profile_recorder = LearningMisconceptionProfileRecorder(audit_store=audit_store)
     content_warmer = ContentWarmer(
@@ -181,6 +184,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         learner_state_calibrator=learner_state_calibrator,
         learning_run_summary_recorder=learning_run_summary_recorder,
         learning_calibration_profile_recorder=learning_calibration_profile_recorder,
+        learning_progress_profile_recorder=learning_progress_profile_recorder,
         learner_summary_service=learner_summary_service,
         generation_mode_calibrator=generation_mode_calibrator,
         predictive_content_invalidator=predictive_content_invalidator,

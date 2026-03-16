@@ -60,6 +60,23 @@ def test_learner_summary_service_prefers_calibration_profile_and_recent_activity
             "profile_signal": "positive",
         },
     )
+    audit_store.append(
+        event_type="learning.progress.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "average_run_outcome_score": 0.8,
+            "average_run_confidence": 0.76,
+            "matched_run_count": 5,
+            "matched_session_count": 3,
+            "positive_run_rate": 0.8,
+            "negative_run_rate": 0.0,
+            "recent_average_run_outcome_score": 0.84,
+            "prior_average_run_outcome_score": 0.71,
+            "progress_delta": 0.13,
+            "progress_signal": "improving",
+        },
+    )
 
     summary = LearnerSummaryService(profile_store=profile_store, audit_store=audit_store).build_for_student(
         student_id=student_id
@@ -71,6 +88,9 @@ def test_learner_summary_service_prefers_calibration_profile_and_recent_activity
     assert summary.calibration.source == "profile"
     assert summary.calibration.signal == "positive"
     assert summary.calibration.matched_session_count == 3
+    assert summary.progress.source == "profile"
+    assert summary.progress.signal == "improving"
+    assert summary.progress.progress_delta == 0.13
     assert summary.recent_activity.generation_count == 1
     assert summary.recent_activity.observation_count == 1
     assert summary.recent_activity.socratic_assessment_count == 1
@@ -111,4 +131,5 @@ def test_learner_summary_service_falls_back_to_run_summary_when_profile_missing(
     assert summary.calibration.source == "run_summary"
     assert summary.calibration.signal == "negative"
     assert summary.calibration.average_run_outcome_score == 0.43
+    assert summary.progress.source == "insufficient"
     assert summary.recent_activity.last_generation_id == "fallback-gen"

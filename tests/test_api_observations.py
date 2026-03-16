@@ -75,6 +75,7 @@ def test_observation_endpoint_updates_inferred_state_and_profile(client, student
     learner_observe_event = next(event for event in audit_events if event["event_type"] == "learner.observe")
     summary_event = next(event for event in audit_events if event["event_type"] == "learning.run.summary")
     profile_event = next(event for event in audit_events if event["event_type"] == "learning.calibration.profile")
+    progress_event = next(event for event in audit_events if event["event_type"] == "learning.progress.profile")
 
     assert observed["student_id"] == str(student_id)
     assert observed["observation_count"] == 1
@@ -104,6 +105,9 @@ def test_observation_endpoint_updates_inferred_state_and_profile(client, student
     assert summary_event["payload"]["run_summary_score"] is not None
     assert profile_event["payload"]["source_run_summary_event_id"] == summary_event["event_id"]
     assert profile_event["payload"]["matched_run_count"] >= 1
+    assert progress_event["payload"]["source_run_summary_event_id"] == summary_event["event_id"]
+    assert progress_event["payload"]["matched_run_count"] >= 1
+    assert progress_event["payload"]["progress_signal"] in {"improving", "stable", "declining", "tentative"}
 
 
 def test_observation_endpoint_invalidates_matching_predictive_cache_entries(client, student_id):

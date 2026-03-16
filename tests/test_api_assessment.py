@@ -216,11 +216,18 @@ def test_socratic_assessment_invalidates_matching_predictive_cache_entries(clien
     assert first_assessment_probe_response.json()["quality"]["cache_hit"] is True
     assert second_assessment_probe_response.json()["quality"]["cache_hit"] is False
 
+    summary_event = next(
+        event
+        for event in audit_response.json()
+        if event["event_type"] == "learning.run.summary" and event["payload"]["trigger_event_type"] == "assessment.socratic"
+    )
+    progress_event = next(event for event in audit_response.json() if event["event_type"] == "learning.progress.profile")
     invalidation_event = next(
         event
         for event in audit_response.json()
         if event["event_type"] == "content.cache.invalidate" and event["payload"]["trigger_event_type"] == "assessment.socratic"
     )
+    assert progress_event["payload"]["source_run_summary_event_id"] == summary_event["event_id"]
     assert invalidation_event["payload"]["expired_entries"] >= 1
 
 

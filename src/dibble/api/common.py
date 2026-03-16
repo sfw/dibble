@@ -18,6 +18,7 @@ from dibble.services.cognitive_trait_inference import CognitiveTraitInferenceSer
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.generation_mode_calibration import GenerationModeCalibrator
 from dibble.services.learning_calibration_profiles import LearningCalibrationProfileRecorder
+from dibble.services.learning_progress_profiles import LearningProgressProfileRecorder
 from dibble.services.learning_run_summary_recorder import LearningRunSummaryRecorder
 from dibble.services.learner_state_calibration import LearnerStateCalibrator
 from dibble.services.learner_summary_service import LearnerSummaryService
@@ -58,6 +59,7 @@ class ApiServices(Protocol):
     learner_state_calibrator: LearnerStateCalibrator
     learning_run_summary_recorder: LearningRunSummaryRecorder
     learning_calibration_profile_recorder: LearningCalibrationProfileRecorder
+    learning_progress_profile_recorder: LearningProgressProfileRecorder
     learner_summary_service: LearnerSummaryService
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_invalidator: PredictiveContentInvalidator

@@ -28,6 +28,7 @@ def test_profile_round_trip_and_summary(client, student_id):
     assert summary_response.json()["frustration"] == "high"
     assert summary_response.json()["confidence_calibration"] == 0.5
     assert summary_response.json()["calibration"]["source"] == "insufficient"
+    assert summary_response.json()["progress"]["source"] == "insufficient"
     assert summary_response.json()["recent_activity"]["generation_count"] == 0
     assert profile_response.json()["profile_metadata"]["student_id"] == str(student_id)
     assert str(student_id) in list_response.json()
@@ -63,6 +64,23 @@ def test_profile_summary_exposes_recent_calibration_and_activity(client, student
             "profile_signal": "positive",
         },
     )
+    audit_store.append(
+        event_type="learning.progress.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "average_run_outcome_score": 0.78,
+            "average_run_confidence": 0.73,
+            "matched_run_count": 4,
+            "matched_session_count": 2,
+            "positive_run_rate": 0.75,
+            "negative_run_rate": 0.0,
+            "recent_average_run_outcome_score": 0.82,
+            "prior_average_run_outcome_score": 0.69,
+            "progress_delta": 0.13,
+            "progress_signal": "improving",
+        },
+    )
 
     response = client.get(f"/api/learners/{student_id}/summary")
 
@@ -73,6 +91,9 @@ def test_profile_summary_exposes_recent_calibration_and_activity(client, student
     assert payload["calibration"]["source"] == "profile"
     assert payload["calibration"]["signal"] == "positive"
     assert payload["calibration"]["matched_session_count"] == 2
+    assert payload["progress"]["source"] == "profile"
+    assert payload["progress"]["signal"] == "improving"
+    assert payload["progress"]["progress_delta"] == 0.13
     assert payload["recent_activity"]["generation_count"] == 1
     assert payload["recent_activity"]["last_generation_id"] == "summary-gen-1"
     assert payload["recent_activity"]["last_learning_session_id"] == "summary-session-1"

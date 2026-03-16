@@ -159,6 +159,21 @@ class LearnerCalibrationSummary(BaseModel):
     updated_at: datetime | None = None
 
 
+class LearnerProgressSummary(BaseModel):
+    signal: str = "insufficient"
+    source: str = "insufficient"
+    average_run_outcome_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    matched_run_count: int = Field(default=0, ge=0)
+    matched_session_count: int = Field(default=0, ge=0)
+    positive_run_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    negative_run_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    recent_average_run_outcome_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    prior_average_run_outcome_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    progress_delta: float = 0.0
+    updated_at: datetime | None = None
+
+
 class RecentLearnerActivity(BaseModel):
     generation_count: int = Field(default=0, ge=0)
     observation_count: int = Field(default=0, ge=0)
@@ -180,6 +195,7 @@ class ProfileSummary(BaseModel):
     confidence_calibration: float
     help_seeking: SignalLevel
     calibration: LearnerCalibrationSummary = Field(default_factory=LearnerCalibrationSummary)
+    progress: LearnerProgressSummary = Field(default_factory=LearnerProgressSummary)
     recent_activity: RecentLearnerActivity = Field(default_factory=RecentLearnerActivity)
     updated_at: datetime
 
@@ -189,6 +205,7 @@ class ProfileSummary(BaseModel):
         profile: LearnerProfile,
         *,
         calibration: LearnerCalibrationSummary | None = None,
+        progress: LearnerProgressSummary | None = None,
         recent_activity: RecentLearnerActivity | None = None,
     ) -> "ProfileSummary":
         return cls(
@@ -203,6 +220,7 @@ class ProfileSummary(BaseModel):
             confidence_calibration=profile.metacognitive_state.confidence_calibration,
             help_seeking=profile.metacognitive_state.help_seeking,
             calibration=calibration or LearnerCalibrationSummary(),
+            progress=progress or LearnerProgressSummary(),
             recent_activity=recent_activity or RecentLearnerActivity(),
             updated_at=profile.updated_at,
         )

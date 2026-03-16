@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from dibble.models.profile import LearnerCalibrationSummary, ProfileSummary, RecentLearnerActivity
+from dibble.models.profile import LearnerCalibrationSummary, LearnerProgressSummary, ProfileSummary, RecentLearnerActivity
 from dibble.services.protocols import AuditStore, ProfileStore
 
 
@@ -21,6 +21,7 @@ class LearnerSummaryService:
         return ProfileSummary.from_profile(
             profile,
             calibration=self._latest_calibration(events),
+            progress=self._latest_progress(events),
             recent_activity=self._recent_activity(events),
         )
 
@@ -58,6 +59,29 @@ class LearnerSummaryService:
             )
 
         return LearnerCalibrationSummary()
+
+    def _latest_progress(self, events) -> LearnerProgressSummary:
+        progress_event = next((event for event in events if event.event_type == "learning.progress.profile"), None)
+        if progress_event is None:
+            return LearnerProgressSummary()
+        return LearnerProgressSummary(
+            signal=str(progress_event.payload.get("progress_signal", "insufficient")),
+            source="profile",
+            average_run_outcome_score=self._maybe_float(progress_event.payload.get("average_run_outcome_score")),
+            confidence=float(progress_event.payload.get("average_run_confidence", 0.0)),
+            matched_run_count=int(progress_event.payload.get("matched_run_count", 0)),
+            matched_session_count=int(progress_event.payload.get("matched_session_count", 0)),
+            positive_run_rate=float(progress_event.payload.get("positive_run_rate", 0.0)),
+            negative_run_rate=float(progress_event.payload.get("negative_run_rate", 0.0)),
+            recent_average_run_outcome_score=self._maybe_float(
+                progress_event.payload.get("recent_average_run_outcome_score")
+            ),
+            prior_average_run_outcome_score=self._maybe_float(
+                progress_event.payload.get("prior_average_run_outcome_score")
+            ),
+            progress_delta=float(progress_event.payload.get("progress_delta", 0.0)),
+            updated_at=progress_event.created_at,
+        )
 
     def _recent_activity(self, events) -> RecentLearnerActivity:
         return RecentLearnerActivity(
