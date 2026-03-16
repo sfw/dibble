@@ -13,6 +13,7 @@ The backend now covers a meaningful slice of the revised Phase 1 and early Phase
 - LLM orchestration, retrieval-grounded generation, validation, streaming, auth, audit logging, observability, and provider resilience are implemented.
 - The API surface now includes a single current route set that implements the revised generation/profile contract without carrying `v1` and `v2` path namespaces side by side.
 - Generated content now has a persisted entity with quality and provenance metadata plus a lightweight cache-backed reuse path.
+- The learner summary endpoint now packages recent calibration and activity context into a frontend-ready overview instead of requiring direct audit-log reads.
 
 The biggest remaining gaps are no longer basic plumbing. They are adaptive intelligence depth:
 
@@ -69,14 +70,14 @@ Based on `planning/4 - revised-spec/implementation-roadmap.md` and `planning/5 -
 2. `ADAPT-003`: evolve the new misconception signals into a richer taxonomy and confidence-calibrated classifier.
 3. `PROF-002` + `PROF-003` + `PROF-005`: replace the new heuristic learner-state inference path with stronger calibrated models trained from real outcome data.
 4. `INFRA-003`: move from explicit warmup requests to anticipatory scheduling and smarter cache invalidation for likely next-step content.
-5. `ADAPT-005` + `LLM-002`: promote the new persisted run summaries and compact calibration profiles beyond the current router, learner-state, and prompt-calibration wrappers into longer-horizon learner-outcome feedback so the Socratic-to-profile feedback loop and adaptive prompt-selection loop can learn across sessions rather than mainly within recent audit windows.
+5. `ADAPT-005` + `LLM-002`: promote the new persisted run summaries and compact calibration profiles beyond the current router, learner-state, prompt-calibration, and learner-summary wrappers into longer-horizon learner-outcome feedback so the Socratic-to-profile feedback loop and adaptive prompt-selection loop can learn across sessions rather than mainly within recent audit windows.
 
 ## Recommendation
 
 The most coherent next implementation step is now:
 
 - extend the new Socratic-to-profile feedback loop with broader calibration targets so conversational evidence can be trusted across more contexts
-- use the new persisted run-summary signals as a cleaner interface for cross-session adaptation instead of re-reading raw event windows downstream, now that router support calibration, learner-state persistence, prompt calibration, and the new compact calibration-profile layer all consume that durable evidence first
+- use the new persisted run-summary signals as a cleaner interface for cross-session adaptation instead of re-reading raw event windows downstream, now that router support calibration, learner-state persistence, prompt calibration, the compact calibration-profile layer, and the learner-summary surface all consume that durable evidence first
 - keep reusing the current generated-content and session stores instead of adding a parallel orchestration layer
 
-That is now more achievable because the Socratic flow no longer relies only on a single last-turn threshold, no longer ends at the assessment response itself, and now feeds into learner-state updates, within-step trace aggregation, later same-session outcome tracing, explicit run-level calibration summaries, persisted run-summary audit events, compact cross-session calibration-profile events, a conservative router calibration layer, conservative learner-state calibration nudges, and prompt-selection plus telemetry paths that now reuse those persisted summaries before raw reconstruction. The next coherent step is to let those durable summaries and profiles drive more cross-session adaptation instead of remaining mostly local to prompt selection, route support nudges, near-term metacognitive persistence, and recent-event observability.
+That is now more achievable because the Socratic flow no longer relies only on a single last-turn threshold, no longer ends at the assessment response itself, and now feeds into learner-state updates, within-step trace aggregation, later same-session outcome tracing, explicit run-level calibration summaries, persisted run-summary audit events, compact cross-session calibration-profile events, a conservative router calibration layer, conservative learner-state calibration nudges, learner-summary API packaging, and prompt-selection plus telemetry paths that now reuse those persisted summaries before raw reconstruction. The next coherent step is to let those durable summaries and profiles drive more cross-session adaptation instead of remaining mostly local to prompt selection, route support nudges, near-term metacognitive persistence, recent-event observability, and lightweight frontend summaries.

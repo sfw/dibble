@@ -145,25 +145,64 @@ class LearnerProfileV2(BaseModel):
         )
 
 
+class LearnerCalibrationSummary(BaseModel):
+    signal: str = "insufficient"
+    source: str = "insufficient"
+    average_run_outcome_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    matched_run_count: int = Field(default=0, ge=0)
+    matched_session_count: int = Field(default=0, ge=0)
+    intent: str | None = None
+    content_type: str | None = None
+    target_kc_ids: list[str] = Field(default_factory=list)
+    target_lo_ids: list[str] = Field(default_factory=list)
+    updated_at: datetime | None = None
+
+
+class RecentLearnerActivity(BaseModel):
+    generation_count: int = Field(default=0, ge=0)
+    observation_count: int = Field(default=0, ge=0)
+    socratic_assessment_count: int = Field(default=0, ge=0)
+    last_learning_session_id: str | None = None
+    last_generation_id: str | None = None
+    last_event_at: datetime | None = None
+
+
 class ProfileSummary(BaseModel):
     student_id: UUID
     grade_level: str
     profile_version: str
     kc_count: int
     lo_count: int
+    engagement: SignalLevel
     frustration: SignalLevel
     total_load: float
+    confidence_calibration: float
+    help_seeking: SignalLevel
+    calibration: LearnerCalibrationSummary = Field(default_factory=LearnerCalibrationSummary)
+    recent_activity: RecentLearnerActivity = Field(default_factory=RecentLearnerActivity)
     updated_at: datetime
 
     @classmethod
-    def from_profile(cls, profile: LearnerProfile) -> "ProfileSummary":
+    def from_profile(
+        cls,
+        profile: LearnerProfile,
+        *,
+        calibration: LearnerCalibrationSummary | None = None,
+        recent_activity: RecentLearnerActivity | None = None,
+    ) -> "ProfileSummary":
         return cls(
             student_id=profile.student_id,
             grade_level=profile.grade_level,
             profile_version=profile.profile_version,
             kc_count=len(profile.knowledge_state.kc_mastery),
             lo_count=len(profile.knowledge_state.lo_mastery),
+            engagement=profile.affective_state.engagement,
             frustration=profile.affective_state.frustration,
             total_load=profile.cognitive_load.total_load,
+            confidence_calibration=profile.metacognitive_state.confidence_calibration,
+            help_seeking=profile.metacognitive_state.help_seeking,
+            calibration=calibration or LearnerCalibrationSummary(),
+            recent_activity=recent_activity or RecentLearnerActivity(),
             updated_at=profile.updated_at,
         )

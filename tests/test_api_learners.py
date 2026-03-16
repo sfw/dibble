@@ -24,9 +24,58 @@ def test_profile_round_trip_and_summary(client, student_id):
     assert profile_response.status_code == 200
     assert summary_response.status_code == 200
     assert summary_response.json()["kc_count"] == 2
+    assert summary_response.json()["engagement"] == "medium"
     assert summary_response.json()["frustration"] == "high"
+    assert summary_response.json()["confidence_calibration"] == 0.5
+    assert summary_response.json()["calibration"]["source"] == "insufficient"
+    assert summary_response.json()["recent_activity"]["generation_count"] == 0
     assert profile_response.json()["profile_metadata"]["student_id"] == str(student_id)
     assert str(student_id) in list_response.json()
+
+
+def test_profile_summary_exposes_recent_calibration_and_activity(client, student_id, app_settings):
+    from dibble.services.audit_store import SQLiteAuditStore
+
+    audit_store = SQLiteAuditStore(app_settings.database_path)
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, engagement="high", help_seeking="medium"))
+    audit_store.append(
+        event_type="content.generate",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "generation_id": "summary-gen-1",
+            "learning_session_id": "summary-session-1",
+        },
+    )
+    audit_store.append(
+        event_type="learning.calibration.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "intent": "practice",
+            "content_type": "practice_problem",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": ["LO-1"],
+            "average_run_outcome_score": 0.79,
+            "average_run_confidence": 0.74,
+            "matched_run_count": 4,
+            "matched_session_count": 2,
+            "profile_signal": "positive",
+        },
+    )
+
+    response = client.get(f"/api/learners/{student_id}/summary")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["engagement"] == "high"
+    assert payload["help_seeking"] == "medium"
+    assert payload["calibration"]["source"] == "profile"
+    assert payload["calibration"]["signal"] == "positive"
+    assert payload["calibration"]["matched_session_count"] == 2
+    assert payload["recent_activity"]["generation_count"] == 1
+    assert payload["recent_activity"]["last_generation_id"] == "summary-gen-1"
+    assert payload["recent_activity"]["last_learning_session_id"] == "summary-session-1"
 
 
 def test_profile_endpoint_returns_extended_profile_metadata(client, student_id):

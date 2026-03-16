@@ -120,9 +120,9 @@ def build_learner_router(context: ApiContext) -> APIRouter:
 
     @router.get("/learners/{student_id}/summary", response_model=ProfileSummary, dependencies=context.deps("viewer"))
     def get_profile_summary(student_id: UUID) -> ProfileSummary:
-        profile = services.profile_store.get(student_id)
-        if profile is None:
+        summary = services.learner_summary_service.build_for_student(student_id=student_id)
+        if summary is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
-        return ProfileSummary.from_profile(profile)
+        return summary
 
     return router

@@ -18,6 +18,7 @@ from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentSt
 from dibble.services.learning_calibration_profiles import LearningCalibrationProfileRecorder
 from dibble.services.learning_run_summary_recorder import LearningRunSummaryRecorder
 from dibble.services.learner_state_calibration import LearnerStateCalibrator
+from dibble.services.learner_summary_service import LearnerSummaryService
 from dibble.services.misconception_detector import MisconceptionDetector
 from dibble.services.observation_store import SQLiteObservationStore
 from dibble.services.provider_health import SQLiteProviderHealthStore
@@ -64,6 +65,7 @@ class ApplicationServices:
     learner_state_calibrator: LearnerStateCalibrator
     learning_run_summary_recorder: LearningRunSummaryRecorder
     learning_calibration_profile_recorder: LearningCalibrationProfileRecorder
+    learner_summary_service: LearnerSummaryService
     router_plugin: RouterPlugin
 
 
@@ -112,6 +114,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     )
     learning_run_summary_recorder = LearningRunSummaryRecorder(audit_store=audit_store)
     learning_calibration_profile_recorder = LearningCalibrationProfileRecorder(audit_store=audit_store)
+    learner_summary_service = LearnerSummaryService(profile_store=profile_store, audit_store=audit_store)
     content_warmer = ContentWarmer(profile_store, generation_engine)
     content_workflow_service = ContentWorkflowService(
         profile_store=profile_store,
@@ -142,5 +145,6 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         learner_state_calibrator=learner_state_calibrator,
         learning_run_summary_recorder=learning_run_summary_recorder,
         learning_calibration_profile_recorder=learning_calibration_profile_recorder,
+        learner_summary_service=learner_summary_service,
         router_plugin=router_plugin,
     )
