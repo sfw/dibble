@@ -183,6 +183,21 @@ def build_content_router(context: ApiContext) -> APIRouter:
                                         if response.generation_metadata is not None
                                         else False
                                     ),
+                                    "moderation_status": (
+                                        response.generation_metadata.moderation.status
+                                        if response.generation_metadata is not None
+                                        else "clear"
+                                    ),
+                                    "moderation_stage": (
+                                        response.generation_metadata.moderation.stage
+                                        if response.generation_metadata is not None
+                                        else "none"
+                                    ),
+                                    "moderation_fallback_applied": bool(
+                                        response.generation_metadata.moderation.fallback_applied
+                                        if response.generation_metadata is not None
+                                        else False
+                                    ),
                                     "prompt_template_name": (
                                         response.generation_metadata.prompt_template_name
                                         if response.generation_metadata is not None

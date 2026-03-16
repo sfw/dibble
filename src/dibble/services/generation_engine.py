@@ -12,12 +12,14 @@ from dibble.models.generation import (
     GeneratedContent,
     GeneratedBlock,
     GenerationMetadata,
+    ModerationResult,
     GenerationRequest,
     GenerationResponse,
     GenerationStreamEvent,
 )
 from dibble.models.profile import LearnerProfile
 from dibble.plugins.contracts import ProviderPlugin, RetrieverPlugin, RouterPlugin, ValidatorPlugin
+from dibble.services.content_moderation import ContentModerationService
 from dibble.services.generation_modes import build_generation_mode_plan
 from dibble.services.protocols import GeneratedContentStore
 
@@ -29,6 +31,7 @@ class GenerationEngine:
         router: RouterPlugin,
         provider: ProviderPlugin,
         validator: ValidatorPlugin,
+        moderation_service: ContentModerationService | None = None,
         generated_content_store: GeneratedContentStore | None = None,
         cache_ttl_seconds: int = 3600,
         time_provider=monotonic,
@@ -37,6 +40,7 @@ class GenerationEngine:
         self.router = router
         self.provider = provider
         self.validator = validator
+        self.moderation_service = moderation_service or ContentModerationService()
         self.generated_content_store = generated_content_store
         self.cache_ttl_seconds = max(0, cache_ttl_seconds)
         self.time_provider = time_provider
@@ -50,12 +54,33 @@ class GenerationEngine:
             return cached.response
 
         started_at = self.time_provider()
-        blocks = self.provider.generate(profile, request, route, [item.title for item in grounding])
-        response = self._build_response(profile, request, route, grounding, blocks)
+        grounding_titles = [item.title for item in grounding]
+        request_moderation = self.moderation_service.moderate_request(request)
+        if request_moderation.status == "flagged":
+            blocks = self._moderation_fallback_blocks(
+                request=request,
+                grounding_titles=grounding_titles,
+                moderation=request_moderation,
+            )
+            moderation = request_moderation.model_copy(update={"fallback_applied": True})
+            route.delivery_mode = DeliveryMode.static_fallback
+        else:
+            blocks = self.provider.generate(profile, request, route, grounding_titles)
+            moderation = self.moderation_service.moderate_blocks(blocks)
+            if moderation.status == "flagged":
+                blocks = self._moderation_fallback_blocks(
+                    request=request,
+                    grounding_titles=grounding_titles,
+                    moderation=moderation,
+                )
+                moderation = moderation.model_copy(update={"fallback_applied": True})
+                route.delivery_mode = DeliveryMode.static_fallback
+        response = self._build_response(profile, request, route, grounding, blocks, moderation=moderation)
         content = self._build_generated_content(
             profile=profile,
             request=request,
             response=response,
+            moderation=moderation,
             cache_hit=False,
             generation_latency_ms=int(round((self.time_provider() - started_at) * 1000)),
         )
@@ -98,26 +123,48 @@ class GenerationEngine:
         )
 
         started_at = self.time_provider()
-        block_buffers: dict[int, GeneratedBlock] = {}
-        for chunk in self.provider.stream_generate(profile, request, route, [item.title for item in grounding]):
-            current = block_buffers.get(chunk.block_index)
-            if current is None:
-                current = GeneratedBlock(kind=chunk.kind, title=chunk.title, body="")
-                block_buffers[chunk.block_index] = current
+        grounding_titles = [item.title for item in grounding]
+        request_moderation = self.moderation_service.moderate_request(request)
+        if request_moderation.status == "flagged":
+            blocks = self._moderation_fallback_blocks(
+                request=request,
+                grounding_titles=grounding_titles,
+                moderation=request_moderation,
+            )
+            moderation = request_moderation.model_copy(update={"fallback_applied": True})
+            route.delivery_mode = DeliveryMode.static_fallback
+        else:
+            block_buffers: dict[int, GeneratedBlock] = {}
+            for chunk in self.provider.stream_generate(profile, request, route, grounding_titles):
+                current = block_buffers.get(chunk.block_index)
+                if current is None:
+                    current = GeneratedBlock(kind=chunk.kind, title=chunk.title, body="")
+                    block_buffers[chunk.block_index] = current
+                current.body += chunk.body_delta
+            blocks = [block_buffers[index] for index in sorted(block_buffers)]
+            moderation = self.moderation_service.moderate_blocks(blocks)
+            if moderation.status == "flagged":
+                blocks = self._moderation_fallback_blocks(
+                    request=request,
+                    grounding_titles=grounding_titles,
+                    moderation=moderation,
+                )
+                moderation = moderation.model_copy(update={"fallback_applied": True})
+                route.delivery_mode = DeliveryMode.static_fallback
 
-            current.body += chunk.body_delta
+        for chunk in self._stream_cached_blocks(blocks):
             yield GenerationStreamEvent(
                 event="delta",
                 student_id=profile.student_id,
                 chunk=chunk,
             )
 
-        blocks = [block_buffers[index] for index in sorted(block_buffers)]
-        response = self._build_response(profile, request, route, grounding, blocks)
+        response = self._build_response(profile, request, route, grounding, blocks, moderation=moderation)
         content = self._build_generated_content(
             profile=profile,
             request=request,
             response=response,
+            moderation=moderation,
             cache_hit=False,
             generation_latency_ms=int(round((self.time_provider() - started_at) * 1000)),
         )
@@ -131,7 +178,16 @@ class GenerationEngine:
             response=content.response,
         )
 
-    def _build_response(self, profile: LearnerProfile, request: GenerationRequest, route, grounding, blocks: list[GeneratedBlock]) -> GenerationResponse:
+    def _build_response(
+        self,
+        profile: LearnerProfile,
+        request: GenerationRequest,
+        route,
+        grounding,
+        blocks: list[GeneratedBlock],
+        *,
+        moderation: ModerationResult,
+    ) -> GenerationResponse:
         validation_issues = self.validator.validate(blocks, grounding)
 
         if validation_issues and not grounding:
@@ -143,10 +199,7 @@ class GenerationEngine:
             blocks=blocks,
             curriculum_context=request.curriculum_context,
             grounding=grounding,
-            safety_notes=[
-                "Generation is a scaffolded draft and should be validated against curriculum standards before student delivery.",
-                "Profiles should avoid sensitive inference beyond declared accommodations and observable learning signals.",
-            ],
+            safety_notes=self._safety_notes(moderation=moderation),
             validation_issues=validation_issues,
         )
 
@@ -156,13 +209,14 @@ class GenerationEngine:
         profile: LearnerProfile,
         request: GenerationRequest,
         response: GenerationResponse,
+        moderation: ModerationResult,
         cache_hit: bool,
         generation_latency_ms: int,
     ) -> GeneratedContent:
         plan = build_generation_mode_plan(profile, request, response.route)
         provider_descriptor = self._provider_descriptor()
         metadata = GenerationMetadata(
-            quality_score=self._quality_score(response),
+            quality_score=self._quality_score(response, moderation=moderation),
             validation_passed=not response.validation_issues,
             validation_issue_count=len(response.validation_issues),
             grounding_count=len(response.grounding),
@@ -173,6 +227,7 @@ class GenerationEngine:
             prompt_template_variant=provider_descriptor.get("prompt_template_variant"),
             generation_latency_ms=max(0, generation_latency_ms),
             cache_hit=cache_hit,
+            moderation=moderation,
         )
         generation_id = response.generation_id or str(uuid4())
         updated_response = response.model_copy(
@@ -224,12 +279,14 @@ class GenerationEngine:
         serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return sha256(serialized.encode("utf-8")).hexdigest()
 
-    def _quality_score(self, response: GenerationResponse) -> float:
+    def _quality_score(self, response: GenerationResponse, *, moderation: ModerationResult) -> float:
         base_score = 1.0
         base_score -= min(len(response.validation_issues) * 0.15, 0.6)
         if not response.grounding:
             base_score -= 0.2
         if response.route.delivery_mode == DeliveryMode.static_fallback:
+            base_score -= 0.1
+        if moderation.status == "flagged":
             base_score -= 0.1
         return round(max(0.0, min(base_score, 1.0)), 2)
 
@@ -262,3 +319,27 @@ class GenerationEngine:
                 body_delta=block.body,
                 done=True,
             )
+
+    def _moderation_fallback_blocks(
+        self,
+        *,
+        request: GenerationRequest,
+        grounding_titles: list[str],
+        moderation: ModerationResult,
+    ) -> list[GeneratedBlock]:
+        return self.moderation_service.build_fallback_blocks(
+            request=request,
+            grounding_titles=grounding_titles,
+            moderation=moderation,
+        )
+
+    def _safety_notes(self, *, moderation: ModerationResult) -> list[str]:
+        notes = [
+            "Generation is a scaffolded draft and should be validated against curriculum standards before student delivery.",
+            "Profiles should avoid sensitive inference beyond declared accommodations and observable learning signals.",
+        ]
+        if moderation.status == "flagged":
+            notes.append(
+                f"Moderation fallback replaced the {moderation.stage} content before delivery."
+            )
+        return notes

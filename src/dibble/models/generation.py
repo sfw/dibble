@@ -189,6 +189,14 @@ class TargetKcGenerationHint(BaseModel):
     remediation_hints: list[str] = Field(default_factory=list)
 
 
+class ModerationResult(BaseModel):
+    status: str = "clear"
+    stage: str = "none"
+    categories: list[str] = Field(default_factory=list)
+    reasons: list[str] = Field(default_factory=list)
+    fallback_applied: bool = False
+
+
 class GenerationMetadata(BaseModel):
     quality_score: float = Field(default=1.0, ge=0.0, le=1.0)
     validation_passed: bool = True
@@ -201,6 +209,7 @@ class GenerationMetadata(BaseModel):
     prompt_template_variant: str | None = None
     generation_latency_ms: int = Field(default=0, ge=0)
     cache_hit: bool = False
+    moderation: ModerationResult = Field(default_factory=ModerationResult)
 
 
 class GenerationResponse(BaseModel):
