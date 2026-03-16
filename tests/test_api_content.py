@@ -797,6 +797,47 @@ def test_stream_generation_endpoint_emits_sse_events_and_audits(client, student_
     assert audit_events[0]["payload"]["generated_block_count"] == 2
 
 
+def test_stream_generation_hydrates_target_kc_hints_for_practice_content(client, student_id):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put(
+        "/api/knowledge-components/KC-1",
+        json=build_knowledge_component(
+            "KC-1",
+            name="Generate equivalent fractions",
+            common_misconceptions=[
+                {
+                    "misconception_id": "fraction-whole-number-bias",
+                    "label": "Whole-number bias",
+                    "description": "The learner compares the numerator and denominator separately like whole numbers.",
+                    "trigger_terms": ["numerator", "denominator"],
+                    "remediation_hint": "Compare the whole amount before comparing the parts.",
+                }
+            ],
+        ),
+    )
+
+    with client.stream(
+        "POST",
+        "/api/llm/stream",
+        json={
+            "student_id": str(student_id),
+            "target_kc_ids": ["KC-1"],
+            "intent": "practice",
+            "requested_content_type": "practice_problem",
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    ) as response:
+        body = b"".join(response.iter_raw()).decode("utf-8")
+
+    events = parse_sse_events(body)
+    complete_response = events[-1]["data"]["response"]
+
+    assert response.status_code == 200
+    assert complete_response["route"]["delivery_mode"] == "generated"
+    assert "Whole-number bias" in complete_response["blocks"][1]["body"]
+
+
 def test_generation_falls_back_when_no_curriculum_grounding(client, student_id):
     client.put(
         f"/api/learners/{student_id}/profile",

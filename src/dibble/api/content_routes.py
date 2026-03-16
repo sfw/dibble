@@ -21,6 +21,7 @@ from dibble.models.remediation import (
     RemediationWorkflowSession,
 )
 from dibble.services.content_workflow import LearnerProfileNotFoundError
+from dibble.services.generation_request_hydrator import hydrate_target_kc_hints
 from dibble.services.remediation_workflows import (
     RemediationWorkflowCompleteError,
     RemediationWorkflowNotFoundError,
@@ -146,7 +147,11 @@ def build_content_router(context: ApiContext) -> APIRouter:
     @router.post("/llm/stream", dependencies=context.deps("editor"))
     def stream_generated_content(request: GenerationRequest) -> StreamingResponse:
         profile = load_profile(request.student_id)
-        calibrated_request = services.generation_mode_calibrator.calibrate_request(request=request)
+        enriched_request = hydrate_target_kc_hints(
+            request=request,
+            knowledge_component_store=services.knowledge_component_store,
+        )
+        calibrated_request = services.generation_mode_calibrator.calibrate_request(request=enriched_request)
 
         def event_stream():
             try:
