@@ -210,6 +210,9 @@ class LearnerStateProfileSummary(BaseModel):
     confidence_calibration: float = Field(default=0.5, ge=0.0, le=1.0)
     help_seeking: SignalLevel = SignalLevel.low
     self_monitoring: float = Field(default=0.5, ge=0.0, le=1.0)
+    recovery_stability: float = Field(default=0.0, ge=0.0, le=1.0)
+    overload_risk: float = Field(default=0.0, ge=0.0, le=1.0)
+    metacognitive_reliability: float = Field(default=0.0, ge=0.0, le=1.0)
     rationale: str | None = None
     updated_at: datetime | None = None
 
@@ -222,6 +225,8 @@ class LearnerTraitProfileSummary(BaseModel):
     processing_speed: CognitiveTraitScore | None = None
     working_memory: CognitiveTraitScore | None = None
     spatial_reasoning: CognitiveTraitScore | None = None
+    trait_stability: float = Field(default=0.0, ge=0.0, le=1.0)
+    challenge_tolerance: float = Field(default=0.0, ge=0.0, le=1.0)
     rationale: str | None = None
     updated_at: datetime | None = None
 

@@ -21,6 +21,8 @@ class LearningTraitProfileSnapshot:
     processing_speed: CognitiveTraitScore | None = None
     working_memory: CognitiveTraitScore | None = None
     spatial_reasoning: CognitiveTraitScore | None = None
+    trait_stability: float = 0.0
+    challenge_tolerance: float = 0.0
     rationale: str | None = None
 
 
@@ -57,18 +59,27 @@ class LearningTraitProfileBuilder:
         processing_speed = self._processing_speed(matched_events, context=context)
         working_memory = self._working_memory(matched_events, context=context)
         spatial_reasoning = self._spatial_reasoning(matched_events, context=context)
+        trait_stability = self._trait_stability(
+            events=matched_events,
+            matched_session_count=matched_session_count,
+            traits=[processing_speed, working_memory, spatial_reasoning],
+        )
+        challenge_tolerance = self._challenge_tolerance(matched_events, context=context)
 
         return LearningTraitProfileSnapshot(
             signal=self._signal_label(
                 matched_observation_count=len(matched_events),
                 matched_session_count=matched_session_count,
                 traits=[processing_speed, working_memory, spatial_reasoning],
+                trait_stability=trait_stability,
             ),
             matched_observation_count=len(matched_events),
             matched_session_count=matched_session_count,
             processing_speed=processing_speed,
             working_memory=working_memory,
             spatial_reasoning=spatial_reasoning,
+            trait_stability=trait_stability,
+            challenge_tolerance=challenge_tolerance,
             rationale=self._rationale(
                 observation_count=len(matched_events),
                 session_count=matched_session_count,
@@ -170,6 +181,7 @@ class LearningTraitProfileBuilder:
         matched_observation_count: int,
         matched_session_count: int,
         traits: list[CognitiveTraitScore | None],
+        trait_stability: float,
     ) -> str:
         available = [trait for trait in traits if trait is not None]
         if not available:
@@ -182,7 +194,72 @@ class LearningTraitProfileBuilder:
             return "tentative"
         if average_confidence < 0.55:
             return "tentative"
+        if trait_stability < 0.52:
+            return "tentative"
         return "stable"
+
+    def _trait_stability(
+        self,
+        *,
+        events: list[AuditEvent],
+        matched_session_count: int,
+        traits: list[CognitiveTraitScore | None],
+    ) -> float:
+        available = [trait for trait in traits if trait is not None]
+        if not available:
+            return 0.0
+        ratios = [
+            float(event.payload.get("response_time_ms", 0.0))
+            / max(1.0, float(event.payload.get("expected_duration_ms", 15000) or 15000))
+            for event in events
+        ]
+        speed_spread = 0.0 if not ratios else min(1.0, max(ratios) - min(ratios))
+        outcomes = [
+            (
+                (0.4 if bool(event.payload.get("completed", True)) else 0.0)
+                + (0.3 if float(event.payload.get("error_count", 0.0)) == 0 else 0.0)
+                + (0.3 if float(event.payload.get("hints_used", 0.0)) == 0 else 0.0)
+            )
+            for event in events
+        ]
+        outcome_spread = 0.0 if not outcomes else min(1.0, max(outcomes) - min(outcomes))
+        average_confidence = sum(trait.confidence for trait in available) / len(available)
+        return round(
+            _clamp(
+                0.18
+                + min(0.18, len(events) * 0.03)
+                + min(0.14, matched_session_count * 0.04)
+                + (average_confidence * 0.28)
+                - (speed_spread * 0.18)
+                - (outcome_spread * 0.14)
+            ),
+            2,
+        )
+
+    def _challenge_tolerance(self, events: list[AuditEvent], *, context: dict[str, float | str]) -> float:
+        relevant = [
+            event
+            for event in events
+            if event.payload.get("task_type") in {"practice", "assessment"}
+            and event.payload.get("support_level") == "low"
+        ]
+        active = relevant or events
+        completion_rate = sum(1 for event in active if bool(event.payload.get("completed", True))) / len(active)
+        hints = sum(float(event.payload.get("hints_used", 0.0)) for event in active) / len(active)
+        errors = sum(float(event.payload.get("error_count", 0.0)) for event in active) / len(active)
+        load_penalty = max(0.0, float(context.get("total_load", 0.4)) - 0.55) * 0.18
+        calibration_bonus = float(context.get("confidence_calibration", 0.5)) * 0.12
+        return round(
+            _clamp(
+                0.28
+                + (completion_rate * 0.28)
+                + calibration_bonus
+                - min(hints, 4.0) * 0.07
+                - min(errors, 4.0) * 0.08
+                - load_penalty
+            ),
+            2,
+        )
 
     def _state_profile_context(self, state_profile_event: AuditEvent | None) -> dict[str, float | str]:
         if state_profile_event is None:
@@ -254,6 +331,8 @@ class LearningTraitProfileRecorder:
                         "processing_speed": self._dump_trait(snapshot.processing_speed),
                         "working_memory": self._dump_trait(snapshot.working_memory),
                         "spatial_reasoning": self._dump_trait(snapshot.spatial_reasoning),
+                        "trait_stability": snapshot.trait_stability,
+                        "challenge_tolerance": snapshot.challenge_tolerance,
                         "trait_profile_rationale": snapshot.rationale,
                     },
                 )
@@ -306,6 +385,8 @@ class LearnerTraitProfileSignalService:
             processing_speed=self._trait_from_payload(event.payload.get("processing_speed")),
             working_memory=self._trait_from_payload(event.payload.get("working_memory")),
             spatial_reasoning=self._trait_from_payload(event.payload.get("spatial_reasoning")),
+            trait_stability=float(event.payload.get("trait_stability", 0.0)),
+            challenge_tolerance=float(event.payload.get("challenge_tolerance", 0.0)),
             rationale=str(event.payload.get("trait_profile_rationale"))
             if event.payload.get("trait_profile_rationale") is not None
             else None,

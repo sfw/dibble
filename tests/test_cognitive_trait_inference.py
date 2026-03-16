@@ -95,6 +95,8 @@ def test_cognitive_trait_inference_blends_durable_trait_profile(tmp_path):
             "processing_speed": {"value": 0.82, "confidence": 0.8},
             "working_memory": {"value": 0.77, "confidence": 0.78},
             "spatial_reasoning": {"value": 0.71, "confidence": 0.68},
+            "trait_stability": 0.8,
+            "challenge_tolerance": 0.68,
         },
     )
     service = CognitiveTraitInferenceService(
@@ -122,3 +124,48 @@ def test_cognitive_trait_inference_blends_durable_trait_profile(tmp_path):
     assert traits["processing_speed"].value > 0.45
     assert traits["working_memory"].value > 0.55
     assert traits["spatial_reasoning"].value > 0.6
+
+
+def test_cognitive_trait_inference_uses_trait_stability_and_challenge_tolerance_in_durable_blend(tmp_path):
+    database_path = str(tmp_path / "cognitive-trait-profile-stability.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = uuid4()
+    audit_store.append(
+        event_type="learning.cognitive_trait.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "matched_observation_count": 6,
+            "matched_session_count": 3,
+            "profile_signal": "stable",
+            "processing_speed": {"value": 0.86, "confidence": 0.84},
+            "working_memory": {"value": 0.79, "confidence": 0.8},
+            "trait_stability": 0.82,
+            "challenge_tolerance": 0.78,
+        },
+    )
+    service = CognitiveTraitInferenceService(
+        trait_profile_signal_service=LearnerTraitProfileSignalService(audit_store=audit_store)
+    )
+    observations = [
+        LearnerObservation(
+            observation_id="obs-1",
+            student_id=student_id,
+            response_time_ms=15000,
+            expected_duration_ms=12000,
+            hints_used=1,
+            error_count=1,
+            pause_count=1,
+            modality_switches=0,
+            completed=True,
+            confidence=0.68,
+            task_type="practice",
+            support_level="low",
+        )
+    ]
+
+    traits = service.infer(student_id=student_id, observations=observations, existing_traits={})
+
+    assert traits["working_memory"].value > 0.6
+    assert traits["processing_speed"].value > 0.55

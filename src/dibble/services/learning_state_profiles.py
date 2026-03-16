@@ -34,6 +34,9 @@ class LearningStateProfileSnapshot:
     help_seeking: SignalLevel = SignalLevel.low
     help_seeking_effectiveness: float = 0.5
     self_monitoring: float = 0.5
+    recovery_stability: float = 0.0
+    overload_risk: float = 0.0
+    metacognitive_reliability: float = 0.0
     rationale: str | None = None
 
 
@@ -250,6 +253,38 @@ def _build_snapshot(
         - (decline * 0.12)
         - (relapse_penalty * 0.4)
     )
+    recovery_stability = _clamp(
+        0.2
+        + (performance * 0.24)
+        + (average_run_confidence * 0.24)
+        + (improvement * 0.18)
+        + (0.08 if matched_session_count >= 4 else 0.04 if matched_session_count >= 2 else 0.0)
+        - (decline * 0.16)
+        - (relapse_penalty * 0.9)
+        - (volatility_penalty * 0.7)
+        - (plateau_penalty * 0.4)
+    )
+    overload_risk = _clamp(
+        0.12
+        + (total_load * 0.34)
+        + (frustration_score * 0.2)
+        + (confusion_score * 0.16)
+        + (decline * 0.16)
+        + (support_penalty * 0.6)
+        + (relapse_penalty * 0.75)
+        - (improvement * 0.08)
+        - (independence_bonus * 0.4)
+    )
+    metacognitive_reliability = _clamp(
+        0.18
+        + (confidence_calibration * 0.26)
+        + (help_seeking_effectiveness * 0.22)
+        + (self_monitoring * 0.24)
+        + (average_run_confidence * 0.12)
+        + (improvement * 0.08)
+        - (decline * 0.08)
+        - (volatility_penalty * 0.45)
+    )
 
     return LearningStateProfileSnapshot(
         signal=signal,
@@ -274,6 +309,9 @@ def _build_snapshot(
         help_seeking=_signal_from_score(help_seeking_score),
         help_seeking_effectiveness=round(help_seeking_effectiveness, 2),
         self_monitoring=round(self_monitoring, 2),
+        recovery_stability=round(recovery_stability, 2),
+        overload_risk=round(overload_risk, 2),
+        metacognitive_reliability=round(metacognitive_reliability, 2),
         rationale=_rationale(
             signal=signal,
             average_run_outcome_score=average_run_outcome_score,
@@ -433,6 +471,9 @@ class LearningStateProfileRecorder:
                         "help_seeking": snapshot.help_seeking.value,
                         "help_seeking_effectiveness": snapshot.help_seeking_effectiveness,
                         "self_monitoring": snapshot.self_monitoring,
+                        "recovery_stability": snapshot.recovery_stability,
+                        "overload_risk": snapshot.overload_risk,
+                        "metacognitive_reliability": snapshot.metacognitive_reliability,
                         "state_profile_rationale": snapshot.rationale,
                     },
                 )
@@ -624,6 +665,12 @@ class LearnerStateSignalService:
             confidence_calibration=round(self._weighted_average(profile_events, "confidence_calibration"), 2),
             help_seeking=self._average_signal_level(profile_events, "help_seeking"),
             self_monitoring=round(self._weighted_average(profile_events, "self_monitoring"), 2),
+            recovery_stability=round(self._weighted_average(profile_events, "recovery_stability"), 2),
+            overload_risk=round(self._weighted_average(profile_events, "overload_risk"), 2),
+            metacognitive_reliability=round(
+                self._weighted_average(profile_events, "metacognitive_reliability"),
+                2,
+            ),
             rationale=next(
                 (
                     str(event.payload.get("state_profile_rationale"))
@@ -659,6 +706,9 @@ class LearnerStateSignalService:
             confidence_calibration=float(payload.get("confidence_calibration", 0.5)),
             help_seeking=self._signal_level(payload.get("help_seeking")),
             self_monitoring=float(payload.get("self_monitoring", 0.5)),
+            recovery_stability=float(payload.get("recovery_stability", 0.0)),
+            overload_risk=float(payload.get("overload_risk", 0.0)),
+            metacognitive_reliability=float(payload.get("metacognitive_reliability", 0.0)),
             rationale=str(payload.get("state_profile_rationale"))
             if payload.get("state_profile_rationale") is not None
             else None,

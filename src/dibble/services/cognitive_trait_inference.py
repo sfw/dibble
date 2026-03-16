@@ -41,7 +41,8 @@ class CognitiveTraitInferenceService:
             if self.trait_profile_signal_service is not None and student_id is not None
             else LearnerTraitProfileSummary()
         )
-        if self._should_apply_durable_profile(durable_profile):
+        challenge_index = self._current_challenge_index(observations)
+        if self._should_apply_durable_profile(durable_profile, challenge_index=challenge_index):
             for name, inferred in (
                 ("processing_speed", durable_profile.processing_speed),
                 ("working_memory", durable_profile.working_memory),
@@ -52,6 +53,8 @@ class CognitiveTraitInferenceService:
                 updates[name] = self._merge_with_durable(
                     current=updates.get(name) or existing_traits.get(name),
                     durable=inferred,
+                    profile=durable_profile,
+                    challenge_index=challenge_index,
                 )
 
         return {**existing_traits, **updates}
@@ -123,12 +126,19 @@ class CognitiveTraitInferenceService:
             assessed_at=inferred.assessed_at,
         )
 
-    def _should_apply_durable_profile(self, profile: LearnerTraitProfileSummary) -> bool:
+    def _should_apply_durable_profile(
+        self,
+        profile: LearnerTraitProfileSummary,
+        *,
+        challenge_index: float,
+    ) -> bool:
         return (
             profile.source != "insufficient"
             and profile.signal in {"stable", "tentative"}
             and profile.matched_session_count >= 2
             and profile.matched_observation_count >= 4
+            and profile.trait_stability >= 0.48
+            and not (profile.signal == "tentative" and challenge_index >= 0.72 and profile.challenge_tolerance < 0.45)
         )
 
     def _merge_with_durable(
@@ -136,14 +146,45 @@ class CognitiveTraitInferenceService:
         *,
         current: CognitiveTraitScore | None,
         durable: CognitiveTraitScore,
+        profile: LearnerTraitProfileSummary,
+        challenge_index: float,
     ) -> CognitiveTraitScore:
         if current is None:
             return durable
-        durable_weight = min(0.45, 0.16 + (durable.confidence * 0.28))
+        durable_weight = 0.12 + (durable.confidence * 0.18) + (profile.trait_stability * 0.14)
+        if challenge_index >= 0.6:
+            durable_weight += 0.06 if profile.challenge_tolerance >= 0.6 else -0.08
+        elif challenge_index <= 0.3 and profile.challenge_tolerance >= 0.7:
+            durable_weight += 0.03
+        durable_weight = min(0.5, max(0.08, durable_weight))
         merged_value = (current.value * (1.0 - durable_weight)) + (durable.value * durable_weight)
         merged_confidence = min(0.92, current.confidence + (durable.confidence * 0.2))
         return CognitiveTraitScore(
             value=round(merged_value, 2),
             confidence=round(merged_confidence, 2),
             assessed_at=durable.assessed_at,
+        )
+
+    def _current_challenge_index(self, observations: list[LearnerObservation]) -> float:
+        if not observations:
+            return 0.0
+        active = [
+            observation
+            for observation in observations
+            if observation.task_type.value in {"practice", "assessment"}
+        ] or observations
+        completion_gap = 1.0 - (sum(1 for observation in active if observation.completed) / len(active))
+        hints = sum(observation.hints_used for observation in active) / len(active)
+        errors = sum(observation.error_count for observation in active) / len(active)
+        low_support_rate = sum(1 for observation in active if observation.support_level.value == "low") / len(active)
+        return round(
+            min(
+                1.0,
+                0.12
+                + (completion_gap * 0.24)
+                + min(hints, 4.0) * 0.08
+                + min(errors, 4.0) * 0.08
+                + (low_support_rate * 0.12),
+            ),
+            2,
         )

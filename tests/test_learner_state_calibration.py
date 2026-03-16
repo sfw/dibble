@@ -230,6 +230,9 @@ def test_learner_state_calibrator_blends_durable_state_profile_when_available(tm
             "confidence_calibration": 0.78,
             "help_seeking": "low",
             "self_monitoring": 0.8,
+            "recovery_stability": 0.81,
+            "overload_risk": 0.32,
+            "metacognitive_reliability": 0.8,
             "state_profile_rationale": "Recent outcomes stay strong across sessions.",
         },
     )
@@ -276,8 +279,124 @@ def test_learner_state_calibrator_blends_durable_state_profile_when_available(tm
     assert result.signal == "independence_ready"
     assert result.source == "state_profile"
     assert result.matched_session_count == 3
+    assert result.recovery_stability == 0.81
+    assert result.overload_risk == 0.32
+    assert result.metacognitive_reliability == 0.8
     assert result.state.affective_state.engagement == SignalLevel.high
     assert result.state.affective_state.frustration == SignalLevel.low
-    assert result.state.cognitive_load.total_load < 0.66
-    assert result.state.metacognitive_state.confidence_calibration > 0.46
-    assert result.state.metacognitive_state.self_monitoring > 0.48
+
+
+def test_learner_state_calibrator_skips_durable_independence_when_current_observation_is_sharply_strained(tmp_path):
+    database_path = str(tmp_path / "learner-state-profile-strain-guard.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = uuid4()
+    audit_store.append(
+        event_type="learning.state.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "intent": "practice",
+            "content_type": "practice_problem",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": [],
+            "average_run_outcome_score": 0.84,
+            "average_run_confidence": 0.81,
+            "matched_run_count": 5,
+            "matched_session_count": 4,
+            "progress_signal": "improving",
+            "progress_delta": 0.16,
+            "strategy_signal": "independence_ready",
+            "strategy_trajectory_state": "accelerating",
+            "state_profile_signal": "independence_ready",
+            "engagement": "high",
+            "frustration": "none",
+            "total_load": 0.4,
+            "confidence_calibration": 0.82,
+            "help_seeking": "low",
+            "self_monitoring": 0.83,
+            "recovery_stability": 0.86,
+            "overload_risk": 0.24,
+            "metacognitive_reliability": 0.84,
+        },
+    )
+    audit_store.append(
+        event_type="content.generate",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "intent": "practice",
+            "generation_id": "gen-1",
+            "target_kc_ids": ["KC-1"],
+            "content_type": "practice_problem",
+            "prompt_template_name": "practice_problem.guided_reflection",
+            "prompt_template_variant": "guided_reflection",
+            "quality_score": 0.8,
+            "validation_passed": True,
+            "grounding_count": 1,
+        },
+    )
+    audit_store.append(
+        event_type="learner.observe",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "generation_id": "gen-1",
+            "task_type": "practice",
+            "target_kc_ids": ["KC-1"],
+            "engagement": "low",
+            "frustration": "high",
+            "total_load": 0.92,
+            "confidence_calibration": 0.24,
+            "help_seeking": "high",
+        },
+    )
+
+    calibrator = LearnerStateCalibrator(
+        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        state_signal_service=LearnerStateSignalService(audit_store=audit_store),
+    )
+    inferred_state = InferredLearnerState(
+        student_id=student_id,
+        affective_state=AffectiveState(
+            engagement=SignalLevel.low,
+            frustration=SignalLevel.high,
+            confidence=0.3,
+        ),
+        cognitive_load=CognitiveLoadState(
+            intrinsic_load=0.58,
+            extraneous_load=0.42,
+            germane_load=0.26,
+            total_load=0.84,
+            capacity_utilization=0.86,
+        ),
+        metacognitive_state=MetacognitiveState(
+            confidence_calibration=0.34,
+            help_seeking=SignalLevel.high,
+            help_seeking_effectiveness=0.36,
+            self_monitoring=0.4,
+        ),
+        observation_count=2,
+    )
+
+    result = calibrator.calibrate(
+        student_id=student_id,
+        observation=LearnerObservationCreate(
+            response_time_ms=34000,
+            hints_used=3,
+            error_count=3,
+            completed=False,
+            task_type="practice",
+            support_level="low",
+            expected_duration_ms=16000,
+            target_kc_ids=["KC-1"],
+        ),
+        inferred_state=inferred_state,
+    )
+
+    assert result.source != "state_profile"
+    assert result.overload_risk >= 0.7
+    assert result.state.cognitive_load.total_load == 0.84
+    assert result.state.metacognitive_state.help_seeking == SignalLevel.high
+    assert result.state.metacognitive_state.confidence_calibration < 0.34
+    assert result.state.metacognitive_state.self_monitoring < 0.4

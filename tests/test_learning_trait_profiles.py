@@ -55,6 +55,8 @@ def test_learning_trait_profile_recorder_compacts_recent_observations(tmp_path):
     assert event.payload["profile_signal"] == "stable"
     assert event.payload["processing_speed"]["value"] > 0.7
     assert event.payload["working_memory"]["value"] > 0.6
+    assert event.payload["trait_stability"] >= 0.55
+    assert event.payload["challenge_tolerance"] > 0.6
 
 
 def test_learner_trait_profile_signal_service_returns_latest_profile(tmp_path):
@@ -73,6 +75,8 @@ def test_learner_trait_profile_signal_service_returns_latest_profile(tmp_path):
             "processing_speed": {"value": 0.74, "confidence": 0.78},
             "working_memory": {"value": 0.69, "confidence": 0.76},
             "spatial_reasoning": {"value": 0.63, "confidence": 0.64},
+            "trait_stability": 0.78,
+            "challenge_tolerance": 0.66,
             "trait_profile_rationale": "Recent learner observations were compacted into a durable cognitive-trait profile.",
         },
     )
@@ -86,3 +90,5 @@ def test_learner_trait_profile_signal_service_returns_latest_profile(tmp_path):
     assert summary.processing_speed.value == 0.74
     assert summary.working_memory is not None
     assert summary.working_memory.value == 0.69
+    assert summary.trait_stability == 0.78
+    assert summary.challenge_tolerance == 0.66

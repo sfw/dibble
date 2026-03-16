@@ -124,6 +124,9 @@ def test_learner_summary_service_prefers_calibration_profile_and_recent_activity
             "confidence_calibration": 0.79,
             "help_seeking": "low",
             "self_monitoring": 0.81,
+            "recovery_stability": 0.79,
+            "overload_risk": 0.3,
+            "metacognitive_reliability": 0.82,
         },
     )
     audit_store.append(
@@ -137,6 +140,8 @@ def test_learner_summary_service_prefers_calibration_profile_and_recent_activity
             "processing_speed": {"value": 0.76, "confidence": 0.79},
             "working_memory": {"value": 0.72, "confidence": 0.77},
             "spatial_reasoning": {"value": 0.68, "confidence": 0.65},
+            "trait_stability": 0.81,
+            "challenge_tolerance": 0.73,
         },
     )
 
@@ -165,9 +170,13 @@ def test_learner_summary_service_prefers_calibration_profile_and_recent_activity
     assert summary.state_profile.source == "state_profile"
     assert summary.state_profile.signal == "independence_ready"
     assert summary.state_profile.total_load == 0.43
+    assert summary.state_profile.recovery_stability == 0.79
+    assert summary.state_profile.overload_risk == 0.3
     assert summary.trait_profile.source == "trait_profile"
     assert summary.trait_profile.processing_speed is not None
     assert summary.trait_profile.processing_speed.value == 0.76
+    assert summary.trait_profile.trait_stability == 0.81
+    assert summary.trait_profile.challenge_tolerance == 0.73
     assert summary.recent_activity.generation_count == 1
     assert summary.recent_activity.observation_count == 1
     assert summary.recent_activity.socratic_assessment_count == 1

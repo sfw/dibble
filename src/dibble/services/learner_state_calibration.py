@@ -21,6 +21,9 @@ class LearnerStateCalibrationResult:
     matched_session_count: int = 0
     progress_signal: str = "insufficient"
     strategy_signal: str = "insufficient"
+    recovery_stability: float = 0.0
+    overload_risk: float = 0.0
+    metacognitive_reliability: float = 0.0
     rationale: str | None = None
     applied: bool = False
 
@@ -46,9 +49,17 @@ class LearnerStateCalibrator:
             if self.state_signal_service is not None
             else LearnerStateProfileSummary()
         )
-        if self._should_apply_state_profile(state_profile):
+        if self._should_apply_state_profile(
+            profile=state_profile,
+            observation=observation,
+            inferred_state=inferred_state,
+        ):
             return LearnerStateCalibrationResult(
-                state=self._blend_with_state_profile(inferred_state, state_profile),
+                state=self._blend_with_state_profile(
+                    inferred_state,
+                    state_profile,
+                    observation=observation,
+                ),
                 signal=state_profile.signal,
                 source=state_profile.source,
                 confidence=state_profile.confidence,
@@ -57,6 +68,9 @@ class LearnerStateCalibrator:
                 matched_session_count=state_profile.matched_session_count,
                 progress_signal=state_profile.progress_signal,
                 strategy_signal=state_profile.strategy_signal,
+                recovery_stability=state_profile.recovery_stability,
+                overload_risk=state_profile.overload_risk,
+                metacognitive_reliability=state_profile.metacognitive_reliability,
                 rationale=state_profile.rationale,
                 applied=True,
             )
@@ -81,6 +95,7 @@ class LearnerStateCalibrator:
                 average_run_outcome_score=signal.average_run_outcome_score,
                 matched_run_count=signal.matched_run_count,
                 progress_signal=signal.progress_signal,
+                overload_risk=self._observation_strain(observation=observation, state=inferred_state),
                 applied=True,
             )
         if signal.signal == "negative" and signal.confidence >= self.negative_confidence_threshold:
@@ -102,6 +117,7 @@ class LearnerStateCalibrator:
                 average_run_outcome_score=signal.average_run_outcome_score,
                 matched_run_count=signal.matched_run_count,
                 progress_signal=signal.progress_signal,
+                overload_risk=self._observation_strain(observation=observation, state=inferred_state),
                 applied=True,
             )
         return LearnerStateCalibrationResult(
@@ -112,6 +128,7 @@ class LearnerStateCalibrator:
             average_run_outcome_score=signal.average_run_outcome_score,
             matched_run_count=signal.matched_run_count,
             progress_signal=signal.progress_signal,
+            overload_risk=self._observation_strain(observation=observation, state=inferred_state),
             applied=False,
         )
 
@@ -175,28 +192,44 @@ class LearnerStateCalibrator:
         target_index = min(max(0, current_index + shift), len(ordered) - 1)
         return ordered[target_index]
 
-    def _should_apply_state_profile(self, profile: LearnerStateProfileSummary) -> bool:
+    def _should_apply_state_profile(
+        self,
+        *,
+        profile: LearnerStateProfileSummary,
+        observation: LearnerObservationCreate,
+        inferred_state: InferredLearnerState,
+    ) -> bool:
         if profile.source == "insufficient":
             return False
         if profile.signal not in {"support_needed", "independence_ready", "recovering"}:
             return False
         if profile.matched_session_count < 2:
             return False
-        return profile.confidence >= self.state_profile_confidence_threshold
+        if profile.confidence < self.state_profile_confidence_threshold:
+            return False
+        observation_strain = self._observation_strain(observation=observation, state=inferred_state)
+        if profile.signal == "independence_ready":
+            return (
+                profile.recovery_stability >= 0.58
+                and profile.metacognitive_reliability >= 0.52
+                and profile.overload_risk <= 0.68
+                and observation_strain < 0.72
+            )
+        if profile.signal == "support_needed":
+            return profile.overload_risk >= 0.44 or observation_strain >= 0.36
+        return profile.recovery_stability >= 0.5
 
     def _blend_with_state_profile(
         self,
         state: InferredLearnerState,
         profile: LearnerStateProfileSummary,
+        *,
+        observation: LearnerObservationCreate,
     ) -> InferredLearnerState:
-        weight = min(
-            0.38,
-            max(
-                0.18,
-                0.12
-                + (profile.confidence * 0.26)
-                + (0.04 if profile.matched_session_count >= 4 else 0.0),
-            ),
+        weight = self._state_profile_weight(
+            profile=profile,
+            observation=observation,
+            state=state,
         )
         return state.model_copy(
             update={
@@ -285,6 +318,53 @@ class LearnerStateCalibrator:
                 ),
             }
         )
+
+    def _state_profile_weight(
+        self,
+        *,
+        profile: LearnerStateProfileSummary,
+        observation: LearnerObservationCreate,
+        state: InferredLearnerState,
+    ) -> float:
+        observation_strain = self._observation_strain(observation=observation, state=state)
+        weight = 0.12 + (profile.confidence * 0.18)
+        if profile.matched_session_count >= 4:
+            weight += 0.05
+        if profile.signal == "support_needed":
+            weight += (profile.overload_risk * 0.14) + (observation_strain * 0.12)
+        elif profile.signal == "independence_ready":
+            weight += (profile.recovery_stability * 0.12) + (profile.metacognitive_reliability * 0.08)
+            weight -= observation_strain * 0.18
+        else:
+            weight += (profile.recovery_stability * 0.1) - abs(observation_strain - 0.45) * 0.08
+        return min(0.48, max(0.16, weight))
+
+    def _observation_strain(
+        self,
+        *,
+        observation: LearnerObservationCreate,
+        state: InferredLearnerState,
+    ) -> float:
+        ratio = (
+            observation.response_time_ms / max(1, observation.expected_duration_ms)
+            if observation.expected_duration_ms is not None
+            else 1.0
+        )
+        strain = 0.12
+        strain += min(0.24, observation.error_count * 0.07)
+        strain += min(0.18, observation.hints_used * 0.05)
+        strain += 0.1 if not observation.completed else 0.0
+        strain += (
+            0.08
+            if observation.support_level.value == "low"
+            else 0.04
+            if observation.support_level.value == "medium"
+            else 0.0
+        )
+        strain += min(0.12, max(0.0, ratio - 1.0) * 0.12)
+        strain += max(0.0, state.cognitive_load.total_load - 0.55) * 0.22
+        strain += 0.12 if state.affective_state.frustration in {SignalLevel.medium, SignalLevel.high} else 0.0
+        return min(1.0, round(strain, 2))
 
     def _blend_numeric(self, current: float, *, target: float, weight: float) -> float:
         return min(1.0, max(0.0, (current * (1.0 - weight)) + (target * weight)))

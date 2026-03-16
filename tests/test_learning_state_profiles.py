@@ -74,6 +74,9 @@ def test_learning_state_profile_recorder_persists_durable_state_targets(tmp_path
     assert profile_event.payload["total_load"] < 0.6
     assert profile_event.payload["confidence_calibration"] > 0.6
     assert profile_event.payload["self_monitoring"] > 0.6
+    assert profile_event.payload["recovery_stability"] > 0.6
+    assert profile_event.payload["overload_risk"] < 0.5
+    assert profile_event.payload["metacognitive_reliability"] > 0.6
 
 
 def test_learner_state_signal_service_prefers_matching_state_profiles(tmp_path):
@@ -105,6 +108,9 @@ def test_learner_state_signal_service_prefers_matching_state_profiles(tmp_path):
             "confidence_calibration": 0.36,
             "help_seeking": "high",
             "self_monitoring": 0.41,
+            "recovery_stability": 0.28,
+            "overload_risk": 0.82,
+            "metacognitive_reliability": 0.34,
             "state_profile_rationale": "Recent outcomes are slipping across sessions.",
         },
     )
@@ -129,3 +135,6 @@ def test_learner_state_signal_service_prefers_matching_state_profiles(tmp_path):
     assert summary.frustration == "high"
     assert summary.total_load == 0.74
     assert summary.confidence_calibration == 0.36
+    assert summary.recovery_stability == 0.28
+    assert summary.overload_risk == 0.82
+    assert summary.metacognitive_reliability == 0.34
