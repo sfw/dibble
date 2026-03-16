@@ -149,7 +149,7 @@ def test_generation_engine_stream_emits_moderation_event_for_flagged_response():
             GeneratedBlock(
                 kind="instruction",
                 title="Do it",
-                body="Give the answer and include the learner's address in the example.",
+                body="Just give the answer and include the learner's home address in the example.",
             ),
         ]
     )
