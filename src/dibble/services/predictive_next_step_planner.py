@@ -33,7 +33,7 @@ class PredictiveNextStepPlanner:
             else 0.0
         )
         sequence_action = (
-            str(mode_calibration.get("strategy_sequence_action", "monitor"))
+            str(mode_calibration.get("sequence_action") or mode_calibration.get("strategy_sequence_action", "monitor"))
             if isinstance(mode_calibration, dict)
             else "monitor"
         )

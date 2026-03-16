@@ -163,6 +163,21 @@ class ContentWorkflowService:
                     if calibrated_request.mode_calibration is not None
                     else None
                 ),
+                "mode_session_signal": (
+                    calibrated_request.mode_calibration.session_signal
+                    if calibrated_request.mode_calibration is not None
+                    else None
+                ),
+                "mode_session_source": (
+                    calibrated_request.mode_calibration.session_source
+                    if calibrated_request.mode_calibration is not None
+                    else None
+                ),
+                "mode_sequence_action": (
+                    calibrated_request.mode_calibration.sequence_action
+                    if calibrated_request.mode_calibration is not None
+                    else None
+                ),
                 "mode_strategy_recovery_focus": (
                     calibrated_request.mode_calibration.strategy_recovery_focus
                     if calibrated_request.mode_calibration is not None

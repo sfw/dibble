@@ -7,6 +7,7 @@ from dibble.models.profile import LearnerProfile, SignalLevel
 from dibble.plugins.contracts import RouterPlugin
 from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
 from dibble.services.router_calibration_signals import RouterCalibrationSignalService
+from dibble.services.within_session_adaptation import WithinSessionAdaptationService
 
 
 @dataclass(slots=True)
@@ -14,9 +15,11 @@ class CalibratedRouter:
     base_router: RouterPlugin
     calibration_signal_service: RouterCalibrationSignalService
     strategy_signal_service: LearnerStrategySignalService
+    within_session_adaptation_service: WithinSessionAdaptationService
     positive_confidence_threshold: float = 0.7
     negative_confidence_threshold: float = 0.6
     strategy_confidence_threshold: float = 0.68
+    session_confidence_threshold: float = 0.55
     minimum_outcome_for_improving_relaxation: float = 0.7
     maximum_outcome_for_declining_support_raise: float = 0.72
 
@@ -24,7 +27,18 @@ class CalibratedRouter:
         decision = self.base_router.route(profile, request)
         calibration = self.calibration_signal_service.signal_for(student_id=profile.student_id, request=request)
         strategy = self.strategy_signal_service.strategy_for(student_id=profile.student_id, request=request)
+        session = self.within_session_adaptation_service.adaptation_for(student_id=profile.student_id, request=request)
         calibrated_decision = decision.model_copy(update={"calibration": calibration})
+        if self._should_raise_support_from_session(session):
+            return self._raise_support_with_reason(
+                calibrated_decision,
+                reason=self._session_reason(session=session),
+            )
+        if self._should_relax_support_from_session(profile=profile, session=session):
+            return self._relax_support_with_reason(
+                calibrated_decision,
+                reason=self._session_reason(session=session),
+            )
         if self._should_raise_support(calibration):
             return self._raise_support(calibrated_decision)
         if self._should_relax_support(profile=profile, calibration=calibration):
@@ -167,6 +181,21 @@ class CalibratedRouter:
             and not self._is_safety_constrained(profile)
         )
 
+    def _should_raise_support_from_session(self, session) -> bool:
+        return (
+            session.support_bias < 0
+            and session.source != "insufficient"
+            and session.confidence >= self.session_confidence_threshold
+        )
+
+    def _should_relax_support_from_session(self, *, profile: LearnerProfile, session) -> bool:
+        return (
+            session.support_bias > 0
+            and session.source != "insufficient"
+            and session.confidence >= self.session_confidence_threshold
+            and not self._is_safety_constrained(profile)
+        )
+
     def _increase_scaffolding(self, value: str) -> str:
         return {"low": "medium", "medium": "high", "high": "high"}.get(value, "medium")
 
@@ -202,3 +231,8 @@ class CalibratedRouter:
             f"Long-horizon learner strategy was {strategy.signal} "
             f"with focus {strategy.recovery_focus}."
         )
+
+    def _session_reason(self, *, session) -> str:
+        if session.rationale is not None:
+            return f"Same-session adaptation was {session.signal}: {session.rationale}"
+        return f"Same-session adaptation was {session.signal} on the active learning session."

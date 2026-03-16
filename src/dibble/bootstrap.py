@@ -59,6 +59,7 @@ from dibble.services.socratic_profile_update import SocraticProfileUpdater
 from dibble.services.socratic_session_store import SQLiteSocraticSessionStore
 from dibble.services.state_inference import LearnerStateInferenceService
 from dibble.services.telemetry import TelemetryService
+from dibble.services.within_session_adaptation import WithinSessionAdaptationService
 from dibble.storage import ensure_database
 
 
@@ -112,10 +113,12 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     )
     plugins = build_generation_plugins(settings, curriculum_store=curriculum_store)
     learner_strategy_signal_service = LearnerStrategySignalService(audit_store=audit_store)
+    within_session_adaptation_service = WithinSessionAdaptationService(audit_store=audit_store)
     router_plugin = CalibratedRouter(
         base_router=plugins.router,
         calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
         strategy_signal_service=learner_strategy_signal_service,
+        within_session_adaptation_service=within_session_adaptation_service,
     )
     generation_engine = GenerationEngine(
         retriever=plugins.retriever,
@@ -153,6 +156,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     generation_mode_calibrator = GenerationModeCalibrator(
         calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
         strategy_signal_service=learner_strategy_signal_service,
+        within_session_adaptation_service=within_session_adaptation_service,
     )
     learning_run_summary_recorder = LearningRunSummaryRecorder(audit_store=audit_store)
     learning_calibration_profile_recorder = LearningCalibrationProfileRecorder(audit_store=audit_store)

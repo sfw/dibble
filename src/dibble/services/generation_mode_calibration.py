@@ -6,14 +6,17 @@ from dibble.models.generation import GenerationModeCalibration, GenerationReques
 from dibble.services.kc_sequence_planner import KcSequencePlanner
 from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
 from dibble.services.router_calibration_signals import RouterCalibrationSignalService
+from dibble.services.within_session_adaptation import WithinSessionAdaptationService
 
 
 @dataclass(slots=True)
 class GenerationModeCalibrator:
     calibration_signal_service: RouterCalibrationSignalService
     strategy_signal_service: LearnerStrategySignalService
+    within_session_adaptation_service: WithinSessionAdaptationService
     kc_sequence_planner: KcSequencePlanner = KcSequencePlanner()
     minimum_confidence_for_bias: float = 0.65
+    minimum_session_confidence_for_bias: float = 0.55
     minimum_positive_outcome_score: float = 0.78
     minimum_improving_outcome_score: float = 0.7
     maximum_negative_outcome_score: float = 0.45
@@ -29,26 +32,37 @@ class GenerationModeCalibrator:
     def calibration_for(self, *, request: GenerationRequest) -> GenerationModeCalibration | None:
         signal = self.calibration_signal_service.signal_for(student_id=request.student_id, request=request)
         strategy = self.strategy_signal_service.strategy_for(student_id=request.student_id, request=request)
-        support_bias = self._support_bias(signal=signal, strategy=strategy)
-        if signal.source == "insufficient" and strategy.source == "insufficient" and support_bias == 0:
+        session = self.within_session_adaptation_service.adaptation_for(student_id=request.student_id, request=request)
+        support_bias = self._support_bias(signal=signal, strategy=strategy, session=session)
+        if (
+            signal.source == "insufficient"
+            and strategy.source == "insufficient"
+            and session.source == "insufficient"
+            and support_bias == 0
+        ):
             return None
 
-        source = signal.source if signal.source != "insufficient" else strategy.source
-        calibration_signal = self._calibration_signal(signal=signal, strategy=strategy, support_bias=support_bias)
-        confidence = signal.confidence if signal.source != "insufficient" else strategy.confidence
+        source = self._source(signal=signal, strategy=strategy, session=session)
+        calibration_signal = self._calibration_signal(signal=signal, strategy=strategy, session=session, support_bias=support_bias)
+        confidence = self._confidence(signal=signal, strategy=strategy, session=session)
         average_run_outcome_score = (
             signal.average_run_outcome_score
             if signal.average_run_outcome_score is not None
             else strategy.average_run_outcome_score
         )
-        sequence = self.kc_sequence_planner.plan(
+        strategy_sequence = self.kc_sequence_planner.plan(
             strategy_summary=strategy,
             target_kc_ids=request.target_kc_ids,
+        )
+        sequence = self._sequence_for(
+            request=request,
+            strategy_sequence=strategy_sequence,
+            session=session,
         )
         matched_run_count = signal.matched_run_count if signal.source != "insufficient" else strategy.matched_run_count
         progress_signal = signal.progress_signal if signal.source != "insufficient" else strategy.progress_signal
         progress_delta = signal.progress_delta if signal.source != "insufficient" else strategy.progress_delta
-        rationale = self._rationale(signal=signal, strategy=strategy, support_bias=support_bias)
+        rationale = self._rationale(signal=signal, strategy=strategy, session=session, support_bias=support_bias)
         return GenerationModeCalibration(
             signal=calibration_signal,
             source=source,
@@ -66,15 +80,32 @@ class GenerationModeCalibrator:
             strategy_relapse_risk=strategy.relapse_risk,
             strategy_source=strategy.source,
             strategy_rationale=strategy.rationale,
-            strategy_sequence_action=sequence.action,
-            strategy_sequence_primary_kc_id=sequence.primary_kc_id,
-            strategy_sequence_kc_ids=sequence.ordered_kc_ids,
-            strategy_sequence_deferred_kc_ids=sequence.deferred_kc_ids,
-            strategy_sequence_rationale=sequence.rationale,
+            strategy_sequence_action=strategy_sequence.action,
+            strategy_sequence_primary_kc_id=strategy_sequence.primary_kc_id,
+            strategy_sequence_kc_ids=strategy_sequence.ordered_kc_ids,
+            strategy_sequence_deferred_kc_ids=strategy_sequence.deferred_kc_ids,
+            strategy_sequence_rationale=strategy_sequence.rationale,
+            sequence_action=sequence.action,
+            sequence_primary_kc_id=sequence.primary_kc_id,
+            sequence_kc_ids=sequence.ordered_kc_ids,
+            sequence_deferred_kc_ids=sequence.deferred_kc_ids,
+            sequence_source="session_events" if session.sequence_action != "monitor" else "strategy_profile",
+            sequence_rationale=sequence.rationale,
+            session_signal=session.signal,
+            session_source=session.source,
+            session_confidence=session.confidence,
+            session_support_bias=session.support_bias,
+            session_sequence_action=session.sequence_action,
+            session_primary_kc_id=session.primary_kc_id,
+            session_observation_count=session.matched_observation_count,
+            session_assessment_count=session.matched_assessment_count,
+            session_rationale=session.rationale,
             rationale=rationale,
         )
 
-    def _support_bias(self, *, signal, strategy) -> int:
+    def _support_bias(self, *, signal, strategy, session) -> int:
+        if self._is_decisive_session(session):
+            return session.support_bias
         if signal.confidence < self.minimum_confidence_for_bias:
             return strategy.support_bias
         calibration_bias = self._calibration_support_bias(signal=signal)
@@ -115,7 +146,9 @@ class GenerationModeCalibrator:
             return -1
         return 0
 
-    def _calibration_signal(self, *, signal, strategy, support_bias: int) -> str:
+    def _calibration_signal(self, *, signal, strategy, session, support_bias: int) -> str:
+        if self._is_decisive_session(session):
+            return session.signal
         if signal.source != "insufficient":
             return signal.signal
         if support_bias > 0:
@@ -126,7 +159,37 @@ class GenerationModeCalibrator:
             return "mixed"
         return "insufficient"
 
-    def _rationale(self, *, signal, strategy, support_bias: int) -> str:
+    def _source(self, *, signal, strategy, session) -> str:
+        if self._is_decisive_session(session):
+            return session.source
+        if signal.source != "insufficient":
+            return signal.source
+        return strategy.source
+
+    def _confidence(self, *, signal, strategy, session) -> float:
+        if self._is_decisive_session(session):
+            return session.confidence
+        return signal.confidence if signal.source != "insufficient" else strategy.confidence
+
+    def _sequence_for(self, *, request, strategy_sequence, session):
+        if session.sequence_action == "monitor":
+            return strategy_sequence
+        ordered_kc_ids = request.target_kc_ids or strategy_sequence.ordered_kc_ids
+        return strategy_sequence.model_copy(
+            update={
+                "action": session.sequence_action,
+                "primary_kc_id": session.primary_kc_id or strategy_sequence.primary_kc_id,
+                "ordered_kc_ids": ordered_kc_ids,
+                "deferred_kc_ids": [],
+                "rationale": session.rationale or strategy_sequence.rationale,
+            }
+        )
+
+    def _rationale(self, *, signal, strategy, session, support_bias: int) -> str:
+        if self._is_decisive_session(session):
+            return session.rationale or (
+                "Recent same-session evidence was strong enough to update support before relying on cross-session history."
+            )
         if support_bias > 0 and signal.progress_signal == "improving":
             return (
                 "Recent matching runs have been improving across sessions, so the generation mode can allow slightly more independence."
@@ -169,4 +232,11 @@ class GenerationModeCalibrator:
             )
         return (
             "Recent matching runs were informative but not decisive enough to override the baseline mode heuristics."
+        )
+
+    def _is_decisive_session(self, session) -> bool:
+        return (
+            session.source != "insufficient"
+            and session.confidence >= self.minimum_session_confidence_for_bias
+            and session.signal in {"positive", "negative"}
         )

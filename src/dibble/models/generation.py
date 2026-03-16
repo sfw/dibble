@@ -88,6 +88,21 @@ class GenerationModeCalibration(BaseModel):
     strategy_sequence_kc_ids: list[str] = Field(default_factory=list)
     strategy_sequence_deferred_kc_ids: list[str] = Field(default_factory=list)
     strategy_sequence_rationale: str | None = None
+    sequence_action: str = "monitor"
+    sequence_primary_kc_id: str | None = None
+    sequence_kc_ids: list[str] = Field(default_factory=list)
+    sequence_deferred_kc_ids: list[str] = Field(default_factory=list)
+    sequence_source: str = "insufficient"
+    sequence_rationale: str | None = None
+    session_signal: str = "insufficient"
+    session_source: str = "insufficient"
+    session_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    session_support_bias: int = Field(default=0, ge=-1, le=1)
+    session_sequence_action: str = "monitor"
+    session_primary_kc_id: str | None = None
+    session_observation_count: int = Field(default=0, ge=0)
+    session_assessment_count: int = Field(default=0, ge=0)
+    session_rationale: str | None = None
     rationale: str | None = None
 
 

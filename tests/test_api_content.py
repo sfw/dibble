@@ -247,6 +247,47 @@ def test_predictive_warm_process_endpoint_drains_pending_queue(tmp_path, student
         assert problem_response.json()["quality"]["cache_hit"] is True
 
 
+def test_generation_uses_within_session_observation_adaptation(client, student_id):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    observe_response = client.post(
+        f"/api/learners/{student_id}/observations",
+        json={
+            "response_time_ms": 28000,
+            "hints_used": 3,
+            "error_count": 3,
+            "pause_count": 2,
+            "modality_switches": 1,
+            "completed": False,
+            "confidence": 0.2,
+            "task_type": "practice",
+            "support_level": "low",
+            "learning_session_id": "session-live-adaptation",
+            "observed_content_type": "practice_problem",
+            "target_kc_ids": ["KC-1"],
+        },
+    )
+    generate_response = client.post(
+        "/api/problems/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "session-live-adaptation",
+            "target_kc_ids": ["KC-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+
+    assert observe_response.status_code == 200
+    assert generate_response.status_code == 200
+    payload = generate_response.json()
+    assert payload["request_context"]["session_adaptation"]["signal"] == "negative"
+    assert payload["request_context"]["session_adaptation"]["sequence_action"] == "hold_target"
+    assert payload["request_context"]["mode_calibration"]["source"] == "session_events"
+    assert payload["request_context"]["mode_calibration"]["session_signal"] == "negative"
+    assert payload["request_context"]["difficulty_band"] == "support"
+    assert any("Same-session adaptation was negative" in reason for reason in payload["response"]["route"]["reasons"])
+
+
 def test_negative_practice_generation_predictively_warms_remediation_after_relapse(client, student_id, app_settings):
     from dibble.services.audit_store import SQLiteAuditStore
 
