@@ -15,7 +15,16 @@ from dibble.models.generation import (
     GenerationStreamEvent,
     RemedialTriggerRequest,
 )
+from dibble.models.remediation import (
+    RemediationWorkflowAdvanceRequest,
+    RemediationWorkflowAdvanceResponse,
+    RemediationWorkflowSession,
+)
 from dibble.services.content_workflow import LearnerProfileNotFoundError
+from dibble.services.remediation_workflows import (
+    RemediationWorkflowCompleteError,
+    RemediationWorkflowNotFoundError,
+)
 from dibble.services.streaming import encode_sse_event
 
 
@@ -97,6 +106,40 @@ def build_content_router(context: ApiContext) -> APIRouter:
             return services.content_workflow_service.trigger_remedial_content(request)
         except LearnerProfileNotFoundError as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+
+    @router.get(
+        "/remedial/sessions/{session_id}",
+        response_model=RemediationWorkflowSession,
+        dependencies=context.deps("viewer"),
+    )
+    def get_remediation_session(session_id: str) -> RemediationWorkflowSession:
+        try:
+            return services.content_workflow_service.get_remediation_session(session_id)
+        except RemediationWorkflowNotFoundError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    @router.post(
+        "/remedial/sessions/{session_id}/advance",
+        response_model=RemediationWorkflowAdvanceResponse,
+        dependencies=context.deps("editor"),
+    )
+    def advance_remediation_session(
+        session_id: str,
+        request: RemediationWorkflowAdvanceRequest,
+    ) -> RemediationWorkflowAdvanceResponse:
+        try:
+            return services.content_workflow_service.advance_remediation_session(
+                session_id=session_id,
+                request=request,
+            )
+        except LearnerProfileNotFoundError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        except RemediationWorkflowNotFoundError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        except RemediationWorkflowCompleteError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
 

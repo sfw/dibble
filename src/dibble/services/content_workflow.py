@@ -13,6 +13,12 @@ from dibble.models.generation import (
     RemedialTriggerRequest,
 )
 from dibble.models.profile import LearnerProfile
+from dibble.models.remediation import (
+    RemediationWorkflowAdvanceRequest,
+    RemediationWorkflowAdvanceResponse,
+    RemediationWorkflowSession,
+    RemediationWorkflowStep,
+)
 from dibble.plugins.contracts import RouterPlugin
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.generation_engine import GenerationEngine
@@ -23,6 +29,10 @@ from dibble.services.predictive_content_warming import PredictiveContentWarmer
 from dibble.services.predictive_warm_scheduler import PredictiveWarmScheduler
 from dibble.services.protocols import AuditStore, ProfileStore
 from dibble.services.remediation_planner import RemediationPlanner
+from dibble.services.remediation_workflows import (
+    RemediationWorkflowCoordinator,
+    RemediationWorkflowNotFoundError,
+)
 
 
 class LearnerProfileNotFoundError(LookupError):
@@ -41,6 +51,7 @@ class ContentWorkflowService:
     predictive_content_warmer: PredictiveContentWarmer
     predictive_warm_scheduler: PredictiveWarmScheduler
     remediation_planner: RemediationPlanner
+    remediation_workflow_coordinator: RemediationWorkflowCoordinator
     misconception_profile_recorder: LearningMisconceptionProfileRecorder
     audit_store: AuditStore
 
@@ -224,18 +235,17 @@ class ContentWorkflowService:
             misconception_description=request.misconception_description,
             curriculum_context=request.curriculum_context,
         )
-        generation_request = GenerationRequest(
+        session = self.remediation_workflow_coordinator.start_session(
             student_id=request.student_id,
-            target_kc_ids=plan.focus_kc_ids,
-            intent="remediation",
-            requested_content_type="remedial_micro_module",
-            learner_prompt=(
-                f"{request.learner_prompt} Step back through prerequisite components, repair the misconception explicitly, and return to the target with a transfer check."
-                if request.learner_prompt
-                else "Step back through prerequisite components, repair the misconception explicitly, and return to the target with a transfer check."
-            ),
+            target_kc_id=request.target_kc_id,
+            misconception_description=request.misconception_description,
+            curriculum_context=request.curriculum_context,
+            plan=plan,
+        )
+        executed_step, updated_session, generated_content = self._execute_remediation_session_step(
+            session_id=session.session_id,
+            learner_prompt=request.learner_prompt,
             curriculum_context=[
-                request.misconception_description,
                 *[
                     signal.remediation_hint
                     for signal in plan.misconception_signals
@@ -244,23 +254,18 @@ class ContentWorkflowService:
                 *request.curriculum_context,
             ],
         )
-        generated_content = self.generate_content(generation_request)
-        enriched_request_context = {
-            **generated_content.request_context,
-            "target_kc_id": request.target_kc_id,
-            "focus_kc_ids": plan.focus_kc_ids,
-            "prerequisite_kc_ids": plan.prerequisite_kc_ids,
-            "misconception_description": request.misconception_description,
-            "misconception_signals": [signal.model_dump(mode="json") for signal in plan.misconception_signals],
-            "remediation_rationale": plan.rationale,
-            "remediation_blueprint": plan.module_blueprint,
-        }
-        enriched_content = generated_content.model_copy(update={"request_context": enriched_request_context})
+        enriched_content = self._enrich_remediation_content(
+            generated_content=generated_content,
+            session=updated_session,
+            executed_step=executed_step,
+            misconception_signals=[signal.model_dump(mode="json") for signal in plan.misconception_signals],
+        )
         remediation_event = self.audit_store.append(
             event_type="remediation.trigger",
             status="success",
             student_id=str(request.student_id),
             payload={
+                "remediation_session_id": updated_session.session_id,
                 "target_kc_id": request.target_kc_id,
                 "focus_kc_ids": plan.focus_kc_ids,
                 "prerequisite_kc_ids": plan.prerequisite_kc_ids,
@@ -269,10 +274,56 @@ class ContentWorkflowService:
                 "remediation_blueprint": plan.module_blueprint,
                 "generation_id": enriched_content.generation_id,
                 "rationale": plan.rationale,
+                "executed_phase": executed_step.phase,
+                "next_phase": self._next_remediation_phase(updated_session),
+                "step_count": len(updated_session.steps),
             },
         )
         self.misconception_profile_recorder.record_from_remediation_event(remediation_event=remediation_event)
         return enriched_content
+
+    def get_remediation_session(self, session_id: str) -> RemediationWorkflowSession:
+        session = self.remediation_workflow_coordinator.get(session_id)
+        if session is None:
+            raise RemediationWorkflowNotFoundError(session_id)
+        return session
+
+    def advance_remediation_session(
+        self,
+        *,
+        session_id: str,
+        request: RemediationWorkflowAdvanceRequest,
+    ) -> RemediationWorkflowAdvanceResponse:
+        session = self.get_remediation_session(session_id)
+        executed_step, updated_session, generated_content = self._execute_remediation_session_step(
+            session_id=session_id,
+            learner_prompt=request.learner_prompt,
+            curriculum_context=request.curriculum_context,
+        )
+        enriched_content = self._enrich_remediation_content(
+            generated_content=generated_content,
+            session=updated_session,
+            executed_step=executed_step,
+        )
+        self.audit_store.append(
+            event_type="remediation.advance",
+            status="success",
+            student_id=str(session.student_id),
+            payload={
+                "remediation_session_id": updated_session.session_id,
+                "target_kc_id": session.target_kc_id,
+                "generation_id": enriched_content.generation_id,
+                "executed_phase": executed_step.phase,
+                "next_phase": self._next_remediation_phase(updated_session),
+                "completed_step_count": len(updated_session.completed_generation_ids),
+                "step_count": len(updated_session.steps),
+            },
+        )
+        return RemediationWorkflowAdvanceResponse(
+            session=updated_session,
+            content=enriched_content,
+            executed_phase=executed_step.phase,
+        )
 
     def load_profile(self, student_id: UUID) -> LearnerProfile:
         return self._load_profile(student_id)
@@ -282,3 +333,67 @@ class ContentWorkflowService:
         if profile is None:
             raise LearnerProfileNotFoundError(student_id)
         return profile
+
+    def _execute_remediation_session_step(
+        self,
+        *,
+        session_id: str,
+        learner_prompt: str | None,
+        curriculum_context: list[str],
+    ) -> tuple[RemediationWorkflowStep, RemediationWorkflowSession, GeneratedContent]:
+        _, current_step, generation_request = self.remediation_workflow_coordinator.generation_request_for_current_step(
+            session_id=session_id,
+            learner_prompt=learner_prompt,
+            curriculum_context=curriculum_context,
+        )
+        generated_content = self.generate_content(generation_request)
+        updated_session = self.remediation_workflow_coordinator.complete_current_step(
+            session_id=session_id,
+            generation_id=generated_content.generation_id,
+        )
+        return current_step, updated_session, generated_content
+
+    def _enrich_remediation_content(
+        self,
+        *,
+        generated_content: GeneratedContent,
+        session: RemediationWorkflowSession,
+        executed_step: RemediationWorkflowStep,
+        misconception_signals: list[dict[str, object]] | None = None,
+    ) -> GeneratedContent:
+        next_step = self._current_remediation_step(session)
+        enriched_request_context = {
+            **generated_content.request_context,
+            "target_kc_id": session.target_kc_id,
+            "target_kc_ids": session.focus_kc_ids,
+            "focus_kc_ids": session.focus_kc_ids,
+            "prerequisite_kc_ids": session.prerequisite_kc_ids,
+            "misconception_description": session.misconception_description,
+            "remediation_rationale": session.rationale,
+            "remediation_blueprint": session.blueprint,
+            "remediation_session_id": session.session_id,
+            "remediation_workflow": {
+                "status": "complete" if session.current_step_index is None else "in_progress",
+                "executed_phase": executed_step.phase,
+                "executed_step_target_kc_ids": executed_step.target_kc_ids,
+                "next_phase": next_step.phase if next_step is not None else None,
+                "next_step_target_kc_ids": next_step.target_kc_ids if next_step is not None else [],
+                "completed_step_count": len(session.completed_generation_ids),
+                "step_count": len(session.steps),
+            },
+        }
+        if misconception_signals is not None:
+            enriched_request_context["misconception_signals"] = misconception_signals
+        return generated_content.model_copy(update={"request_context": enriched_request_context})
+
+    def _current_remediation_step(self, session: RemediationWorkflowSession) -> RemediationWorkflowStep | None:
+        current_index = session.current_step_index
+        if current_index is None or current_index >= len(session.steps):
+            return None
+        return session.steps[current_index]
+
+    def _next_remediation_phase(self, session: RemediationWorkflowSession) -> str | None:
+        next_step = self._current_remediation_step(session)
+        if next_step is None:
+            return None
+        return next_step.phase

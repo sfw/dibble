@@ -356,6 +356,7 @@ def test_remedial_trigger_returns_remedial_generated_content(client, student_id)
     assert payload["quality"]["validation_passed"] is True
     assert payload["request_context"]["target_kc_ids"] == ["KC-1", "KC-2"]
     assert payload["request_context"]["prerequisite_kc_ids"] == ["KC-1"]
+    assert payload["request_context"]["remediation_session_id"] is not None
     assert prerequisite_signal["kc_id"] == "KC-1"
     assert catalog_signal["source"] == "catalog"
     assert "prerequisite knowledge components" in payload["request_context"]["remediation_rationale"]
@@ -366,12 +367,16 @@ def test_remedial_trigger_returns_remedial_generated_content(client, student_id)
         "repair",
         "return",
     ]
+    assert payload["request_context"]["remediation_workflow"]["executed_phase"] == "step_back"
+    assert payload["request_context"]["remediation_workflow"]["next_phase"] == "repair"
+    assert payload["request_context"]["remediation_workflow"]["completed_step_count"] == 1
 
     audit_response = client.get("/api/audit/events")
     assert audit_response.status_code == 200
     remediation_event = next(
         event for event in audit_response.json() if event["event_type"] == "remediation.trigger"
     )
+    assert remediation_event["payload"]["remediation_session_id"] == payload["request_context"]["remediation_session_id"]
     assert remediation_event["payload"]["misconception_signal_count"] >= 1
     assert remediation_event["payload"]["remediation_blueprint"]["primary_misconception_id"] == (
         "fraction-whole-number-bias"
@@ -434,6 +439,86 @@ def test_remedial_trigger_records_and_reuses_misconception_profiles(client, stud
     )
     assert profile_event["payload"]["target_kc_id"] == "KC-2"
     assert profile_event["payload"]["matched_signal_count"] >= 1
+
+
+def test_remediation_session_endpoints_advance_multi_step_workflow(client, student_id):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put(
+        "/api/knowledge-components/KC-1",
+        json=build_knowledge_component("KC-1", name="Identify numerator and denominator"),
+    )
+    client.put(
+        "/api/knowledge-components/KC-2",
+        json=build_knowledge_component(
+            "KC-2",
+            prerequisite_kc_ids=["KC-1"],
+            name="Generate equivalent fractions",
+            common_misconceptions=[
+                {
+                    "misconception_id": "fraction-whole-number-bias",
+                    "label": "Treats fraction parts like unrelated whole numbers",
+                    "description": "The learner compares numerator and denominator separately instead of the whole amount.",
+                    "trigger_terms": ["numerator", "denominator", "whole number", "fraction"],
+                    "prerequisite_kc_ids": ["KC-1"],
+                    "remediation_hint": "Use one visual model to compare the total amount before naming the parts.",
+                }
+            ],
+        ),
+    )
+
+    trigger_response = client.post(
+        "/api/remedial/trigger",
+        json={
+            "student_id": str(student_id),
+            "target_kc_id": "KC-2",
+            "misconception_description": "The learner compares numerator and denominator like whole numbers.",
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    assert trigger_response.status_code == 200
+
+    remediation_session_id = trigger_response.json()["request_context"]["remediation_session_id"]
+    session_response = client.get(f"/api/remedial/sessions/{remediation_session_id}")
+    assert session_response.status_code == 200
+    session_payload = session_response.json()
+    assert session_payload["current_step_index"] == 1
+    assert [step["status"] for step in session_payload["steps"]] == ["completed", "active", "pending"]
+
+    repair_response = client.post(
+        f"/api/remedial/sessions/{remediation_session_id}/advance",
+        json={},
+    )
+    assert repair_response.status_code == 200
+    repair_payload = repair_response.json()
+    assert repair_payload["executed_phase"] == "repair"
+    assert repair_payload["content"]["content_type"] == "remedial_micro_module"
+    assert repair_payload["session"]["current_step_index"] == 2
+    assert [step["status"] for step in repair_payload["session"]["steps"]] == ["completed", "completed", "active"]
+    assert repair_payload["content"]["request_context"]["remediation_workflow"]["next_phase"] == "return"
+
+    return_response = client.post(
+        f"/api/remedial/sessions/{remediation_session_id}/advance",
+        json={"learner_prompt": "Fade support a bit."},
+    )
+    assert return_response.status_code == 200
+    return_payload = return_response.json()
+    assert return_payload["executed_phase"] == "return"
+    assert return_payload["content"]["content_type"] == "practice_problem"
+    assert return_payload["session"]["current_step_index"] is None
+    assert [step["status"] for step in return_payload["session"]["steps"]] == [
+        "completed",
+        "completed",
+        "completed",
+    ]
+    assert return_payload["content"]["request_context"]["remediation_workflow"]["status"] == "complete"
+    assert return_payload["content"]["request_context"]["remediation_workflow"]["next_phase"] is None
+
+    completed_response = client.post(
+        f"/api/remedial/sessions/{remediation_session_id}/advance",
+        json={},
+    )
+    assert completed_response.status_code == 409
 
 
 def test_explanations_and_problems_endpoints_specialize_generation(client, student_id):

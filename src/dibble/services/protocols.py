@@ -7,6 +7,7 @@ from dibble.models.curriculum import CurriculumResource, CurriculumResourceUpser
 from dibble.models.generation import GeneratedContent, GenerationRequest, PredictiveWarmTask
 from dibble.models.observations import LearnerObservation, LearnerObservationCreate
 from dibble.models.profile import LearnerProfile
+from dibble.models.remediation import RemediationWorkflowSession
 from dibble.models.telemetry import AuditEvent, ProviderHealthEvent, ProviderStatusSnapshot
 from dibble.services.auth_sessions import StoredAuthSession
 from dibble.services.provider_health import ProviderRoutingSnapshot
@@ -97,6 +98,11 @@ class ProviderHealthStore(Protocol):
 class SocraticSessionStore(Protocol):
     def upsert(self, session: object) -> object: ...
     def get(self, session_id: str) -> object | None: ...
+
+
+class RemediationSessionStore(Protocol):
+    def upsert(self, session: RemediationWorkflowSession) -> RemediationWorkflowSession: ...
+    def get(self, session_id: str) -> RemediationWorkflowSession | None: ...
 
 
 class AuthSessionStore(Protocol):

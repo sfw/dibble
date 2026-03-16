@@ -45,6 +45,8 @@ from dibble.services.protocols import (
     SocraticSessionStore,
 )
 from dibble.services.remediation_planner import RemediationPlanner
+from dibble.services.remediation_session_store import SQLiteRemediationSessionStore
+from dibble.services.remediation_workflows import RemediationWorkflowCoordinator
 from dibble.services.router_calibration_signals import RouterCalibrationSignalService
 from dibble.services.socratic_assessment import SocraticAssessmentService
 from dibble.services.socratic_evidence import SocraticEvidenceScorer
@@ -97,6 +99,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     predictive_warm_queue_store = SQLitePredictiveWarmQueueStore(settings.database_path)
     observation_store = SQLiteObservationStore(settings.database_path)
     socratic_session_store = SQLiteSocraticSessionStore(settings.database_path)
+    remediation_session_store = SQLiteRemediationSessionStore(settings.database_path)
     provider_health_store = SQLiteProviderHealthStore(settings.database_path)
     auth_service = AuthService.from_settings(
         settings,
@@ -122,6 +125,9 @@ def build_application_services(settings: Settings) -> ApplicationServices:
             audit_store=audit_store,
             misconception_profile_resolver=LearningMisconceptionProfileResolver(),
         ),
+    )
+    remediation_workflow_coordinator = RemediationWorkflowCoordinator(
+        session_store=remediation_session_store,
     )
     socratic_assessment_service = SocraticAssessmentService(
         generation_engine=generation_engine,
@@ -170,6 +176,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         predictive_content_warmer=predictive_content_warmer,
         predictive_warm_scheduler=predictive_warm_scheduler,
         remediation_planner=remediation_planner,
+        remediation_workflow_coordinator=remediation_workflow_coordinator,
         misconception_profile_recorder=misconception_profile_recorder,
         audit_store=audit_store,
     )
