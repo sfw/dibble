@@ -63,6 +63,12 @@ class ContentWorkflowService:
                 "calibration_outcome_score": (
                     decision.calibration.average_run_outcome_score if decision.calibration is not None else None
                 ),
+                "calibration_progress_signal": (
+                    decision.calibration.progress_signal if decision.calibration is not None else None
+                ),
+                "calibration_progress_delta": (
+                    decision.calibration.progress_delta if decision.calibration is not None else 0.0
+                ),
             },
         )
         return decision
@@ -135,6 +141,12 @@ class ContentWorkflowService:
                 ),
                 "route_calibration_confidence": (
                     response.route.calibration.confidence if response.route.calibration is not None else 0.0
+                ),
+                "route_calibration_progress_signal": (
+                    response.route.calibration.progress_signal if response.route.calibration is not None else None
+                ),
+                "route_calibration_progress_delta": (
+                    response.route.calibration.progress_delta if response.route.calibration is not None else 0.0
                 ),
                 "prompt_template_name": metadata.prompt_template_name,
                 "prompt_template_version": metadata.prompt_template_version,

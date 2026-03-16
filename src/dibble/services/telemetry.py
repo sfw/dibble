@@ -29,6 +29,7 @@ class TelemetryService:
         generation_events = [event for event in events if event.event_type.startswith("content.generate")]
         decision_events = [event for event in events if event.event_type == "adaptive.decide"]
         socratic_events = [event for event in events if event.event_type == "assessment.socratic"]
+        progress_profile_events = [event for event in events if event.event_type == "learning.progress.profile"]
         warm_events = [event for event in events if event.event_type in {"content.warm", "content.warm.predictive"}]
         predictive_warm_events = [event for event in events if event.event_type == "content.warm.predictive"]
         cache_invalidation_events = [event for event in events if event.event_type == "content.cache.invalidate"]
@@ -88,6 +89,13 @@ class TelemetryService:
             decision_events=len(decision_events),
             generation_events=len(generation_events),
             socratic_assessment_events=len(socratic_events),
+            learning_progress_profile_events=len(progress_profile_events),
+            improving_progress_signals=sum(
+                1 for event in progress_profile_events if event.payload.get("progress_signal") == "improving"
+            ),
+            declining_progress_signals=sum(
+                1 for event in progress_profile_events if event.payload.get("progress_signal") == "declining"
+            ),
             socratic_profile_updates=sum(1 for event in socratic_events if bool(event.payload.get("profile_update_applied"))),
             socratic_demonstrated_events=sum(
                 1 for event in socratic_events if event.payload.get("evidence_strength") == "demonstrated"

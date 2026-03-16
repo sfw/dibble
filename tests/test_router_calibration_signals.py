@@ -239,3 +239,68 @@ def test_router_calibration_signal_service_prefers_persisted_run_summaries(tmp_p
     assert signal.matched_run_count == 2
     assert signal.average_run_outcome_score is not None
     assert signal.average_run_outcome_score > 0.8
+
+
+def test_router_calibration_signal_service_prefers_progress_profiles(tmp_path):
+    database_path = str(tmp_path / "router-calibration-progress-profile.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = str(uuid4())
+    audit_store.append(
+        event_type="learning.progress.profile",
+        status="success",
+        student_id=student_id,
+        payload={
+            "intent": "practice",
+            "content_type": "practice_problem",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": [],
+            "average_run_outcome_score": 0.74,
+            "average_run_confidence": 0.8,
+            "matched_run_count": 4,
+            "matched_session_count": 3,
+            "positive_run_rate": 0.5,
+            "negative_run_rate": 0.0,
+            "recent_average_run_outcome_score": 0.81,
+            "prior_average_run_outcome_score": 0.66,
+            "progress_delta": 0.15,
+            "progress_signal": "improving",
+        },
+    )
+    audit_store.append(
+        event_type="learning.calibration.profile",
+        status="success",
+        student_id=student_id,
+        payload={
+            "intent": "practice",
+            "content_type": "practice_problem",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": [],
+            "average_run_outcome_score": 0.61,
+            "average_run_confidence": 0.76,
+            "matched_run_count": 3,
+            "matched_session_count": 2,
+            "positive_run_rate": 0.34,
+            "negative_run_rate": 0.0,
+            "profile_signal": "mixed",
+        },
+    )
+
+    request = GenerationRequest.model_validate(
+        {
+            "student_id": student_id,
+            "target_kc_ids": ["KC-1"],
+            "intent": "practice",
+            "requested_content_type": "practice_problem",
+        }
+    )
+    signal = RouterCalibrationSignalService(audit_store=audit_store).signal_for(
+        student_id=request.student_id,
+        request=request,
+    )
+
+    assert signal.source == "progress_profile"
+    assert signal.signal == "mixed"
+    assert signal.progress_signal == "improving"
+    assert signal.progress_delta == 0.15
+    assert signal.average_run_outcome_score == 0.74

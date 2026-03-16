@@ -22,3 +22,4 @@ def test_decide_endpoint_exposes_router_calibration_summary(client, student_id):
     assert payload["calibration"]["signal"] == "insufficient"
     assert payload["calibration"]["source"] == "insufficient"
     assert payload["calibration"]["matched_run_count"] == 0
+    assert payload["calibration"]["progress_signal"] == "insufficient"

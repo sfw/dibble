@@ -145,3 +145,59 @@ def test_calibrated_router_relaxes_scaffolding_after_positive_run_signal(tmp_pat
     assert decision.scaffolding_level == "low"
     assert decision.calibration is not None
     assert decision.calibration.signal == "positive"
+
+
+def test_calibrated_router_raises_support_for_declining_progress_profile(tmp_path):
+    database_path = str(tmp_path / "calibrated-router-declining-progress.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    profile = LearnerProfile.model_validate(
+        build_profile(
+            uuid4(),
+            frustration="low",
+            total_load=0.25,
+            kc_mastery={"KC-1": 0.62},
+            engagement="medium",
+            confidence_calibration=0.55,
+            help_seeking="medium",
+        )
+    )
+    request = GenerationRequest(
+        student_id=profile.student_id,
+        target_kc_ids=["KC-1"],
+        intent="practice",
+        requested_content_type="practice_problem",
+    )
+    audit_store.append(
+        event_type="learning.progress.profile",
+        status="success",
+        student_id=str(profile.student_id),
+        payload={
+            "intent": "practice",
+            "content_type": "practice_problem",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": [],
+            "average_run_outcome_score": 0.63,
+            "average_run_confidence": 0.79,
+            "matched_run_count": 4,
+            "matched_session_count": 3,
+            "positive_run_rate": 0.25,
+            "negative_run_rate": 0.25,
+            "recent_average_run_outcome_score": 0.56,
+            "prior_average_run_outcome_score": 0.72,
+            "progress_delta": -0.16,
+            "progress_signal": "declining",
+        },
+    )
+
+    router = CalibratedRouter(
+        base_router=AlwaysReteachRouter(),
+        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+    )
+
+    decision = router.route(profile, request)
+
+    assert decision.scaffolding_level == "high"
+    assert decision.calibration is not None
+    assert decision.calibration.source == "progress_profile"
+    assert decision.calibration.progress_signal == "declining"

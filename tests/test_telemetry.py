@@ -104,6 +104,16 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
         status="success",
         payload={"expired_entries": 2},
     )
+    audit_store.append(
+        event_type="learning.progress.profile",
+        status="success",
+        payload={"progress_signal": "improving"},
+    )
+    audit_store.append(
+        event_type="learning.progress.profile",
+        status="success",
+        payload={"progress_signal": "declining"},
+    )
 
     snapshot = telemetry.snapshot()
 
@@ -112,6 +122,9 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     assert snapshot.predictive_warm_events == 1
     assert snapshot.predictive_warm_requests == 3
     assert snapshot.predictive_cache_invalidations == 2
+    assert snapshot.learning_progress_profile_events == 2
+    assert snapshot.improving_progress_signals == 1
+    assert snapshot.declining_progress_signals == 1
     assert snapshot.generated_content_entries == 0
     assert snapshot.prompt_template_usages[0].template_name == "micro_explanation.baseline"
     assert snapshot.prompt_template_usages[0].event_count == 1

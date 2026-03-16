@@ -14,18 +14,16 @@ class CalibratedRouter:
     calibration_signal_service: RouterCalibrationSignalService
     positive_confidence_threshold: float = 0.7
     negative_confidence_threshold: float = 0.6
+    minimum_outcome_for_improving_relaxation: float = 0.7
+    maximum_outcome_for_declining_support_raise: float = 0.72
 
     def route(self, profile: LearnerProfile, request: GenerationRequest) -> AdaptiveRouteDecision:
         decision = self.base_router.route(profile, request)
         calibration = self.calibration_signal_service.signal_for(student_id=profile.student_id, request=request)
         calibrated_decision = decision.model_copy(update={"calibration": calibration})
-        if calibration.signal == "negative" and calibration.confidence >= self.negative_confidence_threshold:
+        if self._should_raise_support(calibration):
             return self._raise_support(calibrated_decision)
-        if (
-            calibration.signal == "positive"
-            and calibration.confidence >= self.positive_confidence_threshold
-            and not self._is_safety_constrained(profile)
-        ):
+        if self._should_relax_support(profile=profile, calibration=calibration):
             return self._relax_support(calibrated_decision)
         if calibration.signal in {"mixed", "tentative"}:
             return calibrated_decision.model_copy(
@@ -36,6 +34,8 @@ class CalibratedRouter:
                             signal=calibration.signal,
                             confidence=calibration.confidence,
                             average_run_outcome_score=calibration.average_run_outcome_score,
+                            progress_signal=calibration.progress_signal,
+                            progress_delta=calibration.progress_delta,
                         ),
                     ]
                 }
@@ -51,6 +51,8 @@ class CalibratedRouter:
                 average_run_outcome_score=(
                     decision.calibration.average_run_outcome_score if decision.calibration is not None else None
                 ),
+                progress_signal=(decision.calibration.progress_signal if decision.calibration is not None else "insufficient"),
+                progress_delta=(decision.calibration.progress_delta if decision.calibration is not None else 0.0),
             ),
         ]
         if decision.intervention_type == InterventionType.stretch:
@@ -87,6 +89,10 @@ class CalibratedRouter:
                         average_run_outcome_score=(
                             decision.calibration.average_run_outcome_score if decision.calibration is not None else None
                         ),
+                        progress_signal=(
+                            decision.calibration.progress_signal if decision.calibration is not None else "insufficient"
+                        ),
+                        progress_delta=(decision.calibration.progress_delta if decision.calibration is not None else 0.0),
                     ),
                     "Recent run outcomes were strong enough that the router relaxed scaffolding by one level.",
                 ],
@@ -97,6 +103,32 @@ class CalibratedRouter:
         return (
             profile.affective_state.frustration in {SignalLevel.medium, SignalLevel.high}
             or profile.cognitive_load.total_load >= 0.8
+        )
+
+    def _should_raise_support(self, calibration) -> bool:
+        if calibration.confidence < self.negative_confidence_threshold:
+            return False
+        if calibration.signal == "negative":
+            return True
+        return (
+            calibration.progress_signal == "declining"
+            and (
+                calibration.average_run_outcome_score is None
+                or calibration.average_run_outcome_score <= self.maximum_outcome_for_declining_support_raise
+            )
+        )
+
+    def _should_relax_support(self, *, profile: LearnerProfile, calibration) -> bool:
+        if self._is_safety_constrained(profile):
+            return False
+        if calibration.confidence < self.positive_confidence_threshold:
+            return False
+        if calibration.signal == "positive":
+            return True
+        return (
+            calibration.progress_signal == "improving"
+            and calibration.average_run_outcome_score is not None
+            and calibration.average_run_outcome_score >= self.minimum_outcome_for_improving_relaxation
         )
 
     def _increase_scaffolding(self, value: str) -> str:
@@ -111,10 +143,15 @@ class CalibratedRouter:
         signal: str,
         confidence: float,
         average_run_outcome_score: float | None,
+        progress_signal: str = "insufficient",
+        progress_delta: float = 0.0,
     ) -> str:
         if average_run_outcome_score is None:
             return "Recent run-level calibration was checked, but there was not enough durable evidence to change support."
+        trend_fragment = ""
+        if progress_signal in {"improving", "declining", "stable"}:
+            trend_fragment = f", trend {progress_signal} ({progress_delta:+.2f})"
         return (
             f"Recent run-level calibration on similar targets was {signal} "
-            f"(score {average_run_outcome_score:.2f}, confidence {confidence:.2f})."
+            f"(score {average_run_outcome_score:.2f}, confidence {confidence:.2f}{trend_fragment})."
         )

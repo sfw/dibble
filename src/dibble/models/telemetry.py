@@ -74,6 +74,9 @@ class TelemetrySnapshot(BaseModel):
     decision_events: int = 0
     generation_events: int = 0
     socratic_assessment_events: int = 0
+    learning_progress_profile_events: int = 0
+    improving_progress_signals: int = 0
+    declining_progress_signals: int = 0
     socratic_profile_updates: int = 0
     socratic_demonstrated_events: int = 0
     socratic_step_back_events: int = 0

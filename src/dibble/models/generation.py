@@ -72,6 +72,8 @@ class GenerationModeCalibration(BaseModel):
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     matched_run_count: int = Field(default=0, ge=0)
     average_run_outcome_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    progress_signal: str = "insufficient"
+    progress_delta: float = 0.0
     support_bias: int = Field(default=0, ge=-1, le=1)
     rationale: str | None = None
 
@@ -84,6 +86,8 @@ class RouteCalibrationSummary(BaseModel):
     matched_run_count: int = Field(default=0, ge=0)
     positive_run_rate: float = Field(default=0.0, ge=0.0, le=1.0)
     negative_run_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    progress_signal: str = "insufficient"
+    progress_delta: float = 0.0
 
 
 class AdaptiveRouteDecision(BaseModel):
