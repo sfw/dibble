@@ -23,6 +23,10 @@ from dibble.services.learning_run_summary_recorder import LearningRunSummaryReco
 from dibble.services.learner_state_calibration import LearnerStateCalibrator
 from dibble.services.learner_summary_service import LearnerSummaryService
 from dibble.services.misconception_detector import MisconceptionDetector
+from dibble.services.misconception_profiles import (
+    LearningMisconceptionProfileRecorder,
+    LearningMisconceptionProfileResolver,
+)
 from dibble.services.observation_store import SQLiteObservationStore
 from dibble.services.predictive_content_invalidator import PredictiveContentInvalidator
 from dibble.services.predictive_content_warming import PredictiveContentWarmer
@@ -107,7 +111,11 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     )
     remediation_planner = RemediationPlanner(
         knowledge_component_store,
-        MisconceptionDetector(knowledge_component_store),
+        MisconceptionDetector(
+            knowledge_component_store,
+            audit_store=audit_store,
+            misconception_profile_resolver=LearningMisconceptionProfileResolver(),
+        ),
     )
     socratic_assessment_service = SocraticAssessmentService(
         generation_engine=generation_engine,
@@ -129,6 +137,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     learning_run_summary_recorder = LearningRunSummaryRecorder(audit_store=audit_store)
     learning_calibration_profile_recorder = LearningCalibrationProfileRecorder(audit_store=audit_store)
     learner_summary_service = LearnerSummaryService(profile_store=profile_store, audit_store=audit_store)
+    misconception_profile_recorder = LearningMisconceptionProfileRecorder(audit_store=audit_store)
     content_warmer = ContentWarmer(
         profile_store,
         generation_engine,
@@ -147,6 +156,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         generation_mode_calibrator=generation_mode_calibrator,
         predictive_content_warmer=predictive_content_warmer,
         remediation_planner=remediation_planner,
+        misconception_profile_recorder=misconception_profile_recorder,
         audit_store=audit_store,
     )
 

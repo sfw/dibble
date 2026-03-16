@@ -5,7 +5,8 @@ import re
 from dibble.models.curriculum import KnowledgeComponent, KnowledgeComponentMisconception
 from dibble.models.generation import MisconceptionSignal
 from dibble.models.profile import LearnerProfile
-from dibble.services.protocols import KnowledgeComponentStore
+from dibble.services.misconception_profiles import LearningMisconceptionProfileResolver
+from dibble.services.protocols import AuditStore, KnowledgeComponentStore
 
 
 _WORD_PATTERN = re.compile(r"[A-Za-z0-9']+")
@@ -34,8 +35,16 @@ def _normalize_terms(value: str) -> set[str]:
 
 
 class MisconceptionDetector:
-    def __init__(self, knowledge_component_store: KnowledgeComponentStore) -> None:
+    def __init__(
+        self,
+        knowledge_component_store: KnowledgeComponentStore,
+        *,
+        audit_store: AuditStore | None = None,
+        misconception_profile_resolver: LearningMisconceptionProfileResolver | None = None,
+    ) -> None:
         self.knowledge_component_store = knowledge_component_store
+        self.audit_store = audit_store
+        self.misconception_profile_resolver = misconception_profile_resolver
 
     def detect(
         self,
@@ -52,6 +61,20 @@ class MisconceptionDetector:
         target_component = self.knowledge_component_store.get(target_kc_id)
         prerequisite_components = self.knowledge_component_store.list_prerequisites(target_kc_id)
         signals: list[MisconceptionSignal] = []
+
+        if self.audit_store is not None and self.misconception_profile_resolver is not None:
+            profile_events = [
+                event
+                for event in self.audit_store.list(limit=500)
+                if event.event_type == "learning.misconception.profile" and event.student_id == profile.student_id
+            ]
+            signals.extend(
+                self.misconception_profile_resolver.matched_profile_signals(
+                    profile_events=profile_events,
+                    target_kc_id=target_kc_id,
+                    evidence_terms=evidence_terms,
+                )
+            )
 
         for component in [*prerequisite_components, target_component]:
             if component is None:
@@ -106,10 +129,12 @@ class MisconceptionDetector:
                 )
             )
 
+        signals = _deduplicate_signals(signals)
+        source_priority = {"profile": 0, "catalog": 1, "heuristic": 2}
         signals.sort(
             key=lambda item: (
                 -item.confidence,
-                0 if item.source == "catalog" else 1,
+                source_priority.get(item.source, 3),
                 item.kc_id,
                 item.category,
             )
@@ -160,3 +185,20 @@ class MisconceptionDetector:
                 )
             )
         return signals
+
+
+def _deduplicate_signals(signals: list[MisconceptionSignal]) -> list[MisconceptionSignal]:
+    best_by_key: dict[tuple[str, str, str | None], MisconceptionSignal] = {}
+    source_priority = {"profile": 0, "catalog": 1, "heuristic": 2}
+    for signal in signals:
+        key = (signal.kc_id, signal.category, signal.misconception_id)
+        current = best_by_key.get(key)
+        if current is None:
+            best_by_key[key] = signal
+            continue
+        if (signal.confidence, -source_priority.get(signal.source, 3)) > (
+            current.confidence,
+            -source_priority.get(current.source, 3),
+        ):
+            best_by_key[key] = signal
+    return list(best_by_key.values())

@@ -17,6 +17,7 @@ from dibble.services.content_warmer import ContentWarmer
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.generation_mode_calibration import GenerationModeCalibrator
 from dibble.services.generation_modes import build_generation_mode_plan
+from dibble.services.misconception_profiles import LearningMisconceptionProfileRecorder
 from dibble.services.predictive_content_warming import PredictiveContentWarmer
 from dibble.services.protocols import AuditStore, ProfileStore
 from dibble.services.remediation_planner import RemediationPlanner
@@ -37,6 +38,7 @@ class ContentWorkflowService:
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_warmer: PredictiveContentWarmer
     remediation_planner: RemediationPlanner
+    misconception_profile_recorder: LearningMisconceptionProfileRecorder
     audit_store: AuditStore
 
     def decide_route(self, request: GenerationRequest) -> AdaptiveRouteDecision:
@@ -213,7 +215,7 @@ class ContentWorkflowService:
             "remediation_blueprint": plan.module_blueprint,
         }
         enriched_content = generated_content.model_copy(update={"request_context": enriched_request_context})
-        self.audit_store.append(
+        remediation_event = self.audit_store.append(
             event_type="remediation.trigger",
             status="success",
             student_id=str(request.student_id),
@@ -228,6 +230,7 @@ class ContentWorkflowService:
                 "rationale": plan.rationale,
             },
         )
+        self.misconception_profile_recorder.record_from_remediation_event(remediation_event=remediation_event)
         return enriched_content
 
     def load_profile(self, student_id: UUID) -> LearnerProfile:

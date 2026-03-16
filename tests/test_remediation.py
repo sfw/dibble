@@ -4,6 +4,7 @@ from dibble.models.curriculum import KnowledgeComponentUpsert
 from dibble.models.profile import LearnerProfile
 from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
 from dibble.services.misconception_detector import MisconceptionDetector
+from dibble.services.misconception_profiles import LearningMisconceptionProfileResolver
 from dibble.services.remediation_planner import RemediationPlanner
 from dibble.storage import ensure_database
 from tests.support import build_knowledge_component, build_profile
@@ -158,3 +159,81 @@ def test_remediation_planner_builds_structured_blueprint_for_known_misconception
     assert plan.module_blueprint["primary_misconception_id"] == "fraction-part-role-swap"
     assert plan.module_blueprint["repair_target_kc_ids"] == ["KC-1"]
     assert [step["phase"] for step in plan.module_blueprint["steps"]] == ["step_back", "repair", "return"]
+
+
+def test_misconception_detector_uses_profile_signals_to_reinforce_prior_patterns(tmp_path):
+    from dibble.services.audit_store import SQLiteAuditStore
+
+    database_path = str(tmp_path / "misconception-profile-detector.db")
+    ensure_database(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component(
+                "KC-2",
+                name="Generate equivalent fractions",
+                common_misconceptions=[
+                    {
+                        "misconception_id": "fraction-whole-number-bias",
+                        "label": "Treats numerator and denominator like unrelated whole numbers",
+                        "description": "The learner compares parts separately.",
+                        "trigger_terms": ["numerator", "denominator", "whole number"],
+                        "prerequisite_kc_ids": ["KC-1"],
+                        "remediation_hint": "Use one visual model to compare the whole amount.",
+                    }
+                ],
+            )
+        )
+    )
+    audit_store.append(
+        event_type="learning.misconception.profile",
+        status="success",
+        student_id=str(uuid4()),
+        payload={
+            "target_kc_id": "KC-2",
+            "kc_id": "KC-2",
+            "category": "known_misconception",
+            "misconception_id": "fraction-whole-number-bias",
+            "matched_signal_count": 2,
+            "average_confidence": 0.8,
+            "profile_signal": "persistent",
+            "recommended_kc_ids": ["KC-1"],
+            "evidence_terms": ["numerator", "denominator"],
+            "remediation_hint": "Use one visual model to compare the whole amount.",
+        },
+    )
+    student_id = uuid4()
+    audit_store.append(
+        event_type="learning.misconception.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "target_kc_id": "KC-2",
+            "kc_id": "KC-2",
+            "category": "known_misconception",
+            "misconception_id": "fraction-whole-number-bias",
+            "matched_signal_count": 2,
+            "average_confidence": 0.8,
+            "profile_signal": "persistent",
+            "recommended_kc_ids": ["KC-1"],
+            "evidence_terms": ["numerator", "denominator"],
+            "remediation_hint": "Use one visual model to compare the whole amount.",
+        },
+    )
+    profile = LearnerProfile.model_validate(build_profile(student_id, kc_mastery={"KC-2": 0.42}))
+    detector = MisconceptionDetector(
+        kc_store,
+        audit_store=audit_store,
+        misconception_profile_resolver=LearningMisconceptionProfileResolver(),
+    )
+
+    signals = detector.detect(
+        profile,
+        target_kc_id="KC-2",
+        misconception_description="The learner keeps comparing numerator values before the full fraction.",
+        curriculum_context=["Equivalent fractions"],
+    )
+
+    assert signals[0].source == "profile"
+    assert signals[0].misconception_id == "fraction-whole-number-bias"

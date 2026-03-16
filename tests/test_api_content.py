@@ -263,11 +263,71 @@ def test_remedial_trigger_returns_remedial_generated_content(client, student_id)
 
     audit_response = client.get("/api/audit/events")
     assert audit_response.status_code == 200
-    assert audit_response.json()[0]["event_type"] == "remediation.trigger"
-    assert audit_response.json()[0]["payload"]["misconception_signal_count"] >= 1
-    assert audit_response.json()[0]["payload"]["remediation_blueprint"]["primary_misconception_id"] == (
+    remediation_event = next(
+        event for event in audit_response.json() if event["event_type"] == "remediation.trigger"
+    )
+    assert remediation_event["payload"]["misconception_signal_count"] >= 1
+    assert remediation_event["payload"]["remediation_blueprint"]["primary_misconception_id"] == (
         "fraction-whole-number-bias"
     )
+
+
+def test_remedial_trigger_records_and_reuses_misconception_profiles(client, student_id):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put(
+        "/api/knowledge-components/KC-1",
+        json=build_knowledge_component("KC-1", name="Identify numerator and denominator"),
+    )
+    client.put(
+        "/api/knowledge-components/KC-2",
+        json=build_knowledge_component(
+            "KC-2",
+            prerequisite_kc_ids=["KC-1"],
+            name="Generate equivalent fractions",
+            common_misconceptions=[
+                {
+                    "misconception_id": "fraction-whole-number-bias",
+                    "label": "Treats fraction parts like unrelated whole numbers",
+                    "description": "The learner compares numerator and denominator separately instead of the whole amount.",
+                    "trigger_terms": ["numerator", "denominator", "whole number", "fraction"],
+                    "prerequisite_kc_ids": ["KC-1"],
+                    "remediation_hint": "Use one visual model to compare the total amount before naming the parts.",
+                }
+            ],
+        ),
+    )
+
+    first_response = client.post(
+        "/api/remedial/trigger",
+        json={
+            "student_id": str(student_id),
+            "target_kc_id": "KC-2",
+            "misconception_description": "The learner compares numerator and denominator like whole numbers.",
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    second_response = client.post(
+        "/api/remedial/trigger",
+        json={
+            "student_id": str(student_id),
+            "target_kc_id": "KC-2",
+            "misconception_description": "The learner is still focused on numerator counts instead of the whole fraction amount.",
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    audit_response = client.get("/api/audit/events")
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+
+    second_signals = second_response.json()["request_context"]["misconception_signals"]
+    assert any(signal["source"] == "profile" for signal in second_signals)
+    profile_event = next(
+        event for event in audit_response.json() if event["event_type"] == "learning.misconception.profile"
+    )
+    assert profile_event["payload"]["target_kc_id"] == "KC-2"
+    assert profile_event["payload"]["matched_signal_count"] >= 1
 
 
 def test_explanations_and_problems_endpoints_specialize_generation(client, student_id):
