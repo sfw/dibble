@@ -204,6 +204,74 @@ def test_predictive_next_step_planner_uses_assessment_when_sequence_is_transfer_
     ]
 
 
+def test_predictive_next_step_planner_honors_session_bridge_phase_after_remediation():
+    generated_content = _build_generated_content(
+        content_type="remedial_micro_module",
+        request_context={
+            "learning_session_id": "session-bridge",
+            "target_kc_ids": ["KC-2"],
+            "selected_content_type": "remedial_micro_module",
+            "mode_calibration": {
+                "support_bias": 0,
+                "session_phase": "bridge",
+                "session_recovery_intent": "bridge_target",
+            },
+        },
+        route_calibration=RouteCalibrationSummary(
+            signal="mixed",
+            source="session_controller",
+            confidence=0.78,
+            average_run_outcome_score=0.68,
+            matched_run_count=3,
+            progress_signal="stable",
+            progress_delta=0.01,
+        ),
+    )
+
+    plan = PredictiveNextStepPlanner().plan(generated_content)
+
+    assert plan == [
+        (
+            RequestedContentType.practice_problem,
+            "Within-session recovery is bridging back to the target, so warm a guided target problem next.",
+        )
+    ]
+
+
+def test_predictive_next_step_planner_honors_session_bridge_phase_after_practice():
+    generated_content = _build_generated_content(
+        content_type="practice_problem",
+        request_context={
+            "learning_session_id": "session-bridge",
+            "target_kc_ids": ["KC-2"],
+            "selected_content_type": "practice_problem",
+            "mode_calibration": {
+                "support_bias": 0,
+                "session_phase": "bridge",
+                "session_recovery_intent": "bridge_target",
+            },
+        },
+        route_calibration=RouteCalibrationSummary(
+            signal="mixed",
+            source="session_controller",
+            confidence=0.8,
+            average_run_outcome_score=0.7,
+            matched_run_count=4,
+            progress_signal="stable",
+            progress_delta=0.02,
+        ),
+    )
+
+    plan = PredictiveNextStepPlanner().plan(generated_content)
+
+    assert plan == [
+        (
+            RequestedContentType.assessment_probe,
+            "Within-session recovery has reached the bridge step, so prepare a transfer check next.",
+        )
+    ]
+
+
 def _build_generated_content(
     *,
     content_type: str,

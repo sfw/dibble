@@ -37,10 +37,22 @@ class PredictiveNextStepPlanner:
             if isinstance(mode_calibration, dict)
             else "monitor"
         )
+        session_phase = (
+            str(mode_calibration.get("session_phase", "monitor"))
+            if isinstance(mode_calibration, dict)
+            else "monitor"
+        )
         route_signal = route_calibration.signal if route_calibration is not None else "insufficient"
         progress_signal = route_calibration.progress_signal if route_calibration is not None else "insufficient"
 
         if content_type == RequestedContentType.micro_explanation.value:
+            if session_phase == "consolidate":
+                return [
+                    (
+                        RequestedContentType.practice_problem,
+                        "Within-session recovery is still consolidating, so warm one more guided practice step before transfer.",
+                    )
+                ]
             if self._should_rebuild_prerequisite(
                 strategy_trajectory_state=strategy_trajectory_state,
                 strategy_next_action=strategy_next_action,
@@ -88,6 +100,13 @@ class PredictiveNextStepPlanner:
             ]
 
         if content_type == RequestedContentType.worked_example.value:
+            if session_phase == "bridge":
+                return [
+                    (
+                        RequestedContentType.practice_problem,
+                        "Within-session recovery is in a bridge phase, so warm one guided target problem before transfer.",
+                    )
+                ]
             if self._should_rebuild_prerequisite(
                 strategy_trajectory_state=strategy_trajectory_state,
                 strategy_next_action=strategy_next_action,
@@ -125,6 +144,20 @@ class PredictiveNextStepPlanner:
             return follow_ups
 
         if content_type == RequestedContentType.practice_problem.value:
+            if session_phase == "consolidate":
+                return [
+                    (
+                        RequestedContentType.practice_problem,
+                        "Within-session recovery is still consolidating, so keep one more guided practice step warm.",
+                    )
+                ]
+            if session_phase == "bridge":
+                return [
+                    (
+                        RequestedContentType.assessment_probe,
+                        "Within-session recovery has reached the bridge step, so prepare a transfer check next.",
+                    )
+                ]
             if self._should_rebuild_prerequisite(
                 strategy_trajectory_state=strategy_trajectory_state,
                 strategy_next_action=strategy_next_action,
@@ -165,6 +198,20 @@ class PredictiveNextStepPlanner:
             ]
 
         if content_type == RequestedContentType.remedial_micro_module.value:
+            if session_phase == "bridge":
+                return [
+                    (
+                        RequestedContentType.practice_problem,
+                        "Within-session recovery is bridging back to the target, so warm a guided target problem next.",
+                    )
+                ]
+            if session_phase == "consolidate":
+                return [
+                    (
+                        RequestedContentType.practice_problem,
+                        "Within-session recovery is consolidating, so warm one more repair-focused practice step before transfer.",
+                    )
+                ]
             if sequence_action in {"hold_target", "hold_repair_target"}:
                 return [
                     (

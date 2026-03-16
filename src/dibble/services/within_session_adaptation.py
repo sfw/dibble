@@ -138,8 +138,28 @@ class WithinSessionAdaptationService:
         net = round(positive_score - negative_score, 2)
         confidence = round(min(0.92, 0.46 + (len(observation_events) * 0.16) + (len(assessment_events) * 0.22)), 2)
         primary_kc_id = self._primary_kc_id(request=request, events=events)
+        strong_assessment_recovery = self._strong_assessment_recovery(latest_assessment.payload if latest_assessment is not None else None)
 
         if negative_score >= 0.55 and net <= -0.1:
+            if strong_assessment_recovery and positive_score >= 0.72:
+                return WithinSessionAdaptationSummary(
+                    signal="positive",
+                    source="session_events",
+                    confidence=confidence,
+                    support_bias=1,
+                    sequence_action="attempt_transfer",
+                    primary_kc_id=primary_kc_id,
+                    matched_observation_count=len(observation_events),
+                    matched_assessment_count=len(assessment_events),
+                    phase="transfer_check",
+                    recovery_intent="fade_support",
+                    rationale=self._positive_rationale(
+                        latest_assessment=latest_assessment.payload if latest_assessment is not None else None,
+                        observation_count=len(observation_events),
+                        assessment_count=len(assessment_events),
+                        session_id=request.learning_session_id,
+                    ),
+                )
             return WithinSessionAdaptationSummary(
                 signal="negative",
                 source="session_events",
@@ -259,6 +279,18 @@ class WithinSessionAdaptationService:
         positive += 0.08 if help_seeking in {"none", "low"} else 0.0
         positive += 0.14 if confidence_calibration >= 0.7 else 0.08 if confidence_calibration >= 0.6 else 0.0
         return round(negative, 2), round(positive, 2)
+
+    def _strong_assessment_recovery(self, latest_assessment: dict[str, object] | None) -> bool:
+        if latest_assessment is None:
+            return False
+        evidence_strength = str(latest_assessment.get("evidence_strength", "insufficient"))
+        evidence_score = float(latest_assessment.get("evidence_score", 0.0))
+        next_action = str(latest_assessment.get("next_action", "ask_probe"))
+        return (
+            evidence_strength == "demonstrated"
+            and evidence_score >= 0.85
+            and next_action == "advance"
+        )
 
     def _assessment_scores(self, payload: dict[str, object]) -> tuple[float, float]:
         evidence_strength = str(payload.get("evidence_strength", "insufficient"))
@@ -471,17 +503,25 @@ class WithinSessionAdaptationService:
         existing: WithinSessionControllerState | None,
     ) -> str:
         if raw_summary.signal == "negative":
+            if existing is not None and existing.phase in {"bridge", "transfer_check"}:
+                return "stabilize"
             if existing is not None and existing.negative_streak >= 1:
                 return "repair"
             return "stabilize"
         if raw_summary.signal == "positive":
-            if existing is not None and existing.phase in {"stabilize", "repair", "consolidate"}:
+            if existing is not None and existing.phase in {"stabilize", "repair"}:
                 if existing.positive_streak >= 1:
-                    return "transfer_check"
+                    return "bridge"
                 return "consolidate"
+            if existing is not None and existing.phase == "consolidate":
+                return "bridge"
+            if existing is not None and existing.phase == "bridge":
+                return "transfer_check"
             return "transfer_check"
         if existing is not None and existing.phase in {"stabilize", "repair"}:
             return existing.phase
+        if existing is not None and existing.phase == "bridge":
+            return "bridge"
         if existing is not None and existing.phase == "transfer_check":
             return "consolidate"
         return "monitor"
@@ -495,11 +535,19 @@ class WithinSessionAdaptationService:
         if raw_summary.signal == "negative":
             return "increase_support"
         if raw_summary.signal == "positive":
-            if existing is not None and existing.phase in {"stabilize", "repair", "consolidate"}:
+            if existing is not None and existing.phase in {"stabilize", "repair"}:
                 return "confirm_recovery"
+            if existing is not None and existing.phase == "consolidate":
+                return "bridge_target"
+            if existing is not None and existing.phase == "bridge":
+                return "check_transfer"
             return "check_transfer"
         if existing is not None and existing.phase in {"stabilize", "repair"}:
             return "hold_repair"
+        if existing is not None and existing.phase == "consolidate":
+            return "hold_recovery"
+        if existing is not None and existing.phase == "bridge":
+            return "bridge_target"
         return "monitor"
 
     def _controller_signal(
@@ -515,9 +563,9 @@ class WithinSessionAdaptationService:
             return "negative", -1, "hold_target"
         if phase == "consolidate":
             return "recovering", 0, "hold_target"
+        if phase == "bridge":
+            return "recovering", 0, "hold_repair_target"
         if phase == "transfer_check":
-            if existing is not None and existing.phase in {"stabilize", "repair", "consolidate"} and positive_streak < 2:
-                return "recovering", 0, "hold_target"
             return "positive", 1, "attempt_transfer"
         if raw_summary.signal == "mixed" and negative_streak > 0:
             return "mixed", -1, "hold_target"
@@ -532,7 +580,7 @@ class WithinSessionAdaptationService:
         negative_streak: int,
     ) -> float:
         streak_bonus = min(0.14, ((positive_streak + negative_streak) * 0.04))
-        phase_bonus = 0.04 if phase in {"repair", "consolidate", "transfer_check"} else 0.0
+        phase_bonus = 0.04 if phase in {"repair", "consolidate", "bridge", "transfer_check"} else 0.0
         return round(min(0.95, raw_summary.confidence + streak_bonus + phase_bonus), 2)
 
     def _controller_rationale(
@@ -559,6 +607,11 @@ class WithinSessionAdaptationService:
             return (
                 f"Within-session controller for {learning_session_id} has seen recovery evidence after earlier struggle, "
                 "so it is holding the target while confidence consolidates."
+            )
+        if phase == "bridge":
+            return (
+                f"Within-session controller for {learning_session_id} has seen repeated recovery evidence, "
+                "so it is bridging through one more guided target step before transfer."
             )
         if phase == "transfer_check":
             return (

@@ -204,7 +204,61 @@ def test_within_session_controller_moves_from_repair_to_transfer_check_after_rec
 
     assert recovery_summary.phase == "transfer_check"
     assert recovery_summary.sequence_action == "attempt_transfer"
-    assert recovery_summary.positive_streak == 2
+    assert recovery_summary.positive_streak == 3
     assert final_summary.signal == "positive"
     assert final_summary.phase == "transfer_check"
-    assert final_summary.recovery_intent == "confirm_recovery"
+    assert final_summary.recovery_intent == "check_transfer"
+
+
+def test_within_session_controller_moves_through_consolidate_and_bridge_before_transfer(tmp_path):
+    database_path = str(tmp_path / "within-session-controller-bridge.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    controller_store = SQLiteWithinSessionControllerStore(database_path)
+    student_id = uuid4()
+    service = WithinSessionAdaptationService(
+        audit_store=audit_store,
+        controller_store=controller_store,
+    )
+
+    negative_observation = {
+        "learning_session_id": "session-bridge",
+        "target_kc_ids": ["KC-2"],
+        "error_count": 3,
+        "hints_used": 2,
+        "support_level": "low",
+        "frustration": "high",
+        "total_load": 0.82,
+        "confidence_calibration": 0.22,
+        "help_seeking": "high",
+    }
+    audit_store.append(
+        event_type="learner.observe",
+        status="success",
+        student_id=str(student_id),
+        payload=negative_observation,
+    )
+    service.record_observation_event(student_id=student_id, event_payload=negative_observation)
+
+    recovery_payload = {
+        "learning_session_id": "session-bridge",
+        "target_kc_ids": ["KC-2"],
+        "evidence_strength": "demonstrated",
+        "evidence_score": 0.88,
+        "next_action": "advance",
+    }
+    phases: list[str] = []
+    sequence_actions: list[str] = []
+    for _ in range(3):
+        audit_store.append(
+            event_type="assessment.socratic",
+            status="success",
+            student_id=str(student_id),
+            payload=recovery_payload,
+        )
+        summary = service.record_assessment_event(student_id=student_id, event_payload=recovery_payload)
+        phases.append(summary.phase)
+        sequence_actions.append(summary.sequence_action)
+
+    assert phases == ["consolidate", "bridge", "transfer_check"]
+    assert sequence_actions == ["hold_target", "hold_repair_target", "attempt_transfer"]
