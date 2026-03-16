@@ -1,7 +1,5 @@
 from uuid import uuid4
 
-import pytest
-
 from dibble.config import Settings
 from dibble.models.curriculum import CurriculumResourceUpsert
 from dibble.models.generation import GenerationRequest

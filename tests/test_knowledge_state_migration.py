@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from uuid import uuid4
-
 from dibble.models.assessment import SocraticEvidenceStrength
 from dibble.models.curriculum import KnowledgeComponent
 from dibble.services.knowledge_state_migration import KnowledgeStateMigrator
