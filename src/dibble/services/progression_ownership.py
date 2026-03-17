@@ -64,11 +64,6 @@ class ProgressionOwnershipService:
             target_kc_ids=requested_target_kc_ids,
             prerequisite_kc_ids=prerequisite_kc_ids,
         )
-        evidence_decision = self._evidence_decision(
-            student_id=student_id,
-            request=request,
-            session_summary=session,
-        )
         transfer_target_kc_ids = list(sequence.deferred_kc_ids or requested_target_kc_ids)
 
         action = "stay_on_requested_target"
@@ -93,16 +88,6 @@ class ProgressionOwnershipService:
             rationale = session.rationale or (
                 "Recent same-session recovery suggests bridging through a nearby KC before returning fully to the target."
             )
-        elif self._should_prefer_transfer(evidence_decision=evidence_decision):
-            action = "attempt_transfer"
-            source = "progression_evidence"
-            target_stage = "transfer"
-            applied_target_kc_ids = list(transfer_target_kc_ids or requested_target_kc_ids)
-            rationale = self._transfer_rationale(
-                request=request,
-                transfer_target_kc_ids=applied_target_kc_ids,
-                evidence_decision=evidence_decision,
-            )
         elif (
             session.sequence_action == "hold_repair_target"
             and sequence.primary_kc_id is not None
@@ -123,9 +108,32 @@ class ProgressionOwnershipService:
             target_stage = "repair"
             applied_target_kc_ids = [sequence.primary_kc_id]
             rationale = sequence.rationale
+
+        stage_request = request.model_copy(
+            update={
+                "target_kc_ids": applied_target_kc_ids,
+                "target_lo_ids": self._target_lo_ids(applied_target_kc_ids) or request.target_lo_ids,
+            }
+        )
+        evidence_decision = self._evidence_decision(
+            student_id=student_id,
+            request=stage_request,
+            session_summary=session,
+        )
+        if self._should_prefer_transfer(evidence_decision=evidence_decision):
+            action = "attempt_transfer"
+            source = "progression_evidence"
+            target_stage = "transfer"
+            applied_target_kc_ids = list(transfer_target_kc_ids or requested_target_kc_ids)
+            rationale = self._transfer_rationale(
+                request=stage_request,
+                transfer_target_kc_ids=applied_target_kc_ids,
+                evidence_decision=evidence_decision,
+            )
         elif evidence_decision.decision != "monitor":
             action = evidence_decision.decision
             source = "progression_evidence"
+            target_stage = self._target_stage_for_action(action=action, fallback=target_stage)
             rationale = evidence_decision.rationale
 
         applied_request, mastery_gate_action, mastery_gate_reason = self._apply_mastery_gate(
@@ -323,3 +331,17 @@ class ProgressionOwnershipService:
         if target_stage == "repair":
             return "Recent same-session evidence still suggests rebuilding the prerequisite or repair target before assessment."
         return "Recent same-session evidence still suggests the learner should stay on target practice before a transfer-style assessment."
+
+    def _target_stage_for_action(self, *, action: str, fallback: str) -> str:
+        if action == "hold_bridge_target":
+            return "bridge"
+        if action in {
+            "hold_repair_target",
+            "rebuild_prerequisite_first",
+            "rebuild_prerequisite_before_assessment",
+            "hold_repair_target_before_assessment",
+        }:
+            return "repair"
+        if action in {"attempt_transfer"}:
+            return "transfer"
+        return fallback

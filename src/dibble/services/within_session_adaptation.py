@@ -827,6 +827,12 @@ class WithinSessionAdaptationService:
                 return "repair"
             return "stabilize"
         if raw_summary.signal == "positive":
+            if self._current_evidence_blocks_transfer(raw_summary):
+                if existing is not None and existing.phase == "bridge":
+                    return "bridge"
+                if existing is not None and existing.phase == "consolidate":
+                    return "bridge"
+                return "consolidate"
             if existing is not None and existing.phase in {"stabilize", "repair"}:
                 if existing.positive_streak >= 1:
                     return "bridge"
@@ -853,6 +859,10 @@ class WithinSessionAdaptationService:
         if raw_summary.signal == "negative":
             return "increase_support"
         if raw_summary.signal == "positive":
+            if self._current_evidence_blocks_transfer(raw_summary):
+                if existing is not None and existing.phase in {"consolidate", "bridge"}:
+                    return "bridge_target"
+                return "confirm_recovery"
             if existing is not None and existing.phase in {"stabilize", "repair"}:
                 return "confirm_recovery"
             if existing is not None and existing.phase == "consolidate":
@@ -916,6 +926,11 @@ class WithinSessionAdaptationService:
         arc_action: str,
         event_type: str,
     ) -> str:
+        if raw_summary.signal == "positive" and self._current_evidence_blocks_transfer(raw_summary):
+            return (
+                f"Within-session controller for {learning_session_id} has some recovery evidence, "
+                "but live signals still look support-dependent or overloaded, so it is holding before transfer."
+            )
         if stuck_loop_risk == "high":
             return (
                 f"Within-session controller for {learning_session_id} has exhausted its guided support budget during {phase}, "
@@ -969,3 +984,10 @@ class WithinSessionAdaptationService:
         return (
             f"Within-session controller for {learning_session_id} has delivered {generation_count} generated steps in the current {existing.phase} arc."
         )
+
+    def _current_evidence_blocks_transfer(self, raw_summary: WithinSessionAdaptationSummary) -> bool:
+        if raw_summary.current_evidence_signal in {"overload", "support_dependence"}:
+            return raw_summary.current_evidence_confidence >= 0.55
+        if raw_summary.current_evidence_signal == "disengagement":
+            return raw_summary.current_evidence_confidence >= 0.6
+        return False

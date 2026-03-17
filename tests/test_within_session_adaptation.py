@@ -358,6 +358,76 @@ def test_within_session_controller_moves_through_consolidate_and_bridge_before_t
     assert sequence_actions == ["hold_target", "hold_repair_target", "attempt_transfer"]
 
 
+def test_within_session_controller_blocks_transfer_when_live_evidence_still_shows_support_dependence(tmp_path):
+    database_path = str(tmp_path / "within-session-controller-support-dependence.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    controller_store = SQLiteWithinSessionControllerStore(database_path)
+    student_id = uuid4()
+    service = WithinSessionAdaptationService(
+        audit_store=audit_store,
+        controller_store=controller_store,
+    )
+
+    support_dependent_observation = {
+        "learning_session_id": "session-support-dependent",
+        "target_kc_ids": ["KC-2"],
+        "error_count": 1,
+        "hints_used": 3,
+        "support_level": "high",
+        "frustration": "low",
+        "total_load": 0.58,
+        "confidence_calibration": 0.42,
+        "help_seeking": "high",
+        "current_evidence_signal": "support_dependence",
+        "current_evidence_confidence": 0.82,
+    }
+    audit_store.append(
+        event_type="learner.observe",
+        status="success",
+        student_id=str(student_id),
+        payload=support_dependent_observation,
+    )
+    service.record_observation_event(student_id=student_id, event_payload=support_dependent_observation)
+
+    recovery_payload = {
+        "learning_session_id": "session-support-dependent",
+        "target_kc_ids": ["KC-2"],
+        "evidence_strength": "demonstrated",
+        "evidence_score": 0.9,
+        "next_action": "advance",
+    }
+    phases: list[str] = []
+    sequence_actions: list[str] = []
+    for _ in range(3):
+        audit_store.append(
+            event_type="assessment.socratic",
+            status="success",
+            student_id=str(student_id),
+            payload=recovery_payload,
+        )
+        summary = service.record_assessment_event(student_id=student_id, event_payload=recovery_payload)
+        phases.append(summary.phase)
+        sequence_actions.append(summary.sequence_action)
+
+    final_summary = service.adaptation_for(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            learning_session_id="session-support-dependent",
+            target_kc_ids=["KC-2"],
+            intent="assessment",
+            requested_content_type="assessment_probe",
+        ),
+    )
+
+    assert phases == ["consolidate", "bridge", "bridge"]
+    assert sequence_actions == ["hold_target", "hold_repair_target", "hold_repair_target"]
+    assert final_summary.phase == "bridge"
+    assert final_summary.sequence_action == "hold_repair_target"
+    assert final_summary.recovery_intent == "bridge_target"
+
+
 def test_within_session_adaptation_keeps_productive_struggle_out_of_negative_bucket(tmp_path):
     database_path = str(tmp_path / "within-session-adaptation-productive-struggle.db")
     ensure_database(database_path)

@@ -230,6 +230,77 @@ def test_progression_ownership_holds_target_when_recent_success_is_support_heavy
     assert decision.evidence_assessment_count == 0
 
 
+def test_progression_ownership_uses_repair_target_evidence_after_backend_redirect(tmp_path):
+    database_path = str(tmp_path / "progression-repair-evidence.db")
+    ensure_database(database_path)
+    observation_store = SQLiteObservationStore(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = uuid4()
+    for observation in [
+        _build_observation(
+            session_id="session-repair-evidence",
+            support_level="medium",
+            confidence=0.78,
+            hints=0,
+            errors=0,
+            target_kc_id="KC-1",
+        ),
+        _build_observation(
+            session_id="session-repair-evidence",
+            support_level="medium",
+            confidence=0.74,
+            hints=0,
+            errors=0,
+            target_kc_id="KC-1",
+        ),
+    ]:
+        observation_store.append(student_id=str(student_id), observation=observation)
+    service = ProgressionOwnershipService(
+        knowledge_component_store=StubKnowledgeComponentStore(),
+        strategy_signal_service=StubStrategySignalService(
+            LearnerStrategySummary(
+                signal="support_intensive",
+                source="strategy_profile",
+                recovery_focus="prerequisite_rebuild",
+                recommended_next_action="rebuild_prerequisite",
+                rationale="Rebuild the prerequisite before returning to the target.",
+            )
+        ),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(
+            WithinSessionAdaptationSummary(
+                signal="recovering",
+                source="session_controller",
+                phase="repair",
+                recovery_intent="hold_repair",
+                sequence_action="hold_repair_target",
+                rationale="Stay on the repair target until transfer readiness is less support-dependent.",
+            )
+        ),
+        observation_store=observation_store,
+        audit_store=audit_store,
+        observation_profile_updater=ObservationProfileUpdater(),
+    )
+
+    decision = service.resolve_request(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            learning_session_id="session-repair-evidence",
+            target_kc_ids=["KC-3"],
+            target_lo_ids=["LO-1"],
+            requested_content_type="practice_problem",
+        ),
+    )
+
+    assert decision.action == "hold_repair_target"
+    assert decision.source == "progression_evidence"
+    assert decision.target_stage == "repair"
+    assert decision.applied_target_kc_ids == ["KC-1"]
+    assert decision.evidence_observation_count == 2
+    assert decision.average_observed_mastery is not None
+    assert decision.average_observed_mastery >= 0.72
+
+
 def test_progression_ownership_attempts_transfer_when_assessment_confirms_readiness(tmp_path):
     database_path = str(tmp_path / "progression-transfer.db")
     ensure_database(database_path)

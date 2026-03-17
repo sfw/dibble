@@ -115,6 +115,7 @@ class ObservationProfileUpdater:
             linkage_source=linkage_source,
             matched_observation_count=len(supporting_observations),
             average_recent_mastery=average_recent_mastery,
+            low_support_success_count=self._low_support_success_count(supporting_observations),
             repeated_high_support_success_count=self._repeated_high_support_success_count(supporting_observations),
             durable_mastery=durable_mastery,
         )
@@ -229,30 +230,28 @@ class ObservationProfileUpdater:
             for payload, score in zip(matched_assessments, assessment_scores)
         )
         low_support_success_count = sum(
-            1
-            for observation, score in zip(matched_observations, observation_scores)
-            if observation.completed
-            and observation.support_level == ObservationSupportLevel.low
-            and observation.error_count <= 1
-            and observation.hints_used <= 1
-            and score >= 0.62
+            1 for observation, score in zip(matched_observations, observation_scores) if self._is_low_support_success(observation, score)
         )
         repeated_high_support_success_count = self._repeated_high_support_success_count(matched_observations)
-        session_hold = session_sequence_action in {"hold_target", "hold_repair_target", "hold_bridge_target"}
+        hold_decision = self._progression_hold_decision(session_sequence_action=session_sequence_action)
         session_transfer = session_sequence_action == "attempt_transfer"
+        stage_requires_stronger_transfer = hold_decision in {"hold_repair_target", "hold_bridge_target"}
         confidence = self._evidence_confidence(
             matched_observation_count=len(matched_observations),
             matched_assessment_count=len(matched_assessments),
         )
-
-        if strong_assessment or (
+        observation_transfer_threshold = 0.72 if stage_requires_stronger_transfer else 0.66
+        transfer_ready = strong_assessment or (
             average_observed_mastery is not None
-            and average_observed_mastery >= 0.66
-            and low_support_success_count >= 2
-        ) or (
+            and average_observed_mastery >= observation_transfer_threshold
+            and low_support_success_count >= (2 if stage_requires_stronger_transfer else 1)
+        )
+
+        if transfer_ready or (
             session_transfer
             and average_observed_mastery is not None
-            and average_observed_mastery >= 0.62
+            and average_observed_mastery >= 0.66
+            and low_support_success_count >= 1
             and repeated_high_support_success_count == 0
         ):
             return ProgressionEvidenceDecision(
@@ -269,18 +268,25 @@ class ObservationProfileUpdater:
                 target_kc_ids=request.target_kc_ids,
             )
 
-        weak_observation_signal = average_observed_mastery is not None and average_observed_mastery < 0.58
+        weak_observation_signal = average_observed_mastery is not None and average_observed_mastery < (
+            0.62 if stage_requires_stronger_transfer else 0.58
+        )
         weak_assessment_signal = bool(matched_assessments) and not strong_assessment
-        if session_hold or weak_observation_signal or weak_assessment_signal or repeated_high_support_success_count > 0:
-            rationale = (
-                session_rationale
-                or (
-                    f"Recent same-session evidence on {request.learning_session_id} still looks support-heavy or incomplete, "
-                    "so the backend should hold on the current target before transfer."
-                )
+        if (
+            hold_decision is not None
+            or weak_observation_signal
+            or weak_assessment_signal
+            or repeated_high_support_success_count > 0
+            or (stage_requires_stronger_transfer and low_support_success_count < 2)
+        ):
+            decision = hold_decision or "hold_target"
+            rationale = self._progression_hold_rationale(
+                learning_session_id=request.learning_session_id,
+                decision=decision,
+                session_rationale=session_rationale,
             )
             return ProgressionEvidenceDecision(
-                decision="hold_target",
+                decision=decision,
                 rationale=rationale,
                 matched_observation_count=len(matched_observations),
                 matched_assessment_count=len(matched_assessments),
@@ -432,6 +438,7 @@ class ObservationProfileUpdater:
         linkage_source: str,
         matched_observation_count: int,
         average_recent_mastery: float | None,
+        low_support_success_count: int,
         repeated_high_support_success_count: int,
         durable_mastery: OrdinaryMasterySummary,
     ) -> float:
@@ -459,6 +466,14 @@ class ObservationProfileUpdater:
             and average_recent_mastery >= 0.62
         ) else 0.0
         support_dependence_penalty = 0.04 if repeated_high_support_success_count >= 2 else 0.0
+        independent_consistency_bonus = 0.05 if (
+            low_support_success_count >= 2
+            and matched_observation_count >= 2
+            and average_recent_mastery is not None
+            and average_recent_mastery >= 0.68
+        ) else 0.0
+        if repeated_high_support_success_count >= 1 and observation.support_level == ObservationSupportLevel.high:
+            support_dependence_penalty += 0.02
         durable_adjustment = 0.0
         if durable_mastery.signal == "durable_mastery":
             durable_adjustment += 0.04 if observation.support_level == ObservationSupportLevel.low else 0.01
@@ -480,6 +495,7 @@ class ObservationProfileUpdater:
                 + confidence_bonus
                 + mastery_bonus
                 + consistency_bonus
+                + independent_consistency_bonus
                 - support_dependence_penalty
                 + durable_adjustment,
                 lower=0.08,
@@ -623,6 +639,55 @@ class ObservationProfileUpdater:
             if observation.completed
             and observation.support_level == ObservationSupportLevel.high
             and observation.hints_used >= 2
+        )
+
+    def _low_support_success_count(self, observations: list[LearnerObservation]) -> int:
+        return sum(
+            1
+            for observation in observations
+            if self._is_low_support_success(
+                observation,
+                self._infer_observed_mastery(observation),
+            )
+        )
+
+    def _is_low_support_success(self, observation: LearnerObservation, score: float) -> bool:
+        return (
+            observation.completed
+            and observation.support_level == ObservationSupportLevel.low
+            and observation.error_count <= 1
+            and observation.hints_used <= 1
+            and score >= 0.62
+        )
+
+    def _progression_hold_decision(self, *, session_sequence_action: str) -> str | None:
+        if session_sequence_action in {"hold_target", "hold_repair_target", "hold_bridge_target"}:
+            return session_sequence_action
+        return None
+
+    def _progression_hold_rationale(
+        self,
+        *,
+        learning_session_id: str | None,
+        decision: str,
+        session_rationale: str | None,
+    ) -> str:
+        if session_rationale is not None:
+            return session_rationale
+        session_fragment = learning_session_id or "the active session"
+        if decision == "hold_bridge_target":
+            return (
+                f"Recent same-session evidence on {session_fragment} still needs one more guided bridge step "
+                "before the backend should return to transfer."
+            )
+        if decision == "hold_repair_target":
+            return (
+                f"Recent same-session evidence on {session_fragment} still looks support-heavy or incomplete on the repair target, "
+                "so the backend should stay in repair before returning to the target."
+            )
+        return (
+            f"Recent same-session evidence on {session_fragment} still looks support-heavy or incomplete, "
+            "so the backend should hold on the current target before transfer."
         )
 
     def _durable_mastery_summary(
