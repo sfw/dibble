@@ -706,12 +706,9 @@ class ContentWorkflowService:
         next_step: LearnerFlowNextStep,
     ) -> LearnerContinueAction:
         if next_step.content_type is None:
-            return LearnerContinueAction(rationale=next_step.rationale)
+            return LearnerContinueAction.idle(rationale=next_step.rationale)
         request_context = generated_content.request_context
-        return LearnerContinueAction(
-            kind="generate_follow_up",
-            method="POST",
-            endpoint="/api/content/generate",
+        return LearnerContinueAction.generate_follow_up(
             resource_id=generated_content.generation_id,
             generation_id=generated_content.generation_id,
             learning_session_id=self._maybe_str(request_context.get("learning_session_id")),
@@ -735,7 +732,7 @@ class ContentWorkflowService:
     ) -> LearnerContinueAction:
         session_id = self._maybe_str(request_context.get("remediation_session_id"))
         if session_id is None:
-            return LearnerContinueAction(rationale=next_step.rationale)
+            return LearnerContinueAction.idle(rationale=next_step.rationale)
         if str(remediation_data.get("status", "in_progress")) == "complete":
             target_kc_ids = list(next_step.target_kc_ids) or self._string_list(
                 request_context.get("focus_kc_ids") or request_context.get("target_kc_ids")
@@ -748,10 +745,7 @@ class ContentWorkflowService:
                     "rationale": self._first_text(next_step.rationale, "Return to the target skill after remediation."),
                 }
             )
-            return LearnerContinueAction(
-                kind="generate_follow_up",
-                method="POST",
-                endpoint="/api/content/generate",
+            return LearnerContinueAction.generate_follow_up(
                 resource_id=session_id,
                 generation_id=generated_content.generation_id,
                 learning_session_id=self._maybe_str(request_context.get("learning_session_id")),
@@ -764,9 +758,7 @@ class ContentWorkflowService:
                 ),
                 rationale=follow_up_step.rationale,
             )
-        return LearnerContinueAction(
-            kind="advance_remediation",
-            method="POST",
+        return LearnerContinueAction.advance_remediation(
             endpoint=f"/api/remedial/sessions/{session_id}/advance",
             resource_id=session_id,
             generation_id=generated_content.generation_id,

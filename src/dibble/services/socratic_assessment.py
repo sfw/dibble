@@ -246,10 +246,7 @@ class SocraticAssessmentService:
         session: SocraticAssessmentSession,
     ) -> LearnerContinueAction:
         if next_step.content_type == RequestedContentType.assessment_probe.value:
-            return LearnerContinueAction(
-                kind="continue_socratic",
-                method="POST",
-                endpoint="/api/assessments/socratic",
+            return LearnerContinueAction.continue_socratic(
                 resource_id=session.session_id,
                 learning_session_id=session.learning_session_id,
                 content_type=next_step.content_type,
@@ -265,10 +262,7 @@ class SocraticAssessmentService:
                 },
                 rationale=next_step.rationale,
             )
-        return LearnerContinueAction(
-            kind="generate_follow_up",
-            method="POST",
-            endpoint="/api/content/generate",
+        return LearnerContinueAction.generate_follow_up(
             resource_id=session.session_id,
             learning_session_id=session.learning_session_id,
             content_type=next_step.content_type,

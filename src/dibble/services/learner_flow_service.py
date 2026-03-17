@@ -6,7 +6,7 @@ from uuid import UUID
 
 from dibble.models.assessment import SocraticAssessmentSession
 from dibble.models.generation import GenerationWorkflowSummary, RequestedContentType
-from dibble.models.profile import LearnerContinueAction, LearnerFlowNextStep, LearnerFlowSummary
+from dibble.models.profile import ContinueActionKind, LearnerContinueAction, LearnerFlowNextStep, LearnerFlowSummary
 from dibble.models.remediation import RemediationWorkflowSession
 from dibble.models.session_adaptation import WithinSessionControllerState
 from dibble.services.predictive_next_step_planner import PredictiveNextStepPlanner
@@ -497,15 +497,12 @@ class LearnerFlowService:
         latest_content,
         next_step: LearnerFlowNextStep,
     ) -> LearnerContinueAction:
-        if workflow_summary is not None and workflow_summary.continue_action.kind != "idle":
+        if workflow_summary is not None and workflow_summary.continue_action.kind != ContinueActionKind.idle:
             return workflow_summary.continue_action.model_copy()
         if latest_content is None or next_step.content_type is None:
-            return LearnerContinueAction(rationale=next_step.rationale)
+            return LearnerContinueAction.idle(rationale=next_step.rationale)
         request_context = latest_content.request_context
-        return LearnerContinueAction(
-            kind="generate_follow_up",
-            method="POST",
-            endpoint="/api/content/generate",
+        return LearnerContinueAction.generate_follow_up(
             resource_id=latest_content.generation_id,
             generation_id=latest_content.generation_id,
             learning_session_id=self._maybe_str(request_context.get("learning_session_id")),
@@ -531,10 +528,7 @@ class LearnerFlowService:
         controller: WithinSessionControllerState,
         next_content_type: RequestedContentType,
     ) -> LearnerContinueAction:
-        return LearnerContinueAction(
-            kind="generate_follow_up",
-            method="POST",
-            endpoint="/api/content/generate",
+        return LearnerContinueAction.generate_follow_up(
             learning_session_id=controller.learning_session_id,
             content_type=next_content_type.value,
             target_stage=self._controller_target_stage(controller),

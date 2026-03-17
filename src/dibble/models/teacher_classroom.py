@@ -5,18 +5,23 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from dibble.models.profile import (
+    ContinueActionKind,
     LearnerCurriculumProgressionSummary,
     LearnerFlowSummary,
     RecentLearnerActivity,
+)
+from dibble.models.teacher_actions import (
+    TeacherInterventionDecisionStatus,
+    TeacherInterventionProposalStatus,
 )
 
 
 class TeacherLearnerInterventionSummary(BaseModel):
     action_key: str = "idle"
-    proposal_status: str = "unavailable"
-    recommended_action_kind: str = "idle"
+    proposal_status: TeacherInterventionProposalStatus = TeacherInterventionProposalStatus.unavailable
+    recommended_action_kind: ContinueActionKind = ContinueActionKind.idle
     option_count: int = Field(default=0, ge=0)
-    latest_decision_status: str | None = None
+    latest_decision_status: TeacherInterventionDecisionStatus | None = None
 
 
 class TeacherLearnerCard(BaseModel):

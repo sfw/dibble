@@ -299,10 +299,7 @@ class RemediationWorkflowCoordinator:
     ) -> LearnerContinueAction:
         if status == "complete":
             target_kc_ids = list(session.kc_sequence.deferred_kc_ids or session.focus_kc_ids)
-            return LearnerContinueAction(
-                kind="generate_follow_up",
-                method="POST",
-                endpoint="/api/content/generate",
+            return LearnerContinueAction.generate_follow_up(
                 resource_id=session.session_id,
                 content_type=RequestedContentType.practice_problem.value,
                 target_stage="transfer",
@@ -315,9 +312,7 @@ class RemediationWorkflowCoordinator:
                 },
                 rationale=next_step.rationale,
             )
-        return LearnerContinueAction(
-            kind="advance_remediation",
-            method="POST",
+        return LearnerContinueAction.advance_remediation(
             endpoint=f"/api/remedial/sessions/{session.session_id}/advance",
             resource_id=session.session_id,
             content_type=next_step.content_type,

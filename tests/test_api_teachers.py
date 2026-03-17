@@ -71,14 +71,20 @@ def test_teacher_classroom_read_model_packages_learner_cards_and_counts(client):
     )
     classroom_response = client.get("/api/teachers/classrooms/CLASS-1")
     list_response = client.get("/api/teachers/classrooms")
+    active_summary_response = client.get(f"/api/learners/{active_student_id}/summary")
+    blocked_summary_response = client.get(f"/api/learners/{blocked_student_id}/summary")
 
     assert generate_response.status_code == 200
     assert upsert_classroom_response.status_code == 200
     assert classroom_response.status_code == 200
     assert list_response.status_code == 200
+    assert active_summary_response.status_code == 200
+    assert blocked_summary_response.status_code == 200
 
     classroom_payload = classroom_response.json()
     list_payload = list_response.json()
+    active_summary_payload = active_summary_response.json()
+    blocked_summary_payload = blocked_summary_response.json()
     active_card = next(card for card in classroom_payload["learners"] if card["student_id"] == str(active_student_id))
     blocked_card = next(card for card in classroom_payload["learners"] if card["student_id"] == str(blocked_student_id))
 
@@ -98,12 +104,14 @@ def test_teacher_classroom_read_model_packages_learner_cards_and_counts(client):
     assert active_card["curriculum_progression"]["status"] in {"active_curriculum_focus", "ready_for_next_resource"}
     assert active_card["attention_level"] == "medium"
     assert "teacher_intervention_available" in active_card["attention_reasons"]
+    assert active_card["curriculum_progression"] == active_summary_payload["curriculum_progression"]
 
     assert blocked_card["current_flow"]["status"] == "idle"
     assert blocked_card["curriculum_progression"]["status"] == "blocked_on_prerequisites"
     assert blocked_card["curriculum_progression"]["blocked_resources"][0]["resource_id"] == "CURR-2"
     assert blocked_card["attention_level"] == "medium"
     assert "blocked_on_prerequisites" in blocked_card["attention_reasons"]
+    assert blocked_card["curriculum_progression"] == blocked_summary_payload["curriculum_progression"]
 
     assert list_payload[0]["classroom_id"] == "CLASS-1"
     assert list_payload[0]["learner_count"] == 2

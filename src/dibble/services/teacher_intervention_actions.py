@@ -5,12 +5,15 @@ from uuid import UUID
 
 from dibble.models.auth import AuthIdentity
 from dibble.models.generation import RequestedContentType
-from dibble.models.profile import LearnerContinueAction, LearnerFlowSummary
+from dibble.models.profile import ContinueActionKind, LearnerContinueAction, LearnerFlowSummary
 from dibble.models.teacher_actions import (
     TeacherInterventionActionContract,
+    TeacherInterventionDecision,
     TeacherInterventionDecisionRecord,
     TeacherInterventionDecisionRequest,
+    TeacherInterventionDecisionStatus,
     TeacherInterventionOption,
+    TeacherInterventionProposalStatus,
 )
 from dibble.services.learner_flow_service import LearnerFlowService
 from dibble.services.protocols import AuditStore
@@ -33,11 +36,15 @@ class TeacherInterventionActionService:
     def build_for_student(self, *, student_id: UUID) -> TeacherInterventionActionContract:
         flow = self.learner_flow_service.build_for_student(student_id=student_id)
         action_key = self._action_key_for_flow(flow)
-        proposal_available = flow.continue_action.kind != "idle"
+        proposal_available = flow.continue_action.kind != ContinueActionKind.idle
         available_options = self._available_options_for(student_id=student_id, flow=flow) if proposal_available else []
         return TeacherInterventionActionContract(
             action_key=action_key,
-            proposal_status="available" if proposal_available else "unavailable",
+            proposal_status=(
+                TeacherInterventionProposalStatus.available
+                if proposal_available
+                else TeacherInterventionProposalStatus.unavailable
+            ),
             flow_type=flow.flow_type,
             learning_session_id=flow.learning_session_id,
             remediation_session_id=flow.remediation_session_id,
@@ -50,10 +57,9 @@ class TeacherInterventionActionService:
             next_step=flow.next_step.model_copy(),
             proposed_action=flow.continue_action.model_copy(),
             available_options=available_options,
-            allowed_decisions=(
-                ["approve", "select_option", "defer", "escalate_human"]
-                if proposal_available and len(available_options) > 1
-                else (["approve", "defer", "escalate_human"] if proposal_available else [])
+            allowed_decisions=self._allowed_decisions_for(
+                proposal_available=proposal_available,
+                option_count=len(available_options),
             ),
             latest_decision=self._latest_decision(student_id=student_id, action_key=action_key),
             updated_at=flow.updated_at,
@@ -67,25 +73,25 @@ class TeacherInterventionActionService:
         identity: AuthIdentity | None = None,
     ) -> TeacherInterventionActionContract:
         contract = self.build_for_student(student_id=student_id)
-        if contract.proposal_status != "available":
+        if contract.proposal_status != TeacherInterventionProposalStatus.available:
             raise TeacherInterventionActionUnavailableError("No teacher-approvable intervention is available.")
-        if decision.decision not in {"approve", "select_option", "defer", "escalate_human"}:
-            raise ValueError("Unsupported teacher intervention decision.")
+        parsed_decision = self._parse_decision(decision.decision)
 
-        selected_option = self._selected_option(contract=contract, decision=decision)
+        selected_option = self._selected_option(contract=contract, decision=decision, parsed_decision=parsed_decision)
         execution_action = self._execution_action_for(
             contract=contract,
-            decision=decision.decision,
+            decision=parsed_decision,
             selected_option=selected_option,
         )
+        decision_status = self._status_for(parsed_decision)
         event = self.audit_store.append(
             event_type="teacher.intervention.decision",
             status="success",
             student_id=str(student_id),
             payload={
                 "action_key": contract.action_key,
-                "decision": decision.decision,
-                "status": self._status_for(decision.decision),
+                "decision": parsed_decision.value,
+                "status": decision_status.value,
                 "selected_option_id": selected_option.option_id if selected_option is not None else None,
                 "note": decision.note,
                 "decided_by": identity.principal_id if identity is not None else None,
@@ -110,8 +116,8 @@ class TeacherInterventionActionService:
                 "latest_decision": TeacherInterventionDecisionRecord(
                     action_key=contract.action_key,
                     decision_id=event.event_id,
-                    decision=decision.decision,
-                    status=self._status_for(decision.decision),
+                    decision=parsed_decision,
+                    status=decision_status,
                     selected_option_id=selected_option.option_id if selected_option is not None else None,
                     note=decision.note,
                     decided_by=identity.principal_id if identity is not None else None,
@@ -138,8 +144,8 @@ class TeacherInterventionActionService:
         return TeacherInterventionDecisionRecord(
             action_key=action_key,
             decision_id=event.event_id,
-            decision=str(event.payload.get("decision") or "defer"),
-            status=str(event.payload.get("status") or "deferred"),
+            decision=self._decision_from_value(event.payload.get("decision")),
+            status=self._decision_status_from_value(event.payload.get("status")),
             selected_option_id=self._maybe_str(event.payload.get("selected_option_id")),
             note=self._maybe_str(event.payload.get("note")),
             decided_by=self._maybe_str(event.payload.get("decided_by")),
@@ -165,7 +171,10 @@ class TeacherInterventionActionService:
             )
         ]
 
-        if proposed_action.kind not in {"generate_follow_up", "continue_socratic"}:
+        if proposed_action.kind not in {
+            ContinueActionKind.generate_follow_up,
+            ContinueActionKind.continue_socratic,
+        }:
             return options
 
         target_kc_ids = list(proposed_action.target_kc_ids or flow.active_target_kc_ids)
@@ -230,10 +239,11 @@ class TeacherInterventionActionService:
         *,
         contract: TeacherInterventionActionContract,
         decision: TeacherInterventionDecisionRequest,
+        parsed_decision: TeacherInterventionDecision,
     ) -> TeacherInterventionOption | None:
-        if decision.decision == "approve":
+        if parsed_decision == TeacherInterventionDecision.approve:
             return next((option for option in contract.available_options if option.is_recommended), None)
-        if decision.decision != "select_option":
+        if parsed_decision != TeacherInterventionDecision.select_option:
             return None
         if decision.option_id is None:
             raise ValueError("Selecting an intervention option requires option_id.")
@@ -261,31 +271,30 @@ class TeacherInterventionActionService:
     def _execution_action_for(
         *,
         contract: TeacherInterventionActionContract,
-        decision: str,
+        decision: TeacherInterventionDecision,
         selected_option: TeacherInterventionOption | None,
     ) -> LearnerContinueAction:
-        if decision in {"approve", "select_option"}:
+        if decision in {TeacherInterventionDecision.approve, TeacherInterventionDecision.select_option}:
             return (
                 selected_option.continue_action.model_copy()
                 if selected_option is not None
                 else contract.proposed_action.model_copy()
             )
-        return LearnerContinueAction(
-            kind="idle",
+        return LearnerContinueAction.idle(
             rationale=(
                 "Teacher deferred the backend-recommended intervention."
-                if decision == "defer"
+                if decision == TeacherInterventionDecision.defer
                 else "Teacher escalated this intervention for human review."
             ),
         )
 
     @staticmethod
-    def _status_for(decision: str) -> str:
+    def _status_for(decision: TeacherInterventionDecision) -> TeacherInterventionDecisionStatus:
         mapping = {
-            "approve": "approved",
-            "select_option": "option_selected",
-            "defer": "deferred",
-            "escalate_human": "escalated_human",
+            TeacherInterventionDecision.approve: TeacherInterventionDecisionStatus.approved,
+            TeacherInterventionDecision.select_option: TeacherInterventionDecisionStatus.option_selected,
+            TeacherInterventionDecision.defer: TeacherInterventionDecisionStatus.deferred,
+            TeacherInterventionDecision.escalate_human: TeacherInterventionDecisionStatus.escalated_human,
         }
         return mapping[decision]
 
@@ -304,9 +313,9 @@ class TeacherInterventionActionService:
             RequestedContentType.practice_problem.value: "Practice Problem",
             RequestedContentType.assessment_probe.value: "Assessment Probe",
         }
-        if action.kind == "advance_remediation":
+        if action.kind == ContinueActionKind.advance_remediation:
             return "Advance Remediation"
-        if action.kind == "continue_socratic":
+        if action.kind == ContinueActionKind.continue_socratic:
             return "Continue Socratic"
         return labels.get(action.content_type or "", fallback)
 
@@ -350,10 +359,7 @@ class TeacherInterventionActionService:
             option_id=option_id,
             label=label,
             rationale=rationale,
-            continue_action=LearnerContinueAction(
-                kind="generate_follow_up",
-                method="POST",
-                endpoint="/api/content/generate",
+            continue_action=LearnerContinueAction.generate_follow_up(
                 resource_id=source_generation_id,
                 generation_id=source_generation_id,
                 learning_session_id=learning_session_id,
@@ -375,3 +381,41 @@ class TeacherInterventionActionService:
             RequestedContentType.remedial_micro_module.value: "remediation",
         }
         return mapping.get(content_type, "explanation")
+
+    @staticmethod
+    def _allowed_decisions_for(
+        *,
+        proposal_available: bool,
+        option_count: int,
+    ) -> list[TeacherInterventionDecision]:
+        if not proposal_available:
+            return []
+        decisions = [
+            TeacherInterventionDecision.approve,
+            TeacherInterventionDecision.defer,
+            TeacherInterventionDecision.escalate_human,
+        ]
+        if option_count > 1:
+            decisions.insert(1, TeacherInterventionDecision.select_option)
+        return decisions
+
+    @staticmethod
+    def _parse_decision(value: str) -> TeacherInterventionDecision:
+        try:
+            return TeacherInterventionDecision(value)
+        except ValueError as exc:
+            raise ValueError("Unsupported teacher intervention decision.") from exc
+
+    @staticmethod
+    def _decision_from_value(value: object) -> TeacherInterventionDecision:
+        try:
+            return TeacherInterventionDecision(str(value or TeacherInterventionDecision.defer.value))
+        except ValueError:
+            return TeacherInterventionDecision.defer
+
+    @staticmethod
+    def _decision_status_from_value(value: object) -> TeacherInterventionDecisionStatus:
+        try:
+            return TeacherInterventionDecisionStatus(str(value or TeacherInterventionDecisionStatus.deferred.value))
+        except ValueError:
+            return TeacherInterventionDecisionStatus.deferred

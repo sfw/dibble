@@ -118,6 +118,7 @@ def test_socratic_assessment_session_persists_across_turns(client, student_id):
     assert session_payload["summary"]["latest_prompt_style"] == "transfer_check"
     assert session_payload["summary"]["latest_next_action"] == "advance"
     assert session_payload["summary"]["continue_action"]["kind"] == "generate_follow_up"
+    assert session_payload["summary"]["continue_action"] == second_payload["summary"]["continue_action"]
 
     third_response = client.post(
         "/api/assessments/socratic",

@@ -7,6 +7,43 @@ from dibble.app import create_app
 from tests.support import build_curriculum_resource, build_knowledge_component, build_profile
 
 
+EXPECTED_CONTINUE_ACTION_KEYS = {
+    "kind",
+    "method",
+    "endpoint",
+    "resource_id",
+    "generation_id",
+    "learning_session_id",
+    "content_type",
+    "target_stage",
+    "target_kc_ids",
+    "request_payload",
+    "rationale",
+}
+
+
+def assert_continue_action_contract(
+    payload: dict[str, object],
+    *,
+    expected_kind: str | None = None,
+    expected_endpoint: str | None = None,
+) -> None:
+    assert set(payload.keys()) == EXPECTED_CONTINUE_ACTION_KEYS
+    assert payload["kind"] in {"idle", "generate_follow_up", "advance_remediation", "continue_socratic"}
+    if expected_kind is not None:
+        assert payload["kind"] == expected_kind
+    if payload["kind"] == "idle":
+        assert payload["method"] is None
+        assert payload["endpoint"] is None
+        assert payload["request_payload"] == {}
+    else:
+        assert payload["method"] == "POST"
+        assert isinstance(payload["endpoint"], str) and payload["endpoint"]
+        assert isinstance(payload["request_payload"], dict)
+    if expected_endpoint is not None:
+        assert payload["endpoint"] == expected_endpoint
+
+
 def test_healthcheck(client):
     response = client.get("/health")
 
@@ -345,8 +382,60 @@ def test_learner_progression_endpoint_exposes_backend_owned_curriculum_focus(cli
     assert progression_payload["next_resource"]["state"] == "ready"
     assert progression_payload["blocked_resources"][0]["resource_id"] == "CURR-3"
     assert progression_payload["blocked_resources"][0]["blocked_prerequisite_kc_ids"] == ["KC-2"]
-    assert summary_payload["curriculum_progression"]["status"] == "active_curriculum_focus"
-    assert summary_payload["curriculum_progression"]["current_resource"]["resource_id"] == "CURR-1"
+    assert summary_payload["curriculum_progression"] == progression_payload
+
+
+def test_continue_action_contract_stays_consistent_across_lesson_surfaces(client, student_id):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+
+    generate_response = client.post(
+        "/api/problems/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "continue-contract-lesson-session",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": ["LO-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    flow_response = client.get(f"/api/learners/{student_id}/flow")
+    summary_response = client.get(f"/api/learners/{student_id}/summary")
+    workspace_response = client.get(f"/api/learners/{student_id}/workspace")
+    history_response = client.get(f"/api/learners/{student_id}/history/generations")
+    intervention_response = client.get(f"/api/learners/{student_id}/intervention-action")
+
+    assert generate_response.status_code == 200
+    assert flow_response.status_code == 200
+    assert summary_response.status_code == 200
+    assert workspace_response.status_code == 200
+    assert history_response.status_code == 200
+    assert intervention_response.status_code == 200
+
+    generation_payload = generate_response.json()
+    flow_payload = flow_response.json()
+    summary_payload = summary_response.json()
+    workspace_payload = workspace_response.json()
+    history_payload = history_response.json()
+    intervention_payload = intervention_response.json()
+
+    lesson_continue_action = generation_payload["workflow_summary"]["continue_action"]
+    history_entry = next(entry for entry in history_payload if entry["generation_id"] == generation_payload["generation_id"])
+
+    assert_continue_action_contract(
+        lesson_continue_action,
+        expected_kind="generate_follow_up",
+        expected_endpoint="/api/content/generate",
+    )
+    assert flow_payload["continue_action"] == lesson_continue_action
+    assert summary_payload["current_flow"]["continue_action"] == lesson_continue_action
+    assert workspace_payload["continue_action"] == lesson_continue_action
+    assert workspace_payload["generated_content"]["workflow_summary"]["continue_action"] == lesson_continue_action
+    assert history_entry["continue_action"] == lesson_continue_action
+    assert intervention_payload["proposed_action"] == lesson_continue_action
+    assert intervention_payload["available_options"][0]["option_id"] == "recommended"
+    assert intervention_payload["available_options"][0]["continue_action"] == lesson_continue_action
+    assert intervention_payload["allowed_decisions"] == ["approve", "select_option", "defer", "escalate_human"]
 
 
 def test_learner_flow_endpoint_prefers_active_remediation_workflow(client, student_id):
@@ -467,6 +556,9 @@ def test_learner_history_endpoints_expose_generation_socratic_and_remediation_hi
     generations_response = client.get(f"/api/learners/{student_id}/history/generations")
     socratic_history_response = client.get(f"/api/learners/{student_id}/history/socratic-sessions")
     remediation_history_response = client.get(f"/api/learners/{student_id}/history/remediation-sessions")
+    remediation_session_response = client.get(
+        f"/api/remedial/sessions/{remediation_response.json()['request_context']['remediation_session_id']}"
+    )
 
     assert lesson_response.status_code == 200
     assert socratic_response.status_code == 200
@@ -474,10 +566,18 @@ def test_learner_history_endpoints_expose_generation_socratic_and_remediation_hi
     assert generations_response.status_code == 200
     assert socratic_history_response.status_code == 200
     assert remediation_history_response.status_code == 200
+    assert remediation_session_response.status_code == 200
 
     generations_payload = generations_response.json()
     socratic_history_payload = socratic_history_response.json()
     remediation_history_payload = remediation_history_response.json()
+    remediation_session_payload = remediation_session_response.json()
+    lesson_history_entry = next(
+        entry for entry in generations_payload if entry["generation_id"] == lesson_response.json()["generation_id"]
+    )
+    remediation_generation_entry = next(
+        entry for entry in generations_payload if entry["generation_id"] == remediation_response.json()["generation_id"]
+    )
 
     assert generations_payload[0]["flow_type"] == "remediation"
     assert generations_payload[0]["generation_id"] == remediation_response.json()["generation_id"]
@@ -485,17 +585,30 @@ def test_learner_history_endpoints_expose_generation_socratic_and_remediation_hi
     assert generations_payload[0]["content_type"] == "remedial_micro_module"
     assert generations_payload[0]["intervention_type"] is not None
     assert any(entry["generation_id"] == lesson_response.json()["generation_id"] for entry in generations_payload)
+    assert_continue_action_contract(lesson_history_entry["continue_action"])
+    assert lesson_history_entry["continue_action"] == lesson_response.json()["workflow_summary"]["continue_action"]
+    assert_continue_action_contract(remediation_generation_entry["continue_action"])
 
     assert socratic_history_payload[0]["session_id"] == socratic_response.json()["session_id"]
     assert socratic_history_payload[0]["status"] == "ready_for_follow_up"
     assert socratic_history_payload[0]["latest_steering_action"] == "verify_transfer"
     assert socratic_history_payload[0]["continue_action"]["kind"] == "generate_follow_up"
+    assert_continue_action_contract(socratic_history_payload[0]["continue_action"])
+    assert socratic_history_payload[0]["continue_action"] == socratic_response.json()["summary"]["continue_action"]
 
     assert remediation_history_payload[0]["session_id"] == remediation_response.json()["request_context"]["remediation_session_id"]
     assert remediation_history_payload[0]["target_kc_id"] == "KC-2"
     assert remediation_history_payload[0]["status"] == "in_progress"
     assert remediation_history_payload[0]["current_phase"] == "repair"
     assert remediation_history_payload[0]["continue_action"]["kind"] == "advance_remediation"
+    assert_continue_action_contract(remediation_history_payload[0]["continue_action"])
+    assert remediation_history_payload[0]["continue_action"] == remediation_session_payload["summary"]["continue_action"]
+    assert remediation_generation_entry["continue_action"]["kind"] == remediation_session_payload["summary"]["continue_action"]["kind"]
+    assert remediation_generation_entry["continue_action"]["method"] == remediation_session_payload["summary"]["continue_action"]["method"]
+    assert remediation_generation_entry["continue_action"]["endpoint"] == remediation_session_payload["summary"]["continue_action"]["endpoint"]
+    assert remediation_generation_entry["continue_action"]["content_type"] == remediation_session_payload["summary"]["continue_action"]["content_type"]
+    assert remediation_generation_entry["continue_action"]["target_stage"] == remediation_session_payload["summary"]["continue_action"]["target_stage"]
+    assert remediation_generation_entry["continue_action"]["target_kc_ids"] == remediation_session_payload["summary"]["continue_action"]["target_kc_ids"]
 
 
 def test_learner_history_endpoints_return_machine_readable_not_found_error(client, student_id):

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 def utc_now() -> datetime:
@@ -28,6 +28,17 @@ class ScaffoldingLevel(str, Enum):
     low = "low"
     medium = "medium"
     high = "high"
+
+
+class ContinueActionKind(str, Enum):
+    idle = "idle"
+    generate_follow_up = "generate_follow_up"
+    advance_remediation = "advance_remediation"
+    continue_socratic = "continue_socratic"
+
+
+class ContinueActionMethod(str, Enum):
+    post = "POST"
 
 
 class CognitiveTraitScore(BaseModel):
@@ -284,8 +295,8 @@ class LearnerFlowNextStep(BaseModel):
 
 
 class LearnerContinueAction(BaseModel):
-    kind: str = "idle"
-    method: str | None = None
+    kind: ContinueActionKind = ContinueActionKind.idle
+    method: ContinueActionMethod | None = None
     endpoint: str | None = None
     resource_id: str | None = None
     generation_id: str | None = None
@@ -295,6 +306,105 @@ class LearnerContinueAction(BaseModel):
     target_kc_ids: list[str] = Field(default_factory=list)
     request_payload: dict[str, object] = Field(default_factory=dict)
     rationale: str | None = None
+
+    @classmethod
+    def idle(cls, *, rationale: str | None = None) -> "LearnerContinueAction":
+        return cls(rationale=rationale)
+
+    @classmethod
+    def generate_follow_up(
+        cls,
+        *,
+        endpoint: str = "/api/content/generate",
+        resource_id: str | None = None,
+        generation_id: str | None = None,
+        learning_session_id: str | None = None,
+        content_type: str | None = None,
+        target_stage: str = "target",
+        target_kc_ids: list[str] | None = None,
+        request_payload: dict[str, object] | None = None,
+        rationale: str | None = None,
+    ) -> "LearnerContinueAction":
+        return cls(
+            kind=ContinueActionKind.generate_follow_up,
+            method=ContinueActionMethod.post,
+            endpoint=endpoint,
+            resource_id=resource_id,
+            generation_id=generation_id,
+            learning_session_id=learning_session_id,
+            content_type=content_type,
+            target_stage=target_stage,
+            target_kc_ids=list(target_kc_ids or []),
+            request_payload=dict(request_payload or {}),
+            rationale=rationale,
+        )
+
+    @classmethod
+    def advance_remediation(
+        cls,
+        *,
+        endpoint: str,
+        resource_id: str,
+        generation_id: str | None = None,
+        learning_session_id: str | None = None,
+        content_type: str | None = None,
+        target_stage: str = "target",
+        target_kc_ids: list[str] | None = None,
+        request_payload: dict[str, object] | None = None,
+        rationale: str | None = None,
+    ) -> "LearnerContinueAction":
+        return cls(
+            kind=ContinueActionKind.advance_remediation,
+            method=ContinueActionMethod.post,
+            endpoint=endpoint,
+            resource_id=resource_id,
+            generation_id=generation_id,
+            learning_session_id=learning_session_id,
+            content_type=content_type,
+            target_stage=target_stage,
+            target_kc_ids=list(target_kc_ids or []),
+            request_payload=dict(request_payload or {}),
+            rationale=rationale,
+        )
+
+    @classmethod
+    def continue_socratic(
+        cls,
+        *,
+        endpoint: str = "/api/assessments/socratic",
+        resource_id: str,
+        learning_session_id: str | None = None,
+        content_type: str | None = None,
+        target_stage: str = "target",
+        target_kc_ids: list[str] | None = None,
+        request_payload: dict[str, object] | None = None,
+        rationale: str | None = None,
+    ) -> "LearnerContinueAction":
+        return cls(
+            kind=ContinueActionKind.continue_socratic,
+            method=ContinueActionMethod.post,
+            endpoint=endpoint,
+            resource_id=resource_id,
+            learning_session_id=learning_session_id,
+            content_type=content_type,
+            target_stage=target_stage,
+            target_kc_ids=list(target_kc_ids or []),
+            request_payload=dict(request_payload or {}),
+            rationale=rationale,
+        )
+
+    @model_validator(mode="after")
+    def _stabilize_contract(self) -> "LearnerContinueAction":
+        if self.kind == ContinueActionKind.idle:
+            self.method = None
+            self.endpoint = None
+            self.resource_id = None if self.resource_id in {"", None} else self.resource_id
+            self.request_payload = {}
+            return self
+        if self.method is None:
+            self.method = ContinueActionMethod.post
+        self.request_payload = dict(self.request_payload)
+        return self
 
 
 class CurriculumResourceProgressSummary(BaseModel):

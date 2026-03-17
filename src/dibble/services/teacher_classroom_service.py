@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from dibble.models.classroom import Classroom
+from dibble.models.teacher_actions import TeacherInterventionProposalStatus
 from dibble.models.teacher_classroom import (
     TeacherClassroomOverview,
     TeacherClassroomReadModel,
@@ -98,7 +99,9 @@ class TeacherClassroomService:
     ) -> dict[str, object]:
         active_flow_count = sum(1 for learner in learners if learner.current_flow.status != "idle")
         intervention_available_count = sum(
-            1 for learner in learners if learner.intervention.proposal_status == "available"
+            1
+            for learner in learners
+            if learner.intervention.proposal_status == TeacherInterventionProposalStatus.available
         )
         blocked_progression_count = sum(
             1 for learner in learners if learner.curriculum_progression.status == "blocked_on_prerequisites"
@@ -123,7 +126,7 @@ class TeacherClassroomService:
         reasons: list[str] = []
         if summary.curriculum_progression.status == "blocked_on_prerequisites":
             reasons.append("blocked_on_prerequisites")
-        if intervention.proposal_status == "available":
+        if intervention.proposal_status == TeacherInterventionProposalStatus.available:
             reasons.append("teacher_intervention_available")
         if summary.current_flow.flow_type == "remediation":
             reasons.append("active_remediation")
