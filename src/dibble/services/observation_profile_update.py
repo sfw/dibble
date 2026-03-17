@@ -50,7 +50,9 @@ class RemediationProgressDecision:
     decision: str = "advance"
     rationale: str | None = None
     matched_observation_count: int = 0
+    evidence_confidence: float = 0.0
     average_observed_mastery: float | None = None
+    low_support_success_count: int = 0
     target_kc_ids: list[str] | None = None
     hold_step_index: int | None = None
 
@@ -334,32 +336,70 @@ class ObservationProfileUpdater:
 
         scores = [self._infer_observed_mastery(observation) for observation in matched_observations[:3]]
         average_score = round(sum(scores) / len(scores), 2) if scores else None
+        evidence_confidence = self._evidence_confidence(
+            matched_observation_count=len(matched_observations),
+            matched_assessment_count=0,
+        )
+        low_support_success_count = sum(
+            1
+            for observation, score in zip(matched_observations, scores)
+            if self._is_low_support_success(observation, score)
+        )
+        medium_or_low_support_success_count = sum(
+            1
+            for observation, score in zip(matched_observations, scores)
+            if observation.completed
+            and observation.support_level in {ObservationSupportLevel.low, ObservationSupportLevel.medium}
+            and observation.error_count <= 1
+            and observation.hints_used <= 1
+            and score >= 0.62
+        )
+        repeated_high_support_success_count = self._repeated_high_support_success_count(matched_observations)
         strongest_evidence = max(
             (self._evidence_strength(observation=observation, inferred_mastery=score) for observation, score in zip(matched_observations, scores)),
             default=SocraticEvidenceStrength.insufficient,
             key=self._evidence_rank,
         )
-        if average_score is None or (
-            average_score < 0.58 and strongest_evidence != SocraticEvidenceStrength.demonstrated
+        if self._should_hold_remediation_step(
+            current_step=session.steps[current_index],
+            prior_step=prior_step,
+            average_score=average_score,
+            strongest_evidence=strongest_evidence,
+            low_support_success_count=low_support_success_count,
+            medium_or_low_support_success_count=medium_or_low_support_success_count,
+            repeated_high_support_success_count=repeated_high_support_success_count,
         ):
             decision = "hold_repair_target" if prior_step.phase != "bridge" else "hold_bridge_target"
-            rationale = (
-                "Recent remediation evidence still looks weak, so the workflow should hold on the current repair target "
-                "before advancing back toward transfer."
+            rationale = self._remediation_hold_rationale(
+                current_step=session.steps[current_index],
+                prior_step=prior_step,
+                average_score=average_score,
+                low_support_success_count=low_support_success_count,
+                medium_or_low_support_success_count=medium_or_low_support_success_count,
+                repeated_high_support_success_count=repeated_high_support_success_count,
             )
             return RemediationProgressDecision(
                 decision=decision,
                 rationale=rationale,
                 matched_observation_count=len(matched_observations),
+                evidence_confidence=evidence_confidence,
                 average_observed_mastery=average_score,
+                low_support_success_count=low_support_success_count,
                 target_kc_ids=prior_step.target_kc_ids,
                 hold_step_index=current_index - 1,
             )
         return RemediationProgressDecision(
             decision="advance",
-            rationale="Recent remediation evidence was strong enough to allow the workflow to advance.",
+            rationale=self._remediation_advance_rationale(
+                current_step=session.steps[current_index],
+                prior_step=prior_step,
+                low_support_success_count=low_support_success_count,
+                medium_or_low_support_success_count=medium_or_low_support_success_count,
+            ),
             matched_observation_count=len(matched_observations),
+            evidence_confidence=evidence_confidence,
             average_observed_mastery=average_score,
+            low_support_success_count=low_support_success_count,
             target_kc_ids=prior_step.target_kc_ids,
         )
 
@@ -659,6 +699,91 @@ class ObservationProfileUpdater:
             and observation.hints_used <= 1
             and score >= 0.62
         )
+
+    def _should_hold_remediation_step(
+        self,
+        *,
+        current_step: RemediationWorkflowStep,
+        prior_step: RemediationWorkflowStep,
+        average_score: float | None,
+        strongest_evidence: SocraticEvidenceStrength,
+        low_support_success_count: int,
+        medium_or_low_support_success_count: int,
+        repeated_high_support_success_count: int,
+    ) -> bool:
+        if average_score is None:
+            return True
+        if repeated_high_support_success_count > 0:
+            return True
+        if prior_step.phase == "bridge":
+            return not (
+                average_score >= 0.68
+                and low_support_success_count >= 1
+                and strongest_evidence != SocraticEvidenceStrength.insufficient
+            )
+        if current_step.phase == "return":
+            return not (
+                average_score >= 0.64
+                and medium_or_low_support_success_count >= 1
+                and strongest_evidence != SocraticEvidenceStrength.insufficient
+            )
+        return not (
+            average_score >= 0.6
+            and (
+                medium_or_low_support_success_count >= 1
+                or strongest_evidence == SocraticEvidenceStrength.demonstrated
+            )
+        )
+
+    def _remediation_hold_rationale(
+        self,
+        *,
+        current_step: RemediationWorkflowStep,
+        prior_step: RemediationWorkflowStep,
+        average_score: float | None,
+        low_support_success_count: int,
+        medium_or_low_support_success_count: int,
+        repeated_high_support_success_count: int,
+    ) -> str:
+        if repeated_high_support_success_count > 0:
+            return (
+                "Recent remediation success is still too support-heavy, so the workflow should stay on the current repair path "
+                "before advancing."
+            )
+        if prior_step.phase == "bridge":
+            return (
+                f"Recent bridge evidence averaged {average_score:.2f} with {low_support_success_count} low-support success signal(s), "
+                "so the workflow should hold the bridge target before the final transfer return."
+            )
+        if current_step.phase == "return":
+            return (
+                f"Recent repair evidence averaged {average_score:.2f} with {medium_or_low_support_success_count} medium-or-low-support success signal(s), "
+                "so the workflow should stay on the repair target before returning to the target KC."
+            )
+        return (
+            f"Recent repair evidence averaged {average_score:.2f}, so the workflow should hold on the current repair target "
+            "before advancing."
+        )
+
+    def _remediation_advance_rationale(
+        self,
+        *,
+        current_step: RemediationWorkflowStep,
+        prior_step: RemediationWorkflowStep,
+        low_support_success_count: int,
+        medium_or_low_support_success_count: int,
+    ) -> str:
+        if prior_step.phase == "bridge":
+            return (
+                f"Recent bridge evidence included {low_support_success_count} low-support success signal(s), "
+                "so the workflow can return to the target for transfer."
+            )
+        if current_step.phase == "return":
+            return (
+                f"Recent repair evidence included {medium_or_low_support_success_count} medium-or-low-support success signal(s), "
+                "so the workflow can return to the target."
+            )
+        return "Recent remediation evidence was strong enough to allow the workflow to advance."
 
     def _progression_hold_decision(self, *, session_sequence_action: str) -> str | None:
         if session_sequence_action in {"hold_target", "hold_repair_target", "hold_bridge_target"}:

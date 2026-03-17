@@ -148,6 +148,10 @@ class RemediationWorkflowCoordinator:
                 "progression_decision": "advance",
                 "progression_rationale": None,
                 "progression_target_kc_ids": [],
+                "progression_evidence_observation_count": 0,
+                "progression_evidence_confidence": 0.0,
+                "progression_average_observed_mastery": None,
+                "progression_low_support_success_count": 0,
                 "updated_at": datetime.now(timezone.utc),
             }
         )
@@ -160,6 +164,10 @@ class RemediationWorkflowCoordinator:
         decision: str,
         rationale: str | None,
         target_kc_ids: list[str],
+        evidence_observation_count: int = 0,
+        evidence_confidence: float = 0.0,
+        average_observed_mastery: float | None = None,
+        low_support_success_count: int = 0,
     ) -> RemediationWorkflowSession:
         session = self.session_store.get(session_id)
         if session is None:
@@ -169,6 +177,10 @@ class RemediationWorkflowCoordinator:
                 "progression_decision": decision,
                 "progression_rationale": rationale,
                 "progression_target_kc_ids": target_kc_ids,
+                "progression_evidence_observation_count": evidence_observation_count,
+                "progression_evidence_confidence": evidence_confidence,
+                "progression_average_observed_mastery": average_observed_mastery,
+                "progression_low_support_success_count": low_support_success_count,
                 "updated_at": datetime.now(timezone.utc),
             }
         )
@@ -229,6 +241,10 @@ class RemediationWorkflowCoordinator:
             progression_decision=session.progression_decision,
             progression_rationale=session.progression_rationale,
             progression_target_kc_ids=list(session.progression_target_kc_ids),
+            progression_evidence_observation_count=session.progression_evidence_observation_count,
+            progression_evidence_confidence=session.progression_evidence_confidence,
+            progression_average_observed_mastery=session.progression_average_observed_mastery,
+            progression_low_support_success_count=session.progression_low_support_success_count,
             next_step=next_step,
         )
 

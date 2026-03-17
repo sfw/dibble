@@ -327,6 +327,98 @@ def test_observation_profile_updater_holds_remediation_return_when_recent_eviden
     assert decision.matched_observation_count == 1
     assert decision.average_observed_mastery is not None
     assert decision.average_observed_mastery < 0.58
+    assert decision.evidence_confidence > 0.0
+    assert decision.low_support_success_count == 0
+
+
+def test_observation_profile_updater_holds_bridge_before_final_target_return_without_low_support_success():
+    updater = ObservationProfileUpdater()
+    session = RemediationWorkflowSession.model_validate(
+        {
+            "session_id": "rem-session-bridge-1",
+            "student_id": str(uuid4()),
+            "target_kc_id": "KC-3",
+            "misconception_description": "Needs bridge before return.",
+            "rationale": "Repair and bridge before the final return.",
+            "steps": [
+                {
+                    "phase": "step_back",
+                    "title": "Reconnect prerequisite",
+                    "target_kc_ids": ["KC-1"],
+                    "support_level": "high",
+                    "objective": "Reconnect prerequisite.",
+                    "guidance": "Use one simple example.",
+                    "recommended_content_type": "remedial_micro_module",
+                    "status": "completed",
+                    "generated_content_id": "gen-step-back",
+                },
+                {
+                    "phase": "repair",
+                    "title": "Repair target",
+                    "target_kc_ids": ["KC-1"],
+                    "support_level": "medium",
+                    "objective": "Repair the misconception.",
+                    "guidance": "Contrast the misconception.",
+                    "recommended_content_type": "remedial_micro_module",
+                    "status": "completed",
+                    "generated_content_id": "gen-repair",
+                },
+                {
+                    "phase": "bridge",
+                    "title": "Bridge to nearby KC",
+                    "target_kc_ids": ["KC-2"],
+                    "support_level": "medium",
+                    "objective": "Bridge toward the target.",
+                    "guidance": "Fade support but stay guided.",
+                    "recommended_content_type": "remedial_micro_module",
+                    "status": "completed",
+                    "generated_content_id": "gen-bridge",
+                },
+                {
+                    "phase": "return",
+                    "title": "Return to target",
+                    "target_kc_ids": ["KC-3"],
+                    "support_level": "low",
+                    "objective": "Return to the target.",
+                    "guidance": "End with a transfer check.",
+                    "recommended_content_type": "practice_problem",
+                    "status": "active",
+                },
+            ],
+            "current_step_index": 3,
+        }
+    )
+    observations = [
+        LearnerObservation.model_validate(
+            {
+                "observation_id": "obs-bridge-1",
+                "student_id": str(session.student_id),
+                "response_time_ms": 18000,
+                "hints_used": 0,
+                "error_count": 0,
+                "pause_count": 0,
+                "modality_switches": 0,
+                "completed": True,
+                "confidence": 0.76,
+                "task_type": "remediation",
+                "support_level": "medium",
+                "expected_duration_ms": 18000,
+                "learning_session_id": session.session_id,
+                "generation_id": "gen-bridge",
+                "observed_content_type": "remedial_micro_module",
+                "target_kc_ids": ["KC-2"],
+                "target_lo_ids": ["LO-1"],
+            }
+        )
+    ]
+
+    decision = updater.evaluate_remediation_progress(session=session, observations=observations)
+
+    assert decision.decision == "hold_bridge_target"
+    assert decision.hold_step_index == 2
+    assert decision.average_observed_mastery is not None
+    assert decision.average_observed_mastery >= 0.62
+    assert decision.low_support_success_count == 0
 
 
 def test_observation_profile_updater_marks_transfer_ready_from_strong_same_session_evidence():

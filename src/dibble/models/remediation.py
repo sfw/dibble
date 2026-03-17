@@ -37,6 +37,10 @@ class RemediationWorkflowSummary(BaseModel):
     progression_decision: str = "advance"
     progression_rationale: str | None = None
     progression_target_kc_ids: list[str] = Field(default_factory=list)
+    progression_evidence_observation_count: int = Field(default=0, ge=0)
+    progression_evidence_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    progression_average_observed_mastery: float | None = Field(default=None, ge=0.0, le=1.0)
+    progression_low_support_success_count: int = Field(default=0, ge=0)
     next_step: LearnerFlowNextStep = Field(default_factory=LearnerFlowNextStep)
 
 
@@ -67,6 +71,10 @@ class RemediationWorkflowSession(BaseModel):
     progression_decision: str = "advance"
     progression_rationale: str | None = None
     progression_target_kc_ids: list[str] = Field(default_factory=list)
+    progression_evidence_observation_count: int = Field(default=0, ge=0)
+    progression_evidence_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    progression_average_observed_mastery: float | None = Field(default=None, ge=0.0, le=1.0)
+    progression_low_support_success_count: int = Field(default=0, ge=0)
     summary: RemediationWorkflowSummary = Field(default_factory=RemediationWorkflowSummary)
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)

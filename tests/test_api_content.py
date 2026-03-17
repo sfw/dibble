@@ -932,10 +932,17 @@ def test_remediation_session_holds_return_when_recent_repair_evidence_is_weak(cl
     assert held_payload["content"]["content_type"] == "remedial_micro_module"
     assert held_payload["session"]["current_step_index"] == 2
     assert held_payload["session"]["progression_decision"] == "hold_repair_target"
+    assert held_payload["session"]["progression_evidence_observation_count"] == 1
+    assert held_payload["session"]["progression_evidence_confidence"] > 0.0
+    assert held_payload["session"]["progression_average_observed_mastery"] is not None
     assert held_payload["content"]["request_context"]["remediation_workflow"]["progression_decision"] == "hold_repair_target"
+    assert held_payload["content"]["request_context"]["remediation_workflow"]["progression_evidence_observation_count"] == 1
+    assert held_payload["content"]["request_context"]["remediation_workflow"]["progression_evidence_confidence"] > 0.0
     assert held_payload["content"]["request_context"]["remediation_workflow"]["next_phase"] == "return"
     assert held_payload["session"]["summary"]["status"] == "held"
     assert held_payload["session"]["summary"]["progression_decision"] == "hold_repair_target"
+    assert held_payload["session"]["summary"]["progression_evidence_observation_count"] == 1
+    assert held_payload["session"]["summary"]["progression_average_observed_mastery"] is not None
     assert held_payload["session"]["summary"]["next_step"]["action"] == "hold_repair_target"
     assert held_payload["session"]["summary"]["next_step"]["content_type"] == "remedial_micro_module"
     assert held_payload["content"]["workflow_summary"]["flow_type"] == "remediation"

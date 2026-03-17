@@ -884,6 +884,10 @@ class ContentWorkflowService:
                 "progression_decision": updated_session.progression_decision,
                 "progression_rationale": updated_session.progression_rationale,
                 "progression_target_kc_ids": updated_session.progression_target_kc_ids,
+                "progression_evidence_observation_count": updated_session.progression_evidence_observation_count,
+                "progression_evidence_confidence": updated_session.progression_evidence_confidence,
+                "progression_average_observed_mastery": updated_session.progression_average_observed_mastery,
+                "progression_low_support_success_count": updated_session.progression_low_support_success_count,
             },
         )
         return RemediationWorkflowAdvanceResponse(
@@ -947,6 +951,10 @@ class ContentWorkflowService:
             decision=progression_decision.decision,
             rationale=progression_decision.rationale,
             target_kc_ids=progression_decision.target_kc_ids or [],
+            evidence_observation_count=progression_decision.matched_observation_count,
+            evidence_confidence=progression_decision.evidence_confidence,
+            average_observed_mastery=progression_decision.average_observed_mastery,
+            low_support_success_count=progression_decision.low_support_success_count,
         )
         return hold_step, updated_session, generated_content
 
@@ -991,6 +999,10 @@ class ContentWorkflowService:
                 "progression_decision": session.progression_decision,
                 "progression_rationale": session.progression_rationale,
                 "progression_target_kc_ids": session.progression_target_kc_ids,
+                "progression_evidence_observation_count": session.progression_evidence_observation_count,
+                "progression_evidence_confidence": session.progression_evidence_confidence,
+                "progression_average_observed_mastery": session.progression_average_observed_mastery,
+                "progression_low_support_success_count": session.progression_low_support_success_count,
             },
         }
         if misconception_signals is not None:
