@@ -39,6 +39,11 @@ class PromptTemplateUsage(BaseModel):
     event_count: int = 0
 
 
+class ModerationCategoryCount(BaseModel):
+    category: str
+    event_count: int = 0
+
+
 class SocraticPromptPerformance(BaseModel):
     template_name: str
     template_variant: str | None = None
@@ -82,9 +87,13 @@ class TelemetrySnapshot(BaseModel):
     socratic_step_back_events: int = 0
     average_socratic_evidence_score: float = 0.0
     fallback_generations: int = 0
+    moderation_events: int = 0
+    moderation_stream_events: int = 0
     moderation_flagged_generations: int = 0
     moderation_request_flags: int = 0
     moderation_response_flags: int = 0
+    moderation_blocked_requests: int = 0
+    moderation_rewritten_responses: int = 0
     validation_issue_events: int = 0
     cache_hit_generations: int = 0
     warm_requests: int = 0
@@ -105,6 +114,7 @@ class TelemetrySnapshot(BaseModel):
     fresh_generated_content_entries: int = 0
     provider_failure_events: int = 0
     provider_circuit_open_events: int = 0
+    moderation_category_counts: list[ModerationCategoryCount] = Field(default_factory=list)
     prompt_template_usages: list[PromptTemplateUsage] = Field(default_factory=list)
     generation_prompt_performances: list[GenerationPromptPerformance] = Field(default_factory=list)
     socratic_prompt_performances: list[SocraticPromptPerformance] = Field(default_factory=list)

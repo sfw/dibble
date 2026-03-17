@@ -99,7 +99,10 @@ def test_generation_engine_short_circuits_flagged_request_with_moderation_fallba
     assert response.generation_metadata is not None
     assert response.generation_metadata.moderation.status == "flagged"
     assert response.generation_metadata.moderation.stage == "request"
+    assert response.generation_metadata.moderation.blocked is True
     assert response.generation_metadata.moderation.fallback_applied is True
+    assert response.generation_metadata.moderation.fallback_kind == "request_safe_reset"
+    assert response.generation_metadata.moderation.stream_action == "emit_fallback_only"
     assert response.blocks[0].title == "Safe learning reset"
 
 
@@ -136,7 +139,10 @@ def test_generation_engine_replaces_flagged_response_with_moderation_fallback():
     assert response.generation_metadata is not None
     assert response.generation_metadata.moderation.status == "flagged"
     assert response.generation_metadata.moderation.stage == "response"
+    assert response.generation_metadata.moderation.blocked is True
     assert response.generation_metadata.moderation.fallback_applied is True
+    assert response.generation_metadata.moderation.fallback_kind == "response_teacher_safe_rewrite"
+    assert response.generation_metadata.moderation.stream_action == "replace_before_delivery"
     assert "shame" not in " ".join(block.body.lower() for block in response.blocks)
     assert response.blocks[1].title == "Teacher-safe next step"
 
@@ -177,6 +183,8 @@ def test_generation_engine_stream_emits_moderation_event_for_flagged_response():
     assert moderation_event.moderation is not None
     assert moderation_event.moderation.status == "flagged"
     assert moderation_event.moderation.stage == "response"
+    assert moderation_event.moderation.fallback_kind == "response_teacher_safe_rewrite"
+    assert moderation_event.moderation.stream_action == "replace_before_stream"
     assert set(moderation_event.moderation.categories) == {"academic_integrity", "privacy_risk"}
     assert complete_event.response is not None
     assert complete_event.response.generation_metadata is not None

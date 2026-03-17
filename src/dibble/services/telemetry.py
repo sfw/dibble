@@ -4,6 +4,7 @@ from collections import Counter
 
 from dibble.models.telemetry import (
     GenerationPromptPerformance,
+    ModerationCategoryCount,
     PromptTemplateUsage,
     SocraticPromptPerformance,
     TelemetrySnapshot,
@@ -33,6 +34,7 @@ class TelemetryService:
         socratic_events = [event for event in events if event.event_type == "assessment.socratic"]
         progress_profile_events = [event for event in events if event.event_type == "learning.progress.profile"]
         warm_events = [event for event in events if event.event_type in {"content.warm", "content.warm.predictive"}]
+        moderation_events = [event for event in events if event.event_type == "content.moderation"]
         predictive_warm_events = [event for event in events if event.event_type == "content.warm.predictive"]
         predictive_warm_process_events = [
             event for event in events if event.event_type == "content.warm.predictive.process"
@@ -53,6 +55,12 @@ class TelemetryService:
             str(event.payload.get("prompt_template_name"))
             for event in generation_events
             if event.payload.get("prompt_template_name")
+        )
+        moderation_category_counts = Counter(
+            str(category)
+            for event in moderation_events
+            for category in event.payload.get("categories", [])
+            if category is not None
         )
         generation_prompt_groups: dict[tuple[str, str | None, str | None], list[object]] = {}
         observation_events = [event for event in events if event.event_type == "learner.observe"]
@@ -119,6 +127,8 @@ class TelemetryService:
             fallback_generations=sum(
                 1 for event in generation_events if event.payload.get("delivery_mode") == "static_fallback"
             ),
+            moderation_events=len(moderation_events),
+            moderation_stream_events=sum(1 for event in moderation_events if bool(event.payload.get("stream_emitted"))),
             moderation_flagged_generations=sum(
                 1 for event in generation_events if event.payload.get("moderation_status") == "flagged"
             ),
@@ -133,6 +143,14 @@ class TelemetryService:
                 for event in generation_events
                 if event.payload.get("moderation_status") == "flagged"
                 and event.payload.get("moderation_stage") == "response"
+            ),
+            moderation_blocked_requests=sum(
+                1 for event in moderation_events if event.payload.get("stage") == "request" and bool(event.payload.get("blocked"))
+            ),
+            moderation_rewritten_responses=sum(
+                1
+                for event in moderation_events
+                if event.payload.get("stage") == "response" and bool(event.payload.get("fallback_applied"))
             ),
             validation_issue_events=sum(
                 1 for event in generation_events if int(event.payload.get("validation_issue_count", 0)) > 0
@@ -169,6 +187,10 @@ class TelemetryService:
             fresh_generated_content_entries=cache_stats["fresh_entries"],
             provider_failure_events=sum(1 for event in provider_events if event.status == "failure"),
             provider_circuit_open_events=sum(1 for event in provider_events if event.status == "circuit_open"),
+            moderation_category_counts=[
+                ModerationCategoryCount(category=category, event_count=count)
+                for category, count in sorted(moderation_category_counts.items())
+            ],
             prompt_template_usages=[
                 PromptTemplateUsage(template_name=name, event_count=count)
                 for name, count in sorted(prompt_template_counts.items())

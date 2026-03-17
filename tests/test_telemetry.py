@@ -98,6 +98,17 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     queue_store.defer_retry(task_id=claimed[0].task_id, error="provider timeout")
 
     audit_store.append(
+        event_type="content.moderation",
+        status="success",
+        payload={
+            "stage": "request",
+            "blocked": True,
+            "fallback_applied": True,
+            "categories": ["privacy_risk", "academic_integrity"],
+            "stream_emitted": True,
+        },
+    )
+    audit_store.append(
         event_type="content.generate",
         status="success",
         payload={
@@ -141,6 +152,12 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     snapshot = telemetry.snapshot()
 
     assert snapshot.cache_hit_generations == 1
+    assert snapshot.moderation_events == 1
+    assert snapshot.moderation_stream_events == 1
+    assert snapshot.moderation_blocked_requests == 1
+    assert snapshot.moderation_rewritten_responses == 0
+    assert snapshot.moderation_category_counts[0].category == "academic_integrity"
+    assert snapshot.moderation_category_counts[0].event_count == 1
     assert snapshot.warm_requests == 5
     assert snapshot.predictive_warm_events == 1
     assert snapshot.predictive_warm_requests == 3

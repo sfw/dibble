@@ -140,7 +140,13 @@ class ContentWorkflowService:
                 "moderation_categories": metadata.moderation.categories,
                 "moderation_reasons": metadata.moderation.reasons,
                 "moderation_matched_terms": metadata.moderation.matched_terms,
+                "moderation_matches": [match.model_dump(mode="json") for match in metadata.moderation.matches],
+                "moderation_severity": metadata.moderation.severity,
+                "moderation_blocked": metadata.moderation.blocked,
                 "moderation_fallback_applied": metadata.moderation.fallback_applied,
+                "moderation_fallback_kind": metadata.moderation.fallback_kind,
+                "moderation_stream_action": metadata.moderation.stream_action,
+                "moderation_audit_message": metadata.moderation.audit_message,
                 "cache_hit": metadata.cache_hit,
                 "quality_score": metadata.quality_score,
                 "target_kc_ids": request.target_kc_ids,
@@ -218,6 +224,13 @@ class ContentWorkflowService:
                 "prompt_template_variant": metadata.prompt_template_variant,
             },
         )
+        self._record_moderation_event(
+            student_id=str(request.student_id),
+            generation_id=generated_content.generation_id,
+            learning_session_id=request.learning_session_id,
+            moderation=metadata.moderation,
+            delivery_mode=response.route.delivery_mode.value,
+        )
         session_summary = self.within_session_adaptation_service.record_generation_step(
             request=calibrated_request,
             content_type=generated_content.content_type,
@@ -258,6 +271,38 @@ class ContentWorkflowService:
                 },
             )
         return generated_content
+
+    def _record_moderation_event(
+        self,
+        *,
+        student_id: str,
+        generation_id: str,
+        learning_session_id: str | None,
+        moderation,
+        delivery_mode: str,
+    ) -> None:
+        if moderation.status != "flagged":
+            return
+        self.audit_store.append(
+            event_type="content.moderation",
+            status="success",
+            student_id=student_id,
+            payload={
+                "generation_id": generation_id,
+                "learning_session_id": learning_session_id,
+                "stage": moderation.stage,
+                "severity": moderation.severity,
+                "blocked": moderation.blocked,
+                "categories": moderation.categories,
+                "matched_terms": moderation.matched_terms,
+                "matches": [match.model_dump(mode="json") for match in moderation.matches],
+                "fallback_applied": moderation.fallback_applied,
+                "fallback_kind": moderation.fallback_kind,
+                "stream_action": moderation.stream_action,
+                "delivery_mode": delivery_mode,
+                "audit_message": moderation.audit_message,
+            },
+        )
 
     def _apply_session_adaptation(
         self,

@@ -212,13 +212,26 @@ class TargetKcGenerationHint(BaseModel):
     remediation_hints: list[str] = Field(default_factory=list)
 
 
+class ModerationMatch(BaseModel):
+    category: str
+    matched_terms: list[str] = Field(default_factory=list)
+    reason: str
+    severity: str = "block"
+
+
 class ModerationResult(BaseModel):
     status: str = "clear"
     stage: str = "none"
+    severity: str = "none"
     categories: list[str] = Field(default_factory=list)
     reasons: list[str] = Field(default_factory=list)
     matched_terms: list[str] = Field(default_factory=list)
+    matches: list[ModerationMatch] = Field(default_factory=list)
+    blocked: bool = False
     fallback_applied: bool = False
+    fallback_kind: str | None = None
+    stream_action: str = "none"
+    audit_message: str | None = None
 
 
 class GenerationMetadata(BaseModel):

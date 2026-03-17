@@ -62,7 +62,11 @@ class GenerationEngine:
                 grounding_titles=grounding_titles,
                 moderation=request_moderation,
             )
-            moderation = request_moderation.model_copy(update={"fallback_applied": True})
+            moderation = self._apply_moderation_fallback(
+                moderation=request_moderation,
+                fallback_kind="request_safe_reset",
+                stream_action="emit_fallback_only",
+            )
             route.delivery_mode = DeliveryMode.static_fallback
         else:
             blocks = self.provider.generate(profile, request, route, grounding_titles)
@@ -73,7 +77,11 @@ class GenerationEngine:
                     grounding_titles=grounding_titles,
                     moderation=moderation,
                 )
-                moderation = moderation.model_copy(update={"fallback_applied": True})
+                moderation = self._apply_moderation_fallback(
+                    moderation=moderation,
+                    fallback_kind="response_teacher_safe_rewrite",
+                    stream_action="replace_before_delivery",
+                )
                 route.delivery_mode = DeliveryMode.static_fallback
         response = self._build_response(profile, request, route, grounding, blocks, moderation=moderation)
         content = self._build_generated_content(
@@ -131,7 +139,11 @@ class GenerationEngine:
                 grounding_titles=grounding_titles,
                 moderation=request_moderation,
             )
-            moderation = request_moderation.model_copy(update={"fallback_applied": True})
+            moderation = self._apply_moderation_fallback(
+                moderation=request_moderation,
+                fallback_kind="request_safe_reset",
+                stream_action="emit_fallback_only",
+            )
             route.delivery_mode = DeliveryMode.static_fallback
             yield self._moderation_event(profile=profile, route=route, moderation=moderation)
         else:
@@ -150,7 +162,11 @@ class GenerationEngine:
                     grounding_titles=grounding_titles,
                     moderation=moderation,
                 )
-                moderation = moderation.model_copy(update={"fallback_applied": True})
+                moderation = self._apply_moderation_fallback(
+                    moderation=moderation,
+                    fallback_kind="response_teacher_safe_rewrite",
+                    stream_action="replace_before_stream",
+                )
                 route.delivery_mode = DeliveryMode.static_fallback
                 yield self._moderation_event(profile=profile, route=route, moderation=moderation)
 
@@ -291,6 +307,22 @@ class GenerationEngine:
         if moderation.status == "flagged":
             base_score -= 0.1
         return round(max(0.0, min(base_score, 1.0)), 2)
+
+    def _apply_moderation_fallback(
+        self,
+        *,
+        moderation: ModerationResult,
+        fallback_kind: str,
+        stream_action: str,
+    ) -> ModerationResult:
+        return moderation.model_copy(
+            update={
+                "blocked": True,
+                "fallback_applied": True,
+                "fallback_kind": fallback_kind,
+                "stream_action": stream_action,
+            }
+        )
 
     def _provider_descriptor(self) -> dict[str, str | None]:
         descriptor = getattr(self.provider, "last_used_descriptor", None)

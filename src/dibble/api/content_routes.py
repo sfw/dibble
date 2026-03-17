@@ -157,6 +157,26 @@ def build_content_router(context: ApiContext) -> APIRouter:
             try:
                 complete_event: GenerationStreamEvent | None = None
                 for event in services.generation_engine.stream_generate(profile, calibrated_request):
+                    if event.event == "moderation" and event.moderation is not None:
+                        services.audit_store.append(
+                            event_type="content.moderation",
+                            status="success",
+                            student_id=str(request.student_id),
+                            payload={
+                                "learning_session_id": calibrated_request.learning_session_id,
+                                "stage": event.moderation.stage,
+                                "severity": event.moderation.severity,
+                                "blocked": event.moderation.blocked,
+                                "categories": event.moderation.categories,
+                                "matched_terms": event.moderation.matched_terms,
+                                "matches": [match.model_dump(mode="json") for match in event.moderation.matches],
+                                "fallback_applied": event.moderation.fallback_applied,
+                                "fallback_kind": event.moderation.fallback_kind,
+                                "stream_action": event.moderation.stream_action,
+                                "audit_message": event.moderation.audit_message,
+                                "stream_emitted": True,
+                            },
+                        )
                     if event.event == "complete":
                         complete_event = event
                         response = event.response
@@ -208,6 +228,24 @@ def build_content_router(context: ApiContext) -> APIRouter:
                                         if response.generation_metadata is not None
                                         else []
                                     ),
+                                    "moderation_matches": (
+                                        [
+                                            match.model_dump(mode="json")
+                                            for match in response.generation_metadata.moderation.matches
+                                        ]
+                                        if response.generation_metadata is not None
+                                        else []
+                                    ),
+                                    "moderation_severity": (
+                                        response.generation_metadata.moderation.severity
+                                        if response.generation_metadata is not None
+                                        else "none"
+                                    ),
+                                    "moderation_blocked": bool(
+                                        response.generation_metadata.moderation.blocked
+                                        if response.generation_metadata is not None
+                                        else False
+                                    ),
                                     "moderation_matched_terms": (
                                         response.generation_metadata.moderation.matched_terms
                                         if response.generation_metadata is not None
@@ -217,6 +255,21 @@ def build_content_router(context: ApiContext) -> APIRouter:
                                         response.generation_metadata.moderation.fallback_applied
                                         if response.generation_metadata is not None
                                         else False
+                                    ),
+                                    "moderation_fallback_kind": (
+                                        response.generation_metadata.moderation.fallback_kind
+                                        if response.generation_metadata is not None
+                                        else None
+                                    ),
+                                    "moderation_stream_action": (
+                                        response.generation_metadata.moderation.stream_action
+                                        if response.generation_metadata is not None
+                                        else "none"
+                                    ),
+                                    "moderation_audit_message": (
+                                        response.generation_metadata.moderation.audit_message
+                                        if response.generation_metadata is not None
+                                        else None
                                     ),
                                     "prompt_template_name": (
                                         response.generation_metadata.prompt_template_name
