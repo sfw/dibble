@@ -36,6 +36,13 @@ def test_socratic_assessment_starts_with_probe_when_no_learner_response(client, 
     assert "assessment.socratic" in event_types
 
 
+def test_socratic_assessment_session_not_found_returns_machine_readable_error(client):
+    response = client.get("/api/assessments/socratic/missing-session")
+
+    assert response.status_code == 404
+    assert response.headers["x-dibble-error-code"] == "socratic_session_not_found"
+
+
 def test_socratic_assessment_detects_grounded_reasoning_in_learner_response(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())

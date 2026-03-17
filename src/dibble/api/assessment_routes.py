@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 
-from dibble.api.common import ApiContext
+from dibble.api.common import ApiContext, api_error
 from dibble.models.assessment import (
     SocraticAssessmentRequest,
     SocraticAssessmentResponse,
@@ -22,7 +22,11 @@ def build_assessment_router(context: ApiContext) -> APIRouter:
     def assess_socratically(request: SocraticAssessmentRequest) -> SocraticAssessmentResponse:
         profile = services.profile_store.get(request.student_id)
         if profile is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Learner profile not found.",
+                code="learner_profile_not_found",
+            )
 
         result = services.socratic_assessment_service.assess(profile, request)
         session = services.socratic_session_store.get(result.session_id)
@@ -90,7 +94,11 @@ def build_assessment_router(context: ApiContext) -> APIRouter:
     def get_socratic_assessment_session(session_id: str) -> SocraticAssessmentSession:
         session = services.socratic_session_store.get(session_id)
         if session is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Socratic assessment session not found.")
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Socratic assessment session not found.",
+                code="socratic_session_not_found",
+            )
         return session
 
     return router

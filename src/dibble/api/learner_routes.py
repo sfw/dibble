@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 
-from dibble.api.common import ApiContext
+from dibble.api.common import ApiContext, api_error
 from dibble.models.observations import InferredLearnerState, LearnerObservationCreate
 from dibble.models.profile import LearnerFlowSummary, LearnerProfile, LearnerProfileV2, ProfileSummary
 from dibble.models.workspace import LearnerWorkspace
@@ -17,9 +17,10 @@ def build_learner_router(context: ApiContext) -> APIRouter:
     @router.put("/learners/{student_id}/profile", response_model=LearnerProfile, dependencies=context.deps("editor"))
     def upsert_profile(student_id: UUID, profile: LearnerProfile) -> LearnerProfile:
         if student_id != profile.student_id:
-            raise HTTPException(
+            raise api_error(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Path student_id must match the profile payload student_id.",
+                code="learner_profile_id_mismatch",
             )
         return services.profile_store.upsert(profile)
 
@@ -27,7 +28,11 @@ def build_learner_router(context: ApiContext) -> APIRouter:
     def get_profile(student_id: UUID) -> LearnerProfileV2:
         profile = services.profile_store.get(student_id)
         if profile is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Learner profile not found.",
+                code="learner_profile_not_found",
+            )
         return LearnerProfileV2.from_profile(profile)
 
     @router.get("/learners", response_model=list[str], dependencies=context.deps("viewer"))
@@ -42,7 +47,11 @@ def build_learner_router(context: ApiContext) -> APIRouter:
     def observe_learner_state(student_id: UUID, observation: LearnerObservationCreate) -> InferredLearnerState:
         profile = services.profile_store.get(student_id)
         if profile is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Learner profile not found.",
+                code="learner_profile_not_found",
+            )
 
         persisted_observation = services.observation_store.append(student_id=str(student_id), observation=observation)
         recent_observations = services.observation_store.list_recent(student_id=str(student_id))
@@ -173,7 +182,11 @@ def build_learner_router(context: ApiContext) -> APIRouter:
     def get_inferred_learner_state(student_id: UUID) -> InferredLearnerState:
         profile = services.profile_store.get(student_id)
         if profile is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Learner profile not found.",
+                code="learner_profile_not_found",
+            )
         observations = services.observation_store.list_recent(student_id=str(student_id))
         if observations:
             inferred_state = services.state_inference_service.infer(student_id=student_id, observations=observations)
@@ -196,21 +209,33 @@ def build_learner_router(context: ApiContext) -> APIRouter:
     def get_profile_summary(student_id: UUID) -> ProfileSummary:
         summary = services.learner_summary_service.build_for_student(student_id=student_id)
         if summary is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Learner profile not found.",
+                code="learner_profile_not_found",
+            )
         return summary
 
     @router.get("/learners/{student_id}/flow", response_model=LearnerFlowSummary, dependencies=context.deps("viewer"))
     def get_learner_flow(student_id: UUID) -> LearnerFlowSummary:
         profile = services.profile_store.get(student_id)
         if profile is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Learner profile not found.",
+                code="learner_profile_not_found",
+            )
         return services.learner_flow_service.build_for_student(student_id=student_id)
 
     @router.get("/learners/{student_id}/workspace", response_model=LearnerWorkspace, dependencies=context.deps("viewer"))
     def get_learner_workspace(student_id: UUID) -> LearnerWorkspace:
         workspace = services.learner_workspace_service.build_for_student(student_id=student_id)
         if workspace is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Learner profile not found.",
+                code="learner_profile_not_found",
+            )
         return workspace
 
     return router

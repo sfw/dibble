@@ -109,6 +109,13 @@ def test_generated_content_can_be_reloaded_by_generation_id(client, student_id):
     assert payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
 
 
+def test_generated_content_not_found_returns_machine_readable_error(client):
+    response = client.get("/api/content/missing-generation")
+
+    assert response.status_code == 404
+    assert response.headers["x-dibble-error-code"] == "generated_content_not_found"
+
+
 def test_generation_cache_ignores_learning_session_id(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
@@ -909,6 +916,7 @@ def test_remediation_session_endpoints_advance_multi_step_workflow(client, stude
         json={},
     )
     assert completed_response.status_code == 409
+    assert completed_response.headers["x-dibble-error-code"] == "remediation_session_complete"
 
 
 def test_remediation_session_holds_return_when_recent_repair_evidence_is_weak(client, student_id):

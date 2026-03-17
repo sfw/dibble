@@ -26,6 +26,8 @@ def test_auth_can_protect_api_endpoints(tmp_path, student_id):
 
     assert health_response.status_code == 200
     assert unauthorized.status_code == 401
+    assert unauthorized.headers["x-dibble-error-code"] == "auth_invalid_credentials"
+    assert unauthorized.headers["www-authenticate"] == "Bearer"
     assert authorized.status_code == 200
     assert audit_response.status_code == 200
     assert audit_response.json()[0]["event_type"] == "auth.request"
@@ -63,8 +65,10 @@ def test_auth_exposes_identity_and_rbac(tmp_path, student_id):
     assert me_response.json()["principal_id"] == "viewer-user"
     assert me_response.json()["role"] == "viewer"
     assert forbidden_write.status_code == 403
+    assert forbidden_write.headers["x-dibble-error-code"] == "auth_insufficient_role"
     assert allowed_write.status_code == 200
     assert forbidden_audit.status_code == 403
+    assert forbidden_audit.headers["x-dibble-error-code"] == "auth_insufficient_role"
     assert allowed_audit.status_code == 200
 
 
@@ -118,6 +122,8 @@ def test_refresh_rotates_tokens_and_old_refresh_token_stops_working(tmp_path):
     assert refreshed.status_code == 200
     assert refreshed.json()["refresh_token"] != issued["refresh_token"]
     assert stale_refresh.status_code == 401
+    assert stale_refresh.headers["x-dibble-error-code"] == "auth_refresh_failed"
+    assert stale_refresh.headers["www-authenticate"] == "Bearer"
 
 
 def test_revocation_invalidates_existing_bearer_session(tmp_path):
@@ -145,3 +151,5 @@ def test_revocation_invalidates_existing_bearer_session(tmp_path):
 
     assert revoke.status_code == 200
     assert me_response.status_code == 401
+    assert me_response.headers["x-dibble-error-code"] == "auth_invalid_credentials"
+    assert me_response.headers["www-authenticate"] == "Bearer"

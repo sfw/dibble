@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Header, HTTPException, Request, status
+from fastapi import APIRouter, Header, Request, status
 
-from dibble.api.common import ApiContext
+from dibble.api.common import ApiContext, api_error
 from dibble.models.auth import AuthIdentity, AuthRefreshRequest, AuthRevokeRequest, AuthToken
 from dibble.services.auth import AuthenticationError, TokenConfigurationError
 
@@ -26,7 +26,11 @@ def build_auth_router(context: ApiContext) -> APIRouter:
         try:
             token = services.auth_service.issue_token(identity)
         except TokenConfigurationError as exc:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+            raise api_error(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=str(exc),
+                code="auth_token_unavailable",
+            ) from exc
 
         services.audit_store.append(
             event_type="auth.token",
@@ -40,7 +44,12 @@ def build_auth_router(context: ApiContext) -> APIRouter:
         try:
             token = services.auth_service.refresh_session(payload.refresh_token)
         except (AuthenticationError, TokenConfigurationError) as exc:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+            raise api_error(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=str(exc),
+                code="auth_refresh_failed",
+                headers={"WWW-Authenticate": "Bearer"},
+            ) from exc
 
         services.audit_store.append(
             event_type="auth.token",
@@ -67,7 +76,12 @@ def build_auth_router(context: ApiContext) -> APIRouter:
                 bearer_token=bearer_token,
             )
         except AuthenticationError as exc:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+            raise api_error(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=str(exc),
+                code="auth_revoke_failed",
+                headers={"WWW-Authenticate": "Bearer"},
+            ) from exc
 
         services.audit_store.append(
             event_type="auth.token",

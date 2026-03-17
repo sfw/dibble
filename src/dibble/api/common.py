@@ -46,6 +46,25 @@ from dibble.services.state_inference import LearnerStateInferenceService
 from dibble.services.telemetry import TelemetryService
 from dibble.services.within_session_adaptation import WithinSessionAdaptationService
 
+ERROR_CODE_HEADER = "X-Dibble-Error-Code"
+
+
+def api_error(
+    *,
+    status_code: int,
+    detail: str,
+    code: str,
+    headers: dict[str, str] | None = None,
+) -> HTTPException:
+    response_headers = {ERROR_CODE_HEADER: code}
+    if headers:
+        response_headers.update(headers)
+    return HTTPException(
+        status_code=status_code,
+        detail=detail,
+        headers=response_headers,
+    )
+
 
 class ApiServices(Protocol):
     profile_store: ProfileStore
@@ -116,7 +135,12 @@ class ApiContext:
                         "required_roles": list(allowed_roles or ("viewer",)),
                     },
                 )
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+                raise api_error(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=str(exc),
+                    code="auth_invalid_credentials",
+                    headers={"WWW-Authenticate": "Bearer"},
+                ) from exc
             except AuthorizationError as exc:
                 identity = self.services.auth_service.authenticate(api_key)
                 self.services.audit_store.append(
@@ -131,7 +155,11 @@ class ApiContext:
                         "required_roles": list(allowed_roles or ("viewer",)),
                     },
                 )
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+                raise api_error(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=str(exc),
+                    code="auth_insufficient_role",
+                ) from exc
 
         return dependency
 

@@ -39,6 +39,13 @@ def test_profile_round_trip_and_summary(client, student_id):
     assert str(student_id) in list_response.json()
 
 
+def test_learner_workspace_returns_machine_readable_not_found_error(client, student_id):
+    response = client.get(f"/api/learners/{student_id}/workspace")
+
+    assert response.status_code == 404
+    assert response.headers["x-dibble-error-code"] == "learner_profile_not_found"
+
+
 def test_profile_summary_exposes_recent_calibration_and_activity(client, student_id, app_settings):
     from dibble.services.audit_store import SQLiteAuditStore
 

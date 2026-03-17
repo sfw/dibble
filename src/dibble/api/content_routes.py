@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 from fastapi.responses import StreamingResponse
 
-from dibble.api.common import ApiContext
+from dibble.api.common import ApiContext, api_error
 from dibble.models.generation import (
     AdaptiveRouteDecision,
     ContentWarmRequest,
@@ -37,22 +37,38 @@ def build_content_router(context: ApiContext) -> APIRouter:
         try:
             return services.content_workflow_service.decide_route(request)
         except LearnerProfileNotFoundError as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(exc),
+                code="learner_profile_not_found",
+            ) from exc
 
     @router.post("/content/generate", response_model=GeneratedContent, dependencies=context.deps("editor"))
     def generate_content(request: GenerationRequest) -> GeneratedContent:
         try:
             return services.content_workflow_service.generate_content(request)
         except LearnerProfileNotFoundError as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(exc),
+                code="learner_profile_not_found",
+            ) from exc
         except RuntimeError as exc:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+            raise api_error(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=str(exc),
+                code="content_generation_failed",
+            ) from exc
 
     @router.get("/content/{generation_id}", response_model=GeneratedContent, dependencies=context.deps("viewer"))
     def get_generated_content(generation_id: str) -> GeneratedContent:
         content = services.content_workflow_service.get_generated_content(generation_id)
         if content is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Generated content not found.")
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Generated content not found.",
+                code="generated_content_not_found",
+            )
         return content
 
     @router.post("/content/warm", response_model=ContentWarmResult, dependencies=context.deps("editor"))
@@ -106,9 +122,17 @@ def build_content_router(context: ApiContext) -> APIRouter:
         try:
             return services.content_workflow_service.trigger_remedial_content(request)
         except LearnerProfileNotFoundError as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(exc),
+                code="learner_profile_not_found",
+            ) from exc
         except RuntimeError as exc:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+            raise api_error(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=str(exc),
+                code="remediation_trigger_failed",
+            ) from exc
 
     @router.get(
         "/remedial/sessions/{session_id}",
@@ -119,7 +143,11 @@ def build_content_router(context: ApiContext) -> APIRouter:
         try:
             return services.content_workflow_service.get_remediation_session(session_id)
         except RemediationWorkflowNotFoundError as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(exc),
+                code="remediation_session_not_found",
+            ) from exc
 
     @router.post(
         "/remedial/sessions/{session_id}/advance",
@@ -136,20 +164,40 @@ def build_content_router(context: ApiContext) -> APIRouter:
                 request=request,
             )
         except LearnerProfileNotFoundError as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(exc),
+                code="learner_profile_not_found",
+            ) from exc
         except RemediationWorkflowNotFoundError as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(exc),
+                code="remediation_session_not_found",
+            ) from exc
         except RemediationWorkflowCompleteError as exc:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+            raise api_error(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(exc),
+                code="remediation_session_complete",
+            ) from exc
         except RuntimeError as exc:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+            raise api_error(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=str(exc),
+                code="remediation_advance_failed",
+            ) from exc
 
     @router.post("/llm/stream", dependencies=context.deps("editor"))
     def stream_generated_content(request: GenerationRequest) -> StreamingResponse:
         try:
             prepared = services.content_workflow_service.prepare_generation_request(request)
         except LearnerProfileNotFoundError as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(exc),
+                code="learner_profile_not_found",
+            ) from exc
 
         def event_stream():
             try:
