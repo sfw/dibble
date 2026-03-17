@@ -79,6 +79,8 @@ def test_predictive_warm_scheduler_processes_enqueued_tasks(tmp_path):
 
     assert enqueue_result.enqueued_count == 1
     assert process_result.completed_tasks == 1
+    assert process_result.claimed_tasks == 1
+    assert process_result.supplemental_tasks == 0
     assert process_result.cache_misses == 1
     assert process_result.pending_tasks == 0
     assert queue_store.stats()["completed"] == 1
@@ -260,6 +262,7 @@ def test_predictive_warm_scheduler_reports_requeued_stale_processing_tasks(tmp_p
 
     assert result.requeued_tasks == 1
     assert result.attempted_tasks == 0
+    assert result.expired_tasks == 0
     assert result.pending_tasks == 1
 
 
@@ -326,6 +329,123 @@ def test_predictive_warm_scheduler_recovers_stale_urgent_tasks_in_same_pass(tmp_
 
     assert result.requeued_tasks == 1
     assert result.attempted_tasks == 1
+    assert result.completed_tasks == 1
+    assert result.pending_tasks == 0
+
+
+def test_predictive_warm_scheduler_uses_spare_inline_capacity_for_pending_backlog(tmp_path):
+    database_path = str(tmp_path / "predictive-warm-scheduler-inline-backlog.db")
+    ensure_database(database_path)
+    profile_store = SQLiteProfileStore(database_path)
+    curriculum_store = SQLiteCurriculumStore(database_path)
+    queue_store = SQLitePredictiveWarmQueueStore(database_path)
+    student_id = uuid4()
+    profile_store.upsert(build_profile_model(student_id))
+    curriculum_store.upsert(CurriculumResourceUpsert.model_validate(build_curriculum_resource()))
+    generation_engine = GenerationEngine(
+        retriever=RAGRetriever(curriculum_store),
+        router=AdaptiveRouter(),
+        provider=MockLLMProvider(),
+        validator=ContentValidator(),
+    )
+    scheduler = PredictiveWarmScheduler(
+        queue_store=queue_store,
+        content_warmer=ContentWarmer(
+            profile_store=profile_store,
+            generation_engine=generation_engine,
+            generation_mode_calibrator=None,
+        ),
+        inline_process_limit=2,
+    )
+    backlog_task = queue_store.enqueue(
+        request=GenerationRequest.model_validate(
+            {
+                "student_id": str(student_id),
+                "learning_session_id": "session-backlog",
+                "target_kc_ids": ["KC-older"],
+                "intent": "practice",
+                "requested_content_type": "practice_problem",
+                "curriculum_context": ["Equivalent fractions"],
+                "predictive_warm": True,
+                "warm_reason": "older queued follow-up",
+                "source_generation_id": "gen-older",
+            }
+        )
+    )
+    fresh_task = queue_store.enqueue(
+        request=GenerationRequest.model_validate(
+            {
+                "student_id": str(student_id),
+                "learning_session_id": "session-fresh",
+                "target_kc_ids": ["KC-fresh"],
+                "intent": "practice",
+                "requested_content_type": "practice_problem",
+                "curriculum_context": ["Equivalent fractions"],
+                "predictive_warm": True,
+                "warm_reason": "fresh follow-up",
+                "source_generation_id": "gen-fresh",
+            }
+        )
+    )
+
+    assert backlog_task is not None
+    assert fresh_task is not None
+
+    result = scheduler.process_inline(task_ids=[fresh_task.task_id])
+
+    assert result.claimed_tasks == 2
+    assert result.supplemental_tasks == 1
+    assert result.completed_tasks == 2
+    assert result.pending_tasks == 0
+    assert queue_store.stats()["completed"] == 2
+
+
+def test_predictive_warm_scheduler_can_autonomously_process_pending_work_inline(tmp_path):
+    database_path = str(tmp_path / "predictive-warm-scheduler-inline-autonomous.db")
+    ensure_database(database_path)
+    profile_store = SQLiteProfileStore(database_path)
+    curriculum_store = SQLiteCurriculumStore(database_path)
+    queue_store = SQLitePredictiveWarmQueueStore(database_path)
+    student_id = uuid4()
+    profile_store.upsert(build_profile_model(student_id))
+    curriculum_store.upsert(CurriculumResourceUpsert.model_validate(build_curriculum_resource()))
+    generation_engine = GenerationEngine(
+        retriever=RAGRetriever(curriculum_store),
+        router=AdaptiveRouter(),
+        provider=MockLLMProvider(),
+        validator=ContentValidator(),
+    )
+    scheduler = PredictiveWarmScheduler(
+        queue_store=queue_store,
+        content_warmer=ContentWarmer(
+            profile_store=profile_store,
+            generation_engine=generation_engine,
+            generation_mode_calibrator=None,
+        ),
+        inline_process_limit=1,
+    )
+    task = queue_store.enqueue(
+        request=GenerationRequest.model_validate(
+            {
+                "student_id": str(student_id),
+                "learning_session_id": "session-autonomous",
+                "target_kc_ids": ["KC-1"],
+                "intent": "practice",
+                "requested_content_type": "practice_problem",
+                "curriculum_context": ["Equivalent fractions"],
+                "predictive_warm": True,
+                "warm_reason": "queued follow-up",
+                "source_generation_id": "gen-1",
+            }
+        )
+    )
+
+    assert task is not None
+
+    result = scheduler.process_inline(task_ids=[])
+
+    assert result.claimed_tasks == 1
+    assert result.supplemental_tasks == 1
     assert result.completed_tasks == 1
     assert result.pending_tasks == 0
 

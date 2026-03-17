@@ -193,7 +193,7 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     audit_store.append(
         event_type="content.warm.predictive",
         status="success",
-        payload={"predicted_request_count": 3, "cache_hits": 2, "cache_misses": 1},
+        payload={"predicted_request_count": 3, "cache_hits": 2, "cache_misses": 1, "supplemental_tasks": 1},
     )
     audit_store.append(
         event_type="content.cache.invalidate",
@@ -203,7 +203,15 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     audit_store.append(
         event_type="content.warm.predictive.process",
         status="success",
-        payload={"attempted_tasks": 1, "completed_tasks": 1, "retried_tasks": 1, "requeued_tasks": 1, "dropped_tasks": 0},
+        payload={
+            "attempted_tasks": 1,
+            "claimed_tasks": 1,
+            "completed_tasks": 1,
+            "retried_tasks": 1,
+            "requeued_tasks": 1,
+            "expired_tasks": 2,
+            "dropped_tasks": 0,
+        },
     )
     audit_store.append(
         event_type="learning.progress.profile",
@@ -232,6 +240,8 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     assert snapshot.predictive_warm_requests == 3
     assert snapshot.predictive_warm_process_events == 1
     assert snapshot.predictive_cache_invalidations == 2
+    assert snapshot.expired_predictive_warm_tasks == 2
+    assert snapshot.supplemental_inline_predictive_warm_tasks == 1
     assert snapshot.learning_progress_profile_events == 2
     assert snapshot.improving_progress_signals == 1
     assert snapshot.declining_progress_signals == 1

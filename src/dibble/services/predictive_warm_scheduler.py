@@ -42,12 +42,17 @@ class PredictiveWarmScheduler:
         )
 
     def process_inline(self, *, task_ids: list[str]) -> PredictiveWarmProcessResult:
-        if self.inline_process_limit <= 0 or not task_ids:
+        if self.inline_process_limit <= 0:
             return PredictiveWarmProcessResult(pending_tasks=self._backlog_count())
         sweep_result = self.queue_store.sweep()
+        claimed = self.queue_store.claim_tasks(task_ids=task_ids[: self.inline_process_limit]) if task_ids else []
+        remaining_capacity = max(0, self.inline_process_limit - len(claimed))
+        supplemental = self.queue_store.claim_pending(limit=remaining_capacity) if remaining_capacity > 0 else []
         return self._process_tasks(
-            self.queue_store.claim_tasks(task_ids=task_ids[: self.inline_process_limit]),
+            [*claimed, *supplemental],
+            supplemental_tasks=len(supplemental),
             requeued_tasks=sweep_result.requeued_tasks,
+            expired_tasks=sweep_result.expired_tasks,
         )
 
     def process_pending(self, *, limit: int = 10) -> PredictiveWarmProcessResult:
@@ -55,13 +60,24 @@ class PredictiveWarmScheduler:
         return self._process_tasks(
             self.queue_store.claim_pending(limit=limit),
             requeued_tasks=sweep_result.requeued_tasks,
+            expired_tasks=sweep_result.expired_tasks,
         )
 
-    def _process_tasks(self, tasks, *, requeued_tasks: int = 0) -> PredictiveWarmProcessResult:
+    def _process_tasks(
+        self,
+        tasks,
+        *,
+        supplemental_tasks: int = 0,
+        requeued_tasks: int = 0,
+        expired_tasks: int = 0,
+    ) -> PredictiveWarmProcessResult:
         if not tasks:
             return PredictiveWarmProcessResult(
                 pending_tasks=self._backlog_count(),
+                claimed_tasks=0,
+                supplemental_tasks=0,
                 requeued_tasks=requeued_tasks,
+                expired_tasks=expired_tasks,
             )
 
         completed = 0
@@ -102,10 +118,13 @@ class PredictiveWarmScheduler:
 
         return PredictiveWarmProcessResult(
             attempted_tasks=len(tasks),
+            claimed_tasks=len(tasks),
+            supplemental_tasks=max(0, supplemental_tasks),
             completed_tasks=completed,
             failed_tasks=failed,
             retried_tasks=retried,
             requeued_tasks=requeued_tasks,
+            expired_tasks=expired_tasks,
             deferred_tasks=deferred,
             dropped_tasks=dropped,
             skipped_tasks=skipped,

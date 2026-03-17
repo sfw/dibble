@@ -180,6 +180,13 @@ class TelemetryService:
             predictive_cache_invalidations=sum(
                 int(event.payload.get("expired_entries", 0)) for event in cache_invalidation_events
             ),
+            expired_predictive_warm_tasks=sum(
+                int(event.payload.get("expired_tasks", 0))
+                for event in warm_events + predictive_warm_process_events
+            ),
+            supplemental_inline_predictive_warm_tasks=sum(
+                int(event.payload.get("supplemental_tasks", 0)) for event in predictive_warm_events
+            ),
             pending_predictive_warm_tasks=queue_stats["pending"],
             deferred_predictive_warm_tasks=queue_stats.get("deferred", 0),
             aged_routine_predictive_warm_tasks=queue_stats.get("aged_routine", 0),

@@ -292,6 +292,8 @@ def test_predictive_warm_process_endpoint_drains_pending_queue(tmp_path, student
         assert worked_example_response.status_code == 200
         assert process_response.status_code == 200
         assert problem_response.status_code == 200
+        assert process_response.json()["claimed_tasks"] >= 1
+        assert process_response.json()["supplemental_tasks"] == 0
         assert process_response.json()["completed_tasks"] >= 1
         assert process_response.json()["pending_tasks"] == 0
         assert problem_response.json()["quality"]["cache_hit"] is True
