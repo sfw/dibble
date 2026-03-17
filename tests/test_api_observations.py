@@ -114,6 +114,9 @@ def test_observation_endpoint_updates_inferred_state_and_profile(client, student
     assert "state_calibration_recovery_stability" in learner_observe_event["payload"]
     assert "state_calibration_overload_risk" in learner_observe_event["payload"]
     assert "state_calibration_metacognitive_reliability" in learner_observe_event["payload"]
+    assert "observation_matched_observation_count" in learner_observe_event["payload"]
+    assert "observation_average_recent_mastery" in learner_observe_event["payload"]
+    assert "observation_evidence_confidence" in learner_observe_event["payload"]
     assert summary_event["payload"]["generation_id"] == "gen-123"
     assert summary_event["payload"]["trigger_event_type"] == "learner.observe"
     assert summary_event["payload"]["run_summary_score"] is not None

@@ -208,6 +208,56 @@ def test_generation_endpoint_predictively_warms_follow_up_content(client, studen
     assert predictive_event["payload"]["predicted_content_types"] == ["practice_problem", "assessment_probe"]
 
 
+def test_generation_endpoint_holds_target_when_recent_same_session_evidence_is_support_heavy(client, student_id):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+
+    for hints_used, confidence in [(3, 0.62), (2, 0.58)]:
+        observe_response = client.post(
+            f"/api/learners/{student_id}/observations",
+            json={
+                "response_time_ms": 21000,
+                "hints_used": hints_used,
+                "error_count": 0,
+                "pause_count": 1,
+                "modality_switches": 0,
+                "completed": True,
+                "confidence": confidence,
+                "task_type": "practice",
+                "support_level": "high",
+                "expected_duration_ms": 18000,
+                "learning_session_id": "session-progress-hold",
+                "target_kc_ids": ["KC-1"],
+                "target_lo_ids": ["LO-1"],
+            },
+        )
+        assert observe_response.status_code == 200
+
+    problem_response = client.post(
+        "/api/problems/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "session-progress-hold",
+            "target_kc_ids": ["KC-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    audit_response = client.get("/api/audit/events")
+
+    assert problem_response.status_code == 200
+    payload = problem_response.json()
+    assert payload["request_context"]["progression"]["action"] == "hold_target"
+    assert payload["request_context"]["progression"]["observation_count"] >= 2
+
+    predictive_event = next(
+        event
+        for event in audit_response.json()
+        if event["event_type"] == "content.warm.predictive"
+        and event["payload"]["source_generation_id"] == payload["generation_id"]
+    )
+    assert predictive_event["payload"]["predicted_content_types"] == ["practice_problem"]
+
+
 def test_predictive_warm_process_endpoint_drains_pending_queue(tmp_path, student_id):
     settings = Settings(
         database_path=str(tmp_path / "predictive-warm-process-api.db"),

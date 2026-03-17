@@ -1,4 +1,4 @@
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from dibble.models.generation import GenerationRequest
 from dibble.models.profile import LearnerProfile
@@ -47,4 +47,24 @@ def test_router_holds_back_stretch_when_metacognitive_readiness_is_low():
     decision = AdaptiveRouter().route(profile, request)
 
     assert decision.intervention_type.value == "reteach"
+    assert decision.delivery_mode.value == "generated"
+
+
+def test_router_excludes_stretch_when_explanation_readiness_floor_is_not_met():
+    profile = LearnerProfile.model_validate(
+        build_profile(
+            UUID("9005f753-5266-40f9-bfb7-0503155188d4"),
+            frustration="low",
+            total_load=0.35,
+            kc_mastery={"KC-1": 0.58},
+            engagement="medium",
+            confidence_calibration=0.3,
+            help_seeking="high",
+        )
+    )
+    request = GenerationRequest(student_id=profile.student_id, target_kc_ids=["KC-1"], intent="explanation")
+
+    decision = AdaptiveRouter().route(profile, request)
+
+    assert decision.intervention_type.value != "stretch"
     assert decision.delivery_mode.value == "generated"

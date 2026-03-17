@@ -3,6 +3,7 @@ from __future__ import annotations
 from uuid import uuid4
 
 from dibble.models.curriculum import KnowledgeComponent
+from dibble.models.generation import GenerationRequest
 from dibble.models.observations import LearnerObservation
 from dibble.models.profile import LearnerProfile
 from dibble.models.remediation import RemediationWorkflowSession
@@ -89,6 +90,67 @@ def test_observation_profile_updater_updates_linked_practice_mastery():
     assert result.kc_mastery_updates["KC-2"] > 0.25
     assert result.propagated_kc_mastery_updates["KC-1"] >= 0.3
     assert result.profile.knowledge_state.lo_mastery["LO-1"] >= 0.3
+
+
+def test_observation_profile_updater_uses_recent_linked_evidence_bundle():
+    student_id = uuid4()
+    profile = build_profile(student_id, frustration="low", total_load=0.2, kc_mastery={"KC-2": 0.25})
+    updater = ObservationProfileUpdater()
+    recent_observations = [
+        LearnerObservation.model_validate(
+            {
+                "observation_id": "obs-2",
+                "student_id": str(student_id),
+                "response_time_ms": 15000,
+                "hints_used": 0,
+                "error_count": 0,
+                "pause_count": 0,
+                "modality_switches": 0,
+                "completed": True,
+                "confidence": 0.74,
+                "task_type": "practice",
+                "support_level": "low",
+                "expected_duration_ms": 18000,
+                "learning_session_id": "session-practice",
+                "generation_id": "gen-practice",
+                "observed_content_type": "practice_problem",
+                "target_kc_ids": ["KC-2"],
+            }
+        ),
+        LearnerObservation.model_validate(
+            {
+                "observation_id": "obs-1",
+                "student_id": str(student_id),
+                "response_time_ms": 14000,
+                "hints_used": 0,
+                "error_count": 0,
+                "pause_count": 0,
+                "modality_switches": 0,
+                "completed": True,
+                "confidence": 0.76,
+                "task_type": "practice",
+                "support_level": "low",
+                "expected_duration_ms": 18000,
+                "learning_session_id": "session-practice",
+                "generation_id": "gen-practice",
+                "observed_content_type": "practice_problem",
+                "target_kc_ids": ["KC-2"],
+            }
+        ),
+    ]
+
+    result = updater.apply(
+        profile=LearnerProfile.model_validate(profile),
+        observation=recent_observations[0],
+        recent_observations=recent_observations,
+    )
+
+    assert result.applied is True
+    assert result.matched_observation_count == 2
+    assert result.average_recent_observed_mastery is not None
+    assert result.average_recent_observed_mastery >= result.inferred_mastery - 0.05
+    assert result.evidence_confidence >= 0.5
+    assert "across 2 recent linked observations" in (result.rationale or "")
     assert result.linkage_source == "generation_linked"
 
 
@@ -205,3 +267,138 @@ def test_observation_profile_updater_holds_remediation_return_when_recent_eviden
     assert decision.matched_observation_count == 1
     assert decision.average_observed_mastery is not None
     assert decision.average_observed_mastery < 0.58
+
+
+def test_observation_profile_updater_marks_transfer_ready_from_strong_same_session_evidence():
+    updater = ObservationProfileUpdater()
+    student_id = uuid4()
+    request = GenerationRequest(
+        student_id=student_id,
+        learning_session_id="session-transfer",
+        target_kc_ids=["KC-2"],
+        target_lo_ids=["LO-1"],
+        intent="practice",
+        requested_content_type="practice_problem",
+    )
+    observations = [
+        LearnerObservation.model_validate(
+            {
+                "observation_id": "obs-transfer-2",
+                "student_id": str(student_id),
+                "response_time_ms": 15000,
+                "hints_used": 0,
+                "error_count": 0,
+                "pause_count": 0,
+                "modality_switches": 0,
+                "completed": True,
+                "confidence": 0.78,
+                "task_type": "practice",
+                "support_level": "low",
+                "expected_duration_ms": 18000,
+                "learning_session_id": "session-transfer",
+                "target_kc_ids": ["KC-2"],
+                "target_lo_ids": ["LO-1"],
+            }
+        ),
+        LearnerObservation.model_validate(
+            {
+                "observation_id": "obs-transfer-1",
+                "student_id": str(student_id),
+                "response_time_ms": 16000,
+                "hints_used": 1,
+                "error_count": 0,
+                "pause_count": 0,
+                "modality_switches": 0,
+                "completed": True,
+                "confidence": 0.74,
+                "task_type": "practice",
+                "support_level": "low",
+                "expected_duration_ms": 18000,
+                "learning_session_id": "session-transfer",
+                "target_kc_ids": ["KC-2"],
+                "target_lo_ids": ["LO-1"],
+            }
+        ),
+    ]
+    assessment_payloads = [
+        {
+            "learning_session_id": "session-transfer",
+            "target_kc_ids": ["KC-2"],
+            "target_lo_ids": ["LO-1"],
+            "evidence_strength": "demonstrated",
+            "evidence_score": 0.84,
+            "inferred_mastery": 0.79,
+        }
+    ]
+
+    decision = updater.evaluate_progression_evidence(
+        request=request,
+        observations=observations,
+        assessment_payloads=assessment_payloads,
+    )
+
+    assert decision.decision == "attempt_transfer"
+    assert decision.matched_observation_count == 2
+    assert decision.matched_assessment_count == 1
+    assert decision.confidence >= 0.7
+
+
+def test_observation_profile_updater_holds_target_when_success_is_still_support_heavy():
+    updater = ObservationProfileUpdater()
+    student_id = uuid4()
+    request = GenerationRequest(
+        student_id=student_id,
+        learning_session_id="session-hold",
+        target_kc_ids=["KC-2"],
+        intent="practice",
+        requested_content_type="practice_problem",
+    )
+    observations = [
+        LearnerObservation.model_validate(
+            {
+                "observation_id": "obs-hold-2",
+                "student_id": str(student_id),
+                "response_time_ms": 20000,
+                "hints_used": 3,
+                "error_count": 0,
+                "pause_count": 1,
+                "modality_switches": 0,
+                "completed": True,
+                "confidence": 0.64,
+                "task_type": "practice",
+                "support_level": "high",
+                "expected_duration_ms": 18000,
+                "learning_session_id": "session-hold",
+                "target_kc_ids": ["KC-2"],
+            }
+        ),
+        LearnerObservation.model_validate(
+            {
+                "observation_id": "obs-hold-1",
+                "student_id": str(student_id),
+                "response_time_ms": 22000,
+                "hints_used": 2,
+                "error_count": 1,
+                "pause_count": 1,
+                "modality_switches": 0,
+                "completed": True,
+                "confidence": 0.6,
+                "task_type": "practice",
+                "support_level": "high",
+                "expected_duration_ms": 18000,
+                "learning_session_id": "session-hold",
+                "target_kc_ids": ["KC-2"],
+            }
+        ),
+    ]
+
+    decision = updater.evaluate_progression_evidence(
+        request=request,
+        observations=observations,
+        assessment_payloads=[],
+    )
+
+    assert decision.decision == "hold_target"
+    assert decision.matched_observation_count == 2
+    assert decision.average_observed_mastery is not None
+    assert decision.confidence >= 0.5

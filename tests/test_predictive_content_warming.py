@@ -108,6 +108,29 @@ def test_predictive_content_warmer_uses_strategy_trajectory_for_relapsing_practi
     assert plan.content_types == ["remedial_micro_module"]
 
 
+def test_predictive_content_warmer_respects_progression_hold_for_practice():
+    generated_content = _build_generated_content(
+        content_type="practice_problem",
+        request_context={
+            "learning_session_id": "session-1",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": ["LO-1"],
+            "curriculum_context": ["Equivalent fractions"],
+            "selected_content_type": "practice_problem",
+            "progression": {
+                "action": "hold_target",
+                "confidence": 0.72,
+                "observation_count": 2,
+                "assessment_count": 0,
+            },
+        },
+    )
+
+    plan = PredictiveContentWarmer(content_warmer=None).plan_follow_ups(generated_content)
+
+    assert plan.content_types == ["practice_problem"]
+
+
 def test_predictive_content_warmer_targets_primary_sequence_kc_for_repair_follow_up():
     generated_content = _build_generated_content(
         content_type="remedial_micro_module",

@@ -165,6 +165,11 @@ class ContentWorkflowService:
                 "progression_bridge_kc_ids": progression_decision.bridge_kc_ids,
                 "progression_deferred_target_kc_ids": progression_decision.deferred_target_kc_ids,
                 "progression_rationale": progression_decision.rationale,
+                "progression_evidence_observation_count": progression_decision.evidence_observation_count,
+                "progression_evidence_assessment_count": progression_decision.evidence_assessment_count,
+                "progression_evidence_confidence": progression_decision.evidence_confidence,
+                "progression_average_observed_mastery": progression_decision.average_observed_mastery,
+                "progression_average_assessment_mastery": progression_decision.average_assessment_mastery,
                 "scaffolding_level": response.route.scaffolding_level,
                 "mode_calibration_signal": (
                     calibrated_request.mode_calibration.signal if calibrated_request.mode_calibration is not None else None
@@ -402,6 +407,11 @@ class ContentWorkflowService:
             "deferred_target_kc_ids": progression_decision.deferred_target_kc_ids,
             "bridge_kc_ids": progression_decision.bridge_kc_ids,
             "rationale": progression_decision.rationale,
+            "observation_count": progression_decision.evidence_observation_count,
+            "assessment_count": progression_decision.evidence_assessment_count,
+            "confidence": progression_decision.evidence_confidence,
+            "average_observed_mastery": progression_decision.average_observed_mastery,
+            "average_assessment_mastery": progression_decision.average_assessment_mastery,
         }
 
     def _progression_ownership_decision(self, *, request: GenerationRequest) -> ProgressionOwnershipDecision:

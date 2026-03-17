@@ -76,6 +76,8 @@ class AdaptiveRouter:
             )
 
         scores = self._build_action_priors(profile, request, target_mastery)
+        if not self._stretch_is_eligible(profile, target_mastery):
+            scores.pop(InterventionType.stretch, None)
         rng = random.Random(self._seed_for(profile, request))
 
         chosen_action = max(
@@ -109,6 +111,15 @@ class AdaptiveRouter:
             values = list(profile.knowledge_state.kc_mastery.values()) or [0.5]
 
         return sum(values) / len(values)
+
+    def _stretch_is_eligible(self, profile: LearnerProfile, target_mastery: float) -> bool:
+        return (
+            target_mastery >= 0.75
+            and profile.affective_state.engagement == SignalLevel.high
+            and profile.cognitive_load.total_load < 0.6
+            and profile.metacognitive_state.confidence_calibration >= 0.45
+            and profile.metacognitive_state.help_seeking != SignalLevel.high
+        )
 
     def _build_action_priors(
         self,

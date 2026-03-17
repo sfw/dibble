@@ -17,6 +17,17 @@ class PredictiveNextStepPlanner:
         route_calibration = generated_content.response.route.calibration
         mode_calibration = request_context.get("mode_calibration", {})
         mode_support_bias = int(mode_calibration.get("support_bias", 0)) if isinstance(mode_calibration, dict) else 0
+        progression = request_context.get("progression", {})
+        progression_action = (
+            str(progression.get("action", "stay_on_requested_target"))
+            if isinstance(progression, dict)
+            else "stay_on_requested_target"
+        )
+        progression_confidence = (
+            float(progression.get("confidence", 0.0))
+            if isinstance(progression, dict)
+            else 0.0
+        )
         strategy_trajectory_state = (
             str(mode_calibration.get("strategy_trajectory_state", "insufficient"))
             if isinstance(mode_calibration, dict)
@@ -46,6 +57,13 @@ class PredictiveNextStepPlanner:
         progress_signal = route_calibration.progress_signal if route_calibration is not None else "insufficient"
 
         if content_type == RequestedContentType.micro_explanation.value:
+            if progression_action == "hold_target" and progression_confidence >= 0.5:
+                return [
+                    (
+                        RequestedContentType.practice_problem,
+                        "Same-session progression evidence still says hold the current target, so warm one more guided practice step before transfer.",
+                    )
+                ]
             if session_phase == "consolidate":
                 return [
                     (
@@ -100,6 +118,13 @@ class PredictiveNextStepPlanner:
             ]
 
         if content_type == RequestedContentType.worked_example.value:
+            if progression_action == "hold_target" and progression_confidence >= 0.5:
+                return [
+                    (
+                        RequestedContentType.practice_problem,
+                        "Same-session progression evidence still says hold the current target, so warm guided practice instead of a transfer check.",
+                    )
+                ]
             if session_phase == "bridge":
                 return [
                     (
@@ -144,6 +169,20 @@ class PredictiveNextStepPlanner:
             return follow_ups
 
         if content_type == RequestedContentType.practice_problem.value:
+            if progression_action == "hold_target" and progression_confidence >= 0.5:
+                return [
+                    (
+                        RequestedContentType.practice_problem,
+                        "Same-session progression evidence still says hold the current target, so warm another target-aligned practice step.",
+                    )
+                ]
+            if progression_action == "attempt_transfer" and progression_confidence >= 0.5:
+                return [
+                    (
+                        RequestedContentType.assessment_probe,
+                        "Same-session progression evidence now suggests testing transfer on the current target.",
+                    )
+                ]
             if session_phase == "consolidate":
                 return [
                     (

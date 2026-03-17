@@ -41,6 +41,7 @@ def build_assessment_router(context: ApiContext) -> APIRouter:
                 "target_lo_ids": request.target_lo_ids,
                 "evidence_strength": result.evaluation.evidence_strength.value,
                 "evidence_score": result.evaluation.evidence_score,
+                "inferred_mastery": result.evaluation.inferred_mastery,
                 "next_action": result.evaluation.next_action.value,
                 "matched_term_count": len(result.evaluation.matched_terms),
                 "profile_update_applied": profile_update.applied,
