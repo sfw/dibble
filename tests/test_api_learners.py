@@ -222,11 +222,15 @@ def test_learner_flow_endpoint_exposes_backend_owned_next_step(client, student_i
     assert flow_payload["flow_type"] == "lesson"
     assert flow_payload["learning_session_id"] == "flow-session-1"
     assert flow_payload["progression_action"] == "hold_target"
+    assert flow_payload["progression_source"] == "workflow_summary"
     assert flow_payload["target_stage"] == "target"
     assert flow_payload["active_target_kc_ids"] == ["KC-1"]
+    assert flow_payload["next_step_source"] == "workflow_summary"
     assert flow_payload["next_step"]["content_type"] == "practice_problem"
     assert flow_payload["next_step"]["target_kc_ids"] == ["KC-1"]
     assert summary_payload["current_flow"]["progression_action"] == "hold_target"
+    assert summary_payload["current_flow"]["progression_source"] == "workflow_summary"
+    assert summary_payload["current_flow"]["next_step_source"] == "workflow_summary"
     assert summary_payload["current_flow"]["next_step"]["content_type"] == "practice_problem"
 
 
@@ -333,6 +337,71 @@ def test_learner_workspace_returns_active_generated_content(client, student_id):
     assert payload["generated_content"]["generation_id"] == generation_id
     assert payload["generated_content"]["workflow_summary"]["progression_action"] == "hold_target"
     assert payload["summary"]["current_flow"]["last_generation_id"] == generation_id
+
+
+def test_learner_flow_uses_persisted_workflow_summary_after_restart(app_settings):
+    student_id = uuid4()
+    app_one = create_app(app_settings)
+    app_two = create_app(app_settings)
+
+    with TestClient(app_one) as client_one:
+        client_one.put(
+            f"/api/learners/{student_id}/profile",
+            json=build_profile(student_id, frustration="low", total_load=0.2),
+        )
+        client_one.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+
+        for hints_used, confidence in [(3, 0.62), (2, 0.58)]:
+            observe_response = client_one.post(
+                f"/api/learners/{student_id}/observations",
+                json={
+                    "response_time_ms": 21000,
+                    "hints_used": hints_used,
+                    "error_count": 0,
+                    "pause_count": 1,
+                    "modality_switches": 0,
+                    "completed": True,
+                    "confidence": confidence,
+                    "task_type": "practice",
+                    "support_level": "high",
+                    "expected_duration_ms": 18000,
+                    "learning_session_id": "persisted-flow-session",
+                    "target_kc_ids": ["KC-1"],
+                    "target_lo_ids": ["LO-1"],
+                },
+            )
+            assert observe_response.status_code == 200
+
+        generate_response = client_one.post(
+            "/api/problems/generate",
+            json={
+                "student_id": str(student_id),
+                "learning_session_id": "persisted-flow-session",
+                "target_kc_ids": ["KC-1"],
+                "target_lo_ids": ["LO-1"],
+                "curriculum_context": ["Equivalent fractions"],
+            },
+        )
+
+        assert generate_response.status_code == 200
+        generation_id = generate_response.json()["generation_id"]
+
+    with TestClient(app_two) as client_two:
+        content_response = client_two.get(f"/api/content/{generation_id}")
+        flow_response = client_two.get(f"/api/learners/{student_id}/flow")
+
+    assert content_response.status_code == 200
+    assert flow_response.status_code == 200
+
+    content_payload = content_response.json()
+    flow_payload = flow_response.json()
+    assert content_payload["workflow_summary"]["progression_action"] == "hold_target"
+    assert content_payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
+    assert flow_payload["progression_action"] == "hold_target"
+    assert flow_payload["progression_source"] == "workflow_summary"
+    assert flow_payload["next_step_source"] == "workflow_summary"
+    assert flow_payload["next_step"]["content_type"] == "practice_problem"
+    assert flow_payload["next_step"]["target_kc_ids"] == ["KC-1"]
 
 
 def test_learner_workspace_returns_active_remediation_session_and_content(client, student_id):

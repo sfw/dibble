@@ -5,7 +5,7 @@ from datetime import datetime
 from uuid import UUID
 
 from dibble.models.assessment import SocraticAssessmentSession
-from dibble.models.generation import RequestedContentType
+from dibble.models.generation import GenerationWorkflowSummary, RequestedContentType
 from dibble.models.profile import LearnerFlowNextStep, LearnerFlowSummary
 from dibble.models.remediation import RemediationWorkflowSession
 from dibble.models.session_adaptation import WithinSessionControllerState
@@ -82,23 +82,21 @@ class LearnerFlowService:
             return None
 
         request_context = latest_content.request_context if latest_content is not None else {}
+        workflow_summary = latest_content.workflow_summary if latest_content is not None else None
         controller = self._controller_for_session(self._maybe_str(request_context.get("learning_session_id")))
         if controller is None and generation_event is not None:
             controller = self._controller_for_session(self._maybe_str(generation_event.payload.get("learning_session_id")))
 
-        progression = self._progression_from_generation_event(generation_event)
+        progression = self._progression_from_workflow_summary(workflow_summary)
+        progression_source = "workflow_summary" if progression else "insufficient"
+        if not progression:
+            progression = self._progression_from_generation_event(generation_event)
+            progression_source = "generation_audit" if progression else "insufficient"
         session_adaptation = (
             self._session_adaptation_from_controller(controller)
             if controller is not None
             else self._session_adaptation_from_request_context(request_context)
         )
-        next_content_type, next_reason = self._next_step_from_predictive_event(
-            events=events,
-            generation_id=self._maybe_str(generation_event.payload.get("generation_id")) if generation_event is not None else None,
-        )
-        if next_content_type is None:
-            next_steps = self.next_step_planner.plan(latest_content) if latest_content is not None else []
-            next_content_type, next_reason = next_steps[0] if next_steps else (None, None)
 
         active_target_kc_ids = self._string_list(
             progression.get("applied_target_kc_ids")
@@ -114,20 +112,42 @@ class LearnerFlowService:
             or session_adaptation.get("sequence_action")
             or "stay_on_requested_target"
         )
+        next_step, next_step_source = self._next_step_for_generation(
+            workflow_summary=workflow_summary,
+            latest_content=latest_content,
+            events=events,
+            generation_id=self._maybe_str(generation_event.payload.get("generation_id")) if generation_event is not None else None,
+            progression=progression,
+            fallback_target_kc_ids=active_target_kc_ids,
+            target_stage=target_stage,
+            progression_action=progression_action,
+        )
 
         return LearnerFlowSummary(
-            status="ready_for_next_step" if next_content_type is not None else "idle",
+            status="ready_for_next_step" if next_step.content_type is not None else "idle",
             flow_type="lesson",
             learning_session_id=(
-                self._maybe_str(generation_event.payload.get("learning_session_id"))
-                if generation_event is not None
-                else self._maybe_str(request_context.get("learning_session_id"))
+                self._maybe_str(workflow_summary.learning_session_id)
+                if workflow_summary is not None and workflow_summary.learning_session_id is not None
+                else (
+                    self._maybe_str(generation_event.payload.get("learning_session_id"))
+                    if generation_event is not None
+                    else self._maybe_str(request_context.get("learning_session_id"))
+                )
             ),
-            current_phase=str(session_adaptation.get("phase") or target_stage),
+            current_phase=str(
+                workflow_summary.delivered_phase
+                if workflow_summary is not None
+                else session_adaptation.get("phase") or target_stage
+            ),
             current_content_type=(
-                latest_content.content_type
-                if latest_content is not None
-                else self._maybe_str(generation_event.payload.get("content_type"))
+                workflow_summary.delivered_content_type
+                if workflow_summary is not None and workflow_summary.delivered_content_type is not None
+                else (
+                    latest_content.content_type
+                    if latest_content is not None
+                    else self._maybe_str(generation_event.payload.get("content_type"))
+                )
             ),
             last_generation_id=(
                 latest_content.generation_id
@@ -143,22 +163,15 @@ class LearnerFlowService:
             session_arc_action=str(session_adaptation.get("arc_action", "steady")),
             session_stuck_loop_risk=str(session_adaptation.get("stuck_loop_risk", "low")),
             rationale=self._first_text(
+                workflow_summary.rationale if workflow_summary is not None else None,
                 progression.get("mastery_gate_reason"),
                 progression.get("rationale"),
                 session_adaptation.get("rationale"),
                 request_context.get("selection_rationale"),
             ),
-            next_step=LearnerFlowNextStep(
-                action=progression_action,
-                content_type=next_content_type.value if next_content_type is not None else None,
-                target_stage=target_stage,
-                target_kc_ids=self._next_step_target_kc_ids(
-                    progression=progression,
-                    fallback_target_kc_ids=active_target_kc_ids,
-                    next_content_type=next_content_type,
-                ),
-                rationale=self._first_text(next_reason, progression.get("mastery_gate_reason"), progression.get("rationale")),
-            ),
+            progression_source=progression_source,
+            next_step_source=next_step_source,
+            next_step=next_step,
             updated_at=(
                 latest_content.created_at
                 if latest_content is not None
@@ -319,6 +332,24 @@ class LearnerFlowService:
             "average_assessment_mastery": payload.get("progression_average_assessment_mastery"),
         }
 
+    def _progression_from_workflow_summary(
+        self,
+        workflow_summary: GenerationWorkflowSummary | None,
+    ) -> dict[str, object]:
+        if workflow_summary is None:
+            return {}
+        return {
+            "action": workflow_summary.progression_action,
+            "target_stage": workflow_summary.target_stage,
+            "applied_target_kc_ids": list(workflow_summary.active_target_kc_ids),
+            "rationale": workflow_summary.rationale,
+            "transfer_target_kc_ids": (
+                list(workflow_summary.next_step.target_kc_ids)
+                if workflow_summary.next_step.target_stage == "transfer"
+                else []
+            ),
+        }
+
     def _current_remediation_step(self, session: RemediationWorkflowSession):
         if session.current_step_index is None or session.current_step_index >= len(session.steps):
             return None
@@ -358,6 +389,93 @@ class LearnerFlowService:
                 return transfer_target_kc_ids
         applied_target_kc_ids = self._string_list(progression.get("applied_target_kc_ids"))
         return applied_target_kc_ids or fallback_target_kc_ids
+
+    def _next_step_for_generation(
+        self,
+        *,
+        workflow_summary: GenerationWorkflowSummary | None,
+        latest_content,
+        events,
+        generation_id: str | None,
+        progression: dict[str, object],
+        fallback_target_kc_ids: list[str],
+        target_stage: str,
+        progression_action: str,
+    ) -> tuple[LearnerFlowNextStep, str]:
+        workflow_next_step = self._workflow_next_step(workflow_summary)
+        if workflow_next_step is not None and workflow_next_step.content_type is not None:
+            return workflow_next_step, "workflow_summary"
+
+        next_content_type, next_reason = self._next_step_from_predictive_event(
+            events=events,
+            generation_id=generation_id,
+        )
+        if next_content_type is not None:
+            return (
+                LearnerFlowNextStep(
+                    action=progression_action,
+                    content_type=next_content_type.value,
+                    target_stage=target_stage,
+                    target_kc_ids=self._next_step_target_kc_ids(
+                        progression=progression,
+                        fallback_target_kc_ids=fallback_target_kc_ids,
+                        next_content_type=next_content_type,
+                    ),
+                    rationale=self._first_text(
+                        next_reason,
+                        progression.get("mastery_gate_reason"),
+                        progression.get("rationale"),
+                    ),
+                ),
+                "predictive_event",
+            )
+
+        if workflow_next_step is not None:
+            return workflow_next_step, "workflow_summary"
+
+        next_steps = self.next_step_planner.plan(latest_content) if latest_content is not None else []
+        if next_steps:
+            next_content_type, next_reason = next_steps[0]
+            return (
+                LearnerFlowNextStep(
+                    action=progression_action,
+                    content_type=next_content_type.value,
+                    target_stage=target_stage,
+                    target_kc_ids=self._next_step_target_kc_ids(
+                        progression=progression,
+                        fallback_target_kc_ids=fallback_target_kc_ids,
+                        next_content_type=next_content_type,
+                    ),
+                    rationale=self._first_text(
+                        next_reason,
+                        progression.get("mastery_gate_reason"),
+                        progression.get("rationale"),
+                    ),
+                ),
+                "predictive_planner",
+            )
+
+        return (
+            LearnerFlowNextStep(
+                action=progression_action,
+                content_type=None,
+                target_stage=target_stage,
+                target_kc_ids=self._string_list(progression.get("applied_target_kc_ids")) or fallback_target_kc_ids,
+                rationale=self._first_text(
+                    progression.get("mastery_gate_reason"),
+                    progression.get("rationale"),
+                ),
+            ),
+            "insufficient",
+        )
+
+    def _workflow_next_step(
+        self,
+        workflow_summary: GenerationWorkflowSummary | None,
+    ) -> LearnerFlowNextStep | None:
+        if workflow_summary is None:
+            return None
+        return workflow_summary.next_step.model_copy()
 
     def _next_step_from_predictive_event(
         self,

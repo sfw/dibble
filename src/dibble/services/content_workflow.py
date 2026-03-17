@@ -853,6 +853,8 @@ class ContentWorkflowService:
         generated_content = self.generated_content_store.get(generation_id=generation_id)
         if generated_content is None:
             return None
+        if generated_content.workflow_summary is not None:
+            return generated_content
         return self._apply_generation_workflow_summary(generated_content=generated_content)
 
     def advance_remediation_session(

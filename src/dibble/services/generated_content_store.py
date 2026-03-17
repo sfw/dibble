@@ -27,17 +27,19 @@ class SQLiteGeneratedContentStore:
                     student_id,
                     content_type,
                     request_context,
+                    workflow_summary_payload,
                     response_payload,
                     quality_payload,
                     created_at,
                     expires_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(cache_key) DO UPDATE SET
                     generation_id = excluded.generation_id,
                     student_id = excluded.student_id,
                     content_type = excluded.content_type,
                     request_context = excluded.request_context,
+                    workflow_summary_payload = excluded.workflow_summary_payload,
                     response_payload = excluded.response_payload,
                     quality_payload = excluded.quality_payload,
                     created_at = excluded.created_at,
@@ -49,6 +51,11 @@ class SQLiteGeneratedContentStore:
                     str(content.student_id),
                     content.content_type,
                     json.dumps(content.request_context),
+                    (
+                        content.workflow_summary.model_dump_json()
+                        if content.workflow_summary is not None
+                        else None
+                    ),
                     content.response.model_dump_json(),
                     content.quality.model_dump_json(),
                     content.created_at.isoformat(),
@@ -62,7 +69,7 @@ class SQLiteGeneratedContentStore:
         with sqlite3.connect(self.database_path) as connection:
             row = connection.execute(
                 """
-                SELECT generation_id, student_id, content_type, request_context, response_payload, quality_payload, created_at, expires_at
+                SELECT generation_id, student_id, content_type, request_context, workflow_summary_payload, response_payload, quality_payload, created_at, expires_at
                 FROM generated_content
                 WHERE cache_key = ?
                 """,
@@ -83,7 +90,7 @@ class SQLiteGeneratedContentStore:
         with sqlite3.connect(self.database_path) as connection:
             row = connection.execute(
                 """
-                SELECT generation_id, student_id, content_type, request_context, response_payload, quality_payload, created_at, expires_at
+                SELECT generation_id, student_id, content_type, request_context, workflow_summary_payload, response_payload, quality_payload, created_at, expires_at
                 FROM generated_content
                 WHERE generation_id = ?
                 """,
@@ -102,6 +109,7 @@ class SQLiteGeneratedContentStore:
                     student_id = ?,
                     content_type = ?,
                     request_context = ?,
+                    workflow_summary_payload = ?,
                     response_payload = ?,
                     quality_payload = ?,
                     created_at = ?,
@@ -112,6 +120,11 @@ class SQLiteGeneratedContentStore:
                     str(content.student_id),
                     content.content_type,
                     json.dumps(content.request_context),
+                    (
+                        content.workflow_summary.model_dump_json()
+                        if content.workflow_summary is not None
+                        else None
+                    ),
                     content.response.model_dump_json(),
                     content.quality.model_dump_json(),
                     content.created_at.isoformat(),
@@ -126,7 +139,7 @@ class SQLiteGeneratedContentStore:
         with sqlite3.connect(self.database_path) as connection:
             rows = connection.execute(
                 """
-                SELECT generation_id, student_id, content_type, request_context, response_payload, quality_payload, created_at, expires_at
+                SELECT generation_id, student_id, content_type, request_context, workflow_summary_payload, response_payload, quality_payload, created_at, expires_at
                 FROM generated_content
                 ORDER BY created_at DESC, generation_id DESC
                 LIMIT ?
@@ -215,6 +228,7 @@ class SQLiteGeneratedContentStore:
             student_id,
             content_type,
             request_context_json,
+            workflow_summary_payload,
             response_payload,
             quality_payload,
             created_at,
@@ -226,6 +240,11 @@ class SQLiteGeneratedContentStore:
                 "student_id": student_id,
                 "content_type": content_type,
                 "request_context": json.loads(request_context_json),
+                "workflow_summary": (
+                    json.loads(workflow_summary_payload)
+                    if workflow_summary_payload is not None
+                    else None
+                ),
                 "response": json.loads(response_payload),
                 "quality": json.loads(quality_payload),
                 "created_at": created_at,

@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS generated_content (
     student_id TEXT NOT NULL,
     content_type TEXT NOT NULL,
     request_context TEXT NOT NULL,
+    workflow_summary_payload TEXT,
     response_payload TEXT NOT NULL,
     quality_payload TEXT NOT NULL,
     created_at TEXT NOT NULL,
@@ -163,6 +164,13 @@ def ensure_database(database_path: str) -> None:
         connection.execute(REMEDIATION_SESSION_TABLE_SQL)
         connection.execute(WITHIN_SESSION_CONTROLLER_TABLE_SQL)
         connection.execute(PREDICTIVE_WARM_QUEUE_TABLE_SQL)
+        _ensure_sqlite_columns(
+            connection,
+            table_name="generated_content",
+            columns={
+                "workflow_summary_payload": "TEXT",
+            },
+        )
         _ensure_sqlite_columns(
             connection,
             table_name="predictive_warm_queue",

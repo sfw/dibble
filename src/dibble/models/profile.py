@@ -301,6 +301,8 @@ class LearnerFlowSummary(BaseModel):
     session_arc_action: str = "steady"
     session_stuck_loop_risk: str = "low"
     rationale: str | None = None
+    progression_source: str = "insufficient"
+    next_step_source: str = "insufficient"
     next_step: LearnerFlowNextStep = Field(default_factory=LearnerFlowNextStep)
     updated_at: datetime | None = None
 
