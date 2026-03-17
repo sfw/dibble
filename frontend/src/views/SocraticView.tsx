@@ -1,18 +1,13 @@
 import type { Dispatch, SetStateAction } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import type { SocraticFormState } from '../app/workspace'
+import { FormActions, FormField, FormGrid, InlineError } from '../components/form-primitives'
 import { FlowSummaryLike, JsonPanel, SectionHeader } from '../components/primitives'
 import type { SocraticAssessmentResponse, SocraticAssessmentSession } from '../types'
 import { InsightCard } from '../components/primitives'
 import { formatPercent } from '../lib/formatters'
-
-export interface SocraticFormState {
-  session_id: string
-  learning_session_id: string
-  target_kc_ids: string
-  target_lo_ids: string
-  curriculum_context: string
-  learner_response: string
-  learner_confidence: string
-}
 
 export function SocraticView(props: {
   form: SocraticFormState
@@ -21,10 +16,21 @@ export function SocraticView(props: {
   error: string
   response: SocraticAssessmentResponse
   session: SocraticAssessmentSession
+  showDebugPanels?: boolean
   onRun: () => void
   onReload: () => void
 }) {
-  const { form, onFormChange, loading, error, response, session, onRun, onReload } = props
+  const {
+    form,
+    onFormChange,
+    loading,
+    error,
+    response,
+    session,
+    showDebugPanels = false,
+    onRun,
+    onReload,
+  } = props
 
   return (
     <section className="view-grid">
@@ -35,78 +41,86 @@ export function SocraticView(props: {
             title="Run conversational understanding checks"
             description="The backend now returns a canonical session summary so the UI can present follow-up state without reconstructing turns."
           />
-          <div className="form-grid">
-            <label>
-              Session ID
-              <input
+          <FormGrid>
+            <FormField label="Session ID" htmlFor="socratic-session-id">
+              <Input
+                id="socratic-session-id"
                 value={form.session_id}
                 onChange={(event) => onFormChange((current) => ({ ...current, session_id: event.target.value }))}
               />
-            </label>
-            <label>
-              Learning session ID
-              <input
+            </FormField>
+            <FormField label="Learning session ID" htmlFor="socratic-learning-session-id">
+              <Input
+                id="socratic-learning-session-id"
                 value={form.learning_session_id}
                 onChange={(event) =>
                   onFormChange((current) => ({ ...current, learning_session_id: event.target.value }))
                 }
               />
-            </label>
-            <label>
-              Target KCs
-              <input
+            </FormField>
+            <FormField label="Target KCs" htmlFor="socratic-target-kcs">
+              <Input
+                id="socratic-target-kcs"
                 value={form.target_kc_ids}
                 onChange={(event) =>
                   onFormChange((current) => ({ ...current, target_kc_ids: event.target.value }))
                 }
               />
-            </label>
-            <label>
-              Target LOs
-              <input
+            </FormField>
+            <FormField label="Target LOs" htmlFor="socratic-target-los">
+              <Input
+                id="socratic-target-los"
                 value={form.target_lo_ids}
                 onChange={(event) =>
                   onFormChange((current) => ({ ...current, target_lo_ids: event.target.value }))
                 }
               />
-            </label>
-            <label>
-              Learner confidence
-              <input
+            </FormField>
+            <FormField label="Learner confidence" htmlFor="socratic-learner-confidence">
+              <Input
+                id="socratic-learner-confidence"
                 value={form.learner_confidence}
                 onChange={(event) =>
                   onFormChange((current) => ({ ...current, learner_confidence: event.target.value }))
                 }
               />
-            </label>
-            <label className="form-grid__wide">
-              Curriculum context
-              <input
+            </FormField>
+            <FormField
+              label="Curriculum context"
+              htmlFor="socratic-curriculum-context"
+              className="md:col-span-2"
+            >
+              <Input
+                id="socratic-curriculum-context"
                 value={form.curriculum_context}
                 onChange={(event) =>
                   onFormChange((current) => ({ ...current, curriculum_context: event.target.value }))
                 }
               />
-            </label>
-            <label className="form-grid__wide">
-              Learner response
-              <textarea
+            </FormField>
+            <FormField
+              label="Learner response"
+              htmlFor="socratic-learner-response"
+              className="md:col-span-2"
+            >
+              <Textarea
+                id="socratic-learner-response"
                 value={form.learner_response}
                 onChange={(event) =>
                   onFormChange((current) => ({ ...current, learner_response: event.target.value }))
                 }
               />
-            </label>
-          </div>
-          <div className="action-row">
-            <button onClick={onRun} disabled={loading}>
+            </FormField>
+          </FormGrid>
+          <FormActions className="mt-4">
+            <Button onClick={onRun} disabled={loading}>
               {loading ? 'Running...' : 'Run Socratic turn'}
-            </button>
-            <button className="button-secondary" onClick={onReload} disabled={loading}>
+            </Button>
+            <Button variant="secondary" onClick={onReload} disabled={loading}>
               Load persisted session
-            </button>
-          </div>
-          {error ? <p className="inline-error">{error}</p> : null}
+            </Button>
+          </FormActions>
+          {error ? <InlineError message={error} /> : null}
         </div>
 
         <div className="panel">
@@ -195,7 +209,7 @@ export function SocraticView(props: {
             ))}
           </div>
         </div>
-        <JsonPanel title="Raw Socratic response" value={response} />
+        {showDebugPanels ? <JsonPanel title="Debug Socratic payload" value={response} /> : null}
       </aside>
     </section>
   )

@@ -6,10 +6,12 @@ export function OverviewView({
   summary,
   profile,
   flow,
+  showDebugPanels = false,
 }: {
   summary: ProfileSummary
   profile: LearnerProfileV2
   flow: LearnerFlowSummary
+  showDebugPanels?: boolean
 }) {
   return (
     <section className="view-grid">
@@ -167,14 +169,16 @@ export function OverviewView({
             ]}
           />
         </div>
-        <JsonPanel
-          title="Raw compact contracts"
-          value={{
-            current_flow: flow,
-            summary_strategy: summary.strategy,
-            state_profile: summary.state_profile,
-          }}
-        />
+        {showDebugPanels ? (
+          <JsonPanel
+            title="Debug contract payload"
+            value={{
+              current_flow: flow,
+              summary_strategy: summary.strategy,
+              state_profile: summary.state_profile,
+            }}
+          />
+        ) : null}
       </aside>
     </section>
   )

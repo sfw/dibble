@@ -1,6 +1,6 @@
 # Frontend Work Plan
 
-Last updated: 2026-03-16
+Last updated: 2026-03-17
 
 ## Purpose
 
@@ -60,6 +60,32 @@ These are the highest-signal frontend gaps discovered so far:
 | P2 | No multimodal artifact payload contract | UI should keep content cards extensible without assuming diagrams or interactives yet |
 | P2 | Teacher-safe analytics are summary-based, not dashboard-grade | Explainability should come from compact read models rather than admin telemetry |
 
+## Execution Priorities
+
+### P0: tighten the frontend foundation
+
+- Replace remaining raw form controls in generation, Socratic, and remediation views with shared UI primitives.
+- Reduce dependence on the legacy app-shell CSS where it is still carrying screen-level styling.
+- Keep workflow state and side effects in feature-specific hooks rather than letting them drift back into `frontend/src/App.tsx`.
+
+### P1: grow behavioral coverage
+
+- Add tests for learner overview rendering.
+- Add tests for generation interactions and stream fallback behavior.
+- Add tests for Socratic run/load flows.
+- Add tests for remediation trigger/reload/advance flows.
+
+### P1: formalize backend asks from the frontend stream
+
+- Keep a dedicated `planning/from-front-to-back-needs.md` document updated with frontend-discovered contract needs.
+- Record missing teacher intervention, history, and dashboard contracts there rather than letting them drift across chat and code comments.
+
+### P2: polish higher-level product surfaces
+
+- Improve teacher-facing intervention language so advisory states are clear even without write contracts.
+- Replace raw JSON-first payload inspection with more curated explainability summaries where possible.
+- Continue making the UI resilient to richer artifact types without assuming they already exist.
+
 ## Key Decisions
 
 ### Product / Contract
@@ -105,18 +131,17 @@ These are the highest-signal frontend gaps discovered so far:
 
 ### In progress
 
-- migrate the current frontend shell from starter CSS patterns toward Tailwind + shadcn primitives
-- replace remaining ad hoc form controls with shared UI primitives where it improves consistency
 - reduce reliance on legacy app-shell CSS without destabilizing current screens
-- expand the new test suite beyond foundational helper/API/view coverage as we add screens and interactions
+- keep frontend-originated backend needs captured in a dedicated planning document
+- continue tightening shared screen-level primitives so new views do not reintroduce raw control patterns
 
 ### Next up
 
-1. continue migrating screen-level controls onto shared Tailwind + shadcn-style primitives
-2. polish teacher explainability language and raw payload drill-downs
-3. add workflow-focused tests for learner overview, generation, Socratic, and remediation screens
-4. watch backend changes for any new teacher intervention or history endpoints
-5. keep this work plan updated as backend/frontend seams change
+1. continue reducing legacy CSS by migrating repeated screen containers and layout helpers onto shared primitives where it improves clarity
+2. add deeper behavioral tests around live/demo fallback transitions and streamed generation behavior
+3. consider whether overview and teacher surfaces need curated explainability components in place of raw JSON panels
+4. track backend changes for teacher intervention, learner history, and classroom-level read models
+5. keep this work plan and `from-front-to-back-needs.md` updated together
 
 ## Completed
 
@@ -135,6 +160,18 @@ These are the highest-signal frontend gaps discovered so far:
 - confirmed the current frontend codebase is already ES module-based; remaining module errors are more likely runtime/tooling mismatches than app source format problems
 - added a baseline frontend test stack with Vitest, jsdom, and React Testing Library
 - added initial coverage for form helpers, API contract helpers, SSE stream parsing, and the teacher explainability surface
+- identified that `frontend/src/App.tsx` and the remaining raw form views are the main maintainability hotspots in the current frontend codebase
+- identified that the backend-needs planning note referenced by the frontend plan did not yet exist and should be maintained explicitly
+- extracted persistent config, learner workspace, generation, Socratic, and remediation logic into dedicated hooks
+- reduced `frontend/src/App.tsx` to a smaller composition shell with app-level components for workspace settings and learner selection
+- added shared frontend form primitives plus repo-owned `Label` and `Select` UI components for screen-level workflow forms
+- migrated generation, Socratic, and remediation views away from raw HTML controls and button-specific CSS classes
+- removed unused legacy form/button CSS now that workflow screens rely on shared UI primitives
+- expanded the screen test suite to cover overview, generation, Socratic, and remediation views
+- verified the frontend still passes tests, lint, and production build after the workflow-form refactor
+- gated raw contract payload panels behind an explicit debug setting instead of presenting them as always-on product UI
+- replaced the remaining raw workspace toggle with a shared `Switch` primitive
+- removed unused frontend assets and dead tab-era styling leftovers
 
 ## Notes For Future Updates
 
@@ -145,10 +182,11 @@ When work changes, update:
 3. `Key Decisions`
 4. `Completed`
 
-Coding quality bar:
+# Coding quality bar:
 - write code like this backend will be lived in for a long time
 - optimize for modularity, maintainability, and elegant composition
 - keep functions and modules crisp
 - avoid cleverness that obscures intent
 - prefer explicit, boring, trustworthy logic over fragile abstraction
 - leave touched code better than you found it
+- all major logic should be in the backend, save frontend requirements for the backend in from-front-to-back-needs.md

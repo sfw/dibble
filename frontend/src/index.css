@@ -26,12 +26,10 @@
   --text-strong: var(--foreground);
   --text-muted: #5e594f;
   --text-soft: #8a826f;
-  --accent-soft-strong: #3b9f7f;
   --danger-ink: #8e3a2d;
   --shadow-soft:
     0 24px 60px rgba(70, 54, 29, 0.08),
     0 10px 20px rgba(70, 54, 29, 0.05);
-  --shadow-button: 0 10px 20px rgba(31, 126, 99, 0.22);
   --radius: 1rem;
   --font-sans:
     "Avenir Next", "Segoe UI Variable Text", "Segoe UI", "Helvetica Neue", sans-serif;

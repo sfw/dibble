@@ -1,13 +1,11 @@
 import type { Dispatch, SetStateAction } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import type { RemediationFormState } from '../app/workspace'
+import { FormActions, FormField, FormGrid, InlineError } from '../components/form-primitives'
 import { FlowSummaryLike, JsonPanel, SectionHeader } from '../components/primitives'
 import type { GeneratedContent, RemediationWorkflowAdvanceResponse, RemediationWorkflowSession } from '../types'
-
-export interface RemediationFormState {
-  target_kc_id: string
-  misconception_description: string
-  learner_prompt: string
-  curriculum_context: string
-}
 
 export function RemediationView(props: {
   form: RemediationFormState
@@ -18,6 +16,7 @@ export function RemediationView(props: {
   session: RemediationWorkflowSession
   advance: RemediationWorkflowAdvanceResponse | null
   advancePrompt: string
+  showDebugPanels?: boolean
   onAdvancePromptChange: (value: string) => void
   onTrigger: () => void
   onReload: () => void
@@ -32,6 +31,7 @@ export function RemediationView(props: {
     session,
     advance,
     advancePrompt,
+    showDebugPanels = false,
     onAdvancePromptChange,
     onTrigger,
     onReload,
@@ -47,17 +47,21 @@ export function RemediationView(props: {
             title="Run session-backed repair arcs"
             description="This screen trusts the remediation session summary rather than reconstructing state from step arrays or audit logs."
           />
-          <div className="form-grid">
-            <label>
-              Target KC
-              <input
+          <FormGrid>
+            <FormField label="Target KC" htmlFor="remediation-target-kc">
+              <Input
+                id="remediation-target-kc"
                 value={form.target_kc_id}
                 onChange={(event) => onFormChange((current) => ({ ...current, target_kc_id: event.target.value }))}
               />
-            </label>
-            <label className="form-grid__wide">
-              Misconception description
-              <textarea
+            </FormField>
+            <FormField
+              label="Misconception description"
+              htmlFor="remediation-misconception-description"
+              className="md:col-span-2"
+            >
+              <Textarea
+                id="remediation-misconception-description"
                 value={form.misconception_description}
                 onChange={(event) =>
                   onFormChange((current) => ({
@@ -66,35 +70,43 @@ export function RemediationView(props: {
                   }))
                 }
               />
-            </label>
-            <label className="form-grid__wide">
-              Learner prompt
-              <textarea
+            </FormField>
+            <FormField
+              label="Learner prompt"
+              htmlFor="remediation-learner-prompt"
+              className="md:col-span-2"
+            >
+              <Textarea
+                id="remediation-learner-prompt"
                 value={form.learner_prompt}
                 onChange={(event) =>
                   onFormChange((current) => ({ ...current, learner_prompt: event.target.value }))
                 }
               />
-            </label>
-            <label className="form-grid__wide">
-              Curriculum context
-              <input
+            </FormField>
+            <FormField
+              label="Curriculum context"
+              htmlFor="remediation-curriculum-context"
+              className="md:col-span-2"
+            >
+              <Input
+                id="remediation-curriculum-context"
                 value={form.curriculum_context}
                 onChange={(event) =>
                   onFormChange((current) => ({ ...current, curriculum_context: event.target.value }))
                 }
               />
-            </label>
-          </div>
-          <div className="action-row">
-            <button onClick={onTrigger} disabled={loading}>
+            </FormField>
+          </FormGrid>
+          <FormActions className="mt-4">
+            <Button onClick={onTrigger} disabled={loading}>
               {loading ? 'Starting...' : 'Trigger remediation'}
-            </button>
-            <button className="button-secondary" onClick={onReload} disabled={loading}>
+            </Button>
+            <Button variant="secondary" onClick={onReload} disabled={loading}>
               Reload session
-            </button>
-          </div>
-          {error ? <p className="inline-error">{error}</p> : null}
+            </Button>
+          </FormActions>
+          {error ? <InlineError message={error} /> : null}
         </div>
 
         <div className="panel">
@@ -137,15 +149,18 @@ export function RemediationView(props: {
             title="Continue the repair arc"
             description="Advancement stays backend-owned so the UI can remain a renderer of phase transitions rather than the owner of progression rules."
           />
-          <label className="form-grid__wide">
-            Advance prompt
-            <textarea value={advancePrompt} onChange={(event) => onAdvancePromptChange(event.target.value)} />
-          </label>
-          <div className="action-row">
-            <button onClick={onAdvance} disabled={loading}>
+          <FormField label="Advance prompt" htmlFor="remediation-advance-prompt">
+            <Textarea
+              id="remediation-advance-prompt"
+              value={advancePrompt}
+              onChange={(event) => onAdvancePromptChange(event.target.value)}
+            />
+          </FormField>
+          <FormActions className="mt-4">
+            <Button onClick={onAdvance} disabled={loading}>
               {loading ? 'Advancing...' : 'Advance remediation session'}
-            </button>
-          </div>
+            </Button>
+          </FormActions>
           {advance ? (
             <p className="muted">
               Last executed phase: <strong>{advance.executed_phase}</strong>
@@ -171,7 +186,7 @@ export function RemediationView(props: {
             ))}
           </div>
         </div>
-        <JsonPanel title="Raw remediation session" value={session} />
+        {showDebugPanels ? <JsonPanel title="Debug remediation payload" value={session} /> : null}
       </aside>
     </section>
   )

@@ -13,6 +13,7 @@ describe('TeacherView', () => {
         flow={demoLearnerFlow}
         gaps={teacherContractGaps}
         dataSource="live"
+        showDebugPanels
       />,
     )
 
@@ -20,7 +21,7 @@ describe('TeacherView', () => {
     expect(screen.getByRole('heading', { name: 'practice_problem' })).toBeInTheDocument()
     expect(screen.getByText('Action deliver on transfer')).toBeInTheDocument()
     expect(screen.getByText('backend-connected')).toBeInTheDocument()
-    expect(screen.getByText('Compact explainability payload')).toBeInTheDocument()
+    expect(screen.getByText('Debug explainability payload')).toBeInTheDocument()
     expect(screen.getByText('What the frontend still cannot delegate cleanly to the backend')).toBeInTheDocument()
 
     for (const gap of teacherContractGaps) {

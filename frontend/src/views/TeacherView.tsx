@@ -8,12 +8,14 @@ export function TeacherView({
   flow,
   gaps,
   dataSource,
+  showDebugPanels = false,
 }: {
   summary: ProfileSummary
   profile: LearnerProfileV2
   flow: LearnerFlowSummary
   gaps: TeacherContractGap[]
   dataSource: 'live' | 'demo'
+  showDebugPanels?: boolean
 }) {
   return (
     <section className="view-grid">
@@ -95,17 +97,19 @@ export function TeacherView({
             ]}
           />
         </div>
-        <JsonPanel
-          title="Compact explainability payload"
-          value={{
-            summary: {
-              progress: summary.progress,
-              strategy: summary.strategy,
-              state_profile: summary.state_profile,
-            },
-            current_flow: flow,
-          }}
-        />
+        {showDebugPanels ? (
+          <JsonPanel
+            title="Debug explainability payload"
+            value={{
+              summary: {
+                progress: summary.progress,
+                strategy: summary.strategy,
+                state_profile: summary.state_profile,
+              },
+              current_flow: flow,
+            }}
+          />
+        ) : null}
       </aside>
     </section>
   )

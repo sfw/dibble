@@ -482,4 +482,5 @@ export interface FrontendConfig {
   apiKey: string
   bearerToken: string
   useDemoFallback: boolean
+  showDebugPanels: boolean
 }

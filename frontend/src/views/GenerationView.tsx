@@ -1,17 +1,13 @@
 import type { Dispatch, SetStateAction } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
+import type { GenerationFormState } from '../app/workspace'
+import { FormActions, FormField, FormGrid, InlineError } from '../components/form-primitives'
 import { FlowSummaryCard, JsonPanel, MetricList, SectionHeader } from '../components/primitives'
 import type { GeneratedBlock, GeneratedContent, GenerationStreamEvent } from '../types'
 import { formatPercent } from '../lib/formatters'
-
-export interface GenerationFormState {
-  learning_session_id: string
-  target_kc_ids: string
-  target_lo_ids: string
-  intent: string
-  requested_content_type: string
-  learner_prompt: string
-  curriculum_context: string
-}
 
 export function GenerationView(props: {
   form: GenerationFormState
@@ -22,10 +18,23 @@ export function GenerationView(props: {
   streaming: boolean
   streamEvents: GenerationStreamEvent[]
   streamedBlocks: GeneratedBlock[]
+  showDebugPanels?: boolean
   onGenerate: () => void
   onStream: () => void
 }) {
-  const { form, onFormChange, loading, error, result, streaming, streamEvents, streamedBlocks, onGenerate, onStream } =
+  const {
+    form,
+    onFormChange,
+    loading,
+    error,
+    result,
+    streaming,
+    streamEvents,
+    streamedBlocks,
+    showDebugPanels = false,
+    onGenerate,
+    onStream,
+  } =
     props
 
   const blocksToRender = streamedBlocks.length > 0 ? streamedBlocks : result.response.blocks
@@ -39,67 +48,79 @@ export function GenerationView(props: {
             title="Create grounded lesson moves"
             description="This screen uses the backend’s generation and workflow summary contracts, including route decision, grounding, moderation, and next-step metadata."
           />
-          <div className="form-grid">
-            <label>
-              Learning session ID
-              <input
+          <FormGrid>
+            <FormField label="Learning session ID" htmlFor="generation-learning-session-id">
+              <Input
+                id="generation-learning-session-id"
                 value={form.learning_session_id}
                 onChange={(event) =>
                   onFormChange((current) => ({ ...current, learning_session_id: event.target.value }))
                 }
               />
-            </label>
-            <label>
-              Intent
-              <select
+            </FormField>
+            <FormField label="Intent" htmlFor="generation-intent">
+              <Select
                 value={form.intent}
-                onChange={(event) => onFormChange((current) => ({ ...current, intent: event.target.value }))}
+                onValueChange={(value) => onFormChange((current) => ({ ...current, intent: value }))}
               >
-                <option value="explanation">explanation</option>
-                <option value="practice">practice</option>
-                <option value="remediation">remediation</option>
-                <option value="assessment">assessment</option>
-              </select>
-            </label>
-            <label>
-              Requested content type
-              <select
+                <SelectTrigger id="generation-intent" aria-label="Intent">
+                  <SelectValue placeholder="Choose intent" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="explanation">explanation</SelectItem>
+                  <SelectItem value="practice">practice</SelectItem>
+                  <SelectItem value="remediation">remediation</SelectItem>
+                  <SelectItem value="assessment">assessment</SelectItem>
+                </SelectContent>
+              </Select>
+            </FormField>
+            <FormField label="Requested content type" htmlFor="generation-content-type">
+              <Select
                 value={form.requested_content_type}
-                onChange={(event) =>
+                onValueChange={(value) =>
                   onFormChange((current) => ({
                     ...current,
-                    requested_content_type: event.target.value,
+                    requested_content_type: value,
                   }))
                 }
               >
-                <option value="micro_explanation">micro_explanation</option>
-                <option value="worked_example">worked_example</option>
-                <option value="practice_problem">practice_problem</option>
-                <option value="remedial_micro_module">remedial_micro_module</option>
-                <option value="assessment_probe">assessment_probe</option>
-              </select>
-            </label>
-            <label>
-              Target KCs
-              <input
+                <SelectTrigger id="generation-content-type" aria-label="Requested content type">
+                  <SelectValue placeholder="Choose content type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="micro_explanation">micro_explanation</SelectItem>
+                  <SelectItem value="worked_example">worked_example</SelectItem>
+                  <SelectItem value="practice_problem">practice_problem</SelectItem>
+                  <SelectItem value="remedial_micro_module">remedial_micro_module</SelectItem>
+                  <SelectItem value="assessment_probe">assessment_probe</SelectItem>
+                </SelectContent>
+              </Select>
+            </FormField>
+            <FormField label="Target KCs" htmlFor="generation-target-kcs">
+              <Input
+                id="generation-target-kcs"
                 value={form.target_kc_ids}
                 onChange={(event) =>
                   onFormChange((current) => ({ ...current, target_kc_ids: event.target.value }))
                 }
               />
-            </label>
-            <label>
-              Target LOs
-              <input
+            </FormField>
+            <FormField label="Target LOs" htmlFor="generation-target-los">
+              <Input
+                id="generation-target-los"
                 value={form.target_lo_ids}
                 onChange={(event) =>
                   onFormChange((current) => ({ ...current, target_lo_ids: event.target.value }))
                 }
               />
-            </label>
-            <label className="form-grid__wide">
-              Curriculum context
-              <input
+            </FormField>
+            <FormField
+              label="Curriculum context"
+              htmlFor="generation-curriculum-context"
+              className="md:col-span-2"
+            >
+              <Input
+                id="generation-curriculum-context"
                 value={form.curriculum_context}
                 onChange={(event) =>
                   onFormChange((current) => ({
@@ -108,26 +129,30 @@ export function GenerationView(props: {
                   }))
                 }
               />
-            </label>
-            <label className="form-grid__wide">
-              Learner / teacher prompt
-              <textarea
+            </FormField>
+            <FormField
+              label="Learner / teacher prompt"
+              htmlFor="generation-learner-prompt"
+              className="md:col-span-2"
+            >
+              <Textarea
+                id="generation-learner-prompt"
                 value={form.learner_prompt}
                 onChange={(event) =>
                   onFormChange((current) => ({ ...current, learner_prompt: event.target.value }))
                 }
               />
-            </label>
-          </div>
-          <div className="action-row">
-            <button onClick={onGenerate} disabled={loading || streaming}>
+            </FormField>
+          </FormGrid>
+          <FormActions className="mt-4">
+            <Button onClick={onGenerate} disabled={loading || streaming}>
               {loading ? 'Generating...' : 'Generate response'}
-            </button>
-            <button className="button-secondary" onClick={onStream} disabled={loading || streaming}>
+            </Button>
+            <Button variant="secondary" onClick={onStream} disabled={loading || streaming}>
               {streaming ? 'Streaming...' : 'Stream via SSE'}
-            </button>
-          </div>
-          {error ? <p className="inline-error">{error}</p> : null}
+            </Button>
+          </FormActions>
+          {error ? <InlineError message={error} /> : null}
         </div>
 
         <div className="panel">
@@ -245,7 +270,7 @@ export function GenerationView(props: {
             )}
           </div>
         </div>
-        <JsonPanel title="Raw generation payload" value={result} />
+        {showDebugPanels ? <JsonPanel title="Debug generation payload" value={result} /> : null}
       </aside>
     </section>
   )

@@ -17,6 +17,7 @@ export const defaultConfig: FrontendConfig = {
   apiKey: '',
   bearerToken: '',
   useDemoFallback: true,
+  showDebugPanels: false,
 }
 
 export const demoProfileSummary: ProfileSummary = {

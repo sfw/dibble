@@ -41,7 +41,6 @@
 }
 
 .hero-pills,
-.action-row,
 .learner-chip-row,
 .reason-list {
   display: flex;
@@ -72,21 +71,6 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
-}
-
-.tab {
-  border-radius: 999px;
-  border: 1px solid var(--border-soft);
-  background: rgba(255, 255, 255, 0.86);
-  color: var(--text-strong);
-  font-size: 0.95rem;
-  padding: 0.8rem 1rem;
-}
-
-.tab.active {
-  border-color: var(--accent-strong);
-  background: var(--accent-soft);
-  color: var(--accent-ink);
 }
 
 .workspace {
@@ -216,15 +200,10 @@
 }
 
 .summary-card__grid,
-.two-column-grid,
-.form-grid {
+.two-column-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
-}
-
-.form-grid__wide {
-  grid-column: 1 / -1;
 }
 
 .metric-list {
@@ -335,8 +314,15 @@
 .toggle {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  justify-content: space-between;
+  gap: 1rem;
   font-size: 0.95rem;
+}
+
+.toggle__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
 label {
@@ -345,60 +331,6 @@ label {
   gap: 0.45rem;
   font-size: 0.95rem;
   color: var(--text-strong);
-}
-
-input,
-textarea,
-select,
-button {
-  font: inherit;
-}
-
-input,
-textarea,
-select {
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid var(--border-soft);
-  border-radius: 0.95rem;
-  background: rgba(255, 255, 255, 0.94);
-  color: var(--text-strong);
-  padding: 0.82rem 0.95rem;
-}
-
-textarea {
-  min-height: 7rem;
-  resize: vertical;
-}
-
-button {
-  border: 0;
-  border-radius: 999px;
-  background: linear-gradient(135deg, var(--accent-strong), var(--accent-soft-strong));
-  color: white;
-  padding: 0.85rem 1.1rem;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: var(--shadow-button);
-}
-
-button:disabled {
-  cursor: wait;
-  opacity: 0.75;
-}
-
-button.tab,
-button.chip {
-  background: rgba(255, 255, 255, 0.86);
-  color: var(--text-strong);
-  box-shadow: none;
-}
-
-.button-secondary {
-  background: white;
-  color: var(--text-strong);
-  border: 1px solid var(--border-strong);
-  box-shadow: none;
 }
 
 @media (max-width: 1080px) {
@@ -423,7 +355,6 @@ button.chip {
   }
 
   .workspace-picker__row,
-  .form-grid,
   .two-column-grid,
   .kpi-grid,
   .explanation-grid,
