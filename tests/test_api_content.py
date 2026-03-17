@@ -345,12 +345,18 @@ def test_generation_mastery_gate_holds_assessment_request_on_practice_when_evide
     payload = response.json()
     assert payload["content_type"] == "practice_problem"
     assert payload["request_context"]["progression"]["action"] == "hold_target_before_assessment"
+    assert payload["request_context"]["progression"]["target_stage"] == "target"
+    assert payload["request_context"]["progression"]["target_redirect_applied"] is False
+    assert payload["request_context"]["progression"]["transfer_target_kc_ids"] == ["KC-1"]
     assert payload["request_context"]["progression"]["mastery_gate_applied"] is True
     assert payload["request_context"]["progression"]["requested_content_type"] == "assessment_probe"
     assert payload["request_context"]["progression"]["applied_content_type"] == "practice_problem"
 
     generation_event = next(event for event in audit_response.json() if event["event_type"] == "content.generate")
     assert generation_event["payload"]["progression_action"] == "hold_target_before_assessment"
+    assert generation_event["payload"]["progression_target_stage"] == "target"
+    assert generation_event["payload"]["progression_target_redirect_applied"] is False
+    assert generation_event["payload"]["progression_transfer_target_kc_ids"] == ["KC-1"]
     assert generation_event["payload"]["progression_mastery_gate_applied"] is True
     assert generation_event["payload"]["progression_requested_content_type"] == "assessment_probe"
     assert generation_event["payload"]["progression_applied_content_type"] == "practice_problem"

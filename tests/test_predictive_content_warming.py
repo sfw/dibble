@@ -131,6 +131,31 @@ def test_predictive_content_warmer_respects_progression_hold_for_practice():
     assert plan.content_types == ["practice_problem"]
 
 
+def test_predictive_content_warmer_uses_explicit_transfer_target_for_transfer_check():
+    generated_content = _build_generated_content(
+        content_type="practice_problem",
+        request_context={
+            "learning_session_id": "session-transfer",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": ["LO-1"],
+            "curriculum_context": ["Equivalent fractions"],
+            "selected_content_type": "practice_problem",
+            "progression": {
+                "action": "attempt_transfer",
+                "target_stage": "transfer",
+                "applied_target_kc_ids": ["KC-1"],
+                "transfer_target_kc_ids": ["KC-3"],
+                "confidence": 0.76,
+            },
+        },
+    )
+
+    plan = PredictiveContentWarmer(content_warmer=None).plan_follow_ups(generated_content)
+
+    assert plan.content_types == ["assessment_probe"]
+    assert plan.requests[0].target_kc_ids == ["KC-3"]
+
+
 def test_predictive_content_warmer_targets_primary_sequence_kc_for_repair_follow_up():
     generated_content = _build_generated_content(
         content_type="remedial_micro_module",

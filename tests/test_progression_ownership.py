@@ -134,8 +134,11 @@ def test_progression_ownership_rebuilds_prerequisite_before_requested_target():
 
     assert decision.action == "rebuild_prerequisite_first"
     assert decision.source == "strategy_profile"
+    assert decision.target_stage == "repair"
+    assert decision.target_redirect_applied is True
     assert decision.requested_target_kc_ids == ["KC-3"]
     assert decision.applied_target_kc_ids == ["KC-1"]
+    assert decision.transfer_target_kc_ids == ["KC-3"]
     assert decision.request.target_kc_ids == ["KC-1"]
     assert decision.request.curriculum_context[-2] == "Progression ownership: rebuild_prerequisite_first."
 
@@ -169,6 +172,7 @@ def test_progression_ownership_bridges_through_related_kc_during_bridge_phase():
 
     assert decision.action == "bridge_to_related_kc"
     assert decision.source == "session_controller"
+    assert decision.target_stage == "bridge"
     assert decision.applied_target_kc_ids == ["KC-2"]
     assert decision.bridge_kc_ids == ["KC-2"]
     assert decision.request.target_kc_ids == ["KC-2"]
@@ -221,6 +225,7 @@ def test_progression_ownership_holds_target_when_recent_success_is_support_heavy
 
     assert decision.action == "hold_target"
     assert decision.source == "progression_evidence"
+    assert decision.target_stage == "target"
     assert decision.evidence_observation_count == 2
     assert decision.evidence_assessment_count == 0
 
@@ -285,6 +290,8 @@ def test_progression_ownership_attempts_transfer_when_assessment_confirms_readin
 
     assert decision.action == "attempt_transfer"
     assert decision.source == "progression_evidence"
+    assert decision.target_stage == "transfer"
+    assert decision.transfer_target_kc_ids == ["KC-1"]
     assert decision.evidence_observation_count == 2
     assert decision.evidence_assessment_count == 1
     assert decision.evidence_confidence >= 0.7
@@ -338,8 +345,120 @@ def test_progression_ownership_holds_assessment_request_on_target_practice_until
 
     assert decision.action == "hold_target_before_assessment"
     assert decision.source == "mastery_gate"
+    assert decision.target_stage == "target"
     assert decision.mastery_gate_applied is True
     assert decision.requested_content_type == "assessment_probe"
     assert decision.applied_content_type == "practice_problem"
     assert decision.request.intent.value == "practice"
+    assert decision.request.requested_content_type == "practice_problem"
+
+
+def test_progression_ownership_prefers_strong_same_session_transfer_over_prerequisite_rebuild(tmp_path):
+    database_path = str(tmp_path / "progression-transfer-override.db")
+    ensure_database(database_path)
+    observation_store = SQLiteObservationStore(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = uuid4()
+    for observation in [
+        _build_observation(
+            session_id="session-transfer-override",
+            support_level="low",
+            confidence=0.82,
+            hints=0,
+            errors=0,
+            target_kc_id="KC-3",
+        ),
+        _build_observation(
+            session_id="session-transfer-override",
+            support_level="low",
+            confidence=0.79,
+            hints=1,
+            errors=0,
+            target_kc_id="KC-3",
+        ),
+    ]:
+        observation_store.append(student_id=str(student_id), observation=observation)
+    audit_store.append(
+        event_type="assessment.socratic",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "learning_session_id": "session-transfer-override",
+            "target_kc_ids": ["KC-3"],
+            "target_lo_ids": ["LO-1"],
+            "evidence_strength": "demonstrated",
+            "evidence_score": 0.86,
+            "inferred_mastery": 0.81,
+        },
+    )
+    service = ProgressionOwnershipService(
+        knowledge_component_store=StubKnowledgeComponentStore(),
+        strategy_signal_service=StubStrategySignalService(
+            LearnerStrategySummary(
+                signal="support_intensive",
+                source="strategy_profile",
+                recovery_focus="prerequisite_rebuild",
+                recommended_next_action="rebuild_prerequisite",
+                rationale="Rebuild the prerequisite before returning to the target.",
+            )
+        ),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        observation_store=observation_store,
+        audit_store=audit_store,
+        observation_profile_updater=ObservationProfileUpdater(),
+    )
+
+    decision = service.resolve_request(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            learning_session_id="session-transfer-override",
+            target_kc_ids=["KC-3"],
+            target_lo_ids=["LO-1"],
+            requested_content_type="practice_problem",
+        ),
+    )
+
+    assert decision.action == "attempt_transfer"
+    assert decision.source == "progression_evidence"
+    assert decision.target_stage == "transfer"
+    assert decision.applied_target_kc_ids == ["KC-3"]
+    assert decision.transfer_target_kc_ids == ["KC-3"]
+    assert decision.evidence_assessment_count == 1
+
+
+def test_progression_ownership_gates_bridge_redirected_assessment_back_to_practice():
+    student_id = uuid4()
+    service = ProgressionOwnershipService(
+        knowledge_component_store=StubKnowledgeComponentStore(),
+        strategy_signal_service=StubStrategySignalService(LearnerStrategySummary()),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(
+            WithinSessionAdaptationSummary(
+                signal="recovering",
+                source="session_controller",
+                phase="bridge",
+                recovery_intent="bridge_target",
+                sequence_action="hold_repair_target",
+                rationale="Bridge through a nearby KC before the final return.",
+            )
+        ),
+    )
+
+    decision = service.resolve_request(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            learning_session_id="session-bridge-assessment",
+            target_kc_ids=["KC-3"],
+            target_lo_ids=["LO-1"],
+            intent="assessment",
+            requested_content_type="assessment_probe",
+        ),
+    )
+
+    assert decision.action == "bridge_before_assessment"
+    assert decision.source == "mastery_gate"
+    assert decision.target_stage == "bridge"
+    assert decision.mastery_gate_applied is True
+    assert decision.applied_target_kc_ids == ["KC-2"]
     assert decision.request.requested_content_type == "practice_problem"

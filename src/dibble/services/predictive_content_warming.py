@@ -74,6 +74,20 @@ class PredictiveContentWarmer:
         default_target_kc_ids: list[str],
         request_context: dict[str, object],
     ) -> list[str]:
+        progression = request_context.get("progression")
+        if isinstance(progression, dict):
+            progression_action = str(progression.get("action", "stay_on_requested_target"))
+            target_stage = str(progression.get("target_stage", "target"))
+            applied_target_kc_ids = _string_list(progression.get("applied_target_kc_ids"))
+            transfer_target_kc_ids = _string_list(progression.get("transfer_target_kc_ids"))
+            if predicted_type == RequestedContentType.assessment_probe and progression_action == "attempt_transfer":
+                return transfer_target_kc_ids or applied_target_kc_ids or default_target_kc_ids
+            if predicted_type in {
+                RequestedContentType.practice_problem,
+                RequestedContentType.worked_example,
+                RequestedContentType.remedial_micro_module,
+            } and target_stage in {"repair", "bridge"}:
+                return applied_target_kc_ids[:1] or default_target_kc_ids
         sequencing = request_context.get("sequencing")
         if not isinstance(sequencing, dict):
             return default_target_kc_ids

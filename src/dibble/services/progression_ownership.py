@@ -14,8 +14,11 @@ class ProgressionOwnershipDecision:
     request: GenerationRequest
     action: str = "stay_on_requested_target"
     source: str = "requested_target"
+    target_stage: str = "target"
+    target_redirect_applied: bool = False
     requested_target_kc_ids: list[str] = field(default_factory=list)
     applied_target_kc_ids: list[str] = field(default_factory=list)
+    transfer_target_kc_ids: list[str] = field(default_factory=list)
     deferred_target_kc_ids: list[str] = field(default_factory=list)
     bridge_kc_ids: list[str] = field(default_factory=list)
     rationale: str | None = None
@@ -66,9 +69,11 @@ class ProgressionOwnershipService:
             request=request,
             session_summary=session,
         )
+        transfer_target_kc_ids = list(sequence.deferred_kc_ids or requested_target_kc_ids)
 
         action = "stay_on_requested_target"
         source = "requested_target"
+        target_stage = "target"
         applied_target_kc_ids = list(requested_target_kc_ids)
         rationale = None
         requested_content_type = (
@@ -83,9 +88,20 @@ class ProgressionOwnershipService:
         ) and sequence.bridge_kc_ids:
             action = "bridge_to_related_kc"
             source = session.source
+            target_stage = "bridge"
             applied_target_kc_ids = [sequence.bridge_kc_ids[0]]
             rationale = session.rationale or (
                 "Recent same-session recovery suggests bridging through a nearby KC before returning fully to the target."
+            )
+        elif self._should_prefer_transfer(evidence_decision=evidence_decision):
+            action = "attempt_transfer"
+            source = "progression_evidence"
+            target_stage = "transfer"
+            applied_target_kc_ids = list(transfer_target_kc_ids or requested_target_kc_ids)
+            rationale = self._transfer_rationale(
+                request=request,
+                transfer_target_kc_ids=applied_target_kc_ids,
+                evidence_decision=evidence_decision,
             )
         elif (
             session.sequence_action == "hold_repair_target"
@@ -94,6 +110,7 @@ class ProgressionOwnershipService:
         ):
             action = "hold_repair_target"
             source = session.source
+            target_stage = "repair"
             applied_target_kc_ids = [sequence.primary_kc_id]
             rationale = session.rationale or sequence.rationale
         elif (
@@ -103,6 +120,7 @@ class ProgressionOwnershipService:
         ):
             action = sequence.action
             source = "strategy_profile"
+            target_stage = "repair"
             applied_target_kc_ids = [sequence.primary_kc_id]
             rationale = sequence.rationale
         elif evidence_decision.decision != "monitor":
@@ -118,6 +136,7 @@ class ProgressionOwnershipService:
                 }
             ),
             action=action,
+            target_stage=target_stage,
             rationale=rationale or sequence.rationale,
         )
         if mastery_gate_action is not None:
@@ -128,14 +147,18 @@ class ProgressionOwnershipService:
         applied_content_type = (
             applied_request.requested_content_type.value if applied_request.requested_content_type is not None else None
         )
+        target_redirect_applied = applied_target_kc_ids != requested_target_kc_ids
 
         if applied_target_kc_ids == requested_target_kc_ids:
             return ProgressionOwnershipDecision(
                 request=applied_request,
                 action=action,
                 source=source,
+                target_stage=target_stage,
+                target_redirect_applied=target_redirect_applied,
                 requested_target_kc_ids=requested_target_kc_ids,
                 applied_target_kc_ids=applied_target_kc_ids,
+                transfer_target_kc_ids=transfer_target_kc_ids,
                 deferred_target_kc_ids=sequence.deferred_kc_ids,
                 bridge_kc_ids=sequence.bridge_kc_ids,
                 rationale=rationale or sequence.rationale,
@@ -166,8 +189,11 @@ class ProgressionOwnershipService:
             request=updated_request,
             action=action,
             source=source,
+            target_stage=target_stage,
+            target_redirect_applied=target_redirect_applied,
             requested_target_kc_ids=requested_target_kc_ids,
             applied_target_kc_ids=applied_target_kc_ids,
+            transfer_target_kc_ids=transfer_target_kc_ids,
             deferred_target_kc_ids=sequence.deferred_kc_ids,
             bridge_kc_ids=sequence.bridge_kc_ids,
             rationale=rationale or sequence.rationale,
@@ -232,17 +258,19 @@ class ProgressionOwnershipService:
         *,
         request: GenerationRequest,
         action: str,
+        target_stage: str,
         rationale: str | None,
     ) -> tuple[GenerationRequest, str | None, str | None]:
         assessment_requested = request.intent.value == "assessment" or (
             request.requested_content_type == RequestedContentType.assessment_probe
         )
-        if not assessment_requested or action not in {"hold_target", "hold_repair_target"}:
+        if not assessment_requested or not self._should_gate_assessment(action=action, target_stage=target_stage):
             return request, None, None
         gate_reason = (
             rationale
-            or "Recent same-session evidence still suggests the learner should stay on target practice before a transfer-style assessment."
+            or self._default_mastery_gate_reason(target_stage=target_stage)
         )
+        gate_action = self._mastery_gate_action(action=action, target_stage=target_stage)
         return (
             request.model_copy(
                 update={
@@ -250,11 +278,48 @@ class ProgressionOwnershipService:
                     "requested_content_type": RequestedContentType.practice_problem,
                     "curriculum_context": [
                         *request.curriculum_context,
-                        "Mastery gate: hold target before transfer-style assessment.",
+                        f"Mastery gate: {gate_action.replace('_', ' ')}.",
                         gate_reason,
                     ],
                 }
             ),
-            "hold_target_before_assessment",
+            gate_action,
             gate_reason,
         )
+
+    def _should_prefer_transfer(self, *, evidence_decision) -> bool:
+        return evidence_decision.decision == "attempt_transfer" and evidence_decision.confidence >= 0.6
+
+    def _transfer_rationale(
+        self,
+        *,
+        request: GenerationRequest,
+        transfer_target_kc_ids: list[str],
+        evidence_decision,
+    ) -> str:
+        target_fragment = ", ".join(transfer_target_kc_ids) if transfer_target_kc_ids else "the target KC"
+        return (
+            evidence_decision.rationale
+            or f"Recent same-session evidence on {request.learning_session_id} was strong enough to resume transfer on {target_fragment}."
+        )
+
+    def _should_gate_assessment(self, *, action: str, target_stage: str) -> bool:
+        if target_stage in {"repair", "bridge"}:
+            return True
+        return action in {"hold_target", "hold_repair_target"}
+
+    def _mastery_gate_action(self, *, action: str, target_stage: str) -> str:
+        if target_stage == "bridge":
+            return "bridge_before_assessment"
+        if action == "hold_repair_target":
+            return "hold_repair_target_before_assessment"
+        if action == "rebuild_prerequisite_first" or target_stage == "repair":
+            return "rebuild_prerequisite_before_assessment"
+        return "hold_target_before_assessment"
+
+    def _default_mastery_gate_reason(self, *, target_stage: str) -> str:
+        if target_stage == "bridge":
+            return "Recent same-session recovery still needs a guided bridge step before a transfer-style assessment."
+        if target_stage == "repair":
+            return "Recent same-session evidence still suggests rebuilding the prerequisite or repair target before assessment."
+        return "Recent same-session evidence still suggests the learner should stay on target practice before a transfer-style assessment."
