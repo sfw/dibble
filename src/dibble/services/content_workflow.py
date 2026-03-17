@@ -531,18 +531,22 @@ class ContentWorkflowService:
         if remediation_data:
             executed_phase = str(remediation_data.get("executed_phase", "repair"))
             next_phase = remediation_data.get("next_phase")
-            next_target_kc_ids = self._string_list(remediation_data.get("next_step_target_kc_ids"))
+            progression_decision = str(remediation_data.get("progression_decision", "advance"))
+            next_target_kc_ids = self._remediation_next_step_target_kc_ids(remediation_data=remediation_data)
             next_step = LearnerFlowNextStep(
                 action=(
                     str(remediation_data.get("progression_decision"))
-                    if str(remediation_data.get("progression_decision", "advance")).startswith("hold_")
+                    if progression_decision.startswith("hold_")
                     else str(next_phase or "complete")
                 ),
                 content_type=self._content_type_for_remediation_phase(
                     phase=next_phase,
-                    progression_decision=str(remediation_data.get("progression_decision", "advance")),
+                    progression_decision=progression_decision,
                 ),
-                target_stage=self._target_stage_for_phase(next_phase or executed_phase),
+                target_stage=self._target_stage_for_remediation_next_step(
+                    phase=next_phase or executed_phase,
+                    progression_decision=progression_decision,
+                ),
                 target_kc_ids=next_target_kc_ids,
                 rationale=self._first_text(
                     remediation_data.get("progression_rationale"),
@@ -559,7 +563,7 @@ class ContentWorkflowService:
                         learning_session_id=self._maybe_str(request_context.get("learning_session_id")),
                         delivered_phase=executed_phase,
                         delivered_content_type=generated_content.content_type,
-                        progression_action=str(remediation_data.get("progression_decision", "advance")),
+                        progression_action=progression_decision,
                         target_stage=self._target_stage_for_phase(executed_phase),
                         active_target_kc_ids=self._string_list(
                             progression_data.get("applied_target_kc_ids") or request_context.get("target_kc_ids")
@@ -683,6 +687,28 @@ class ContentWorkflowService:
         if str(phase) == "return":
             return RequestedContentType.practice_problem.value
         return RequestedContentType.remedial_micro_module.value
+
+    def _remediation_next_step_target_kc_ids(
+        self,
+        *,
+        remediation_data: dict[str, object],
+    ) -> list[str]:
+        progression_decision = str(remediation_data.get("progression_decision", "advance"))
+        if progression_decision.startswith("hold_"):
+            return self._string_list(remediation_data.get("progression_target_kc_ids"))
+        return self._string_list(remediation_data.get("next_step_target_kc_ids"))
+
+    def _target_stage_for_remediation_next_step(
+        self,
+        *,
+        phase: str,
+        progression_decision: str,
+    ) -> str:
+        if progression_decision == "hold_bridge_target":
+            return "bridge"
+        if progression_decision.startswith("hold_"):
+            return "repair"
+        return self._target_stage_for_phase(phase)
 
     def _forced_next_step_content_type(self, progression: dict[str, object]) -> str | None:
         action = str(progression.get("action", ""))
@@ -1065,6 +1091,8 @@ class ContentWorkflowService:
             decision=progression_decision.decision,
             rationale=progression_decision.rationale,
             target_kc_ids=progression_decision.target_kc_ids or [],
+            generation_id=generated_content.generation_id,
+            step_index=hold_step_index,
             evidence_observation_count=progression_decision.matched_observation_count,
             evidence_confidence=progression_decision.evidence_confidence,
             average_observed_mastery=progression_decision.average_observed_mastery,

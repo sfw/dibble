@@ -1121,9 +1121,17 @@ def test_remediation_session_holds_return_when_recent_repair_evidence_is_weak(cl
     assert held_payload["session"]["summary"]["progression_average_observed_mastery"] is not None
     assert held_payload["session"]["summary"]["next_step"]["action"] == "hold_repair_target"
     assert held_payload["session"]["summary"]["next_step"]["content_type"] == "remedial_micro_module"
+    assert held_payload["session"]["summary"]["next_step"]["target_stage"] == "repair"
+    assert held_payload["session"]["summary"]["next_step"]["target_kc_ids"] == ["KC-1"]
+    assert held_payload["session"]["summary"]["continue_action"]["target_stage"] == "repair"
+    assert held_payload["session"]["summary"]["continue_action"]["target_kc_ids"] == ["KC-1"]
     assert held_payload["content"]["workflow_summary"]["flow_type"] == "remediation"
     assert held_payload["content"]["workflow_summary"]["next_step"]["action"] == "hold_repair_target"
     assert held_payload["content"]["workflow_summary"]["next_step"]["content_type"] == "remedial_micro_module"
+    assert held_payload["content"]["workflow_summary"]["next_step"]["target_stage"] == "repair"
+    assert held_payload["content"]["workflow_summary"]["next_step"]["target_kc_ids"] == ["KC-1"]
+    assert held_payload["content"]["workflow_summary"]["continue_action"]["target_stage"] == "repair"
+    assert held_payload["content"]["workflow_summary"]["continue_action"]["target_kc_ids"] == ["KC-1"]
 
 
 def test_explanations_and_problems_endpoints_specialize_generation(client, student_id):

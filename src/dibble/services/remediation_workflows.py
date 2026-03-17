@@ -164,6 +164,8 @@ class RemediationWorkflowCoordinator:
         decision: str,
         rationale: str | None,
         target_kc_ids: list[str],
+        generation_id: str | None = None,
+        step_index: int | None = None,
         evidence_observation_count: int = 0,
         evidence_confidence: float = 0.0,
         average_observed_mastery: float | None = None,
@@ -172,8 +174,12 @@ class RemediationWorkflowCoordinator:
         session = self.session_store.get(session_id)
         if session is None:
             raise RemediationWorkflowNotFoundError(session_id)
+        steps = list(session.steps)
+        if generation_id is not None and step_index is not None and 0 <= step_index < len(steps):
+            steps[step_index] = steps[step_index].model_copy(update={"generated_content_id": generation_id})
         updated_session = session.model_copy(
             update={
+                "steps": steps,
                 "progression_decision": decision,
                 "progression_rationale": rationale,
                 "progression_target_kc_ids": target_kc_ids,

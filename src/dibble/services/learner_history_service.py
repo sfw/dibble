@@ -121,9 +121,7 @@ class LearnerHistoryService:
                 target_kc_id=session.target_kc_id,
                 focus_kc_ids=list(session.focus_kc_ids),
                 prerequisite_kc_ids=list(session.prerequisite_kc_ids),
-                latest_generation_id=(
-                    str(session.completed_generation_ids[-1]) if session.completed_generation_ids else None
-                ),
+                latest_generation_id=self._latest_remediation_generation_id(session),
                 status=session.summary.status,
                 current_phase=session.summary.current_phase,
                 completed_step_count=session.summary.completed_step_count,
@@ -150,3 +148,12 @@ class LearnerHistoryService:
         if not isinstance(value, list):
             return []
         return [str(item) for item in value if str(item).strip()]
+
+    @staticmethod
+    def _latest_remediation_generation_id(session) -> str | None:
+        for step in reversed(session.steps):
+            if step.generated_content_id:
+                return str(step.generated_content_id)
+        if session.completed_generation_ids:
+            return str(session.completed_generation_ids[-1])
+        return None

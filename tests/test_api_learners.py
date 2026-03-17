@@ -649,6 +649,101 @@ def test_learner_history_endpoints_return_machine_readable_not_found_error(clien
     )
 
 
+def test_held_remediation_generation_history_stays_aligned_with_session_summary(client, student_id):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put(
+        "/api/knowledge-components/KC-1",
+        json=build_knowledge_component("KC-1", name="Identify numerator and denominator"),
+    )
+    client.put(
+        "/api/knowledge-components/KC-2",
+        json=build_knowledge_component(
+            "KC-2",
+            prerequisite_kc_ids=["KC-1"],
+            name="Generate equivalent fractions",
+            common_misconceptions=[
+                {
+                    "misconception_id": "fraction-whole-number-bias",
+                    "label": "Treats fraction parts like unrelated whole numbers",
+                    "description": "The learner compares numerator and denominator separately instead of the whole amount.",
+                    "trigger_terms": ["numerator", "denominator", "whole number", "fraction"],
+                    "prerequisite_kc_ids": ["KC-1"],
+                    "remediation_hint": "Use one visual model to compare the total amount before naming the parts.",
+                }
+            ],
+        ),
+    )
+
+    trigger_response = client.post(
+        "/api/remedial/trigger",
+        json={
+            "student_id": str(student_id),
+            "target_kc_id": "KC-2",
+            "misconception_description": "The learner compares numerator and denominator like whole numbers.",
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    remediation_session_id = trigger_response.json()["request_context"]["remediation_session_id"]
+
+    repair_response = client.post(
+        f"/api/remedial/sessions/{remediation_session_id}/advance",
+        json={},
+    )
+    assert repair_response.status_code == 200
+
+    observe_response = client.post(
+        f"/api/learners/{student_id}/observations",
+        json={
+            "response_time_ms": 32000,
+            "hints_used": 4,
+            "error_count": 3,
+            "pause_count": 3,
+            "modality_switches": 0,
+            "completed": False,
+            "confidence": 0.2,
+            "task_type": "remediation",
+            "support_level": "high",
+            "expected_duration_ms": 18000,
+            "learning_session_id": remediation_session_id,
+            "generation_id": repair_response.json()["content"]["generation_id"],
+            "observed_content_type": "remedial_micro_module",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": ["LO-1"],
+        },
+    )
+    assert observe_response.status_code == 200
+
+    held_response = client.post(
+        f"/api/remedial/sessions/{remediation_session_id}/advance",
+        json={},
+    )
+    generations_response = client.get(f"/api/learners/{student_id}/history/generations")
+    remediation_session_response = client.get(f"/api/remedial/sessions/{remediation_session_id}")
+    workspace_response = client.get(f"/api/learners/{student_id}/workspace")
+
+    assert held_response.status_code == 200
+    assert generations_response.status_code == 200
+    assert remediation_session_response.status_code == 200
+    assert workspace_response.status_code == 200
+
+    held_generation_id = held_response.json()["content"]["generation_id"]
+    remediation_generation_entry = next(
+        entry for entry in generations_response.json() if entry["generation_id"] == held_generation_id
+    )
+    session_summary = remediation_session_response.json()["summary"]
+    workspace_payload = workspace_response.json()
+
+    assert remediation_generation_entry["target_stage"] == "repair"
+    assert remediation_generation_entry["next_step"] == session_summary["next_step"]
+    assert remediation_generation_entry["continue_action"]["kind"] == session_summary["continue_action"]["kind"]
+    assert remediation_generation_entry["continue_action"]["target_stage"] == session_summary["continue_action"]["target_stage"]
+    assert remediation_generation_entry["continue_action"]["target_kc_ids"] == session_summary["continue_action"]["target_kc_ids"]
+    assert workspace_payload["generated_content"]["workflow_summary"]["next_step"] == session_summary["next_step"]
+    assert workspace_payload["continue_action"]["target_stage"] == session_summary["continue_action"]["target_stage"]
+    assert workspace_payload["continue_action"]["target_kc_ids"] == session_summary["continue_action"]["target_kc_ids"]
+
+
 def test_teacher_intervention_action_contract_exposes_backend_owned_proposal_and_records_approval(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())

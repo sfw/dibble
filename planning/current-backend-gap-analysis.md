@@ -50,7 +50,7 @@ The backend now covers a meaningful slice of the revised Phase 1 and early Phase
 - The backend now also compacts recent learner observations plus durable state-profile context into `learning.cognitive_trait.profile` events, including trait-stability, challenge-tolerance, per-trait reliability, and challenge-evidence-strength signals, and live cognitive-trait inference can blend those cross-session trait targets back into processing-speed, working-memory, and spatial-reasoning updates more selectively instead of treating every durable trait dimension as equally trustworthy.
 - Live learner-state and cognitive-trait inference now also score the strength of current evidence more explicitly, and durable learner-state profiles now carry per-dimension affective-versus-load reliability signals, so rich contradictory current observations can push back harder on only the mismatching durable state/trait dimensions while sparse evidence still lets stable durable load, metacognitive, or trait signals help with backfill.
 
-The biggest remaining gaps are no longer frontend-blocking API seams. For the current frontend scope, there are no active `P0` backend blockers left. The main remaining work is now product-dependent future depth:
+The biggest remaining gaps are no longer frontend-blocking API seams. For the current frontend scope, there are no active `P0` or `P1` backend blockers left. The main remaining work is now product-dependent future depth:
 
 - a true course-level planner only if product needs exceed the current learner `curriculum_progression` read model and the classroom or learner views need stronger cross-unit sequencing authority
 - richer multimodal artifact variants beyond the new explicit discriminated `response.artifacts` contract, which now gives generated content a stable `text` artifact shape without breaking the existing `blocks` payload
@@ -151,7 +151,7 @@ Most recent progress:
 14. progression parity is now regression-protected across `GET /api/learners/{student_id}/progression`, `summary.curriculum_progression`, and teacher classroom learner cards instead of being only an implicit implementation detail.
 15. `continue_action` and teacher intervention vocabulary are now explicit backend-owned contract sets with shared constructors, finite enums, and regression coverage across lesson, remediation, Socratic, history, workspace, and intervention surfaces.
 16. machine-readable error responses now also keep the same backend-owned code in both header and body while preserving the existing human-readable `detail` string, so frontend error handling no longer needs to choose between header scraping and brittle message matching.
-17. there are now no active `P0` backend blockers for the current frontend scope; the next backend work should come from product expansion rather than missing core frontend contracts.
+17. there are now no active `P0` or `P1` backend blockers for the current frontend scope; the next backend work should come from product expansion rather than missing core frontend contracts.
 18. generated content now also exposes a discriminated `response.artifacts` contract with stable `text` artifacts derived from the existing block list, so future multimodal payloads have an explicit backend-owned extension seam without forcing immediate frontend churn.
 19. misconception detection can now reuse recent target-scoped behavioral evidence from learner observations, so repair-target and prerequisite rationale can stay more trustworthy even when the free-text misconception description is sparse.
 20. ordinary-mastery-driven target and repair holds now append compact confidence plus observed-mastery snapshots to their rationale, so existing workflow, learner-flow, workspace, history, and intervention surfaces get more inspectable backend-owned explanations without changing contract shape.
@@ -159,23 +159,32 @@ Most recent progress:
 22. teacher intervention lesson-option labels now reflect backend-owned stage semantics too, so repair, bridge, target, and transfer follow-ups read as explicit action families instead of generic content-type names.
 23. teacher intervention lesson-option rationales now name the actual stage target too, so repair and bridge alternatives do not read like generic “same target” moves when the backend is deliberately holding a different stage.
 24. micro-explanation prompts now reuse target-KC misconception, remediation, and nearby-concept hints too, so explanation generation can stay more concept-grounded without needing a broader retrieval project.
+25. held remediation follow-ups now keep delivered `workflow_summary`, learner workspace, and generation history aligned with the remediation session summary, so repair or bridge holds preserve the held stage target, held target KC ids, and latest held generation instead of drifting back toward stale return-step semantics on neighboring surfaces.
 
 ### Frontend Alignment Update
 
 The frontend work plan now shows a materially different posture than the older backend-readiness framing:
 
-1. the frontend is already building against backend-owned learner summary, `current_flow`, workspace, history, progression, intervention, remediation, Socratic, and classroom contracts.
+1. the frontend is already building against backend-owned learner summary, `current_flow`, workspace, history, progression, `workflow_summary`, intervention, remediation, Socratic, classroom, `continue_action`, and machine-readable error-code contracts.
 2. the main frontend work is now implementation depth, UI quality, and test coverage, not waiting on new backend endpoint families.
 3. the key product guardrail remains the same: the frontend should render backend-owned workflow decisions, not invent progression logic locally.
 4. `planning/from-front-to-back-needs.md` should remain the dedicated place for any newly discovered backend asks from the frontend stream.
 
 That means the backend gap list should stay narrow and product-driven rather than reverting to a broad "finish backend before frontend" stance.
 
+#### Current Frontend Ask
+
+The newest frontend handoff note is narrower still:
+
+1. the frontend is not asking for a new endpoint family, new contract shape, or frontend-specific policy workaround for the current product stream.
+2. the backend should preserve and harden the current frontend-facing contract set rather than reopening already-stable seams.
+3. backend effort should go toward better judgment, better parity, and better inspectability instead of contract churn done "for the frontend."
+
 #### Stable Frontend Contracts In Use
 
 The frontend plan now explicitly treats these backend surfaces as stable enough to build on:
 
-1. learner summary, `current_flow`, workspace, generation `workflow_summary`, Socratic summaries, remediation summaries, intervention-action, learner progression, and teacher classroom contracts are all now frontend-facing sources of truth.
+1. learner summary, `current_flow`, workspace, learner history, generation `workflow_summary`, Socratic summaries, remediation summaries, intervention-action, learner progression, teacher classroom contracts, `continue_action`, and machine-readable error codes are all now frontend-facing sources of truth.
 2. progression parity, machine-readable error codes, and explicit `continue_action` / teacher intervention vocabularies are now hardened cross-surface contracts rather than loose conventions.
 3. the frontend work plan explicitly prefers these backend-owned read and write models over frontend reconstruction from audit logs, raw `request_context`, or local policy.
 
@@ -198,6 +207,19 @@ Even with the narrower frontend ask list, the backend still owns a few stability
 1. keep `current_flow`, `curriculum_progression`, session summaries, `workflow_summary`, `continue_action`, and teacher intervention vocabularies stable and regression-protected.
 2. keep repair, bridge, target, and transfer decisions inspectable through explicit rationale and stage metadata rather than allowing logic to drift into UI-only heuristics.
 3. keep new frontend-discovered backend needs centralized in `planning/from-front-to-back-needs.md` rather than scattering them across chat or code comments.
+4. keep cross-surface parity strong so `current_flow`, workspace, history, session summaries, `workflow_summary`, and classroom drill-in continue to agree on stage, action, rationale, and next-step semantics.
+5. do not rename, reshape, or casually reopen already-stable frontend-facing contract seams unless there is a concrete bug or parity regression.
+
+#### New Agent Plan
+
+The next backend agent should treat the current frontend-facing contract set as stable and work from this implementation plan:
+
+1. start by checking for parity drift across learner summary, `current_flow`, workspace, learner history, session summaries, `workflow_summary`, intervention-action, progression, and classroom read models before adding any new behavior.
+2. if a concrete parity, vocabulary, or inspectability bug is found, fix the smallest cross-surface backend-owned slice first and add regression coverage that proves the surfaces stay aligned.
+3. if no contract bug is found, choose the smallest justified decision-quality slice from `ORCH-001`, `ADAPT-006`, `DATA-004`, or `ADAPT-003`, with a bias toward improvements that strengthen backend-owned next-step consistency, mastery-loop trust, ordinary-work evidence use, or misconception precision without changing contract shape.
+4. avoid frontend-only sequencing policy, avoid reopening stable contract seams without a concrete bug, avoid dashboard-style teacher analytics unless current classroom summaries prove insufficient, and avoid overloading text fields for future multimodal work when `response.artifacts` is the intended seam.
+5. for each justified slice: add focused tests, update `README.md`, update this document, run `uv run ruff check .`, run `uv run pytest`, and make one focused commit.
+6. stop rather than forcing more work if the honest result is that no additional small slice is justified beyond preserving parity and improving current backend judgment.
 
 #### Lower-Priority Backend Futures
 
