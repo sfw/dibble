@@ -1,8 +1,16 @@
 import { Button } from '@/components/ui/button'
 
 import { labelForView, resolveArtifactView, resolveContinueActionView, type ViewKey } from '../app/workspace'
-import { FlowRail, InsightCard, JsonPanel, MetricList, SectionHeader, StatCard } from '../components/primitives'
-import { formatPercent, formatTimestamp, signedPercent, titleCase } from '../lib/formatters'
+import { EmptyState, FlowRail, InsightCard, JsonPanel, MetricList, PanelNotice, SectionHeader, StatCard } from '../components/primitives'
+import {
+  formatArtifactKind,
+  formatContentType,
+  formatContinueAction,
+  formatContractLabel,
+  formatPercent,
+  formatTimestamp,
+  signedPercent,
+} from '../lib/formatters'
 import type {
   LearnerGenerationHistoryEntry,
   LearnerCurriculumProgressionSummary,
@@ -53,9 +61,9 @@ export function OverviewView({
               <h2>Current learning posture</h2>
             </div>
             <div className="hero-pills">
-              <span className="pill pill--accent">{summary.progress.signal}</span>
-              <span className="pill pill--neutral">{flow.status}</span>
-              <span className="pill pill--success">{flow.next_step.target_stage}</span>
+              <span className="pill pill--accent">{formatContractLabel(summary.progress.signal)}</span>
+              <span className="pill pill--neutral">{formatContractLabel(flow.status)}</span>
+              <span className="pill pill--success">{formatContractLabel(flow.next_step.target_stage)}</span>
             </div>
           </div>
           <div className="kpi-grid">
@@ -81,23 +89,23 @@ export function OverviewView({
             <div className="resume-card__header">
               <div>
                 <p className="content-block__kind">Active artifact</p>
-                <h3>{titleCase(workspace.active_artifact.kind)}</h3>
+                <h3>{formatArtifactKind(workspace.active_artifact.kind)}</h3>
               </div>
               <div className="hero-pills">
-                <span className="pill pill--neutral">{workspace.active_artifact.flow_type}</span>
-                <span className="pill pill--accent">{workspace.active_artifact.current_phase}</span>
-                <span className="pill pill--success">{workspace.continue_action.target_stage}</span>
+                <span className="pill pill--neutral">{formatContractLabel(workspace.active_artifact.flow_type)}</span>
+                <span className="pill pill--accent">{formatContractLabel(workspace.active_artifact.current_phase)}</span>
+                <span className="pill pill--success">{formatContractLabel(workspace.continue_action.target_stage)}</span>
               </div>
             </div>
             <p>{workspace.active_artifact.rationale ?? workspace.continue_action.rationale ?? 'No workspace rationale returned.'}</p>
             <div className="summary-card__grid">
               <div>
                 <span>Content type</span>
-                <strong>{workspace.active_artifact.content_type ?? 'n/a'}</strong>
+                <strong>{formatContentType(workspace.active_artifact.content_type)}</strong>
               </div>
               <div>
                 <span>Continue action</span>
-                <strong>{titleCase(workspace.continue_action.kind)}</strong>
+                <strong>{formatContinueAction(workspace.continue_action.kind)}</strong>
               </div>
               <div>
                 <span>Target KCs</span>
@@ -114,8 +122,8 @@ export function OverviewView({
                   Open {labelForView(resumeView)} workspace
                 </Button>
               ) : null}
-              {contractsLoading ? <span className="muted">Refreshing workspace contracts…</span> : null}
-              {contractsError ? <span className="inline-error">{contractsError}</span> : null}
+              {contractsLoading ? <PanelNotice message="Refreshing workspace contracts…" /> : null}
+              {contractsError ? <PanelNotice message={contractsError} tone="error" /> : null}
             </div>
           </div>
         </div>
@@ -129,15 +137,15 @@ export function OverviewView({
           <div className="two-column-grid">
             <div className="summary-card">
               <div className="summary-card__topline">
-                <span className="pill pill--neutral">{progression.status}</span>
-                <span className="pill pill--accent">{progression.current_stage}</span>
+                <span className="pill pill--neutral">{formatContractLabel(progression.status)}</span>
+                <span className="pill pill--accent">{formatContractLabel(progression.current_stage)}</span>
               </div>
               <h3>{progression.current_resource?.title ?? 'No active curriculum resource'}</h3>
               <p>{progression.rationale ?? 'No curriculum progression rationale returned.'}</p>
               <div className="summary-card__grid">
                 <div>
                   <span>Progression action</span>
-                  <strong>{progression.progression_action}</strong>
+                  <strong>{formatContractLabel(progression.progression_action)}</strong>
                 </div>
                 <div>
                   <span>Active targets</span>
@@ -175,25 +183,25 @@ export function OverviewView({
           <div className="explanation-grid">
             <InsightCard
               title="Calibration"
-              value={summary.calibration.signal}
+              value={formatContractLabel(summary.calibration.signal)}
               detail={`Confidence ${formatPercent(summary.calibration.confidence)} from ${summary.calibration.matched_run_count} runs`}
-              rationale={`Source: ${summary.calibration.source}`}
+              rationale={`Source ${formatContractLabel(summary.calibration.source)}`}
             />
             <InsightCard
               title="Progress"
-              value={summary.progress.signal}
+              value={formatContractLabel(summary.progress.signal)}
               detail={`Delta ${signedPercent(summary.progress.progress_delta)}`}
               rationale={`Recent average ${formatPercent(summary.progress.recent_average_run_outcome_score)}`}
             />
             <InsightCard
               title="Strategy"
-              value={summary.strategy.recommended_next_action}
-              detail={`Trajectory ${summary.strategy.trajectory_state}`}
+              value={formatContractLabel(summary.strategy.recommended_next_action)}
+              detail={`Trajectory ${formatContractLabel(summary.strategy.trajectory_state)}`}
               rationale={summary.strategy.rationale ?? 'No rationale returned'}
             />
             <InsightCard
               title="State profile"
-              value={summary.state_profile.signal}
+              value={formatContractLabel(summary.state_profile.signal)}
               detail={`Overload risk ${formatPercent(summary.state_profile.overload_risk)}`}
               rationale={summary.state_profile.rationale ?? 'No rationale returned'}
             />
@@ -212,9 +220,11 @@ export function OverviewView({
               emptyLabel="No generation history returned."
               items={generationHistory.map((entry) => ({
                 key: entry.generation_id,
-                headline: `${entry.content_type} • ${entry.target_stage}`,
+                headline: `${formatContentType(entry.content_type)} • ${formatContractLabel(entry.target_stage)}`,
                 timestamp: formatTimestamp(entry.created_at),
-                detail: entry.rationale ?? `${entry.progression_action} on ${entry.active_target_kc_ids.join(', ') || 'no targets'}`,
+                detail:
+                  entry.rationale ??
+                  `${formatContractLabel(entry.progression_action)} on ${entry.active_target_kc_ids.join(', ') || 'no targets'}`,
                 buttonLabel: 'Open generation',
                 onOpen: () => onSelectView('generation'),
               }))}
@@ -224,7 +234,7 @@ export function OverviewView({
               emptyLabel="No Socratic history returned."
               items={socraticHistory.map((entry) => ({
                 key: entry.session_id,
-                headline: `${entry.latest_prompt_style ?? 'session'} • ${entry.latest_evidence_strength}`,
+                headline: `${formatContractLabel(entry.latest_prompt_style ?? 'session')} • ${formatContractLabel(entry.latest_evidence_strength)}`,
                 timestamp: formatTimestamp(entry.updated_at),
                 detail: entry.rationale ?? `${entry.turn_count} turns on ${entry.target_kc_ids.join(', ') || 'no targets'}`,
                 buttonLabel: 'Open Socratic',
@@ -236,7 +246,7 @@ export function OverviewView({
               emptyLabel="No remediation history returned."
               items={remediationHistory.map((entry) => ({
                 key: entry.session_id,
-                headline: `${entry.current_phase ?? 'session'} • ${entry.progression_decision}`,
+                headline: `${formatContractLabel(entry.current_phase ?? 'session')} • ${formatContractLabel(entry.progression_decision)}`,
                 timestamp: formatTimestamp(entry.updated_at),
                 detail:
                   entry.progression_rationale ??
@@ -267,15 +277,15 @@ export function OverviewView({
             <MetricList
               title="Learning preferences"
               items={[
-                { label: 'Scaffolding', value: profile.learning_preferences.scaffolding_preference },
-                { label: 'Pace', value: profile.learning_preferences.pace_preference },
+                { label: 'Scaffolding', value: formatContractLabel(profile.learning_preferences.scaffolding_preference) },
+                { label: 'Pace', value: formatContractLabel(profile.learning_preferences.pace_preference) },
                 {
                   label: 'Preferred examples',
                   value: profile.learning_preferences.example_domain_preferences.join(', ') || 'None yet',
                 },
                 {
                   label: 'Accommodations',
-                  value: profile.accommodations.join(', ') || 'None recorded',
+                  value: profile.accommodations.map((value) => formatContractLabel(value)).join(', ') || 'None recorded',
                 },
               ]}
             />
@@ -319,9 +329,9 @@ export function OverviewView({
           <MetricList
             title="Contract snapshot"
             items={[
-              { label: 'Active artifact', value: workspace.active_artifact.kind },
-              { label: 'Workspace action', value: workspace.continue_action.kind },
-              { label: 'Curriculum status', value: progression.status },
+              { label: 'Active artifact', value: formatArtifactKind(workspace.active_artifact.kind) },
+              { label: 'Workspace action', value: formatContinueAction(workspace.continue_action.kind) },
+              { label: 'Curriculum status', value: formatContractLabel(progression.status) },
               { label: 'Generation history', value: String(generationHistory.length) },
               { label: 'Socratic history', value: String(socraticHistory.length) },
               { label: 'Remediation history', value: String(remediationHistory.length) },
@@ -399,7 +409,9 @@ function HistoryColumn({
     <div className="metric-list-card">
       <h3>{title}</h3>
       <div className="history-list">
-        {items.length === 0 ? <p className="muted">{emptyLabel}</p> : null}
+        {items.length === 0 ? (
+          <EmptyState title="Nothing to review yet" description={emptyLabel} />
+        ) : null}
         {items.map((item) => (
           <article key={item.key} className="history-card">
             <div className="history-card__meta">

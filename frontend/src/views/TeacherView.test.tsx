@@ -43,7 +43,7 @@ describe('TeacherView', () => {
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Return to classroom' })).toBeInTheDocument()
     expect(screen.getByText('Intervention readiness and rationale')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'practice_problem' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Practice Problem' })).toBeInTheDocument()
     expect(screen.getByText('How learner flow aligns to curriculum posture')).toBeInTheDocument()
     expect(screen.getByText('Review the backend-owned intervention proposal')).toBeInTheDocument()
     expect(screen.getAllByText('Send transfer practice').length).toBeGreaterThan(0)
@@ -66,5 +66,25 @@ describe('TeacherView', () => {
       expect(screen.getByText(gap.title)).toBeInTheDocument()
       expect(screen.getByText(gap.frontend_response)).toBeInTheDocument()
     }
+  })
+
+  it('renders intervention loading and submission-error states', () => {
+    render(
+      <TeacherView
+        summary={demoProfileSummary}
+        profile={demoProfile}
+        flow={demoLearnerFlow}
+        progression={demoCurriculumProgression}
+        intervention={demoTeacherInterventionAction}
+        gaps={teacherContractGaps}
+        dataSource="demo"
+        loading
+        submissionError="Intervention decision failed."
+        onSubmitDecision={() => {}}
+      />,
+    )
+
+    expect(screen.getByText('Refreshing intervention contract…')).toBeInTheDocument()
+    expect(screen.getByText('Intervention decision failed.')).toBeInTheDocument()
   })
 })

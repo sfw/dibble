@@ -56,6 +56,8 @@ These were once frontend-facing needs and are now sufficiently shipped that they
 - Backend commit `93954f9` ("Tighten repair-stage ordinary mastery progression") is aligned with the frontend plan.
 - It strengthens target-scoped durable ordinary mastery lookup and makes `hold_repair_target` more trustworthy.
 - It does not create a new frontend contract gap and does not justify any frontend-owned progression workaround.
+- The latest frontend explainability and label-curation pass also did not surface a new backend blocker; existing backend contracts were sufficient once the UI stopped rendering them so literally.
+- The latest shell-level fallback and handoff continuity pass also did not surface a new backend blocker; current learner workspace, classroom, history, and intervention contracts were sufficient once the frontend made source posture and handoff state more explicit.
 
 ## Frontend Guardrails While These Needs Remain
 

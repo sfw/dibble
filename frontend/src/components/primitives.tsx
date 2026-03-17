@@ -3,6 +3,8 @@ import type {
   LearnerFlowSummary,
 } from '../types'
 import { Badge, type BadgeProps } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
+import { formatContentType, formatContractLabel } from '../lib/formatters'
 
 export function Pill({
   label,
@@ -113,24 +115,55 @@ export function JsonPanel({ title, value }: { title: string; value: unknown }) {
   )
 }
 
+export function PanelNotice({
+  message,
+  tone = 'muted',
+  className,
+}: {
+  message: string
+  tone?: 'muted' | 'error'
+  className?: string
+}) {
+  return (
+    <p className={cn(tone === 'error' ? 'inline-error' : 'muted', className)}>
+      {message}
+    </p>
+  )
+}
+
+export function EmptyState({
+  title,
+  description,
+}: {
+  title: string
+  description: string
+}) {
+  return (
+    <div className="empty-state">
+      <strong>{title}</strong>
+      <p className="muted">{description}</p>
+    </div>
+  )
+}
+
 export function FlowRail({ flow }: { flow: LearnerFlowSummary }) {
   return (
     <div className="flow-rail">
       <div className="flow-step active">
         <span>Phase</span>
-        <strong>{flow.current_phase}</strong>
+        <strong>{formatContractLabel(flow.current_phase)}</strong>
       </div>
       <div className="flow-step active">
         <span>Action</span>
-        <strong>{flow.progression_action}</strong>
+        <strong>{formatContractLabel(flow.progression_action)}</strong>
       </div>
       <div className="flow-step active">
         <span>Stage</span>
-        <strong>{flow.target_stage}</strong>
+        <strong>{formatContractLabel(flow.target_stage)}</strong>
       </div>
       <div className="flow-step">
         <span>Next</span>
-        <strong>{flow.next_step.content_type ?? 'monitor'}</strong>
+        <strong>{formatContentType(flow.next_step.content_type)}</strong>
       </div>
     </div>
   )
@@ -144,20 +177,20 @@ export function FlowSummaryCard({
   return (
     <div className="summary-card">
       <div className="summary-card__topline">
-        <Pill label={summary.status} tone="success" />
-        <Pill label={summary.flow_type} tone="neutral" />
-        <Pill label={summary.target_stage} tone="accent" />
+        <Pill label={formatContractLabel(summary.status)} tone="success" />
+        <Pill label={formatContractLabel(summary.flow_type)} tone="neutral" />
+        <Pill label={formatContractLabel(summary.target_stage)} tone="accent" />
       </div>
-      <h3>{summary.delivered_content_type ?? 'generated content'}</h3>
+      <h3>{formatContentType(summary.delivered_content_type ?? 'generated_content')}</h3>
       <p>{summary.rationale ?? 'No workflow rationale returned.'}</p>
       <div className="summary-card__grid">
         <div>
           <span>Delivered phase</span>
-          <strong>{summary.delivered_phase}</strong>
+          <strong>{formatContractLabel(summary.delivered_phase)}</strong>
         </div>
         <div>
           <span>Progression action</span>
-          <strong>{summary.progression_action}</strong>
+          <strong>{formatContractLabel(summary.progression_action)}</strong>
         </div>
         <div>
           <span>Active targets</span>
@@ -165,7 +198,7 @@ export function FlowSummaryCard({
         </div>
         <div>
           <span>Next content</span>
-          <strong>{summary.next_step.content_type ?? 'monitor'}</strong>
+          <strong>{formatContentType(summary.next_step.content_type)}</strong>
         </div>
       </div>
     </div>

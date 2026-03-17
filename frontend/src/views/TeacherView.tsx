@@ -3,8 +3,15 @@ import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 
-import { InsightCard, JsonPanel, MetricList, Pill, SectionHeader } from '../components/primitives'
-import { formatPercent, formatTimestamp, titleCase } from '../lib/formatters'
+import { InsightCard, JsonPanel, MetricList, PanelNotice, Pill, SectionHeader } from '../components/primitives'
+import {
+  formatContentType,
+  formatContinueAction,
+  formatContractLabel,
+  formatPercent,
+  formatTimestamp,
+  titleCase,
+} from '../lib/formatters'
 import type {
   LearnerCurriculumProgressionSummary,
   LearnerFlowSummary,
@@ -98,14 +105,14 @@ export function TeacherView({
           <div className="teacher-scoreboard">
             <InsightCard
               title="Current recommendation"
-              value={flow.next_step.content_type ?? 'monitor'}
-              detail={`Action ${flow.next_step.action} on ${flow.next_step.target_stage}`}
+              value={formatContentType(flow.next_step.content_type)}
+              detail={`Action ${formatContractLabel(flow.next_step.action)} on ${formatContractLabel(flow.next_step.target_stage)}`}
               rationale={flow.next_step.rationale ?? flow.rationale ?? 'No rationale returned'}
             />
             <InsightCard
               title="Teacher proposal"
-              value={titleCase(intervention.proposal_status)}
-              detail={`Source ${intervention.source}`}
+              value={formatContractLabel(intervention.proposal_status)}
+              detail={`Source ${formatContractLabel(intervention.source)}`}
               rationale={intervention.rationale ?? 'No intervention rationale returned'}
             />
             <InsightCard
@@ -132,16 +139,16 @@ export function TeacherView({
           <div className="stack">
             <article className="summary-card">
               <div className="summary-card__topline">
-                <Pill label={intervention.flow_type} tone="neutral" />
-                <Pill label={intervention.current_phase} tone="accent" />
-                <Pill label={intervention.target_stage} tone="success" />
+                <Pill label={formatContractLabel(intervention.flow_type)} tone="neutral" />
+                <Pill label={formatContractLabel(intervention.current_phase)} tone="accent" />
+                <Pill label={formatContractLabel(intervention.target_stage)} tone="success" />
               </div>
               <h3>{selectedOption?.label ?? 'No intervention option selected'}</h3>
               <p>{selectedOption?.rationale ?? intervention.rationale ?? 'No intervention rationale returned.'}</p>
               <div className="summary-card__grid">
                 <div>
                   <span>Progression action</span>
-                  <strong>{intervention.progression_action}</strong>
+                  <strong>{formatContractLabel(intervention.progression_action)}</strong>
                 </div>
                 <div>
                   <span>Target KCs</span>
@@ -149,11 +156,11 @@ export function TeacherView({
                 </div>
                 <div>
                   <span>Next content</span>
-                  <strong>{intervention.next_step.content_type ?? 'monitor'}</strong>
+                  <strong>{formatContentType(intervention.next_step.content_type)}</strong>
                 </div>
                 <div>
                   <span>Action kind</span>
-                  <strong>{titleCase(selectedOption?.continue_action.kind ?? intervention.proposed_action.kind)}</strong>
+                  <strong>{formatContinueAction(selectedOption?.continue_action.kind ?? intervention.proposed_action.kind)}</strong>
                 </div>
               </div>
             </article>
@@ -173,7 +180,7 @@ export function TeacherView({
                       {option.is_recommended ? <Pill label="recommended" tone="success" /> : null}
                     </div>
                     <p>{option.rationale ?? 'No rationale returned.'}</p>
-                    <span className="muted">{titleCase(option.continue_action.kind)}</span>
+                    <span className="muted">{formatContinueAction(option.continue_action.kind)}</span>
                   </button>
                 )
               })}
@@ -200,8 +207,8 @@ export function TeacherView({
                   {submittingDecision ? 'Saving…' : labelForDecision(decision)}
                 </Button>
               ))}
-              {loading ? <span className="muted">Refreshing intervention contract…</span> : null}
-              {submissionError ? <span className="inline-error">{submissionError}</span> : null}
+              {loading ? <PanelNotice message="Refreshing intervention contract…" /> : null}
+              {submissionError ? <PanelNotice message={submissionError} tone="error" /> : null}
             </div>
 
             {intervention.latest_decision ? (
@@ -210,11 +217,11 @@ export function TeacherView({
                 <div className="summary-card__grid">
                   <div>
                     <span>Decision</span>
-                    <strong>{titleCase(intervention.latest_decision.decision)}</strong>
+                    <strong>{formatContractLabel(intervention.latest_decision.decision)}</strong>
                   </div>
                   <div>
                     <span>Status</span>
-                    <strong>{titleCase(intervention.latest_decision.status)}</strong>
+                    <strong>{formatContractLabel(intervention.latest_decision.status)}</strong>
                   </div>
                   <div>
                     <span>Selected option</span>
@@ -240,15 +247,15 @@ export function TeacherView({
           <div className="two-column-grid">
             <article className="summary-card">
               <div className="summary-card__topline">
-                <Pill label={progression.status} tone="neutral" />
-                <Pill label={progression.current_stage} tone="accent" />
+                <Pill label={formatContractLabel(progression.status)} tone="neutral" />
+                <Pill label={formatContractLabel(progression.current_stage)} tone="accent" />
               </div>
               <h3>{progression.current_resource?.title ?? 'No active curriculum resource'}</h3>
               <p>{progression.rationale ?? 'No curriculum progression rationale returned.'}</p>
               <div className="summary-card__grid">
                 <div>
                   <span>Current action</span>
-                  <strong>{progression.progression_action}</strong>
+                  <strong>{formatContractLabel(progression.progression_action)}</strong>
                 </div>
                 <div>
                   <span>Next resource</span>

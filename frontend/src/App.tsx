@@ -5,6 +5,7 @@ import { resolveContinueActionView, type DataSource, type ViewKey } from './app/
 import { teacherContractGaps } from './sample-data'
 import { WorkspaceHero } from './components/app/WorkspaceHero'
 import { WorkspacePicker } from './components/app/WorkspacePicker'
+import { WorkspaceStatus } from './components/app/WorkspaceStatus'
 import { useGenerationWorkspace } from './hooks/useGenerationWorkspace'
 import { useLearnerContracts } from './hooks/useLearnerContracts'
 import { useLearnerWorkspace } from './hooks/useLearnerWorkspace'
@@ -60,6 +61,11 @@ function App() {
     config,
     onDataSourceChange: setDataSource,
   })
+  const statusNotices = [
+    learnerWorkspace.error,
+    learnerContracts.error,
+    teacherClassroom.error,
+  ].filter(Boolean)
 
   async function handoffClassroomLearner({
     studentId,
@@ -102,6 +108,7 @@ function App() {
         config={config}
         setConfig={setConfig}
       />
+      <WorkspaceStatus dataSource={dataSource} notices={statusNotices} />
 
       <Tabs
         value={activeView}

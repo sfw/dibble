@@ -61,11 +61,18 @@ describe('GenerationView', () => {
 
     expect(sessionInput).toHaveValue('session-stream-check')
     expect(screen.getByText('Streamed block')).toBeInTheDocument()
+    expect(screen.getByText('Targeted Practice')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Generate response' }))
     await user.click(screen.getByRole('button', { name: 'Stream via SSE' }))
 
     expect(onGenerate).toHaveBeenCalledTimes(1)
     expect(onStream).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders the empty stream state copy before streaming begins', () => {
+    render(<GenerationHarness onGenerate={() => {}} onStream={() => {}} />)
+
+    expect(screen.getByText('No stream events yet')).toBeInTheDocument()
   })
 })

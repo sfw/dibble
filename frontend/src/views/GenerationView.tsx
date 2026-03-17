@@ -5,9 +5,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import type { GenerationFormState } from '../app/workspace'
 import { FormActions, FormField, FormGrid, InlineError } from '../components/form-primitives'
-import { FlowSummaryCard, JsonPanel, MetricList, SectionHeader } from '../components/primitives'
+import { EmptyState, FlowSummaryCard, JsonPanel, MetricList, SectionHeader } from '../components/primitives'
 import type { GeneratedBlock, GeneratedContent, GenerationStreamEvent } from '../types'
-import { formatPercent } from '../lib/formatters'
+import { formatContractLabel, formatPercent } from '../lib/formatters'
 
 export function GenerationView(props: {
   form: GenerationFormState
@@ -166,9 +166,9 @@ export function GenerationView(props: {
             <MetricList
               title="Route decision"
               items={[
-                { label: 'Intervention', value: result.response.route.intervention_type },
-                { label: 'Delivery mode', value: result.response.route.delivery_mode },
-                { label: 'Scaffolding', value: result.response.route.scaffolding_level },
+                { label: 'Intervention', value: formatContractLabel(result.response.route.intervention_type) },
+                { label: 'Delivery mode', value: formatContractLabel(result.response.route.delivery_mode) },
+                { label: 'Scaffolding', value: formatContractLabel(result.response.route.scaffolding_level) },
                 {
                   label: 'Latency',
                   value: `${result.quality.generation_latency_ms} ms`,
@@ -184,7 +184,7 @@ export function GenerationView(props: {
               items={[
                 { label: 'Validation passed', value: String(result.quality.validation_passed) },
                 { label: 'Quality score', value: formatPercent(result.quality.quality_score) },
-                { label: 'Moderation', value: result.quality.moderation.status },
+                { label: 'Moderation', value: formatContractLabel(result.quality.moderation.status) },
                 {
                   label: 'Template',
                   value:
@@ -200,7 +200,7 @@ export function GenerationView(props: {
           <div className="reason-list">
             {result.response.route.reasons.map((reason) => (
               <div key={reason} className="reason-pill">
-                {reason}
+                {formatContractLabel(reason)}
               </div>
             ))}
           </div>
@@ -215,7 +215,7 @@ export function GenerationView(props: {
           <div className="block-list">
             {blocksToRender.map((block, index) => (
               <article key={`${block.title}-${index}`} className="content-block">
-                <p className="content-block__kind">{block.kind}</p>
+                <p className="content-block__kind">{formatContractLabel(block.kind)}</p>
                 <h3>{block.title}</h3>
                 <p>{block.body}</p>
               </article>
@@ -254,11 +254,14 @@ export function GenerationView(props: {
           />
           <div className="stream-log">
             {streamEvents.length === 0 ? (
-              <p className="muted">No stream events yet.</p>
+              <EmptyState
+                title="No stream events yet"
+                description="Run the SSE path to inspect progressive delivery and workflow progression events."
+              />
             ) : (
               streamEvents.map((event, index) => (
                 <div key={`${event.event}-${index}`} className="stream-log__item">
-                  <strong>{event.event}</strong>
+                  <strong>{formatContractLabel(event.event)}</strong>
                   <span>
                     {event.chunk?.title ??
                       event.moderation?.status ??

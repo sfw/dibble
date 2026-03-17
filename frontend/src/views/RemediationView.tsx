@@ -6,6 +6,7 @@ import type { RemediationFormState } from '../app/workspace'
 import { FormActions, FormField, FormGrid, InlineError } from '../components/form-primitives'
 import { FlowSummaryLike, JsonPanel, SectionHeader } from '../components/primitives'
 import type { GeneratedContent, RemediationWorkflowAdvanceResponse, RemediationWorkflowSession } from '../types'
+import { formatContentType, formatContractLabel } from '../lib/formatters'
 
 export function RemediationView(props: {
   form: RemediationFormState
@@ -118,11 +119,11 @@ export function RemediationView(props: {
           <FlowSummaryLike
             title="Remediation summary"
             rows={[
-              ['Status', session.summary.status],
-              ['Current phase', session.summary.current_phase ?? 'unknown'],
+              ['Status', formatContractLabel(session.summary.status)],
+              ['Current phase', formatContractLabel(session.summary.current_phase, 'Unknown')],
               ['Current step', session.summary.current_step_title ?? 'unknown'],
-              ['Next phase', session.summary.next_phase ?? 'unknown'],
-              ['Progression decision', session.summary.progression_decision],
+              ['Next phase', formatContractLabel(session.summary.next_phase, 'Unknown')],
+              ['Progression decision', formatContractLabel(session.summary.progression_decision)],
             ]}
           />
           <p className="lead-paragraph">{session.summary.progression_rationale ?? session.rationale}</p>
@@ -130,13 +131,13 @@ export function RemediationView(props: {
             {session.steps.map((step) => (
               <article key={`${step.phase}-${step.title}`} className="timeline__item">
                 <div className="timeline__meta">
-                  <strong>{step.phase}</strong>
-                  <span>{step.status}</span>
+                  <strong>{formatContractLabel(step.phase)}</strong>
+                  <span>{formatContractLabel(step.status)}</span>
                 </div>
                 <h3>{step.title}</h3>
                 <p>{step.guidance}</p>
                 <p className="muted">
-                  Targets: {step.target_kc_ids.join(', ') || 'none'} • {step.recommended_content_type}
+                  Targets: {step.target_kc_ids.join(', ') || 'none'} • {formatContentType(step.recommended_content_type)}
                 </p>
               </article>
             ))}
@@ -163,7 +164,7 @@ export function RemediationView(props: {
           </FormActions>
           {advance ? (
             <p className="muted">
-              Last executed phase: <strong>{advance.executed_phase}</strong>
+              Last executed phase: <strong>{formatContractLabel(advance.executed_phase)}</strong>
             </p>
           ) : null}
         </div>
@@ -179,7 +180,7 @@ export function RemediationView(props: {
           <div className="block-list compact">
             {content.response.blocks.map((block, index) => (
               <article key={`${block.title}-${index}`} className="content-block">
-                <p className="content-block__kind">{block.kind}</p>
+                <p className="content-block__kind">{formatContractLabel(block.kind)}</p>
                 <h3>{block.title}</h3>
                 <p>{block.body}</p>
               </article>

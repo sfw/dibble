@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import type { FrontendConfig } from '../../types'
 import type { DataSource } from '../../app/workspace'
+import { formatContractLabel } from '../../lib/formatters'
 
 export function WorkspaceHero({
   dataSource,
@@ -33,7 +34,7 @@ export function WorkspaceHero({
         <div className="hero-pills">
           <Pill label={`Source: ${dataSource}`} tone={dataSource === 'live' ? 'success' : 'warning'} />
           <Pill label={`Learner: ${learnerId}`} tone="neutral" />
-          <Pill label={`Flow: ${flowType}`} tone="accent" />
+          <Pill label={`Flow: ${formatContractLabel(flowType)}`} tone="accent" />
         </div>
       </div>
       <div className="hero-panel glass-panel">

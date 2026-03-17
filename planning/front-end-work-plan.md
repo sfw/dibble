@@ -159,6 +159,8 @@ These are the highest-signal frontend gaps discovered so far:
 - continue tightening workflow view integration now that generation, Socratic, and remediation screens can hydrate from backend-owned workspace context
 - keep evolving the new learner progression and classroom surfaces toward more curated teacher workflows, especially around teacher triage and learner handoff continuity
 - keep reviewing new backend progression changes against the frontend contract stance so the UI continues trusting backend-owned repair, target, bridge, and transfer decisions
+- keep replacing enum-shaped or debug-shaped frontend copy with more curated explainability summaries built from existing backend contracts
+- keep making live-vs-demo fallback posture explicit in the shell so contract connectivity changes are visible without opening debug panels
 
 ### Next up
 
@@ -227,6 +229,11 @@ These are the highest-signal frontend gaps discovered so far:
 - expanded classroom and teacher view tests to cover the new triage and handoff behavior
 - rebased again onto `origin/main` and reviewed backend commit `93954f9` against the frontend-to-backend plan; it strengthens backend-owned repair-stage progression without creating a new frontend contract gap
 - rewrote `planning/from-front-to-back-needs.md` into a sharper backend marching-orders document that separates active asks, conditional future work, resolved seams, and frontend guardrails
+- added shared frontend formatting and panel-state helpers so backend-owned statuses, actions, and content types render in more product-facing language across overview, classroom, teacher, generation, Socratic, and remediation views
+- expanded view coverage for curated labels plus overview/classroom/teacher loading, error, and empty-history states
+- added a shell-level workspace status surface that makes live connectivity and demo fallback posture visible from the main app chrome
+- added app-level regression coverage for classroom-to-teacher handoff continuity, return-to-classroom flow, learner continue-action routing, and live contract connectivity state
+- curated the remaining overview-screen status, progression, strategy, and accommodation labels so fewer learner surfaces leak backend enum shapes directly
 
 ## Notes For Future Updates
 

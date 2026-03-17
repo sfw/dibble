@@ -29,6 +29,7 @@ describe('ClassroomView', () => {
     expect(screen.getByText('Move from classroom posture to learner action handoff')).toBeInTheDocument()
     expect(screen.getByText('Needs teacher action now')).toBeInTheDocument()
     expect(screen.getByText('Blocked until prerequisites shift')).toBeInTheDocument()
+    expect(screen.getByText('Teacher intervention ready')).toBeInTheDocument()
     expect(screen.getByText('missing-student-id')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Continue generated content' })).toBeInTheDocument()
 
@@ -41,5 +42,24 @@ describe('ClassroomView', () => {
       'generate_follow_up',
     )
     expect(screen.getByText('Debug classroom payload')).toBeInTheDocument()
+  })
+
+  it('renders classroom refresh, error, and empty-queue states', () => {
+    render(
+      <ClassroomView
+        classrooms={demoTeacherClassrooms}
+        selectedClassroomId={demoTeacherClassroom.classroom_id}
+        classroom={{ ...demoTeacherClassroom, learners: [] }}
+        loading
+        error="Classroom contracts failed to refresh."
+        onPickClassroom={() => {}}
+        onOpenTeacher={() => {}}
+        onContinueLearner={() => {}}
+      />,
+    )
+
+    expect(screen.getByText('Refreshing classroom contracts…')).toBeInTheDocument()
+    expect(screen.getByText('Classroom contracts failed to refresh.')).toBeInTheDocument()
+    expect(screen.getAllByText('No learners in this queue').length).toBeGreaterThan(0)
   })
 })

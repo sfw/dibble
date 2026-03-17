@@ -35,11 +35,12 @@ describe('OverviewView', () => {
     expect(screen.getByText('Where this learner sits in the broader curriculum')).toBeInTheDocument()
     expect(screen.getByText('Equivalent Fraction Practice')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open generated content workspace' })).toBeInTheDocument()
+    expect(screen.getAllByText('Continue generated content').length).toBeGreaterThan(0)
     expect(screen.getByText('Recent generated, Socratic, and remediation work')).toBeInTheDocument()
-    expect(screen.getByText('Generated content')).toBeInTheDocument()
-    expect(screen.getByText('check_transfer_readiness')).toBeInTheDocument()
+    expect(screen.getAllByText('Generated content').length).toBeGreaterThan(0)
+    expect(screen.getByText('Check Transfer Readiness')).toBeInTheDocument()
     expect(screen.getByText('Teacher-safe explainability surface')).toBeInTheDocument()
-    expect(screen.getByText('extended_time')).toBeInTheDocument()
+    expect(screen.getByText('Extended Time')).toBeInTheDocument()
     expect(screen.getByText('Debug contract payload')).toBeInTheDocument()
   })
 
@@ -65,5 +66,27 @@ describe('OverviewView', () => {
     )
 
     expect(screen.getByRole('button', { name: 'Open generated content workspace' })).toBeInTheDocument()
+  })
+
+  it('renders contract refresh and empty-history states', () => {
+    render(
+      <OverviewView
+        summary={demoProfileSummary}
+        profile={demoProfile}
+        flow={demoLearnerFlow}
+        workspace={demoLearnerWorkspace}
+        progression={demoCurriculumProgression}
+        generationHistory={[]}
+        socraticHistory={[]}
+        remediationHistory={[]}
+        contractsLoading
+        contractsError="Workspace contracts failed to refresh."
+        onSelectView={() => {}}
+      />,
+    )
+
+    expect(screen.getByText('Refreshing workspace contracts…')).toBeInTheDocument()
+    expect(screen.getByText('Workspace contracts failed to refresh.')).toBeInTheDocument()
+    expect(screen.getAllByText('Nothing to review yet').length).toBeGreaterThan(0)
   })
 })

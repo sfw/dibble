@@ -7,7 +7,7 @@ import { FormActions, FormField, FormGrid, InlineError } from '../components/for
 import { FlowSummaryLike, JsonPanel, SectionHeader } from '../components/primitives'
 import type { SocraticAssessmentResponse, SocraticAssessmentSession } from '../types'
 import { InsightCard } from '../components/primitives'
-import { formatPercent } from '../lib/formatters'
+import { formatContentType, formatContractLabel, formatPercent } from '../lib/formatters'
 
 export function SocraticView(props: {
   form: SocraticFormState
@@ -132,26 +132,26 @@ export function SocraticView(props: {
           <div className="explanation-grid">
             <InsightCard
               title="Prompt style"
-              value={response.prompt_style}
-              detail={`Steering: ${response.steering_action}`}
+              value={formatContractLabel(response.prompt_style)}
+              detail={`Steering: ${formatContractLabel(response.steering_action)}`}
               rationale={response.policy_rationale}
             />
             <InsightCard
               title="Evidence"
-              value={response.evaluation.evidence_strength}
+              value={formatContractLabel(response.evaluation.evidence_strength)}
               detail={`Score ${formatPercent(response.evaluation.evidence_score)}`}
               rationale={response.evaluation.rationale}
             />
             <InsightCard
               title="Next action"
-              value={response.evaluation.next_action}
-              detail={`Session status ${response.summary.status}`}
+              value={formatContractLabel(response.evaluation.next_action)}
+              detail={`Session status ${formatContractLabel(response.summary.status)}`}
               rationale={response.summary.next_step.rationale ?? 'No rationale returned'}
             />
             <InsightCard
               title="Transfer readiness"
-              value={response.summary.next_step.target_stage}
-              detail={`Next content ${response.summary.next_step.content_type ?? 'unknown'}`}
+              value={formatContractLabel(response.summary.next_step.target_stage)}
+              detail={`Next content ${formatContentType(response.summary.next_step.content_type)}`}
               rationale={`Target KCs: ${response.summary.next_step.target_kc_ids.join(', ') || 'none'}`}
             />
           </div>
@@ -170,19 +170,19 @@ export function SocraticView(props: {
           <FlowSummaryLike
             title="Session summary"
             rows={[
-              ['Status', session.summary.status],
+              ['Status', formatContractLabel(session.summary.status)],
               ['Turns', String(session.summary.turn_count)],
-              ['Latest prompt style', session.summary.latest_prompt_style ?? 'unknown'],
-              ['Latest steering action', session.summary.latest_steering_action],
-              ['Latest next action', session.summary.latest_next_action],
+              ['Latest prompt style', formatContractLabel(session.summary.latest_prompt_style, 'Unknown')],
+              ['Latest steering action', formatContractLabel(session.summary.latest_steering_action)],
+              ['Latest next action', formatContractLabel(session.summary.latest_next_action)],
             ]}
           />
           <div className="timeline">
             {session.turns.map((turn) => (
               <article key={turn.turn_id} className="timeline__item">
                 <div className="timeline__meta">
-                  <strong>{turn.prompt_style}</strong>
-                  <span>{turn.steering_action}</span>
+                  <strong>{formatContractLabel(turn.prompt_style)}</strong>
+                  <span>{formatContractLabel(turn.steering_action)}</span>
                 </div>
                 <p>{turn.prompt}</p>
                 {turn.learner_response ? <p className="muted">Learner: {turn.learner_response}</p> : null}

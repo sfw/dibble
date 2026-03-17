@@ -1,8 +1,13 @@
 import { Button } from '@/components/ui/button'
 
 import { labelForView, resolveContinueActionView } from '../app/workspace'
-import { MetricList, Pill, SectionHeader } from '../components/primitives'
-import { formatTimestamp, titleCase } from '../lib/formatters'
+import { EmptyState, MetricList, PanelNotice, Pill, SectionHeader } from '../components/primitives'
+import {
+  formatAttentionReason,
+  formatContinueAction,
+  formatContractLabel,
+  formatTimestamp,
+} from '../lib/formatters'
 import type { TeacherClassroomOverview, TeacherClassroomReadModel, TeacherLearnerCard } from '../types'
 
 export function ClassroomView({
@@ -56,7 +61,9 @@ export function ClassroomView({
                     <strong>{item.title}</strong>
                     <Pill label={`${item.learner_count} learners`} tone="neutral" />
                   </div>
-                  <p>{item.teacher_label ?? 'Unassigned teacher'} • {item.subject ?? 'subject pending'}</p>
+                  <p>
+                    {item.teacher_label ?? 'Unassigned teacher'} • {formatContractLabel(item.subject, 'Subject pending')}
+                  </p>
                   <div className="summary-card__grid">
                     <div>
                       <span>Attention needed</span>
@@ -99,7 +106,10 @@ export function ClassroomView({
                 </div>
                 <div className="classroom-learner-list">
                   {section.learners.length === 0 ? (
-                    <p className="muted">No learners currently match this queue.</p>
+                    <EmptyState
+                      title="No learners in this queue"
+                      description="The backend classroom contract did not return any learners for this triage bucket."
+                    />
                   ) : (
                     section.learners.map((learner) => {
                       const continueView = resolveContinueActionView(learner.current_flow.continue_action.kind)
@@ -111,17 +121,17 @@ export function ClassroomView({
                             <div>
                               <strong>{learner.student_id}</strong>
                               <p className="muted">
-                                Grade {learner.grade_level} • {titleCase(learner.attention_level)} attention
+                                Grade {learner.grade_level} • {formatContractLabel(learner.attention_level)} attention
                               </p>
                             </div>
                             <div className="hero-pills">
-                              <Pill label={learner.current_flow.flow_type} tone="neutral" />
+                              <Pill label={formatContractLabel(learner.current_flow.flow_type)} tone="neutral" />
                               <Pill
-                                label={learner.curriculum_progression.status}
+                                label={formatContractLabel(learner.curriculum_progression.status)}
                                 tone={toneForProgression(learner.curriculum_progression.status)}
                               />
                               <Pill
-                                label={learner.intervention.proposal_status}
+                                label={formatContractLabel(learner.intervention.proposal_status)}
                                 tone={toneForIntervention(learner.intervention.proposal_status)}
                               />
                             </div>
@@ -129,7 +139,7 @@ export function ClassroomView({
                           <div className="summary-card__grid">
                             <div>
                               <span>Current phase</span>
-                              <strong>{learner.current_flow.current_phase}</strong>
+                              <strong>{formatContractLabel(learner.current_flow.current_phase)}</strong>
                             </div>
                             <div>
                               <span>Current resource</span>
@@ -137,7 +147,7 @@ export function ClassroomView({
                             </div>
                             <div>
                               <span>Recommended teacher action</span>
-                              <strong>{titleCase(learner.intervention.recommended_action_kind)}</strong>
+                              <strong>{formatContinueAction(learner.intervention.recommended_action_kind)}</strong>
                             </div>
                             <div>
                               <span>Next learner handoff</span>
@@ -147,7 +157,7 @@ export function ClassroomView({
                           <p>{describeLearnerRationale(learner)}</p>
                           <div className="action-row">
                             {learner.attention_reasons.map((reason) => (
-                              <Pill key={reason} label={reason} tone="warning" />
+                              <Pill key={reason} label={formatAttentionReason(reason)} tone="warning" />
                             ))}
                             <Button
                               type="button"
@@ -193,7 +203,7 @@ export function ClassroomView({
             title={classroom.title}
             items={[
               { label: 'Teacher', value: classroom.teacher_label ?? 'Unassigned' },
-              { label: 'Subject', value: classroom.subject ?? 'Unknown' },
+              { label: 'Subject', value: formatContractLabel(classroom.subject, 'Unknown') },
               { label: 'Learners', value: String(classroom.learner_count) },
               { label: 'Active flows', value: String(classroom.active_flow_count) },
               { label: 'Interventions', value: String(classroom.intervention_available_count) },
@@ -222,12 +232,12 @@ export function ClassroomView({
         ) : null}
         {loading ? (
           <div className="panel">
-            <p className="muted">Refreshing classroom contracts…</p>
+            <PanelNotice message="Refreshing classroom contracts…" />
           </div>
         ) : null}
         {error ? (
           <div className="panel">
-            <p className="inline-error">{error}</p>
+            <PanelNotice message={error} tone="error" />
           </div>
         ) : null}
         {showDebugPanels ? (
@@ -287,7 +297,7 @@ function buildTriageSections(learners: TeacherLearnerCard[]): Array<{
 function describeLearnerRationale(learner: TeacherLearnerCard): string {
   return (
     learner.intervention.latest_decision_status
-      ? `Latest teacher decision: ${titleCase(learner.intervention.latest_decision_status)}.`
+      ? `Latest teacher decision: ${formatContractLabel(learner.intervention.latest_decision_status)}.`
       : learner.curriculum_progression.rationale ??
         learner.current_flow.next_step.rationale ??
         learner.current_flow.rationale
