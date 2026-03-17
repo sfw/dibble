@@ -1,4 +1,4 @@
-export type ViewKey = 'overview' | 'generation' | 'socratic' | 'remediation' | 'teacher'
+export type ViewKey = 'overview' | 'generation' | 'socratic' | 'remediation' | 'teacher' | 'classroom'
 export type DataSource = 'live' | 'demo'
 
 export interface GenerationFormState {

@@ -1,10 +1,33 @@
 export type SignalLevel = 'none' | 'low' | 'medium' | 'high'
+export type ContinueActionKind = 'idle' | 'generate_follow_up' | 'advance_remediation' | 'continue_socratic'
+export type ContinueActionMethod = 'POST'
+export type TeacherInterventionProposalStatus = 'unavailable' | 'available'
+export type TeacherInterventionDecision = 'approve' | 'select_option' | 'defer' | 'escalate_human'
+export type TeacherInterventionDecisionStatus =
+  | 'approved'
+  | 'option_selected'
+  | 'deferred'
+  | 'escalated_human'
 
 export interface LearnerFlowNextStep {
   action: string
   content_type?: string | null
   target_stage: string
   target_kc_ids: string[]
+  rationale?: string | null
+}
+
+export interface LearnerContinueAction {
+  kind: ContinueActionKind
+  method?: ContinueActionMethod | null
+  endpoint?: string | null
+  resource_id?: string | null
+  generation_id?: string | null
+  learning_session_id?: string | null
+  content_type?: string | null
+  target_stage: string
+  target_kc_ids: string[]
+  request_payload: Record<string, unknown>
   rationale?: string | null
 }
 
@@ -133,7 +156,44 @@ export interface LearnerFlowSummary {
   session_arc_action: string
   session_stuck_loop_risk: string
   rationale?: string | null
+  progression_source: string
+  next_step_source: string
   next_step: LearnerFlowNextStep
+  continue_action: LearnerContinueAction
+  updated_at?: string | null
+}
+
+export interface CurriculumResourceProgressSummary {
+  resource_id: string
+  title: string
+  state: string
+  learning_objective_ids: string[]
+  knowledge_component_ids: string[]
+  blocked_prerequisite_kc_ids: string[]
+  mastery_ratio: number
+  current_flow_aligned: boolean
+  target_stage: string
+  rationale?: string | null
+}
+
+export interface LearnerCurriculumProgressionSummary {
+  status: string
+  source: string
+  flow_type: string
+  current_stage: string
+  progression_action: string
+  active_target_kc_ids: string[]
+  resource_count: number
+  mastered_resource_count: number
+  ready_resource_count: number
+  blocked_resource_count: number
+  active_resource_count: number
+  mastered_resource_ratio: number
+  current_resource?: CurriculumResourceProgressSummary | null
+  next_resource?: CurriculumResourceProgressSummary | null
+  blocked_resources: CurriculumResourceProgressSummary[]
+  ready_resources: CurriculumResourceProgressSummary[]
+  rationale?: string | null
   updated_at?: string | null
 }
 
@@ -155,6 +215,7 @@ export interface ProfileSummary {
   trait_profile: LearnerTraitProfileSummary
   recent_activity: RecentLearnerActivity
   current_flow: LearnerFlowSummary
+  curriculum_progression: LearnerCurriculumProgressionSummary
   updated_at: string
 }
 
@@ -288,6 +349,7 @@ export interface GenerationWorkflowSummary {
   active_target_kc_ids: string[]
   rationale?: string | null
   next_step: LearnerFlowNextStep
+  continue_action: LearnerContinueAction
 }
 
 export interface GeneratedContent {
@@ -334,6 +396,7 @@ export interface SocraticSessionSummary {
   latest_evidence_score: number
   rationale?: string | null
   next_step: LearnerFlowNextStep
+  continue_action: LearnerContinueAction
   updated_at?: string | null
 }
 
@@ -412,7 +475,12 @@ export interface RemediationWorkflowSummary {
   progression_decision: string
   progression_rationale?: string | null
   progression_target_kc_ids: string[]
+  progression_evidence_observation_count: number
+  progression_evidence_confidence: number
+  progression_average_observed_mastery?: number | null
+  progression_low_support_success_count: number
   next_step: LearnerFlowNextStep
+  continue_action: LearnerContinueAction
 }
 
 export interface KcSequenceSummary {
@@ -442,6 +510,10 @@ export interface RemediationWorkflowSession {
   progression_decision: string
   progression_rationale?: string | null
   progression_target_kc_ids: string[]
+  progression_evidence_observation_count: number
+  progression_evidence_confidence: number
+  progression_average_observed_mastery?: number | null
+  progression_low_support_success_count: number
   summary: RemediationWorkflowSummary
   created_at: string
   updated_at: string
@@ -467,6 +539,171 @@ export interface GenerationStreamEvent {
   moderation?: GenerationMetadata['moderation']
   validation_issues?: string[]
   response?: GeneratedContent['response']
+}
+
+export interface LearnerWorkspaceArtifact {
+  kind: string
+  resource_id?: string | null
+  generation_id?: string | null
+  learning_session_id?: string | null
+  flow_type: string
+  status: string
+  current_phase: string
+  content_type?: string | null
+  rationale?: string | null
+}
+
+export interface LearnerWorkspace {
+  student_id: string
+  summary: ProfileSummary
+  active_artifact: LearnerWorkspaceArtifact
+  continue_action: LearnerContinueAction
+  generated_content?: GeneratedContent | null
+  remediation_session?: RemediationWorkflowSession | null
+  socratic_session?: SocraticAssessmentSession | null
+}
+
+export interface LearnerGenerationHistoryEntry {
+  generation_id: string
+  learning_session_id?: string | null
+  source_generation_id?: string | null
+  content_type: string
+  flow_type: string
+  status: string
+  delivered_phase: string
+  progression_action: string
+  target_stage: string
+  active_target_kc_ids: string[]
+  intervention_type?: string | null
+  rationale?: string | null
+  next_step: LearnerFlowNextStep
+  continue_action: LearnerContinueAction
+  created_at: string
+}
+
+export interface LearnerSocraticSessionHistoryEntry {
+  session_id: string
+  learning_session_id?: string | null
+  target_kc_ids: string[]
+  target_lo_ids: string[]
+  status: string
+  turn_count: number
+  latest_prompt_style?: string | null
+  latest_steering_action: string
+  latest_next_action: string
+  latest_evidence_strength: string
+  rationale?: string | null
+  next_step: LearnerFlowNextStep
+  continue_action: LearnerContinueAction
+  created_at: string
+  updated_at: string
+}
+
+export interface LearnerRemediationSessionHistoryEntry {
+  session_id: string
+  target_kc_id: string
+  focus_kc_ids: string[]
+  prerequisite_kc_ids: string[]
+  latest_generation_id?: string | null
+  status: string
+  current_phase?: string | null
+  completed_step_count: number
+  step_count: number
+  progression_decision: string
+  progression_rationale?: string | null
+  next_step: LearnerFlowNextStep
+  continue_action: LearnerContinueAction
+  created_at: string
+  updated_at: string
+}
+
+export interface TeacherInterventionOption {
+  option_id: string
+  label: string
+  rationale?: string | null
+  is_recommended: boolean
+  continue_action: LearnerContinueAction
+}
+
+export interface TeacherInterventionDecisionRecord {
+  action_key: string
+  decision_id: string
+  decision: TeacherInterventionDecision
+  status: TeacherInterventionDecisionStatus
+  selected_option_id?: string | null
+  note?: string | null
+  decided_by?: string | null
+  decided_role?: string | null
+  decided_at: string
+  execution_action: LearnerContinueAction
+}
+
+export interface TeacherInterventionActionContract {
+  action_key: string
+  proposal_status: TeacherInterventionProposalStatus
+  flow_type: string
+  learning_session_id?: string | null
+  remediation_session_id?: string | null
+  socratic_session_id?: string | null
+  progression_action: string
+  target_stage: string
+  active_target_kc_ids: string[]
+  current_phase: string
+  rationale?: string | null
+  source: string
+  next_step: LearnerFlowNextStep
+  proposed_action: LearnerContinueAction
+  available_options: TeacherInterventionOption[]
+  allowed_decisions: TeacherInterventionDecision[]
+  latest_decision?: TeacherInterventionDecisionRecord | null
+  updated_at?: string | null
+}
+
+export interface TeacherInterventionDecisionRequest {
+  decision: TeacherInterventionDecision
+  option_id?: string | null
+  note?: string | null
+}
+
+export interface TeacherLearnerInterventionSummary {
+  action_key: string
+  proposal_status: TeacherInterventionProposalStatus
+  recommended_action_kind: ContinueActionKind
+  option_count: number
+  latest_decision_status?: TeacherInterventionDecisionStatus | null
+}
+
+export interface TeacherLearnerCard {
+  student_id: string
+  grade_level: string
+  engagement: string
+  frustration: string
+  current_flow: LearnerFlowSummary
+  curriculum_progression: LearnerCurriculumProgressionSummary
+  recent_activity: RecentLearnerActivity
+  intervention: TeacherLearnerInterventionSummary
+  attention_level: string
+  attention_reasons: string[]
+}
+
+export interface TeacherClassroomOverview {
+  classroom_id: string
+  title: string
+  teacher_label?: string | null
+  grade_level?: string | null
+  subject?: string | null
+  learner_count: number
+  active_flow_count: number
+  intervention_available_count: number
+  blocked_progression_count: number
+  attention_needed_count: number
+  missing_learner_count: number
+  updated_at?: string | null
+}
+
+export interface TeacherClassroomReadModel extends TeacherClassroomOverview {
+  missing_student_ids: string[]
+  learners: TeacherLearnerCard[]
 }
 
 export interface TeacherContractGap {

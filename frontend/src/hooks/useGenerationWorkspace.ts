@@ -1,20 +1,28 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { generateContent, streamGeneration } from '../api'
 import type { DataSource, GenerationFormState } from '../app/workspace'
-import { buildGenerationPayload, applyStreamChunk } from '../lib/forms'
+import { initialGenerationForm } from '../app/workspace'
+import { applyStreamChunk, buildGenerationFormFromWorkspace, buildGenerationPayload } from '../lib/forms'
 import { asMessage } from '../lib/formatters'
 import { demoGeneration } from '../sample-data'
-import type { FrontendConfig, GeneratedBlock, GeneratedContent, GenerationStreamEvent } from '../types'
-import { initialGenerationForm } from '../app/workspace'
+import type {
+  FrontendConfig,
+  GeneratedBlock,
+  GeneratedContent,
+  GenerationStreamEvent,
+  LearnerWorkspace,
+} from '../types'
 
 export function useGenerationWorkspace({
   config,
   learnerId,
+  workspace,
   onDataSourceChange,
 }: {
   config: FrontendConfig
   learnerId: string
+  workspace: LearnerWorkspace
   onDataSourceChange: (source: DataSource) => void
 }) {
   const [form, setForm] = useState<GenerationFormState>(initialGenerationForm)
@@ -24,6 +32,14 @@ export function useGenerationWorkspace({
   const [streaming, setStreaming] = useState(false)
   const [streamEvents, setStreamEvents] = useState<GenerationStreamEvent[]>([])
   const [streamedBlocks, setStreamedBlocks] = useState<GeneratedBlock[]>([])
+
+  useEffect(() => {
+    setForm(buildGenerationFormFromWorkspace(workspace, initialGenerationForm))
+    setResult(workspace.generated_content ?? demoGeneration)
+    setError('')
+    setStreamEvents([])
+    setStreamedBlocks([])
+  }, [workspace])
 
   const handleGenerate = useCallback(async () => {
     setLoading(true)

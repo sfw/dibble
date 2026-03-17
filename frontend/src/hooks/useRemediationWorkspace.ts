@@ -1,14 +1,20 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { advanceRemediationSession, getRemediationSession, triggerRemediation } from '../api'
 import type { DataSource, RemediationFormState } from '../app/workspace'
 import { initialRemediationAdvancePrompt, initialRemediationForm } from '../app/workspace'
-import { nullableText, parseList } from '../lib/forms'
+import {
+  buildRemediationAdvancePromptFromWorkspace,
+  buildRemediationFormFromWorkspace,
+  nullableText,
+  parseList,
+} from '../lib/forms'
 import { asMessage } from '../lib/formatters'
 import { demoGeneration, demoRemediationSession } from '../sample-data'
 import type {
   FrontendConfig,
   GeneratedContent,
+  LearnerWorkspace,
   RemediationWorkflowAdvanceResponse,
   RemediationWorkflowSession,
 } from '../types'
@@ -16,10 +22,12 @@ import type {
 export function useRemediationWorkspace({
   config,
   learnerId,
+  workspace,
   onDataSourceChange,
 }: {
   config: FrontendConfig
   learnerId: string
+  workspace: LearnerWorkspace
   onDataSourceChange: (source: DataSource) => void
 }) {
   const [form, setForm] = useState<RemediationFormState>(initialRemediationForm)
@@ -29,6 +37,15 @@ export function useRemediationWorkspace({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [advancePrompt, setAdvancePrompt] = useState(initialRemediationAdvancePrompt)
+
+  useEffect(() => {
+    setForm(buildRemediationFormFromWorkspace(workspace, initialRemediationForm))
+    setSession(workspace.remediation_session ?? demoRemediationSession)
+    setContent(workspace.generated_content ?? demoGeneration)
+    setAdvance(null)
+    setAdvancePrompt(buildRemediationAdvancePromptFromWorkspace(workspace, initialRemediationAdvancePrompt))
+    setError('')
+  }, [workspace])
 
   const handleTrigger = useCallback(async () => {
     setLoading(true)

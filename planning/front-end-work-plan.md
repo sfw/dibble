@@ -39,6 +39,15 @@ Stable frontend-facing read models already available:
 - `GET /api/learners/{student_id}/summary`
 - `GET /api/learners/{student_id}/flow`
 - `GET /api/learners/{student_id}/profile`
+- `GET /api/learners/{student_id}/progression`
+- `GET /api/learners/{student_id}/workspace`
+- `GET /api/learners/{student_id}/history/generations`
+- `GET /api/learners/{student_id}/history/socratic-sessions`
+- `GET /api/learners/{student_id}/history/remediation-sessions`
+- `GET /api/learners/{student_id}/intervention-action`
+- `POST /api/learners/{student_id}/intervention-action`
+- `GET /api/teachers/classrooms`
+- `GET /api/teachers/classrooms/{classroom_id}`
 - `POST /api/content/generate` with `workflow_summary`
 - `POST /api/llm/stream`
 - `POST /api/assessments/socratic` with canonical session `summary`
@@ -47,18 +56,21 @@ Stable frontend-facing read models already available:
 - `GET /api/remedial/sessions/{session_id}`
 - `POST /api/remedial/sessions/{session_id}/advance`
 
+Recent contract-hardening additions:
+
+- machine-readable backend error codes are now available in both the response body `code` field and the `X-Dibble-Error-Code` header
+- learner progression parity is now protected across `/progression`, `summary.curriculum_progression`, and teacher classroom learner cards
+- `continue_action` and teacher intervention vocabularies are now explicit backend-owned sets rather than loose cross-surface strings
+
 ## Missing Or Incomplete Items
 
 These are the highest-signal frontend gaps discovered so far:
 
 | Priority | Gap | Impact on frontend |
 |---|---|---|
-| P0 | No teacher override / approval write contract | Teacher intervention UI must stay advisory for now |
-| P0 | No cohort / classroom dashboard read model | First teacher UI should be learner-detail focused |
-| P1 | No history/list endpoints for sessions or generated runs per learner | Session review must rely on known IDs or current active context |
-| P1 | Progression orchestration is still local rather than full course-owned | UI must trust `current_flow` and workflow summaries, not invent lesson progression |
+| P1 | Course-level progression planning is still intentionally lighter than a true course planner | UI should trust learner `curriculum_progression` and avoid inventing cross-unit sequencing logic |
 | P2 | No multimodal artifact payload contract | UI should keep content cards extensible without assuming diagrams or interactives yet |
-| P2 | Teacher-safe analytics are summary-based, not dashboard-grade | Explainability should come from compact read models rather than admin telemetry |
+| P2 | Teacher-safe analytics are classroom-card oriented, not dashboard-grade | Teacher views should build on classroom summaries and learner cards rather than admin telemetry |
 
 ## Execution Priorities
 
@@ -78,11 +90,19 @@ These are the highest-signal frontend gaps discovered so far:
 ### P1: formalize backend asks from the frontend stream
 
 - Keep a dedicated `planning/from-front-to-back-needs.md` document updated with frontend-discovered contract needs.
-- Record missing teacher intervention, history, and dashboard contracts there rather than letting them drift across chat and code comments.
+- Record remaining multimodal, analytics, and longer-horizon progression gaps there rather than letting them drift across chat and code comments.
+
+### P1: implement newly available backend-owned contracts
+
+- Add learner workspace resume and continue flows using `GET /api/learners/{student_id}/workspace`.
+- Add learner-scoped generation, Socratic-session, and remediation-session history surfaces.
+- Replace advisory-only teacher intervention messaging with the real intervention-action contract and write path.
+- Add learner curriculum progression surfaces using `GET /api/learners/{student_id}/progression` and `summary.curriculum_progression`.
+- Add teacher classroom surfaces using `GET /api/teachers/classrooms` and `GET /api/teachers/classrooms/{classroom_id}`.
 
 ### P2: polish higher-level product surfaces
 
-- Improve teacher-facing intervention language so advisory states are clear even without write contracts.
+- Improve teacher-facing intervention language now that backend-owned teacher decisions and selectable options exist.
 - Replace raw JSON-first payload inspection with more curated explainability summaries where possible.
 - Continue making the UI resilient to richer artifact types without assuming they already exist.
 
@@ -91,8 +111,10 @@ These are the highest-signal frontend gaps discovered so far:
 ### Product / Contract
 
 - Treat `current_flow` and workflow/session summaries as the source of truth for UI state.
+- Treat `curriculum_progression` as the source of truth for broader learner resource posture.
 - Do not reconstruct learner state from audit logs or internal request context unless there is no alternative.
 - Keep teacher-facing decisions explainable with explicit rationale, confidence, and next-step metadata.
+- Prefer backend-owned `continue_action`, learner workspace, learner history, learner progression, intervention-action, and classroom contracts over frontend-inferred resume, sequencing, or aggregation flows.
 
 ### Frontend Architecture
 
@@ -131,16 +153,17 @@ These are the highest-signal frontend gaps discovered so far:
 
 ### In progress
 
-- reduce reliance on legacy app-shell CSS without destabilizing current screens
 - keep frontend-originated backend needs captured in a dedicated planning document
-- continue tightening shared screen-level primitives so new views do not reintroduce raw control patterns
+- continue reducing legacy app-shell CSS where layout patterns are still duplicated
+- continue tightening workflow view integration now that generation, Socratic, and remediation screens can hydrate from backend-owned workspace context
+- keep evolving the new learner progression and classroom surfaces toward more curated teacher workflows
 
 ### Next up
 
-1. continue reducing legacy CSS by migrating repeated screen containers and layout helpers onto shared primitives where it improves clarity
-2. add deeper behavioral tests around live/demo fallback transitions and streamed generation behavior
-3. consider whether overview and teacher surfaces need curated explainability components in place of raw JSON panels
-4. track backend changes for teacher intervention, learner history, and classroom-level read models
+1. refine the new classroom workspace into a stronger teacher triage flow with clearer learner drill-in and action handoff
+2. add deeper behavioral tests around live/demo fallback transitions, teacher intervention decision states, progression surfaces, classroom views, and the new resume/history flows
+3. continue reducing legacy CSS by migrating repeated screen containers and layout helpers onto shared primitives where it improves clarity
+4. curate more explainability-first summaries so fewer product surfaces depend on raw debug payload inspection
 5. keep this work plan and `from-front-to-back-needs.md` updated together
 
 ## Completed
@@ -172,6 +195,29 @@ These are the highest-signal frontend gaps discovered so far:
 - gated raw contract payload panels behind an explicit debug setting instead of presenting them as always-on product UI
 - replaced the remaining raw workspace toggle with a shared `Switch` primitive
 - removed unused frontend assets and dead tab-era styling leftovers
+- rebased the frontend branch onto a newer `main` that now includes learner workspace, learner history, continue-action, normalized API error, and teacher intervention contracts
+- extended the frontend read models and API adapters to support learner workspace, learner history, normalized intervention contracts, and teacher intervention writes
+- refactored learner loading to use the backend-owned workspace payload as the source for summary and current-flow state
+- added a dedicated learner-contracts hook for generation history, Socratic history, remediation history, and teacher intervention state
+- upgraded the overview screen to show backend-owned workspace resume state plus learner history across generated, Socratic, and remediation workflows
+- replaced the advisory-only teacher surface with a real intervention contract view that supports backend decision recording
+- expanded tests to cover the new workspace/intervention API adapters and the upgraded overview and teacher screens
+- verified the frontend passes tests, lint, and production build after integrating the newer backend contracts
+- rebased again onto a newer `main` that now also includes learner curriculum progression and teacher classroom read models
+- rebased onto a newer `main` that also hardens machine-readable error bodies, progression parity, and workflow-facing contract vocabularies
+- extended the frontend contract layer with typed learner progression and teacher classroom adapters plus demo data coverage
+- surfaced learner curriculum progression in the overview and teacher detail screens
+- added an initial classroom workspace backed by the teacher classroom overview/detail contracts
+- expanded tests to cover learner progression adapters, teacher classroom adapters, and the new classroom screen
+- verified the frontend still passes tests, lint, and production build after the progression/classroom integration pass
+- aligned frontend types, demo data, error handling, and teacher/continue-action behavior with the hardened backend workflow vocabularies
+- added regression coverage for machine-readable backend error codes and idle-workspace resume routing
+- fixed classroom-to-learner drill-in so learner contract loading can target the selected learner explicitly
+- verified the frontend still passes tests, lint, and production build after the contract-alignment pass
+- hydrated generation, Socratic, and remediation workspace forms from the backend-owned learner workspace contract
+- reused workspace-owned generated content and session state so the workflow tabs reopen with learner-specific context instead of static defaults
+- expanded form-helper tests to cover workspace-driven hydration
+- verified the frontend still passes tests, lint, and production build after the workspace-hydration pass
 
 ## Notes For Future Updates
 

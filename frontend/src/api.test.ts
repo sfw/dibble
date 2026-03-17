@@ -1,7 +1,25 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { generateContent, getLearnerSummary, streamGeneration } from './api'
-import { defaultConfig, demoGeneration, demoProfileSummary } from './sample-data'
+import {
+  generateContent,
+  getLearnerProgression,
+  getLearnerSummary,
+  getTeacherClassroom,
+  getTeacherClassrooms,
+  getLearnerWorkspace,
+  recordTeacherInterventionAction,
+  streamGeneration,
+} from './api'
+import {
+  defaultConfig,
+  demoGeneration,
+  demoCurriculumProgression,
+  demoTeacherClassroom,
+  demoTeacherClassrooms,
+  demoLearnerWorkspace,
+  demoProfileSummary,
+  demoTeacherInterventionAction,
+} from './sample-data'
 
 const fetchMock = vi.fn<typeof fetch>()
 
@@ -76,6 +94,117 @@ describe('api contract helpers', () => {
         },
         body: JSON.stringify(payload),
       }),
+    )
+  })
+
+  it('requests learner workspace and intervention decision contracts from the new learner endpoints', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(demoLearnerWorkspace))
+      .mockResolvedValueOnce(jsonResponse(demoTeacherInterventionAction))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const config = {
+      ...defaultConfig,
+      baseUrl: 'https://api.example.com',
+      apiKey: 'test-key',
+    }
+
+    const workspace = await getLearnerWorkspace(config, demoProfileSummary.student_id)
+    const intervention = await recordTeacherInterventionAction(config, demoProfileSummary.student_id, {
+      decision: 'approve',
+      option_id: null,
+      note: 'Looks right for this learner.',
+    })
+
+    expect(workspace.active_artifact.kind).toBe('generated_content')
+    expect(intervention.action_key).toBe(demoTeacherInterventionAction.action_key)
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      `https://api.example.com/api/learners/${demoProfileSummary.student_id}/workspace`,
+      expect.objectContaining({
+        headers: {
+          'X-API-Key': 'test-key',
+        },
+      }),
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      `https://api.example.com/api/learners/${demoProfileSummary.student_id}/intervention-action`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          decision: 'approve',
+          option_id: null,
+          note: 'Looks right for this learner.',
+        }),
+      }),
+    )
+  })
+
+  it('loads learner progression and teacher classroom contracts', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(demoCurriculumProgression))
+      .mockResolvedValueOnce(jsonResponse(demoTeacherClassrooms))
+      .mockResolvedValueOnce(jsonResponse(demoTeacherClassroom))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const config = {
+      ...defaultConfig,
+      baseUrl: 'https://api.example.com',
+      apiKey: 'test-key',
+    }
+
+    const progression = await getLearnerProgression(config, demoProfileSummary.student_id)
+    const classrooms = await getTeacherClassrooms(config)
+    const classroom = await getTeacherClassroom(config, demoTeacherClassroom.classroom_id)
+
+    expect(progression.status).toBe('active_curriculum_focus')
+    expect(classrooms[0]?.classroom_id).toBe(demoTeacherClassroom.classroom_id)
+    expect(classroom.learners).toHaveLength(2)
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      `https://api.example.com/api/learners/${demoProfileSummary.student_id}/progression`,
+      expect.anything(),
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'https://api.example.com/api/teachers/classrooms',
+      expect.anything(),
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      `https://api.example.com/api/teachers/classrooms/${demoTeacherClassroom.classroom_id}`,
+      expect.anything(),
+    )
+  })
+
+  it('surfaces machine-readable backend error codes from the response body or header', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ detail: 'Learner not found', code: 'learner_not_found' }), {
+          status: 404,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Dibble-Error-Code': 'ignored_header_code',
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response('Unavailable', {
+          status: 503,
+          statusText: 'Service Unavailable',
+          headers: {
+            'X-Dibble-Error-Code': 'service_unavailable',
+          },
+        }),
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(getLearnerWorkspace(defaultConfig, demoProfileSummary.student_id)).rejects.toThrow(
+      'Learner not found (learner_not_found)',
+    )
+    await expect(getLearnerWorkspace(defaultConfig, demoProfileSummary.student_id)).rejects.toThrow(
+      '503 Service Unavailable (service_unavailable)',
     )
   })
 

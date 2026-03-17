@@ -3,13 +3,22 @@ import type {
   GeneratedContent,
   GenerationRequestPayload,
   GenerationStreamEvent,
+  LearnerCurriculumProgressionSummary,
+  LearnerGenerationHistoryEntry,
   LearnerFlowSummary,
   LearnerProfileV2,
+  LearnerRemediationSessionHistoryEntry,
+  LearnerSocraticSessionHistoryEntry,
+  LearnerWorkspace,
   ProfileSummary,
   RemediationWorkflowAdvanceResponse,
   RemediationWorkflowSession,
   SocraticAssessmentResponse,
   SocraticAssessmentSession,
+  TeacherClassroomOverview,
+  TeacherClassroomReadModel,
+  TeacherInterventionActionContract,
+  TeacherInterventionDecisionRequest,
 } from './types'
 
 function buildHeaders(config: FrontendConfig, contentType = true): HeadersInit {
@@ -41,11 +50,16 @@ async function requestJson<T>(
 }
 
 async function extractError(response: Response): Promise<string> {
+  const headerCode = response.headers.get('X-Dibble-Error-Code')
   try {
-    const payload = (await response.json()) as { detail?: string }
-    return payload.detail ?? `${response.status} ${response.statusText}`
+    const payload = (await response.json()) as { detail?: string; code?: string }
+    const code = payload.code ?? headerCode
+    if (code && payload.detail) {
+      return `${payload.detail} (${code})`
+    }
+    return payload.detail ?? code ?? `${response.status} ${response.statusText}`
   } catch {
-    return `${response.status} ${response.statusText}`
+    return headerCode ? `${response.status} ${response.statusText} (${headerCode})` : `${response.status} ${response.statusText}`
   }
 }
 
@@ -71,6 +85,90 @@ export function getLearnerFlow(config: FrontendConfig, studentId: string) {
   return requestJson<LearnerFlowSummary>(config, `/api/learners/${studentId}/flow`, {
     headers: buildHeaders(config, false),
   })
+}
+
+export function getLearnerWorkspace(config: FrontendConfig, studentId: string) {
+  return requestJson<LearnerWorkspace>(config, `/api/learners/${studentId}/workspace`, {
+    headers: buildHeaders(config, false),
+  })
+}
+
+export function getLearnerProgression(config: FrontendConfig, studentId: string) {
+  return requestJson<LearnerCurriculumProgressionSummary>(
+    config,
+    `/api/learners/${studentId}/progression`,
+    {
+      headers: buildHeaders(config, false),
+    },
+  )
+}
+
+export function getGenerationHistory(config: FrontendConfig, studentId: string, limit = 20) {
+  return requestJson<LearnerGenerationHistoryEntry[]>(
+    config,
+    `/api/learners/${studentId}/history/generations?limit=${limit}`,
+    {
+      headers: buildHeaders(config, false),
+    },
+  )
+}
+
+export function getSocraticHistory(config: FrontendConfig, studentId: string, limit = 20) {
+  return requestJson<LearnerSocraticSessionHistoryEntry[]>(
+    config,
+    `/api/learners/${studentId}/history/socratic-sessions?limit=${limit}`,
+    {
+      headers: buildHeaders(config, false),
+    },
+  )
+}
+
+export function getRemediationHistory(config: FrontendConfig, studentId: string, limit = 20) {
+  return requestJson<LearnerRemediationSessionHistoryEntry[]>(
+    config,
+    `/api/learners/${studentId}/history/remediation-sessions?limit=${limit}`,
+    {
+      headers: buildHeaders(config, false),
+    },
+  )
+}
+
+export function getTeacherInterventionAction(config: FrontendConfig, studentId: string) {
+  return requestJson<TeacherInterventionActionContract>(
+    config,
+    `/api/learners/${studentId}/intervention-action`,
+    {
+      headers: buildHeaders(config, false),
+    },
+  )
+}
+
+export function getTeacherClassrooms(config: FrontendConfig) {
+  return requestJson<TeacherClassroomOverview[]>(config, '/api/teachers/classrooms', {
+    headers: buildHeaders(config, false),
+  })
+}
+
+export function getTeacherClassroom(config: FrontendConfig, classroomId: string) {
+  return requestJson<TeacherClassroomReadModel>(config, `/api/teachers/classrooms/${classroomId}`, {
+    headers: buildHeaders(config, false),
+  })
+}
+
+export function recordTeacherInterventionAction(
+  config: FrontendConfig,
+  studentId: string,
+  payload: TeacherInterventionDecisionRequest,
+) {
+  return requestJson<TeacherInterventionActionContract>(
+    config,
+    `/api/learners/${studentId}/intervention-action`,
+    {
+      method: 'POST',
+      headers: buildHeaders(config),
+      body: JSON.stringify(payload),
+    },
+  )
 }
 
 export function generateContent(config: FrontendConfig, payload: GenerationRequestPayload) {

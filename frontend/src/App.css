@@ -115,7 +115,10 @@
 .summary-card__topline,
 .grounding-card__header,
 .timeline__meta,
-.gap-card__header {
+.gap-card__header,
+.resume-card__header,
+.option-card__header,
+.history-card__meta {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
@@ -134,10 +137,13 @@
 .insight-card,
 .metric-list-card,
 .summary-card,
+.resume-card,
 .prompt-card,
 .content-block,
 .grounding-card,
-.gap-card {
+.gap-card,
+.history-card,
+.option-card {
   border: 1px solid var(--border-soft);
   border-radius: 1.1rem;
   background: var(--surface-card);
@@ -265,10 +271,77 @@
 .block-list,
 .stack,
 .gap-list,
-.timeline {
+.timeline,
+.history-list {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+.history-grid,
+.option-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.classroom-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.classroom-learner-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.history-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.history-card__meta {
+  align-items: flex-start;
+}
+
+.history-card__meta span {
+  color: var(--text-soft);
+  font-size: 0.85rem;
+}
+
+.resume-card,
+.option-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.option-card {
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.option-card:hover,
+.option-card--selected {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-soft);
+  transform: translateY(-1px);
+}
+
+.option-card--selected {
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.action-row,
+.decision-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
 }
 
 .block-list.compact .content-block {
@@ -344,7 +417,10 @@ label {
   .explanation-grid,
   .teacher-scoreboard,
   .flow-rail,
-  .summary-card__grid {
+  .summary-card__grid,
+  .history-grid,
+  .option-grid,
+  .classroom-overview-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -360,7 +436,10 @@ label {
   .explanation-grid,
   .teacher-scoreboard,
   .flow-rail,
-  .summary-card__grid {
+  .summary-card__grid,
+  .history-grid,
+  .option-grid,
+  .classroom-overview-grid {
     grid-template-columns: 1fr;
   }
 }

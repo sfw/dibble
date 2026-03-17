@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest'
 
-import { applyStreamChunk, buildGenerationPayload, nullableNumber, nullableText, parseList } from './forms'
+import { initialGenerationForm, initialRemediationAdvancePrompt, initialRemediationForm, initialSocraticForm } from '../app/workspace'
+import { demoLearnerWorkspace } from '../sample-data'
+import {
+  applyStreamChunk,
+  buildGenerationFormFromWorkspace,
+  buildGenerationPayload,
+  buildRemediationAdvancePromptFromWorkspace,
+  buildRemediationFormFromWorkspace,
+  buildSocraticFormFromWorkspace,
+  nullableNumber,
+  nullableText,
+  parseList,
+} from './forms'
 
 describe('forms helpers', () => {
   it('parses comma-separated lists into trimmed values', () => {
@@ -36,6 +48,40 @@ describe('forms helpers', () => {
       learner_prompt: 'Keep it supportive',
       curriculum_context: ['Equivalent fractions', 'area models'],
     })
+  })
+
+  it('hydrates generation, Socratic, and remediation forms from learner workspace contracts', () => {
+    expect(buildGenerationFormFromWorkspace(demoLearnerWorkspace, initialGenerationForm)).toEqual({
+      learning_session_id: 'session-fractions-bridge',
+      target_kc_ids: 'KC-1',
+      target_lo_ids: 'LO-1',
+      intent: 'practice',
+      requested_content_type: 'practice_problem',
+      learner_prompt: initialGenerationForm.learner_prompt,
+      curriculum_context: 'Equivalent fractions',
+    })
+
+    expect(buildSocraticFormFromWorkspace(demoLearnerWorkspace, initialSocraticForm)).toEqual({
+      session_id: 'soc-demo-1',
+      learning_session_id: 'session-fractions-bridge',
+      target_kc_ids: 'KC-1',
+      target_lo_ids: 'LO-1',
+      curriculum_context: 'Equivalent fractions',
+      learner_response: initialSocraticForm.learner_response,
+      learner_confidence: initialSocraticForm.learner_confidence,
+    })
+
+    expect(buildRemediationFormFromWorkspace(demoLearnerWorkspace, initialRemediationForm)).toEqual({
+      target_kc_id: 'KC-2',
+      misconception_description:
+        'The learner compares numerator and denominator separately instead of the full amount.',
+      learner_prompt:
+        'Advance only if the learner explains the whole correctly without relying on numerator-only cues.',
+      curriculum_context: 'Equivalent fractions',
+    })
+    expect(
+      buildRemediationAdvancePromptFromWorkspace(demoLearnerWorkspace, initialRemediationAdvancePrompt),
+    ).toBe('Advance only if the learner explains the whole correctly without relying on numerator-only cues.')
   })
 
   it('accumulates stream chunks into ordered generated blocks', () => {

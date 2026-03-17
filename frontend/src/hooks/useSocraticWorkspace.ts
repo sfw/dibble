@@ -1,20 +1,27 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { getSocraticSession, runSocraticAssessment } from '../api'
 import type { DataSource, SocraticFormState } from '../app/workspace'
 import { initialSocraticForm } from '../app/workspace'
-import { nullableNumber, nullableText, parseList } from '../lib/forms'
+import { buildSocraticFormFromWorkspace, nullableNumber, nullableText, parseList } from '../lib/forms'
 import { asMessage } from '../lib/formatters'
 import { demoSocraticResponse, demoSocraticSession } from '../sample-data'
-import type { FrontendConfig, SocraticAssessmentResponse, SocraticAssessmentSession } from '../types'
+import type {
+  FrontendConfig,
+  LearnerWorkspace,
+  SocraticAssessmentResponse,
+  SocraticAssessmentSession,
+} from '../types'
 
 export function useSocraticWorkspace({
   config,
   learnerId,
+  workspace,
   onDataSourceChange,
 }: {
   config: FrontendConfig
   learnerId: string
+  workspace: LearnerWorkspace
   onDataSourceChange: (source: DataSource) => void
 }) {
   const [form, setForm] = useState<SocraticFormState>({
@@ -25,6 +32,12 @@ export function useSocraticWorkspace({
   const [session, setSession] = useState<SocraticAssessmentSession>(demoSocraticSession)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    setForm(buildSocraticFormFromWorkspace(workspace, initialSocraticForm))
+    setSession(workspace.socratic_session ?? demoSocraticSession)
+    setError('')
+  }, [workspace])
 
   const handleRun = useCallback(async () => {
     setLoading(true)

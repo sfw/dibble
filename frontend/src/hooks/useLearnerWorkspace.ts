@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { getLearnerFlow, getLearnerProfile, getLearnerSummary, getLearners } from '../api'
+import { getLearnerProfile, getLearnerWorkspace, getLearners } from '../api'
 import type { DataSource } from '../app/workspace'
 import { asMessage } from '../lib/formatters'
-import { SAMPLE_STUDENT_ID, demoLearnerFlow, demoProfile, demoProfileSummary } from '../sample-data'
-import type { FrontendConfig, LearnerFlowSummary, LearnerProfileV2, ProfileSummary } from '../types'
+import { SAMPLE_STUDENT_ID, demoLearnerFlow, demoLearnerWorkspace, demoProfile, demoProfileSummary } from '../sample-data'
+import type { FrontendConfig, LearnerFlowSummary, LearnerProfileV2, LearnerWorkspace, ProfileSummary } from '../types'
 
 export function useLearnerWorkspace({
   config,
@@ -19,6 +19,7 @@ export function useLearnerWorkspace({
   const [summary, setSummary] = useState<ProfileSummary>(demoProfileSummary)
   const [profile, setProfile] = useState<LearnerProfileV2>(demoProfile)
   const [flow, setFlow] = useState<LearnerFlowSummary>(demoLearnerFlow)
+  const [workspace, setWorkspace] = useState<LearnerWorkspace>(demoLearnerWorkspace)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -38,14 +39,14 @@ export function useLearnerWorkspace({
     setError('')
 
     try {
-      const [nextSummary, nextProfile, nextFlow] = await Promise.all([
-        getLearnerSummary(config, studentId),
+      const [nextWorkspace, nextProfile] = await Promise.all([
+        getLearnerWorkspace(config, studentId),
         getLearnerProfile(config, studentId),
-        getLearnerFlow(config, studentId),
       ])
-      setSummary(nextSummary)
+      setWorkspace(nextWorkspace)
+      setSummary(nextWorkspace.summary)
       setProfile(nextProfile)
-      setFlow(nextFlow)
+      setFlow(nextWorkspace.summary.current_flow)
       onDataSourceChange('live')
       setLearnerId(studentId)
     } catch (caughtError) {
@@ -54,6 +55,7 @@ export function useLearnerWorkspace({
         return
       }
 
+      setWorkspace(demoLearnerWorkspace)
       setSummary(demoProfileSummary)
       setProfile(demoProfile)
       setFlow(demoLearnerFlow)
@@ -86,6 +88,7 @@ export function useLearnerWorkspace({
     summary,
     profile,
     flow,
+    workspace,
     error,
     loading,
     loadLearnerWorkspace,

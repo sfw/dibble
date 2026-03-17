@@ -6,10 +6,13 @@ import { teacherContractGaps } from './sample-data'
 import { WorkspaceHero } from './components/app/WorkspaceHero'
 import { WorkspacePicker } from './components/app/WorkspacePicker'
 import { useGenerationWorkspace } from './hooks/useGenerationWorkspace'
+import { useLearnerContracts } from './hooks/useLearnerContracts'
 import { useLearnerWorkspace } from './hooks/useLearnerWorkspace'
 import { usePersistentConfig } from './hooks/usePersistentConfig'
 import { useRemediationWorkspace } from './hooks/useRemediationWorkspace'
 import { useSocraticWorkspace } from './hooks/useSocraticWorkspace'
+import { useTeacherClassroom } from './hooks/useTeacherClassroom'
+import { ClassroomView } from './views/ClassroomView'
 import { GenerationView } from './views/GenerationView'
 import { OverviewView } from './views/OverviewView'
 import { RemediationView } from './views/RemediationView'
@@ -24,19 +27,31 @@ function App() {
     config,
     onDataSourceChange: setDataSource,
   })
+  const learnerContracts = useLearnerContracts({
+    config,
+    learnerId: learnerWorkspace.learnerId,
+    onDataSourceChange: setDataSource,
+  })
   const generationWorkspace = useGenerationWorkspace({
     config,
     learnerId: learnerWorkspace.learnerId,
+    workspace: learnerWorkspace.workspace,
     onDataSourceChange: setDataSource,
   })
   const socraticWorkspace = useSocraticWorkspace({
     config,
     learnerId: learnerWorkspace.learnerId,
+    workspace: learnerWorkspace.workspace,
     onDataSourceChange: setDataSource,
   })
   const remediationWorkspace = useRemediationWorkspace({
     config,
     learnerId: learnerWorkspace.learnerId,
+    workspace: learnerWorkspace.workspace,
+    onDataSourceChange: setDataSource,
+  })
+  const teacherClassroom = useTeacherClassroom({
+    config,
     onDataSourceChange: setDataSource,
   })
 
@@ -61,7 +76,11 @@ function App() {
           learnerIds={learnerWorkspace.learnerIds}
           loading={learnerWorkspace.loading}
           error={learnerWorkspace.error}
-          onRefresh={() => void learnerWorkspace.refreshCurrentLearner()}
+          onRefresh={() => {
+            void learnerWorkspace.refreshCurrentLearner()
+            void learnerContracts.loadContracts()
+            void teacherClassroom.loadClassrooms()
+          }}
           onPickLearner={(learnerId) => void learnerWorkspace.loadLearnerWorkspace(learnerId)}
         />
         <TabsList className="tabbar" aria-label="Workspace views">
@@ -70,6 +89,7 @@ function App() {
           <TabsTrigger value="socratic">Socratic</TabsTrigger>
           <TabsTrigger value="remediation">Remediation</TabsTrigger>
           <TabsTrigger value="teacher">Teacher View</TabsTrigger>
+          <TabsTrigger value="classroom">Classroom View</TabsTrigger>
         </TabsList>
 
         <main className="workspace">
@@ -78,6 +98,14 @@ function App() {
               summary={learnerWorkspace.summary}
               profile={learnerWorkspace.profile}
               flow={learnerWorkspace.flow}
+              workspace={learnerWorkspace.workspace}
+              progression={learnerWorkspace.summary.curriculum_progression}
+              generationHistory={learnerContracts.generationHistory}
+              socraticHistory={learnerContracts.socraticHistory}
+              remediationHistory={learnerContracts.remediationHistory}
+              contractsLoading={learnerContracts.loading}
+              contractsError={learnerContracts.error}
+              onSelectView={setActiveView}
               showDebugPanels={config.showDebugPanels}
             />
           </TabsContent>
@@ -131,8 +159,30 @@ function App() {
               summary={learnerWorkspace.summary}
               profile={learnerWorkspace.profile}
               flow={learnerWorkspace.flow}
+              progression={learnerWorkspace.summary.curriculum_progression}
+              intervention={learnerContracts.intervention}
               gaps={teacherContractGaps}
               dataSource={dataSource}
+              loading={learnerContracts.loading}
+              submissionError={learnerContracts.interventionError}
+              submittingDecision={learnerContracts.submittingIntervention}
+              onSubmitDecision={(payload) => void learnerContracts.submitTeacherDecision(payload)}
+              showDebugPanels={config.showDebugPanels}
+            />
+          </TabsContent>
+          <TabsContent value="classroom">
+            <ClassroomView
+              classrooms={teacherClassroom.classrooms}
+              selectedClassroomId={teacherClassroom.selectedClassroomId}
+              classroom={teacherClassroom.classroom}
+              loading={teacherClassroom.loading}
+              error={teacherClassroom.error}
+              onPickClassroom={(classroomId) => void teacherClassroom.loadClassroom(classroomId)}
+              onOpenLearner={(studentId) => {
+                void learnerWorkspace.loadLearnerWorkspace(studentId)
+                void learnerContracts.loadContracts(studentId)
+                setActiveView('teacher')
+              }}
               showDebugPanels={config.showDebugPanels}
             />
           </TabsContent>
