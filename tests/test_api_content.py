@@ -1109,12 +1109,69 @@ def test_stream_generation_endpoint_emits_sse_events_and_audits(client, student_
     assert events[0]["event"] == "start"
     assert any(event["event"] == "delta" for event in events)
     assert events[-1]["event"] == "complete"
+    assert events[-1]["data"]["workflow_summary"]["flow_type"] == "lesson"
+    assert events[-1]["data"]["workflow_summary"]["delivered_content_type"] == "remedial_micro_module"
     assert events[-1]["data"]["response"]["route"]["delivery_mode"] == "generated"
     assert events[-1]["data"]["response"]["grounding"][0]["resource_id"] == "CURR-1"
 
-    audit_events = audit_response.json()
-    assert audit_events[0]["event_type"] == "content.generate.stream"
-    assert audit_events[0]["payload"]["generated_block_count"] == 2
+    stream_audit = next(event for event in audit_response.json() if event["event_type"] == "content.generate.stream")
+    assert stream_audit["payload"]["generated_block_count"] == 2
+    assert stream_audit["payload"]["workflow_flow_type"] == "lesson"
+
+
+def test_stream_generation_applies_mastery_gate_and_exposes_workflow_summary(client, student_id):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+
+    for confidence, hints_used, errors in [(0.62, 3, 0), (0.58, 2, 1)]:
+        observe_response = client.post(
+            f"/api/learners/{student_id}/observations",
+            json={
+                "response_time_ms": 17000,
+                "hints_used": hints_used,
+                "error_count": errors,
+                "pause_count": 1,
+                "modality_switches": 0,
+                "completed": True,
+                "confidence": confidence,
+                "task_type": "practice",
+                "support_level": "high",
+                "expected_duration_ms": 18000,
+                "learning_session_id": "session-stream-hold",
+                "target_kc_ids": ["KC-1"],
+                "target_lo_ids": ["LO-1"],
+            },
+        )
+        assert observe_response.status_code == 200
+
+    with client.stream(
+        "POST",
+        "/api/llm/stream",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "session-stream-hold",
+            "target_kc_ids": ["KC-1"],
+            "intent": "assessment",
+            "requested_content_type": "assessment_probe",
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    ) as response:
+        body = b"".join(response.iter_raw()).decode("utf-8")
+
+    audit_response = client.get("/api/audit/events")
+    events = parse_sse_events(body)
+    complete_event = events[-1]["data"]
+
+    assert response.status_code == 200
+    assert events[-1]["event"] == "complete"
+    assert complete_event["workflow_summary"]["progression_action"] == "hold_target_before_assessment"
+    assert complete_event["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
+    assert complete_event["workflow_summary"]["next_step"]["target_kc_ids"] == ["KC-1"]
+    assert complete_event["response"]["route"]["delivery_mode"] == "generated"
+
+    stream_audit = next(event for event in audit_response.json() if event["event_type"] == "content.generate.stream")
+    assert stream_audit["payload"]["progression_action"] == "hold_target_before_assessment"
+    assert stream_audit["payload"]["workflow_next_step_content_type"] == "practice_problem"
 
 
 def test_stream_generation_hydrates_target_kc_hints_for_practice_content(client, student_id):

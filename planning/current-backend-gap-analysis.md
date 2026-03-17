@@ -16,6 +16,7 @@ The backend now covers a meaningful slice of the revised Phase 1 and early Phase
 - The learner summary endpoint now packages recent calibration, durable progress-trend, durable learner-strategy, and activity context into a frontend-ready overview instead of requiring direct audit-log reads, and those same progress and strategy profiles now feed live router, generation-mode calibration, and predictive follow-up warming.
 - The backend now also exposes a compact learner-flow read model through `GET /api/learners/{student_id}/flow`, and learner summary now includes the same `current_flow` contract so frontend work can read current phase, progression action, active targets, and next-step metadata without reconstructing state from audit logs or raw generation traces.
 - Generation responses now also carry a compact `workflow_summary` contract, while remediation and Socratic sessions carry canonical summary payloads, so frontend work can render response state and session next-step metadata without unpacking internal `request_context`, step arrays, or turn history.
+- The streaming `POST /api/llm/stream` path now also runs through the same progression-ownership and generation-finalization layer as non-stream generation, and stream `complete` events now expose the same compact `workflow_summary` contract so frontend state does not diverge by transport mode.
 - Remediation is now session-backed: the remedial trigger persists a workflow session, generates the current workflow phase, exposes dedicated session retrieval and advancement endpoints for step-back, repair, and return progression, and now carries matched learner-strategy guidance through the session so cross-session struggle or regained independence influences later remediation steps directly.
 - The backend now also has the beginnings of a learner-flow spine: generated responses carry richer mode-calibration, KC-sequencing, and session-phase metadata, predictive follow-up planning can warm likely next support moves, and remediation workflows can now keep a learner inside a multi-step repair arc instead of collapsing every struggle into a single response.
 - The backend now compacts recent run summaries plus progress snapshots into durable `learning.strategy.profile` events that expose honest heuristic long-horizon recovery, plateau, relapse, and volatility signals for similar future requests.
@@ -154,7 +155,7 @@ Progress now:
 
 1. remediation sessions now include a summary read model with current phase, progression decision, and next-step contract.
 2. Socratic assessment responses and persisted sessions now include a matching summary read model with canonical status and next-step metadata.
-3. the remaining session-stability work is now mostly about how much ordinary generation and learner-summary packaging should mirror those same session summary shapes.
+3. ordinary generation now mirrors those same summary shapes in both non-stream and stream completion payloads, so transport choice no longer changes progression or next-step packaging.
 
 #### Priority 4: Frontend-ready read models and API packaging
 
@@ -172,6 +173,7 @@ Progress now:
 2. `GET /api/learners/{student_id}/summary` now includes `current_flow`, so overview surfaces can render recent activity and current next-step state from one response.
 3. remediation and Socratic session endpoints now also expose canonical summary payloads, so the first frontend can rely on compact workflow state instead of reconstructing it from raw step arrays or turn history.
 4. generation responses now expose `workflow_summary`, which gives the frontend a stable response-local contract for delivered phase, progression action, active targets, rationale, and next-step display without parsing the full internal `request_context`.
+5. stream `complete` events now expose the same `workflow_summary` contract and progression-owned next-step metadata, so the frontend can switch between SSE and non-stream generation without maintaining separate state reconstruction logic.
 
 #### Lower priority before frontend
 

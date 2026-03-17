@@ -8,6 +8,7 @@ from dibble.models.generation import (
     ContentWarmRequest,
     ContentWarmResult,
     GeneratedContent,
+    GenerationResponse,
     GenerationWorkflowSummary,
     GenerationRequest,
     PredictiveWarmProcessResult,
@@ -46,6 +47,13 @@ class LearnerProfileNotFoundError(LookupError):
     def __init__(self, student_id: UUID) -> None:
         super().__init__(f"Learner profile not found for student_id {student_id}.")
         self.student_id = student_id
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedGenerationRequest:
+    profile: LearnerProfile
+    request: GenerationRequest
+    progression_decision: ProgressionOwnershipDecision
 
 
 @dataclass(slots=True)
@@ -106,29 +114,12 @@ class ContentWorkflowService:
         return decision
 
     def generate_content(self, request: GenerationRequest) -> GeneratedContent:
-        profile = self._load_profile(request.student_id)
-        progression_decision = self._progression_ownership_decision(request=request)
-        resolved_request = progression_decision.request
-        enriched_request = hydrate_target_kc_hints(
-            request=resolved_request,
-            knowledge_component_store=self.knowledge_component_store,
-        )
-        calibrated_request = self.generation_mode_calibrator.calibrate_request(request=enriched_request)
-        response = self.generation_engine.generate(profile, calibrated_request)
-        plan = build_generation_mode_plan(profile, calibrated_request, response.route)
+        prepared = self.prepare_generation_request(request)
+        response = self.generation_engine.generate(prepared.profile, prepared.request)
+        plan = build_generation_mode_plan(prepared.profile, prepared.request, response.route)
         metadata = response.generation_metadata
         if metadata is None or response.generation_id is None:
             raise RuntimeError("Generated content metadata was not available.")
-
-        generated_content = GeneratedContent(
-            generation_id=response.generation_id,
-            student_id=response.student_id,
-            content_type=plan.content_type.value,
-            request_context=plan.request_context,
-            response=response,
-            quality=metadata,
-            created_at=response.generated_at,
-        )
         self.audit_store.append(
             event_type="content.generate",
             status="success",
@@ -136,8 +127,8 @@ class ContentWorkflowService:
             payload={
                 "intent": request.intent.value,
                 "learning_session_id": request.learning_session_id,
-                "content_type": generated_content.content_type,
-                "generation_id": generated_content.generation_id,
+                "content_type": plan.content_type.value,
+                "generation_id": response.generation_id,
                 "intervention_type": response.route.intervention_type.value,
                 "delivery_mode": response.route.delivery_mode.value,
                 "grounding_count": len(response.grounding),
@@ -165,77 +156,77 @@ class ContentWorkflowService:
                 "moderation_audit_message": metadata.moderation.audit_message,
                 "cache_hit": metadata.cache_hit,
                 "quality_score": metadata.quality_score,
-                "requested_target_kc_ids": progression_decision.requested_target_kc_ids,
-                "applied_target_kc_ids": progression_decision.applied_target_kc_ids,
-                "target_kc_ids": calibrated_request.target_kc_ids,
-                "target_lo_ids": calibrated_request.target_lo_ids,
-                "progression_action": progression_decision.action,
-                "progression_source": progression_decision.source,
-                "progression_target_stage": progression_decision.target_stage,
-                "progression_target_redirect_applied": progression_decision.target_redirect_applied,
-                "progression_bridge_kc_ids": progression_decision.bridge_kc_ids,
-                "progression_transfer_target_kc_ids": progression_decision.transfer_target_kc_ids,
-                "progression_deferred_target_kc_ids": progression_decision.deferred_target_kc_ids,
-                "progression_rationale": progression_decision.rationale,
-                "progression_requested_content_type": progression_decision.requested_content_type,
-                "progression_applied_content_type": progression_decision.applied_content_type,
-                "progression_mastery_gate_applied": progression_decision.mastery_gate_applied,
-                "progression_mastery_gate_reason": progression_decision.mastery_gate_reason,
-                "progression_evidence_observation_count": progression_decision.evidence_observation_count,
-                "progression_evidence_assessment_count": progression_decision.evidence_assessment_count,
-                "progression_evidence_confidence": progression_decision.evidence_confidence,
-                "progression_average_observed_mastery": progression_decision.average_observed_mastery,
-                "progression_average_assessment_mastery": progression_decision.average_assessment_mastery,
+                "requested_target_kc_ids": prepared.progression_decision.requested_target_kc_ids,
+                "applied_target_kc_ids": prepared.progression_decision.applied_target_kc_ids,
+                "target_kc_ids": prepared.request.target_kc_ids,
+                "target_lo_ids": prepared.request.target_lo_ids,
+                "progression_action": prepared.progression_decision.action,
+                "progression_source": prepared.progression_decision.source,
+                "progression_target_stage": prepared.progression_decision.target_stage,
+                "progression_target_redirect_applied": prepared.progression_decision.target_redirect_applied,
+                "progression_bridge_kc_ids": prepared.progression_decision.bridge_kc_ids,
+                "progression_transfer_target_kc_ids": prepared.progression_decision.transfer_target_kc_ids,
+                "progression_deferred_target_kc_ids": prepared.progression_decision.deferred_target_kc_ids,
+                "progression_rationale": prepared.progression_decision.rationale,
+                "progression_requested_content_type": prepared.progression_decision.requested_content_type,
+                "progression_applied_content_type": prepared.progression_decision.applied_content_type,
+                "progression_mastery_gate_applied": prepared.progression_decision.mastery_gate_applied,
+                "progression_mastery_gate_reason": prepared.progression_decision.mastery_gate_reason,
+                "progression_evidence_observation_count": prepared.progression_decision.evidence_observation_count,
+                "progression_evidence_assessment_count": prepared.progression_decision.evidence_assessment_count,
+                "progression_evidence_confidence": prepared.progression_decision.evidence_confidence,
+                "progression_average_observed_mastery": prepared.progression_decision.average_observed_mastery,
+                "progression_average_assessment_mastery": prepared.progression_decision.average_assessment_mastery,
                 "scaffolding_level": response.route.scaffolding_level,
                 "mode_calibration_signal": (
-                    calibrated_request.mode_calibration.signal if calibrated_request.mode_calibration is not None else None
+                    prepared.request.mode_calibration.signal if prepared.request.mode_calibration is not None else None
                 ),
                 "mode_calibration_source": (
-                    calibrated_request.mode_calibration.source if calibrated_request.mode_calibration is not None else None
+                    prepared.request.mode_calibration.source if prepared.request.mode_calibration is not None else None
                 ),
                 "mode_calibration_confidence": (
-                    calibrated_request.mode_calibration.confidence
-                    if calibrated_request.mode_calibration is not None
+                    prepared.request.mode_calibration.confidence
+                    if prepared.request.mode_calibration is not None
                     else 0.0
                 ),
                 "mode_calibration_run_count": (
-                    calibrated_request.mode_calibration.matched_run_count
-                    if calibrated_request.mode_calibration is not None
+                    prepared.request.mode_calibration.matched_run_count
+                    if prepared.request.mode_calibration is not None
                     else 0
                 ),
                 "mode_support_bias": (
-                    calibrated_request.mode_calibration.support_bias
-                    if calibrated_request.mode_calibration is not None
+                    prepared.request.mode_calibration.support_bias
+                    if prepared.request.mode_calibration is not None
                     else 0
                 ),
                 "mode_strategy_signal": (
-                    calibrated_request.mode_calibration.strategy_signal
-                    if calibrated_request.mode_calibration is not None
+                    prepared.request.mode_calibration.strategy_signal
+                    if prepared.request.mode_calibration is not None
                     else None
                 ),
                 "mode_strategy_source": (
-                    calibrated_request.mode_calibration.strategy_source
-                    if calibrated_request.mode_calibration is not None
+                    prepared.request.mode_calibration.strategy_source
+                    if prepared.request.mode_calibration is not None
                     else None
                 ),
                 "mode_session_signal": (
-                    calibrated_request.mode_calibration.session_signal
-                    if calibrated_request.mode_calibration is not None
+                    prepared.request.mode_calibration.session_signal
+                    if prepared.request.mode_calibration is not None
                     else None
                 ),
                 "mode_session_source": (
-                    calibrated_request.mode_calibration.session_source
-                    if calibrated_request.mode_calibration is not None
+                    prepared.request.mode_calibration.session_source
+                    if prepared.request.mode_calibration is not None
                     else None
                 ),
                 "mode_sequence_action": (
-                    calibrated_request.mode_calibration.sequence_action
-                    if calibrated_request.mode_calibration is not None
+                    prepared.request.mode_calibration.sequence_action
+                    if prepared.request.mode_calibration is not None
                     else None
                 ),
                 "mode_strategy_recovery_focus": (
-                    calibrated_request.mode_calibration.strategy_recovery_focus
-                    if calibrated_request.mode_calibration is not None
+                    prepared.request.mode_calibration.strategy_recovery_focus
+                    if prepared.request.mode_calibration is not None
                     else None
                 ),
                 "mode_calibration_applied": bool(plan.request_context.get("mode_calibration_applied", False)),
@@ -259,15 +250,60 @@ class ContentWorkflowService:
                 "prompt_template_variant": metadata.prompt_template_variant,
             },
         )
-        self._record_moderation_event(
-            student_id=str(request.student_id),
-            generation_id=generated_content.generation_id,
-            learning_session_id=request.learning_session_id,
-            moderation=metadata.moderation,
-            delivery_mode=response.route.delivery_mode.value,
+        return self.finalize_generated_content(
+            profile=prepared.profile,
+            request=prepared.request,
+            response=response,
+            progression_decision=prepared.progression_decision,
         )
-        session_summary = self.within_session_adaptation_service.record_generation_step(
+
+    def prepare_generation_request(self, request: GenerationRequest) -> PreparedGenerationRequest:
+        profile = self._load_profile(request.student_id)
+        progression_decision = self._progression_ownership_decision(request=request)
+        enriched_request = hydrate_target_kc_hints(
+            request=progression_decision.request,
+            knowledge_component_store=self.knowledge_component_store,
+        )
+        calibrated_request = self.generation_mode_calibrator.calibrate_request(request=enriched_request)
+        return PreparedGenerationRequest(
+            profile=profile,
             request=calibrated_request,
+            progression_decision=progression_decision,
+        )
+
+    def finalize_generated_content(
+        self,
+        *,
+        profile: LearnerProfile,
+        request: GenerationRequest,
+        response: GenerationResponse,
+        progression_decision: ProgressionOwnershipDecision,
+        record_moderation_event: bool = True,
+    ) -> GeneratedContent:
+        plan = build_generation_mode_plan(profile, request, response.route)
+        metadata = response.generation_metadata
+        if metadata is None or response.generation_id is None:
+            raise RuntimeError("Generated content metadata was not available.")
+
+        generated_content = GeneratedContent(
+            generation_id=response.generation_id,
+            student_id=response.student_id,
+            content_type=plan.content_type.value,
+            request_context=plan.request_context,
+            response=response,
+            quality=metadata,
+            created_at=response.generated_at,
+        )
+        if record_moderation_event:
+            self._record_moderation_event(
+                student_id=str(request.student_id),
+                generation_id=generated_content.generation_id,
+                learning_session_id=request.learning_session_id,
+                moderation=metadata.moderation,
+                delivery_mode=response.route.delivery_mode.value,
+            )
+        session_summary = self.within_session_adaptation_service.record_generation_step(
+            request=request,
             content_type=generated_content.content_type,
             generation_id=generated_content.generation_id,
         )

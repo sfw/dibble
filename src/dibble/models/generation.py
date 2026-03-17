@@ -317,6 +317,7 @@ class GenerationStreamEvent(BaseModel):
     chunk: GeneratedBlockChunk | None = None
     moderation: ModerationResult | None = None
     validation_issues: list[str] = Field(default_factory=list)
+    workflow_summary: GenerationWorkflowSummary | None = None
     response: GenerationResponse | None = None
 
 

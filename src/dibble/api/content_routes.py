@@ -21,7 +21,6 @@ from dibble.models.remediation import (
     RemediationWorkflowSession,
 )
 from dibble.services.content_workflow import LearnerProfileNotFoundError
-from dibble.services.generation_request_hydrator import hydrate_target_kc_hints
 from dibble.services.remediation_workflows import (
     RemediationWorkflowCompleteError,
     RemediationWorkflowNotFoundError,
@@ -32,12 +31,6 @@ from dibble.services.streaming import encode_sse_event
 def build_content_router(context: ApiContext) -> APIRouter:
     router = APIRouter(prefix="/api")
     services = context.services
-
-    def load_profile(student_id):
-        try:
-            return services.content_workflow_service.load_profile(student_id)
-        except LearnerProfileNotFoundError as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
     @router.post("/router/decide", response_model=AdaptiveRouteDecision, dependencies=context.deps("editor"))
     def decide_adaptive_route(request: GenerationRequest) -> AdaptiveRouteDecision:
@@ -146,24 +139,22 @@ def build_content_router(context: ApiContext) -> APIRouter:
 
     @router.post("/llm/stream", dependencies=context.deps("editor"))
     def stream_generated_content(request: GenerationRequest) -> StreamingResponse:
-        profile = load_profile(request.student_id)
-        enriched_request = hydrate_target_kc_hints(
-            request=request,
-            knowledge_component_store=services.knowledge_component_store,
-        )
-        calibrated_request = services.generation_mode_calibrator.calibrate_request(request=enriched_request)
+        try:
+            prepared = services.content_workflow_service.prepare_generation_request(request)
+        except LearnerProfileNotFoundError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
         def event_stream():
             try:
                 complete_event: GenerationStreamEvent | None = None
-                for event in services.generation_engine.stream_generate(profile, calibrated_request):
+                for event in services.generation_engine.stream_generate(prepared.profile, prepared.request):
                     if event.event == "moderation" and event.moderation is not None:
                         services.audit_store.append(
                             event_type="content.moderation",
                             status="success",
                             student_id=str(request.student_id),
                             payload={
-                                "learning_session_id": calibrated_request.learning_session_id,
+                                "learning_session_id": prepared.request.learning_session_id,
                                 "stage": event.moderation.stage,
                                 "severity": event.moderation.severity,
                                 "decision": event.moderation.decision,
@@ -185,29 +176,104 @@ def build_content_router(context: ApiContext) -> APIRouter:
                             },
                         )
                     if event.event == "complete":
-                        complete_event = event
                         response = event.response
+                        if response is not None:
+                            generated_content = services.content_workflow_service.finalize_generated_content(
+                                profile=prepared.profile,
+                                request=prepared.request,
+                                response=response,
+                                progression_decision=prepared.progression_decision,
+                                record_moderation_event=False,
+                            )
+                            event = event.model_copy(update={"workflow_summary": generated_content.workflow_summary})
+                        complete_event = event
                         if response is not None:
                             services.audit_store.append(
                                 event_type="content.generate.stream",
                                 status="success",
                                 student_id=str(request.student_id),
                                 payload={
-                                    "intent": calibrated_request.intent.value,
+                                    "intent": prepared.request.intent.value,
+                                    "content_type": generated_content.content_type,
                                     "intervention_type": response.route.intervention_type.value,
                                     "delivery_mode": response.route.delivery_mode.value,
                                     "grounding_count": len(response.grounding),
                                     "generated_block_count": len(response.blocks),
                                     "validation_issue_count": len(response.validation_issues),
                                     "generation_id": response.generation_id,
+                                    "requested_target_kc_ids": prepared.progression_decision.requested_target_kc_ids,
+                                    "applied_target_kc_ids": prepared.progression_decision.applied_target_kc_ids,
+                                    "target_kc_ids": prepared.request.target_kc_ids,
+                                    "target_lo_ids": prepared.request.target_lo_ids,
+                                    "progression_action": prepared.progression_decision.action,
+                                    "progression_source": prepared.progression_decision.source,
+                                    "progression_target_stage": prepared.progression_decision.target_stage,
+                                    "progression_target_redirect_applied": (
+                                        prepared.progression_decision.target_redirect_applied
+                                    ),
+                                    "progression_bridge_kc_ids": prepared.progression_decision.bridge_kc_ids,
+                                    "progression_transfer_target_kc_ids": (
+                                        prepared.progression_decision.transfer_target_kc_ids
+                                    ),
+                                    "progression_deferred_target_kc_ids": (
+                                        prepared.progression_decision.deferred_target_kc_ids
+                                    ),
+                                    "progression_rationale": prepared.progression_decision.rationale,
+                                    "progression_requested_content_type": (
+                                        prepared.progression_decision.requested_content_type
+                                    ),
+                                    "progression_applied_content_type": (
+                                        prepared.progression_decision.applied_content_type
+                                    ),
+                                    "progression_mastery_gate_applied": (
+                                        prepared.progression_decision.mastery_gate_applied
+                                    ),
+                                    "progression_mastery_gate_reason": (
+                                        prepared.progression_decision.mastery_gate_reason
+                                    ),
+                                    "progression_evidence_observation_count": (
+                                        prepared.progression_decision.evidence_observation_count
+                                    ),
+                                    "progression_evidence_assessment_count": (
+                                        prepared.progression_decision.evidence_assessment_count
+                                    ),
+                                    "progression_evidence_confidence": (
+                                        prepared.progression_decision.evidence_confidence
+                                    ),
+                                    "progression_average_observed_mastery": (
+                                        prepared.progression_decision.average_observed_mastery
+                                    ),
+                                    "progression_average_assessment_mastery": (
+                                        prepared.progression_decision.average_assessment_mastery
+                                    ),
+                                    "workflow_flow_type": (
+                                        generated_content.workflow_summary.flow_type
+                                        if generated_content.workflow_summary is not None
+                                        else None
+                                    ),
+                                    "workflow_delivered_phase": (
+                                        generated_content.workflow_summary.delivered_phase
+                                        if generated_content.workflow_summary is not None
+                                        else None
+                                    ),
+                                    "workflow_next_step_action": (
+                                        generated_content.workflow_summary.next_step.action
+                                        if generated_content.workflow_summary is not None
+                                        else None
+                                    ),
+                                    "workflow_next_step_content_type": (
+                                        generated_content.workflow_summary.next_step.content_type
+                                        if generated_content.workflow_summary is not None
+                                        else None
+                                    ),
                                     "mode_calibration_signal": (
-                                        calibrated_request.mode_calibration.signal
-                                        if calibrated_request.mode_calibration is not None
+                                        prepared.request.mode_calibration.signal
+                                        if prepared.request.mode_calibration is not None
                                         else None
                                     ),
                                     "mode_support_bias": (
-                                        calibrated_request.mode_calibration.support_bias
-                                        if calibrated_request.mode_calibration is not None
+                                        prepared.request.mode_calibration.support_bias
+                                        if prepared.request.mode_calibration is not None
                                         else 0
                                     ),
                                     "cache_hit": bool(
@@ -337,14 +403,14 @@ def build_content_router(context: ApiContext) -> APIRouter:
                         event_type="content.generate.stream",
                         status="error",
                         student_id=str(request.student_id),
-                        payload={"intent": calibrated_request.intent.value, "detail": "stream ended before completion"},
+                        payload={"intent": prepared.request.intent.value, "detail": "stream ended before completion"},
                     )
             except Exception as exc:
                 services.audit_store.append(
                     event_type="content.generate.stream",
                     status="error",
                     student_id=str(request.student_id),
-                    payload={"intent": calibrated_request.intent.value, "detail": str(exc)},
+                    payload={"intent": prepared.request.intent.value, "detail": str(exc)},
                 )
                 yield encode_sse_event(
                     GenerationStreamEvent(
