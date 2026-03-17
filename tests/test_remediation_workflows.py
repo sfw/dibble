@@ -81,6 +81,8 @@ def test_remediation_workflow_coordinator_persists_and_advances_steps(tmp_path):
     assert session.current_step_index == 0
     assert [step.status for step in session.steps] == ["active", "pending", "pending"]
     assert session.strategy_summary.signal == "support_intensive"
+    assert session.summary.current_phase == "step_back"
+    assert session.summary.next_step.content_type == "remedial_micro_module"
 
     loaded_session, current_step, generation_request = coordinator.generation_request_for_current_step(
         session_id=session.session_id,
@@ -107,6 +109,8 @@ def test_remediation_workflow_coordinator_persists_and_advances_steps(tmp_path):
     assert updated_session.current_step_index == 1
     assert [step.status for step in updated_session.steps] == ["completed", "active", "pending"]
     assert updated_session.completed_generation_ids == ["gen-step-back"]
+    assert updated_session.summary.current_phase == "repair"
+    assert updated_session.summary.next_step.action == "repair"
 
     updated_session = coordinator.complete_current_step(
         session_id=session.session_id,
@@ -114,6 +118,8 @@ def test_remediation_workflow_coordinator_persists_and_advances_steps(tmp_path):
     )
     assert updated_session.current_step_index == 2
     assert updated_session.steps[2].recommended_content_type == "practice_problem"
+    assert updated_session.summary.current_phase == "return"
+    assert updated_session.summary.next_step.content_type == "practice_problem"
 
     updated_session = coordinator.complete_current_step(
         session_id=session.session_id,
@@ -126,6 +132,8 @@ def test_remediation_workflow_coordinator_persists_and_advances_steps(tmp_path):
         "gen-repair",
         "gen-return",
     ]
+    assert updated_session.summary.status == "complete"
+    assert updated_session.summary.next_step.action == "complete"
 
     with pytest.raises(RemediationWorkflowCompleteError):
         coordinator.generation_request_for_current_step(session_id=session.session_id)

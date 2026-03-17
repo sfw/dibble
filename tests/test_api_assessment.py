@@ -24,6 +24,10 @@ def test_socratic_assessment_starts_with_probe_when_no_learner_response(client, 
     assert payload["evaluation"]["evidence_strength"] == "insufficient"
     assert payload["evaluation"]["next_action"] == "ask_probe"
     assert payload["evaluation"]["evidence_score"] == 0.0
+    assert payload["summary"]["status"] == "in_progress"
+    assert payload["summary"]["latest_prompt_style"] == "diagnostic"
+    assert payload["summary"]["latest_next_action"] == "ask_probe"
+    assert payload["summary"]["next_step"]["content_type"] == "assessment_probe"
     assert payload["generation_metadata"]["prompt_template_name"] is not None
     assert payload["generated_blocks"]
     event_types = [event["event_type"] for event in audit_response.json()]
@@ -52,6 +56,10 @@ def test_socratic_assessment_detects_grounded_reasoning_in_learner_response(clie
     assert payload["evaluation"]["evidence_strength"] == "demonstrated"
     assert payload["evaluation"]["next_action"] == "advance"
     assert payload["evaluation"]["evidence_score"] >= 0.62
+    assert payload["summary"]["status"] == "ready_for_follow_up"
+    assert payload["summary"]["latest_next_action"] == "advance"
+    assert payload["summary"]["next_step"]["content_type"] == "practice_problem"
+    assert payload["summary"]["next_step"]["target_stage"] == "transfer"
     assert "equivalent" in payload["evaluation"]["matched_terms"]
 
 
@@ -88,10 +96,16 @@ def test_socratic_assessment_session_persists_across_turns(client, student_id):
     assert second_payload["session_id"] == session_id
     assert second_payload["prompt_style"] == "transfer_check"
     assert second_payload["steering_action"] == "verify_transfer"
+    assert second_payload["summary"]["status"] == "ready_for_follow_up"
+    assert second_payload["summary"]["latest_steering_action"] == "verify_transfer"
+    assert second_payload["summary"]["next_step"]["content_type"] == "practice_problem"
     assert len(second_payload["conversation_history"]) >= 2
     assert len(session_payload["turns"]) == 2
     assert session_payload["turns"][1]["learner_response"] is not None
     assert session_payload["turns"][0]["steering_action"] == "open_probe"
+    assert session_payload["summary"]["turn_count"] == 2
+    assert session_payload["summary"]["latest_prompt_style"] == "transfer_check"
+    assert session_payload["summary"]["latest_next_action"] == "advance"
 
     third_response = client.post(
         "/api/assessments/socratic",

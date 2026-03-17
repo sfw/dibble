@@ -119,6 +119,8 @@ def test_socratic_assessment_requests_probe_without_learner_response(tmp_path):
     assert result.evaluation.evidence_score == 0.0
     assert result.session_id is not None
     assert len(result.conversation_history) == 1
+    assert result.summary.latest_prompt_style == "diagnostic"
+    assert result.summary.next_step.content_type == "assessment_probe"
 
 
 def test_socratic_assessment_advances_when_response_is_grounded(tmp_path):
@@ -166,6 +168,8 @@ def test_socratic_assessment_advances_when_response_is_grounded(tmp_path):
     assert result.evaluation.next_action.value == "advance"
     assert result.prompt_style.value == "transfer_check"
     assert result.evaluation.evidence_score >= 0.62
+    assert result.summary.status == "ready_for_follow_up"
+    assert result.summary.next_step.content_type == "practice_problem"
     assert "equivalent" in result.evaluation.matched_terms
 
 
@@ -222,6 +226,8 @@ def test_socratic_assessment_reuses_persisted_session_history(tmp_path):
     assert len(second_result.conversation_history) >= 3
     assert stored_session is not None
     assert len(stored_session.turns) == 2
+    assert stored_session.summary.turn_count == 2
+    assert stored_session.summary.latest_next_action == "advance"
 
     third_result = service.assess(
         profile,

@@ -133,6 +133,12 @@ The next priority is finishing enough of `ADAPT-006` that the backend owns hold/
 
 This matters before frontend because otherwise screen structure will keep changing around ambiguous "ready/not ready" backend behavior.
 
+Progress now:
+
+1. hold-versus-advance decisions are now exposed through compact session summaries instead of only raw remediation step state or assessment turn history.
+2. remediation sessions now surface canonical `in_progress`, `held`, or `complete` status plus next-step metadata tied to the actual hold/advance decision.
+3. Socratic sessions now surface canonical follow-up state such as latest prompt style, steering action, next action, and next-step content target directly on both live responses and persisted session payloads.
+
 #### Priority 3: Stabilize session-backed learner workflows
 
 The current backend already has a promising learner-flow spine, remediation sessions, within-session controller state, and richer generation metadata. Before frontend, those workflow contracts should be made intentionally stable:
@@ -142,6 +148,12 @@ The current backend already has a promising learner-flow spine, remediation sess
 3. prefer compact read models and session detail payloads over asking the frontend to interpret low-level adaptive traces.
 
 This is mostly contract-hardening work, not a call for major new adaptive intelligence.
+
+Progress now:
+
+1. remediation sessions now include a summary read model with current phase, progression decision, and next-step contract.
+2. Socratic assessment responses and persisted sessions now include a matching summary read model with canonical status and next-step metadata.
+3. the remaining session-stability work is now mostly about how much ordinary generation and learner-summary packaging should mirror those same session summary shapes.
 
 #### Priority 4: Frontend-ready read models and API packaging
 
@@ -157,7 +169,7 @@ Progress now:
 
 1. `GET /api/learners/{student_id}/flow` is available as a compact read-model endpoint for first-pass frontend work.
 2. `GET /api/learners/{student_id}/summary` now includes `current_flow`, so overview surfaces can render recent activity and current next-step state from one response.
-3. remediation and Socratic session endpoints still need a similar contract-hardening pass so the UI can rely on canonical session summaries rather than raw session payloads alone.
+3. remediation and Socratic session endpoints now also expose canonical summary payloads, so the first frontend can rely on compact workflow state instead of reconstructing it from raw step arrays or turn history.
 
 #### Lower priority before frontend
 

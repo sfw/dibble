@@ -6,8 +6,8 @@ from uuid import UUID
 from uuid import uuid4
 
 from dibble.models.generation import ContentIntent, GenerationRequest, RequestedContentType
-from dibble.models.profile import LearnerStrategySummary
-from dibble.models.remediation import RemediationWorkflowSession, RemediationWorkflowStep
+from dibble.models.profile import LearnerFlowNextStep, LearnerStrategySummary
+from dibble.models.remediation import RemediationWorkflowSession, RemediationWorkflowStep, RemediationWorkflowSummary
 from dibble.services.protocols import RemediationSessionStore
 from dibble.services.remediation_planner import RemediationPlan
 
@@ -56,7 +56,7 @@ class RemediationWorkflowCoordinator:
             steps=steps,
             current_step_index=0 if steps else None,
         )
-        return self.session_store.upsert(session)
+        return self.session_store.upsert(self._with_summary(session))
 
     def get(self, session_id: str) -> RemediationWorkflowSession | None:
         return self.session_store.get(session_id)
@@ -151,7 +151,7 @@ class RemediationWorkflowCoordinator:
                 "updated_at": datetime.now(timezone.utc),
             }
         )
-        return self.session_store.upsert(updated_session)
+        return self.session_store.upsert(self._with_summary(updated_session))
 
     def update_progression_decision(
         self,
@@ -172,7 +172,7 @@ class RemediationWorkflowCoordinator:
                 "updated_at": datetime.now(timezone.utc),
             }
         )
-        return self.session_store.upsert(updated_session)
+        return self.session_store.upsert(self._with_summary(updated_session))
 
     def _build_steps(self, plan: RemediationPlan) -> list[RemediationWorkflowStep]:
         steps: list[RemediationWorkflowStep] = []
@@ -208,6 +208,66 @@ class RemediationWorkflowCoordinator:
         if phase == "return":
             return RequestedContentType.practice_problem
         return RequestedContentType.remedial_micro_module
+
+    def _with_summary(self, session: RemediationWorkflowSession) -> RemediationWorkflowSession:
+        return session.model_copy(update={"summary": self._summary_for(session)})
+
+    def _summary_for(self, session: RemediationWorkflowSession) -> RemediationWorkflowSummary:
+        current_step = self._current_step(session)
+        next_step = self._next_step_for_summary(session=session, current_step=current_step)
+        status = "complete" if session.current_step_index is None else "in_progress"
+        if session.progression_decision.startswith("hold_"):
+            status = "held"
+        return RemediationWorkflowSummary(
+            status=status,
+            current_phase=current_step.phase if current_step is not None else None,
+            current_step_title=current_step.title if current_step is not None else None,
+            current_step_target_kc_ids=list(current_step.target_kc_ids) if current_step is not None else [],
+            next_phase=next_step.action if next_step.action not in {"complete", "advance"} else None,
+            completed_step_count=len(session.completed_generation_ids),
+            step_count=len(session.steps),
+            progression_decision=session.progression_decision,
+            progression_rationale=session.progression_rationale,
+            progression_target_kc_ids=list(session.progression_target_kc_ids),
+            next_step=next_step,
+        )
+
+    def _next_step_for_summary(
+        self,
+        *,
+        session: RemediationWorkflowSession,
+        current_step: RemediationWorkflowStep | None,
+    ):
+        if session.progression_decision.startswith("hold_"):
+            target_stage = "bridge" if session.progression_decision == "hold_bridge_target" else "repair"
+            content_type = (
+                RequestedContentType.practice_problem.value
+                if session.progression_decision == "hold_bridge_target"
+                else RequestedContentType.remedial_micro_module.value
+            )
+            return LearnerFlowNextStep(
+                action=session.progression_decision,
+                content_type=content_type,
+                target_stage=target_stage,
+                target_kc_ids=list(session.progression_target_kc_ids),
+                rationale=session.progression_rationale,
+            )
+        if current_step is None:
+            return LearnerFlowNextStep(
+                action="complete",
+                content_type=None,
+                target_stage="transfer",
+                target_kc_ids=list(session.kc_sequence.deferred_kc_ids or session.focus_kc_ids),
+                rationale="The remediation workflow is complete.",
+            )
+        target_stage = "transfer" if current_step.phase == "return" else "bridge" if current_step.phase == "bridge" else "repair"
+        return LearnerFlowNextStep(
+            action=current_step.phase,
+            content_type=current_step.recommended_content_type.value,
+            target_stage=target_stage,
+            target_kc_ids=list(current_step.target_kc_ids),
+            rationale=session.progression_rationale or current_step.guidance or session.rationale,
+        )
 
     def _intent_for(self, content_type: RequestedContentType) -> ContentIntent:
         if content_type == RequestedContentType.practice_problem:

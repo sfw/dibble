@@ -739,6 +739,11 @@ def test_remediation_session_endpoints_advance_multi_step_workflow(client, stude
     session_payload = session_response.json()
     assert session_payload["current_step_index"] == 1
     assert [step["status"] for step in session_payload["steps"]] == ["completed", "active", "pending"]
+    assert session_payload["summary"]["status"] == "in_progress"
+    assert session_payload["summary"]["current_phase"] == "repair"
+    assert session_payload["summary"]["progression_decision"] == "advance"
+    assert session_payload["summary"]["next_step"]["content_type"] == "remedial_micro_module"
+    assert session_payload["summary"]["next_step"]["target_kc_ids"] == ["KC-1"]
 
     repair_response = client.post(
         f"/api/remedial/sessions/{remediation_session_id}/advance",
@@ -751,6 +756,9 @@ def test_remediation_session_endpoints_advance_multi_step_workflow(client, stude
     assert repair_payload["session"]["current_step_index"] == 2
     assert [step["status"] for step in repair_payload["session"]["steps"]] == ["completed", "completed", "active"]
     assert repair_payload["content"]["request_context"]["remediation_workflow"]["next_phase"] == "return"
+    assert repair_payload["session"]["summary"]["current_phase"] == "return"
+    assert repair_payload["session"]["summary"]["next_step"]["content_type"] == "practice_problem"
+    assert repair_payload["session"]["summary"]["next_step"]["target_stage"] == "transfer"
 
     return_response = client.post(
         f"/api/remedial/sessions/{remediation_session_id}/advance",
@@ -768,6 +776,9 @@ def test_remediation_session_endpoints_advance_multi_step_workflow(client, stude
     ]
     assert return_payload["content"]["request_context"]["remediation_workflow"]["status"] == "complete"
     assert return_payload["content"]["request_context"]["remediation_workflow"]["next_phase"] is None
+    assert return_payload["session"]["summary"]["status"] == "complete"
+    assert return_payload["session"]["summary"]["next_step"]["action"] == "complete"
+    assert return_payload["session"]["summary"]["next_step"]["content_type"] is None
 
     completed_response = client.post(
         f"/api/remedial/sessions/{remediation_session_id}/advance",
@@ -858,6 +869,10 @@ def test_remediation_session_holds_return_when_recent_repair_evidence_is_weak(cl
     assert held_payload["session"]["progression_decision"] == "hold_repair_target"
     assert held_payload["content"]["request_context"]["remediation_workflow"]["progression_decision"] == "hold_repair_target"
     assert held_payload["content"]["request_context"]["remediation_workflow"]["next_phase"] == "return"
+    assert held_payload["session"]["summary"]["status"] == "held"
+    assert held_payload["session"]["summary"]["progression_decision"] == "hold_repair_target"
+    assert held_payload["session"]["summary"]["next_step"]["action"] == "hold_repair_target"
+    assert held_payload["session"]["summary"]["next_step"]["content_type"] == "remedial_micro_module"
 
 
 def test_explanations_and_problems_endpoints_specialize_generation(client, student_id):

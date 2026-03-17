@@ -6,7 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from dibble.models.generation import GeneratedContent, RequestedContentType
-from dibble.models.profile import LearnerStrategySummary
+from dibble.models.profile import LearnerFlowNextStep, LearnerStrategySummary
 
 
 def utc_now() -> datetime:
@@ -24,6 +24,20 @@ class RemediationWorkflowStep(BaseModel):
     recommended_content_type: RequestedContentType
     status: str = "pending"
     generated_content_id: str | None = None
+
+
+class RemediationWorkflowSummary(BaseModel):
+    status: str = "in_progress"
+    current_phase: str | None = None
+    current_step_title: str | None = None
+    current_step_target_kc_ids: list[str] = Field(default_factory=list)
+    next_phase: str | None = None
+    completed_step_count: int = Field(default=0, ge=0)
+    step_count: int = Field(default=0, ge=0)
+    progression_decision: str = "advance"
+    progression_rationale: str | None = None
+    progression_target_kc_ids: list[str] = Field(default_factory=list)
+    next_step: LearnerFlowNextStep = Field(default_factory=LearnerFlowNextStep)
 
 
 class KcSequenceSummary(BaseModel):
@@ -53,6 +67,7 @@ class RemediationWorkflowSession(BaseModel):
     progression_decision: str = "advance"
     progression_rationale: str | None = None
     progression_target_kc_ids: list[str] = Field(default_factory=list)
+    summary: RemediationWorkflowSummary = Field(default_factory=RemediationWorkflowSummary)
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
 

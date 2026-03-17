@@ -12,6 +12,7 @@ from dibble.models.generation import (
     GenerationMetadata,
     GroundingReference,
 )
+from dibble.models.profile import LearnerFlowNextStep
 
 
 def utc_now() -> datetime:
@@ -77,6 +78,19 @@ class SocraticTurnRecord(BaseModel):
     created_at: datetime = Field(default_factory=utc_now)
 
 
+class SocraticSessionSummary(BaseModel):
+    status: str = "idle"
+    turn_count: int = Field(default=0, ge=0)
+    latest_prompt_style: str | None = None
+    latest_steering_action: str = "steady"
+    latest_next_action: str = "monitor"
+    latest_evidence_strength: str = "insufficient"
+    latest_evidence_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    rationale: str | None = None
+    next_step: LearnerFlowNextStep = Field(default_factory=LearnerFlowNextStep)
+    updated_at: datetime | None = None
+
+
 class SocraticAssessmentSession(BaseModel):
     session_id: str
     student_id: UUID
@@ -86,6 +100,7 @@ class SocraticAssessmentSession(BaseModel):
     curriculum_context: list[str] = Field(default_factory=list)
     conversation_history: list[SocraticMessage] = Field(default_factory=list)
     turns: list[SocraticTurnRecord] = Field(default_factory=list)
+    summary: SocraticSessionSummary = Field(default_factory=SocraticSessionSummary)
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
 
@@ -126,6 +141,7 @@ class SocraticAssessmentResponse(BaseModel):
     grounding: list[GroundingReference] = Field(default_factory=list)
     generated_blocks: list[GeneratedBlock] = Field(default_factory=list)
     conversation_history: list[SocraticMessage] = Field(default_factory=list)
+    summary: SocraticSessionSummary = Field(default_factory=SocraticSessionSummary)
     generation_id: str | None = None
     generation_metadata: GenerationMetadata | None = None
     created_at: datetime = Field(default_factory=utc_now)

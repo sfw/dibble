@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
 
-from dibble.models.assessment import SocraticAssessmentSession, SocraticNextAction
+from dibble.models.assessment import SocraticAssessmentSession
 from dibble.models.generation import RequestedContentType
 from dibble.models.profile import LearnerFlowNextStep, LearnerFlowSummary
 from dibble.models.remediation import RemediationWorkflowSession
@@ -180,29 +180,22 @@ class LearnerFlowService:
         if session is None:
             return None
 
-        current_step = self._current_remediation_step(session)
-        hold_next_step = self._held_remediation_next_step(session)
-        next_step = hold_next_step or self._planned_remediation_next_step(session, current_step=current_step)
-        current_phase = current_step.phase if current_step is not None else "complete"
-        target_stage = self._remediation_target_stage(
-            decision=session.progression_decision,
-            phase=current_phase,
-        )
+        summary = session.summary
 
         return LearnerFlowSummary(
-            status="complete" if session.current_step_index is None else "in_progress",
+            status=summary.status,
             flow_type="remediation",
             learning_session_id=session.session_id,
             remediation_session_id=session.session_id,
-            current_phase=current_phase,
-            current_content_type=self._maybe_str(next_step.content_type),
-            progression_action=session.progression_decision,
-            target_stage=target_stage,
-            active_target_kc_ids=list(next_step.target_kc_ids),
+            current_phase=summary.current_phase or "complete",
+            current_content_type=self._maybe_str(summary.next_step.content_type),
+            progression_action=summary.progression_decision,
+            target_stage=summary.next_step.target_stage,
+            active_target_kc_ids=list(summary.next_step.target_kc_ids),
             deferred_target_kc_ids=list(session.kc_sequence.deferred_kc_ids),
             transfer_target_kc_ids=list(session.kc_sequence.deferred_kc_ids),
-            rationale=self._first_text(session.progression_rationale, session.rationale),
-            next_step=next_step,
+            rationale=self._first_text(summary.progression_rationale, session.rationale),
+            next_step=summary.next_step,
             updated_at=session.updated_at,
         )
 
@@ -217,30 +210,20 @@ class LearnerFlowService:
         if session is None or not isinstance(session, SocraticAssessmentSession) or not session.turns:
             return None
 
-        latest_turn = session.turns[-1]
-        next_content_type = self._socratic_next_content_type(latest_turn.evaluation.next_action)
-        target_stage = "transfer" if latest_turn.evaluation.next_action == SocraticNextAction.advance else "assessment"
-        if latest_turn.evaluation.next_action == SocraticNextAction.step_back:
-            target_stage = "repair"
+        summary = session.summary
 
         return LearnerFlowSummary(
-            status="ready_for_follow_up" if latest_turn.evaluation.next_action == SocraticNextAction.advance else "in_progress",
+            status=summary.status,
             flow_type="socratic_assessment",
             learning_session_id=session.learning_session_id,
             socratic_session_id=session.session_id,
-            current_phase=latest_turn.prompt_style.value,
+            current_phase=summary.latest_prompt_style or "assessment",
             current_content_type="assessment_probe",
-            progression_action=latest_turn.evaluation.next_action.value,
-            target_stage=target_stage,
+            progression_action=summary.latest_next_action,
+            target_stage=summary.next_step.target_stage,
             active_target_kc_ids=list(session.target_kc_ids),
-            rationale=self._first_text(latest_turn.evaluation.rationale, latest_turn.policy_rationale),
-            next_step=LearnerFlowNextStep(
-                action=latest_turn.steering_action.value,
-                content_type=next_content_type.value if next_content_type is not None else None,
-                target_stage=target_stage,
-                target_kc_ids=list(session.target_kc_ids),
-                rationale=self._first_text(latest_turn.evaluation.rationale, latest_turn.policy_rationale),
-            ),
+            rationale=summary.rationale,
+            next_step=summary.next_step,
             updated_at=session.updated_at,
         )
 
@@ -336,65 +319,10 @@ class LearnerFlowService:
             "average_assessment_mastery": payload.get("progression_average_assessment_mastery"),
         }
 
-    def _planned_remediation_next_step(
-        self,
-        session: RemediationWorkflowSession,
-        *,
-        current_step,
-    ) -> LearnerFlowNextStep:
-        if current_step is None:
-            return LearnerFlowNextStep(
-                action="complete",
-                content_type=None,
-                target_stage="transfer",
-                target_kc_ids=list(session.kc_sequence.deferred_kc_ids or session.focus_kc_ids),
-                rationale="The remediation workflow is complete.",
-            )
-        return LearnerFlowNextStep(
-            action=current_step.phase,
-            content_type=current_step.recommended_content_type.value,
-            target_stage=self._remediation_target_stage(decision=session.progression_decision, phase=current_step.phase),
-            target_kc_ids=list(current_step.target_kc_ids),
-            rationale=self._first_text(session.progression_rationale, current_step.guidance, session.rationale),
-        )
-
-    def _held_remediation_next_step(self, session: RemediationWorkflowSession) -> LearnerFlowNextStep | None:
-        if not session.progression_decision.startswith("hold_"):
-            return None
-        target_stage = "bridge" if session.progression_decision == "hold_bridge_target" else "repair"
-        content_type = (
-            RequestedContentType.practice_problem.value
-            if session.progression_decision == "hold_bridge_target"
-            else RequestedContentType.remedial_micro_module.value
-        )
-        return LearnerFlowNextStep(
-            action=session.progression_decision,
-            content_type=content_type,
-            target_stage=target_stage,
-            target_kc_ids=list(session.progression_target_kc_ids),
-            rationale=session.progression_rationale,
-        )
-
     def _current_remediation_step(self, session: RemediationWorkflowSession):
         if session.current_step_index is None or session.current_step_index >= len(session.steps):
             return None
         return session.steps[session.current_step_index]
-
-    def _remediation_target_stage(self, *, decision: str, phase: str) -> str:
-        if decision == "hold_bridge_target" or phase == "bridge":
-            return "bridge"
-        if decision == "advance" and phase == "return":
-            return "transfer"
-        if decision == "complete":
-            return "transfer"
-        return "repair"
-
-    def _socratic_next_content_type(self, next_action: SocraticNextAction) -> RequestedContentType:
-        if next_action == SocraticNextAction.step_back:
-            return RequestedContentType.remedial_micro_module
-        if next_action == SocraticNextAction.advance:
-            return RequestedContentType.practice_problem
-        return RequestedContentType.assessment_probe
 
     def _controller_next_content_type(self, controller: WithinSessionControllerState) -> RequestedContentType:
         if controller.phase == "transfer_check" or controller.sequence_action == "attempt_transfer":

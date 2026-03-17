@@ -11,10 +11,13 @@ from dibble.models.assessment import (
     SocraticAssessmentSession,
     SocraticMessage,
     SocraticMessageRole,
+    SocraticNextAction,
     SocraticPromptStyle,
+    SocraticSessionSummary,
     SocraticTurnRecord,
 )
 from dibble.models.generation import GenerationRequest
+from dibble.models.profile import LearnerFlowNextStep
 from dibble.models.profile import LearnerProfile
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.protocols import SocraticSessionStore
@@ -74,6 +77,7 @@ class SocraticAssessmentService:
                 "updated_at": datetime.now(timezone.utc),
             }
         )
+        updated_session = updated_session.model_copy(update={"summary": self._summary_for(updated_session)})
         self.session_store.upsert(updated_session)
 
         return SocraticAssessmentResponse(
@@ -90,6 +94,7 @@ class SocraticAssessmentService:
             grounding=response.grounding,
             generated_blocks=response.blocks,
             conversation_history=updated_session.conversation_history,
+            summary=updated_session.summary,
             generation_id=response.generation_id,
             generation_metadata=generation_metadata,
         )
@@ -112,6 +117,7 @@ class SocraticAssessmentService:
             curriculum_context=request.curriculum_context,
             conversation_history=[],
             turns=[],
+            summary=SocraticSessionSummary(),
             created_at=now,
             updated_at=now,
         )
@@ -182,3 +188,47 @@ class SocraticAssessmentService:
             if block.kind in {"instruction", "practice"}:
                 return f"{block.body.strip()} What do you notice?"
         return "What makes you think that?"
+
+    def _summary_for(self, session: SocraticAssessmentSession) -> SocraticSessionSummary:
+        latest_turn = session.turns[-1] if session.turns else None
+        if latest_turn is None:
+            return SocraticSessionSummary(updated_at=session.updated_at)
+        return SocraticSessionSummary(
+            status=(
+                "ready_for_follow_up"
+                if latest_turn.evaluation.next_action == SocraticNextAction.advance
+                else "in_progress"
+            ),
+            turn_count=len(session.turns),
+            latest_prompt_style=latest_turn.prompt_style.value,
+            latest_steering_action=latest_turn.steering_action.value,
+            latest_next_action=latest_turn.evaluation.next_action.value,
+            latest_evidence_strength=latest_turn.evaluation.evidence_strength.value,
+            latest_evidence_score=latest_turn.evaluation.evidence_score,
+            rationale=latest_turn.evaluation.rationale or latest_turn.policy_rationale,
+            next_step=self._next_step_for(latest_turn=latest_turn, session=session),
+            updated_at=session.updated_at,
+        )
+
+    def _next_step_for(
+        self,
+        *,
+        latest_turn: SocraticTurnRecord,
+        session: SocraticAssessmentSession,
+    ) -> LearnerFlowNextStep:
+        next_action = latest_turn.evaluation.next_action
+        content_type = "assessment_probe"
+        target_stage = "assessment"
+        if next_action == SocraticNextAction.step_back:
+            content_type = "remedial_micro_module"
+            target_stage = "repair"
+        elif next_action == SocraticNextAction.advance:
+            content_type = "practice_problem"
+            target_stage = "transfer"
+        return LearnerFlowNextStep(
+            action=latest_turn.steering_action.value,
+            content_type=content_type,
+            target_stage=target_stage,
+            target_kc_ids=list(session.target_kc_ids),
+            rationale=latest_turn.evaluation.rationale or latest_turn.policy_rationale,
+        )
