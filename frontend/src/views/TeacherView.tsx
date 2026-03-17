@@ -76,8 +76,8 @@ export function TeacherView({
     intervention.available_options.find((option) => option.option_id === effectiveSelectedOptionId) ?? recommendedOption
 
   return (
-    <section className="view-grid">
-      <div className="main-column">
+    <section className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.92fr)]">
+      <div className="flex flex-col gap-6">
         {handoffContext ? (
           <div className="panel">
             <SectionHeader
@@ -85,7 +85,7 @@ export function TeacherView({
               title={`Reviewing ${handoffContext.learnerId} from ${handoffContext.classroomTitle}`}
               description="This learner was opened from the classroom triage queue, so you can review the intervention contract here and then jump back to the classroom when you are done."
             />
-            <div className="action-row">
+            <div className="flex flex-wrap items-center gap-3">
               <Pill label={handoffContext.classroomId} tone="neutral" />
               {onReturnToClassroom ? (
                 <Button type="button" variant="outline" size="sm" onClick={onReturnToClassroom}>
@@ -102,7 +102,7 @@ export function TeacherView({
             title="Intervention readiness and rationale"
             description="This surface now reflects the backend-owned intervention contract, while still calling out the remaining teacher-facing gaps."
           />
-          <div className="teacher-scoreboard">
+          <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
             <InsightCard
               title="Current recommendation"
               value={formatContentType(flow.next_step.content_type)}
@@ -136,7 +136,7 @@ export function TeacherView({
             title="Review the backend-owned intervention proposal"
             description="Teachers can see the proposed action, compare alternatives, and record a decision against the learner-specific intervention contract."
           />
-          <div className="stack">
+          <div className="flex flex-col gap-4">
             <article className="summary-card">
               <div className="summary-card__topline">
                 <Pill label={formatContractLabel(intervention.flow_type)} tone="neutral" />
@@ -165,7 +165,7 @@ export function TeacherView({
               </div>
             </article>
 
-            <div className="option-grid">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {intervention.available_options.map((option) => {
                 const isSelected = option.option_id === effectiveSelectedOptionId
                 return (
@@ -195,7 +195,7 @@ export function TeacherView({
               />
             </label>
 
-            <div className="decision-row">
+            <div className="flex flex-wrap items-center gap-3">
               {intervention.allowed_decisions.map((decision) => (
                 <Button
                   key={decision}
@@ -244,7 +244,7 @@ export function TeacherView({
             title="How learner flow aligns to curriculum posture"
             description="Teachers should be able to see the current learner move in the context of the backend-owned curriculum progression contract."
           />
-          <div className="two-column-grid">
+          <div className="grid gap-4 md:grid-cols-2">
             <article className="summary-card">
               <div className="summary-card__topline">
                 <Pill label={formatContractLabel(progression.status)} tone="neutral" />
@@ -309,7 +309,7 @@ export function TeacherView({
         </div>
       </div>
 
-      <aside className="side-column">
+      <aside className="flex flex-col gap-6">
         <div className="panel">
           <SectionHeader
             eyebrow="Intervention summary"

@@ -21,8 +21,8 @@ export function WorkspacePicker({
   onPickLearner: (learnerId: string) => void
 }) {
   return (
-    <div className="workspace-picker glass-panel">
-      <div className="workspace-picker__row">
+    <div className="glass-panel flex flex-col gap-4">
+      <div className="grid items-end gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
         <label>
           Learner ID
           <Input
@@ -35,9 +35,9 @@ export function WorkspacePicker({
           {loading ? 'Refreshing...' : 'Refresh learner workspace'}
         </Button>
       </div>
-      <div className="learner-chip-row">
+      <div className="flex flex-wrap gap-3">
         {learnerIds.slice(0, 8).map((id) => (
-          <Button key={id} className="chip" variant="secondary" onClick={() => onPickLearner(id)}>
+          <Button key={id} variant="secondary" size="sm" onClick={() => onPickLearner(id)}>
             {id}
           </Button>
         ))}

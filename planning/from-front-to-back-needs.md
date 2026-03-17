@@ -58,6 +58,8 @@ These were once frontend-facing needs and are now sufficiently shipped that they
 - It does not create a new frontend contract gap and does not justify any frontend-owned progression workaround.
 - The latest frontend explainability and label-curation pass also did not surface a new backend blocker; existing backend contracts were sufficient once the UI stopped rendering them so literally.
 - The latest shell-level fallback and handoff continuity pass also did not surface a new backend blocker; current learner workspace, classroom, history, and intervention contracts were sufficient once the frontend made source posture and handoff state more explicit.
+- The latest frontend CSS cleanup pass also did not surface a backend blocker; the remaining work was purely about retiring stale client-side presentation code in favor of shared frontend primitives.
+- The final layout-CSS sweep also did not surface a backend blocker; it was a frontend composition cleanup that kept the existing backend-owned contracts intact while reducing client-side styling debt.
 
 ## Frontend Guardrails While These Needs Remain
 

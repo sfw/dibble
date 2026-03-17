@@ -39,15 +39,15 @@ export function ClassroomView({
   ).length
 
   return (
-    <section className="view-grid">
-      <div className="main-column">
+    <section className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.92fr)]">
+      <div className="flex flex-col gap-6">
         <div className="panel">
           <SectionHeader
             eyebrow="Teacher classroom view"
             title="Classroom attention and progression posture"
             description="This first classroom workspace uses the backend-owned classroom read model rather than aggregating individual learner requests on the client."
           />
-          <div className="classroom-overview-grid">
+          <div className="grid gap-4 md:grid-cols-2">
             {classrooms.map((item) => {
               const isSelected = item.classroom_id === selectedClassroomId
               return (
@@ -94,17 +94,17 @@ export function ClassroomView({
             title="Move from classroom posture to learner action handoff"
             description="This queue stays summary-first: teachers can review backend-owned intervention readiness, see blocked progression separately from active work, and hand off directly into the right learner surface."
           />
-          <div className="stack">
+          <div className="flex flex-col gap-4">
             {triageSections.map((section) => (
-              <section key={section.key} className="triage-section">
-                <div className="triage-section__header">
+              <section key={section.key} className="flex flex-col gap-4">
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div>
                     <h3>{section.title}</h3>
                     <p className="muted">{section.description}</p>
                   </div>
                   <Pill label={`${section.learners.length} learners`} tone={section.tone} />
                 </div>
-                <div className="classroom-learner-list">
+                <div className="flex flex-col gap-4">
                   {section.learners.length === 0 ? (
                     <EmptyState
                       title="No learners in this queue"
@@ -124,7 +124,7 @@ export function ClassroomView({
                                 Grade {learner.grade_level} • {formatContractLabel(learner.attention_level)} attention
                               </p>
                             </div>
-                            <div className="hero-pills">
+                            <div className="flex flex-wrap gap-3">
                               <Pill label={formatContractLabel(learner.current_flow.flow_type)} tone="neutral" />
                               <Pill
                                 label={formatContractLabel(learner.curriculum_progression.status)}
@@ -155,7 +155,7 @@ export function ClassroomView({
                             </div>
                           </div>
                           <p>{describeLearnerRationale(learner)}</p>
-                          <div className="action-row">
+                          <div className="flex flex-wrap items-center gap-3">
                             {learner.attention_reasons.map((reason) => (
                               <Pill key={reason} label={formatAttentionReason(reason)} tone="warning" />
                             ))}
@@ -192,7 +192,7 @@ export function ClassroomView({
         </div>
       </div>
 
-      <aside className="side-column">
+      <aside className="flex flex-col gap-6">
         <div className="panel">
           <SectionHeader
             eyebrow="Classroom summary"
@@ -221,7 +221,7 @@ export function ClassroomView({
               title="Missing classroom records"
               description="These roster entries did not resolve to a learner summary."
             />
-            <div className="stack">
+            <div className="flex flex-col gap-4">
               {classroom.missing_student_ids.map((studentId) => (
                 <div key={studentId} className="history-card">
                   <strong>{studentId}</strong>

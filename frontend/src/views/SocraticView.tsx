@@ -33,8 +33,8 @@ export function SocraticView(props: {
   } = props
 
   return (
-    <section className="view-grid">
-      <div className="main-column">
+    <section className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.92fr)]">
+      <div className="flex flex-col gap-6">
         <div className="panel">
           <SectionHeader
             eyebrow="Socratic session summaries"
@@ -129,7 +129,7 @@ export function SocraticView(props: {
             title="Current turn summary"
             description="Prompt style, steering action, evidence strength, and next action are all directly renderable from one response."
           />
-          <div className="explanation-grid">
+          <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
             <InsightCard
               title="Prompt style"
               value={formatContractLabel(response.prompt_style)}
@@ -192,7 +192,7 @@ export function SocraticView(props: {
         </div>
       </div>
 
-      <aside className="side-column">
+      <aside className="flex flex-col gap-6">
         <div className="panel">
           <SectionHeader
             eyebrow="Generated support"

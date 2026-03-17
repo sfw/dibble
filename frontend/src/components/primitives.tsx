@@ -149,15 +149,15 @@ export function EmptyState({
 export function FlowRail({ flow }: { flow: LearnerFlowSummary }) {
   return (
     <div className="flow-rail">
-      <div className="flow-step active">
+      <div className="flow-step">
         <span>Phase</span>
         <strong>{formatContractLabel(flow.current_phase)}</strong>
       </div>
-      <div className="flow-step active">
+      <div className="flow-step">
         <span>Action</span>
         <strong>{formatContractLabel(flow.progression_action)}</strong>
       </div>
-      <div className="flow-step active">
+      <div className="flow-step">
         <span>Stage</span>
         <strong>{formatContractLabel(flow.target_stage)}</strong>
       </div>

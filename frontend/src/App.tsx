@@ -100,7 +100,7 @@ function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className="flex flex-col gap-6 p-4 md:p-6">
       <WorkspaceHero
         dataSource={dataSource}
         learnerId={learnerWorkspace.learnerId}
@@ -113,7 +113,7 @@ function App() {
       <Tabs
         value={activeView}
         onValueChange={(value) => setActiveView(value as ViewKey)}
-        className="toolbar"
+        className="flex flex-col gap-4"
       >
         <WorkspacePicker
           learnerId={learnerWorkspace.learnerId}
@@ -131,7 +131,7 @@ function App() {
             void learnerWorkspace.loadLearnerWorkspace(learnerId)
           }}
         />
-        <TabsList className="tabbar" aria-label="Workspace views">
+        <TabsList className="flex flex-wrap gap-3" aria-label="Workspace views">
           <TabsTrigger value="overview">Learner Overview</TabsTrigger>
           <TabsTrigger value="generation">Generated Content</TabsTrigger>
           <TabsTrigger value="socratic">Socratic</TabsTrigger>
@@ -140,7 +140,7 @@ function App() {
           <TabsTrigger value="classroom">Classroom View</TabsTrigger>
         </TabsList>
 
-        <main className="workspace">
+        <main>
           <TabsContent value="overview">
             <OverviewView
               summary={learnerWorkspace.summary}

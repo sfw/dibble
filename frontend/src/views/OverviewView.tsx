@@ -1,7 +1,17 @@
 import { Button } from '@/components/ui/button'
 
 import { labelForView, resolveArtifactView, resolveContinueActionView, type ViewKey } from '../app/workspace'
-import { EmptyState, FlowRail, InsightCard, JsonPanel, MetricList, PanelNotice, SectionHeader, StatCard } from '../components/primitives'
+import {
+  EmptyState,
+  FlowRail,
+  InsightCard,
+  JsonPanel,
+  MetricList,
+  PanelNotice,
+  Pill,
+  SectionHeader,
+  StatCard,
+} from '../components/primitives'
 import {
   formatArtifactKind,
   formatContentType,
@@ -52,21 +62,21 @@ export function OverviewView({
   const resumeView = resolveResumeView(workspace)
 
   return (
-    <section className="view-grid">
-      <div className="main-column">
+    <section className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.92fr)]">
+      <div className="flex flex-col gap-6">
         <div className="panel hero-summary">
           <div className="hero-summary__header">
             <div>
               <p className="eyebrow">Learner summary / current flow</p>
               <h2>Current learning posture</h2>
             </div>
-            <div className="hero-pills">
-              <span className="pill pill--accent">{formatContractLabel(summary.progress.signal)}</span>
-              <span className="pill pill--neutral">{formatContractLabel(flow.status)}</span>
-              <span className="pill pill--success">{formatContractLabel(flow.next_step.target_stage)}</span>
+            <div className="flex flex-wrap gap-3">
+              <Pill label={formatContractLabel(summary.progress.signal)} tone="accent" />
+              <Pill label={formatContractLabel(flow.status)} tone="neutral" />
+              <Pill label={formatContractLabel(flow.next_step.target_stage)} tone="success" />
             </div>
           </div>
-          <div className="kpi-grid">
+          <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
             <StatCard label="Engagement" value={summary.engagement} sublabel="live affective signal" />
             <StatCard label="Frustration" value={summary.frustration} sublabel="intervention timing input" />
             <StatCard label="Total load" value={formatPercent(summary.total_load)} sublabel="current load estimate" />
@@ -91,10 +101,10 @@ export function OverviewView({
                 <p className="content-block__kind">Active artifact</p>
                 <h3>{formatArtifactKind(workspace.active_artifact.kind)}</h3>
               </div>
-              <div className="hero-pills">
-                <span className="pill pill--neutral">{formatContractLabel(workspace.active_artifact.flow_type)}</span>
-                <span className="pill pill--accent">{formatContractLabel(workspace.active_artifact.current_phase)}</span>
-                <span className="pill pill--success">{formatContractLabel(workspace.continue_action.target_stage)}</span>
+              <div className="flex flex-wrap gap-3">
+                <Pill label={formatContractLabel(workspace.active_artifact.flow_type)} tone="neutral" />
+                <Pill label={formatContractLabel(workspace.active_artifact.current_phase)} tone="accent" />
+                <Pill label={formatContractLabel(workspace.continue_action.target_stage)} tone="success" />
               </div>
             </div>
             <p>{workspace.active_artifact.rationale ?? workspace.continue_action.rationale ?? 'No workspace rationale returned.'}</p>
@@ -116,7 +126,7 @@ export function OverviewView({
                 <strong>{workspace.continue_action.resource_id ?? workspace.active_artifact.resource_id ?? 'n/a'}</strong>
               </div>
             </div>
-            <div className="action-row">
+            <div className="flex flex-wrap items-center gap-3">
               {resumeView ? (
                 <Button type="button" onClick={() => onSelectView(resumeView)}>
                   Open {labelForView(resumeView)} workspace
@@ -134,11 +144,11 @@ export function OverviewView({
             title="Where this learner sits in the broader curriculum"
             description="This surface uses the backend-owned curriculum progression contract so the frontend can show current resource focus and blocked-next context without inventing sequencing logic."
           />
-          <div className="two-column-grid">
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="summary-card">
               <div className="summary-card__topline">
-                <span className="pill pill--neutral">{formatContractLabel(progression.status)}</span>
-                <span className="pill pill--accent">{formatContractLabel(progression.current_stage)}</span>
+                <Pill label={formatContractLabel(progression.status)} tone="neutral" />
+                <Pill label={formatContractLabel(progression.current_stage)} tone="accent" />
               </div>
               <h3>{progression.current_resource?.title ?? 'No active curriculum resource'}</h3>
               <p>{progression.rationale ?? 'No curriculum progression rationale returned.'}</p>
@@ -180,7 +190,7 @@ export function OverviewView({
             title="Why the backend is steering this learner here"
             description="These cards come directly from compact summary contracts rather than reconstructed traces."
           />
-          <div className="explanation-grid">
+          <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
             <InsightCard
               title="Calibration"
               value={formatContractLabel(summary.calibration.signal)}
@@ -214,7 +224,7 @@ export function OverviewView({
             title="Recent generated, Socratic, and remediation work"
             description="History surfaces let the frontend review prior learner work without manual session-ID lookups."
           />
-          <div className="history-grid">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <HistoryColumn
               title="Generated content"
               emptyLabel="No generation history returned."
@@ -264,7 +274,7 @@ export function OverviewView({
             title="Teacher-safe explainability surface"
             description="This is the first-pass transparency dashboard for inferred learner state, KC mastery, preferences, and accommodations."
           />
-          <div className="two-column-grid">
+          <div className="grid gap-4 md:grid-cols-2">
             <MetricList
               title="Knowledge state"
               items={[
@@ -293,7 +303,7 @@ export function OverviewView({
         </div>
       </div>
 
-      <aside className="side-column">
+      <aside className="flex flex-col gap-6">
         <div className="panel">
           <SectionHeader
             eyebrow="Recent activity"
@@ -408,7 +418,7 @@ function HistoryColumn({
   return (
     <div className="metric-list-card">
       <h3>{title}</h3>
-      <div className="history-list">
+      <div className="flex flex-col gap-4">
         {items.length === 0 ? (
           <EmptyState title="Nothing to review yet" description={emptyLabel} />
         ) : null}

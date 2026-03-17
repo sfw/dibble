@@ -16,8 +16,8 @@ export function WorkspaceStatus({
       : 'One or more contract surfaces are using demo fallback right now. Keep the UI honest about that mode instead of masking it.'
 
   return (
-    <section className="glass-panel workspace-status">
-      <div className="workspace-status__header">
+    <section className="glass-panel flex flex-col gap-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <SectionHeader
           eyebrow="Workspace status"
           title="Connection and fallback posture"
@@ -31,7 +31,7 @@ export function WorkspaceStatus({
           description="The current connected surfaces are not reporting a refresh or fallback warning."
         />
       ) : (
-        <div className="stack">
+        <div className="flex flex-col gap-4">
           {uniqueNotices.map((notice) => (
             <PanelNotice key={notice} message={notice} tone={dataSource === 'live' ? 'muted' : 'error'} />
           ))}

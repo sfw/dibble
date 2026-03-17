@@ -161,6 +161,8 @@ These are the highest-signal frontend gaps discovered so far:
 - keep reviewing new backend progression changes against the frontend contract stance so the UI continues trusting backend-owned repair, target, bridge, and transfer decisions
 - keep replacing enum-shaped or debug-shaped frontend copy with more curated explainability summaries built from existing backend contracts
 - keep making live-vs-demo fallback posture explicit in the shell so contract connectivity changes are visible without opening debug panels
+- keep consolidating shell and screen layout CSS onto shared primitives where it clearly removes one-off legacy classes instead of adding another styling layer
+- keep `App.css` focused on visual primitives and view-specific card treatment instead of generic page composition helpers
 
 ### Next up
 
@@ -234,6 +236,10 @@ These are the highest-signal frontend gaps discovered so far:
 - added a shell-level workspace status surface that makes live connectivity and demo fallback posture visible from the main app chrome
 - added app-level regression coverage for classroom-to-teacher handoff continuity, return-to-classroom flow, learner continue-action routing, and live contract connectivity state
 - curated the remaining overview-screen status, progression, strategy, and accommodation labels so fewer learner surfaces leak backend enum shapes directly
+- completed a frontend CSS cleanup pass that replaced the last legacy overview pills, route-reason badges, and learner chip styles with shared `Pill` and `Button` primitives
+- removed dead app-shell selectors that no longer affected layout after the shared primitive migration
+- finished the remaining frontend layout-CSS sweep by migrating shell and view composition helpers onto explicit Tailwind utility classes across the app shell, workspace controls, and learner/teacher views
+- reduced `frontend/src/App.css` to a smaller set of visual and card-level selectors instead of using it as a generic layout framework
 
 ## Notes For Future Updates
 

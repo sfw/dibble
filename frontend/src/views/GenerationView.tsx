@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import type { GenerationFormState } from '../app/workspace'
 import { FormActions, FormField, FormGrid, InlineError } from '../components/form-primitives'
-import { EmptyState, FlowSummaryCard, JsonPanel, MetricList, SectionHeader } from '../components/primitives'
+import { EmptyState, FlowSummaryCard, JsonPanel, MetricList, Pill, SectionHeader } from '../components/primitives'
 import type { GeneratedBlock, GeneratedContent, GenerationStreamEvent } from '../types'
 import { formatContractLabel, formatPercent } from '../lib/formatters'
 
@@ -40,8 +40,8 @@ export function GenerationView(props: {
   const blocksToRender = streamedBlocks.length > 0 ? streamedBlocks : result.response.blocks
 
   return (
-    <section className="view-grid">
-      <div className="main-column">
+    <section className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.92fr)]">
+      <div className="flex flex-col gap-6">
         <div className="panel">
           <SectionHeader
             eyebrow="Generated content workflow"
@@ -162,7 +162,7 @@ export function GenerationView(props: {
             description="This is the compact shape the frontend can trust without unpacking internal request context."
           />
           {result.workflow_summary ? <FlowSummaryCard summary={result.workflow_summary} /> : null}
-          <div className="two-column-grid">
+          <div className="grid gap-4 md:grid-cols-2">
             <MetricList
               title="Route decision"
               items={[
@@ -197,11 +197,9 @@ export function GenerationView(props: {
               ]}
             />
           </div>
-          <div className="reason-list">
+          <div className="flex flex-wrap gap-3">
             {result.response.route.reasons.map((reason) => (
-              <div key={reason} className="reason-pill">
-                {formatContractLabel(reason)}
-              </div>
+              <Pill key={reason} label={formatContractLabel(reason)} tone="neutral" />
             ))}
           </div>
         </div>
@@ -224,14 +222,14 @@ export function GenerationView(props: {
         </div>
       </div>
 
-      <aside className="side-column">
+      <aside className="flex flex-col gap-6">
         <div className="panel">
           <SectionHeader
             eyebrow="Grounding"
             title="Curriculum support"
             description="The revised system depends on grounded, inspectable generation."
           />
-          <div className="stack">
+          <div className="flex flex-col gap-4">
             {result.response.grounding.map((grounding) => (
               <article key={grounding.resource_id} className="grounding-card">
                 <div className="grounding-card__header">
