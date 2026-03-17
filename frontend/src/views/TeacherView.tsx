@@ -28,6 +28,8 @@ export function TeacherView({
   submissionError = '',
   submittingDecision = false,
   onSubmitDecision,
+  handoffContext = null,
+  onReturnToClassroom,
   showDebugPanels = false,
 }: {
   summary: ProfileSummary
@@ -41,6 +43,12 @@ export function TeacherView({
   submissionError?: string
   submittingDecision?: boolean
   onSubmitDecision: (payload: TeacherInterventionDecisionRequest) => void
+  handoffContext?: {
+    classroomId: string
+    classroomTitle: string
+    learnerId: string
+  } | null
+  onReturnToClassroom?: () => void
   showDebugPanels?: boolean
 }) {
   const recommendedOption = useMemo(
@@ -63,6 +71,24 @@ export function TeacherView({
   return (
     <section className="view-grid">
       <div className="main-column">
+        {handoffContext ? (
+          <div className="panel">
+            <SectionHeader
+              eyebrow="Classroom handoff"
+              title={`Reviewing ${handoffContext.learnerId} from ${handoffContext.classroomTitle}`}
+              description="This learner was opened from the classroom triage queue, so you can review the intervention contract here and then jump back to the classroom when you are done."
+            />
+            <div className="action-row">
+              <Pill label={handoffContext.classroomId} tone="neutral" />
+              {onReturnToClassroom ? (
+                <Button type="button" variant="outline" size="sm" onClick={onReturnToClassroom}>
+                  Return to classroom
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
         <div className="panel">
           <SectionHeader
             eyebrow="Teacher-facing explainability"

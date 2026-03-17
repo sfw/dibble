@@ -34,7 +34,7 @@ describe('OverviewView', () => {
     expect(screen.getByText('Resume from the backend-owned workspace')).toBeInTheDocument()
     expect(screen.getByText('Where this learner sits in the broader curriculum')).toBeInTheDocument()
     expect(screen.getByText('Equivalent Fraction Practice')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Open generation workspace' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open generated content workspace' })).toBeInTheDocument()
     expect(screen.getByText('Recent generated, Socratic, and remediation work')).toBeInTheDocument()
     expect(screen.getByText('Generated content')).toBeInTheDocument()
     expect(screen.getByText('check_transfer_readiness')).toBeInTheDocument()
@@ -64,6 +64,6 @@ describe('OverviewView', () => {
       />,
     )
 
-    expect(screen.getByRole('button', { name: 'Open generation workspace' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open generated content workspace' })).toBeInTheDocument()
   })
 })

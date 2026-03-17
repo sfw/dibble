@@ -16,6 +16,7 @@ describe('TeacherView', () => {
   it('renders intervention controls, latest decision data, and remaining contract gaps', async () => {
     const user = userEvent.setup()
     const onSubmitDecision = vi.fn()
+    const onReturnToClassroom = vi.fn()
 
     render(
       <TeacherView
@@ -27,10 +28,20 @@ describe('TeacherView', () => {
         gaps={teacherContractGaps}
         dataSource="live"
         onSubmitDecision={onSubmitDecision}
+        handoffContext={{
+          classroomId: 'CLASS-1',
+          classroomTitle: 'Grade 5 Fractions',
+          learnerId: demoProfileSummary.student_id,
+        }}
+        onReturnToClassroom={onReturnToClassroom}
         showDebugPanels
       />,
     )
 
+    expect(
+      screen.getByText(`Reviewing ${demoProfileSummary.student_id} from Grade 5 Fractions`),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Return to classroom' })).toBeInTheDocument()
     expect(screen.getByText('Intervention readiness and rationale')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'practice_problem' })).toBeInTheDocument()
     expect(screen.getByText('How learner flow aligns to curriculum posture')).toBeInTheDocument()
@@ -42,12 +53,14 @@ describe('TeacherView', () => {
     expect(screen.getByText('What the frontend still cannot delegate cleanly to the backend')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Approve' }))
+    await user.click(screen.getByRole('button', { name: 'Return to classroom' }))
 
     expect(onSubmitDecision).toHaveBeenCalledWith({
       decision: 'approve',
       option_id: null,
       note: null,
     })
+    expect(onReturnToClassroom).toHaveBeenCalled()
 
     for (const gap of teacherContractGaps) {
       expect(screen.getByText(gap.title)).toBeInTheDocument()

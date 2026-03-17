@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button'
 
-import type { ViewKey } from '../app/workspace'
+import { labelForView, resolveArtifactView, resolveContinueActionView, type ViewKey } from '../app/workspace'
 import { FlowRail, InsightCard, JsonPanel, MetricList, SectionHeader, StatCard } from '../components/primitives'
 import { formatPercent, formatTimestamp, signedPercent, titleCase } from '../lib/formatters'
 import type {
@@ -111,7 +111,7 @@ export function OverviewView({
             <div className="action-row">
               {resumeView ? (
                 <Button type="button" onClick={() => onSelectView(resumeView)}>
-                  Open {resumeView} workspace
+                  Open {labelForView(resumeView)} workspace
                 </Button>
               ) : null}
               {contractsLoading ? <span className="muted">Refreshing workspace contracts…</span> : null}
@@ -420,46 +420,10 @@ function HistoryColumn({
 }
 
 function resolveResumeView(workspace: LearnerWorkspace): ViewKey | null {
-  const continueActionView = resolveViewKey(workspace.continue_action.kind)
+  const continueActionView = resolveContinueActionView(workspace.continue_action.kind)
   if (continueActionView) {
     return continueActionView
   }
 
   return resolveArtifactView(workspace.active_artifact.kind)
-}
-
-function resolveViewKey(kind: string | null | undefined): ViewKey | null {
-  if (!kind) {
-    return null
-  }
-
-  if (kind === 'continue_socratic') {
-    return 'socratic'
-  }
-  if (kind === 'advance_remediation') {
-    return 'remediation'
-  }
-  if (kind === 'generate_follow_up') {
-    return 'generation'
-  }
-
-  return null
-}
-
-function resolveArtifactView(kind: string | null | undefined): ViewKey | null {
-  if (!kind) {
-    return null
-  }
-
-  if (kind === 'generated_content') {
-    return 'generation'
-  }
-  if (kind === 'socratic_session') {
-    return 'socratic'
-  }
-  if (kind === 'remediation_session') {
-    return 'remediation'
-  }
-
-  return null
 }

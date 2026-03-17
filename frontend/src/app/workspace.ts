@@ -1,6 +1,62 @@
 export type ViewKey = 'overview' | 'generation' | 'socratic' | 'remediation' | 'teacher' | 'classroom'
 export type DataSource = 'live' | 'demo'
 
+export function labelForView(view: ViewKey): string {
+  if (view === 'generation') {
+    return 'generated content'
+  }
+  if (view === 'socratic') {
+    return 'Socratic'
+  }
+  if (view === 'remediation') {
+    return 'remediation'
+  }
+  if (view === 'teacher') {
+    return 'teacher triage'
+  }
+  if (view === 'classroom') {
+    return 'classroom'
+  }
+
+  return 'learner overview'
+}
+
+export function resolveContinueActionView(kind: string | null | undefined): ViewKey | null {
+  if (!kind) {
+    return null
+  }
+
+  if (kind === 'continue_socratic') {
+    return 'socratic'
+  }
+  if (kind === 'advance_remediation') {
+    return 'remediation'
+  }
+  if (kind === 'generate_follow_up') {
+    return 'generation'
+  }
+
+  return null
+}
+
+export function resolveArtifactView(kind: string | null | undefined): ViewKey | null {
+  if (!kind) {
+    return null
+  }
+
+  if (kind === 'generated_content') {
+    return 'generation'
+  }
+  if (kind === 'socratic_session') {
+    return 'socratic'
+  }
+  if (kind === 'remediation_session') {
+    return 'remediation'
+  }
+
+  return null
+}
+
 export interface GenerationFormState {
   learning_session_id: string
   target_kc_ids: string

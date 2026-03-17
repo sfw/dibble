@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import './App.css'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import type { DataSource, ViewKey } from './app/workspace'
+import { resolveContinueActionView, type DataSource, type ViewKey } from './app/workspace'
 import { teacherContractGaps } from './sample-data'
 import { WorkspaceHero } from './components/app/WorkspaceHero'
 import { WorkspacePicker } from './components/app/WorkspacePicker'
@@ -22,6 +22,12 @@ import { TeacherView } from './views/TeacherView'
 function App() {
   const [activeView, setActiveView] = useState<ViewKey>('overview')
   const [dataSource, setDataSource] = useState<DataSource>('demo')
+  const [classroomHandoffStudentId, setClassroomHandoffStudentId] = useState<string | null>(null)
+  const [teacherHandoffContext, setTeacherHandoffContext] = useState<{
+    classroomId: string
+    classroomTitle: string
+    learnerId: string
+  } | null>(null)
   const { config, setConfig } = usePersistentConfig()
   const learnerWorkspace = useLearnerWorkspace({
     config,
@@ -55,6 +61,38 @@ function App() {
     onDataSourceChange: setDataSource,
   })
 
+  async function handoffClassroomLearner({
+    studentId,
+    targetView,
+    includeTeacherContext = false,
+  }: {
+    studentId: string
+    targetView: ViewKey
+    includeTeacherContext?: boolean
+  }) {
+    setClassroomHandoffStudentId(studentId)
+
+    if (includeTeacherContext) {
+      setTeacherHandoffContext({
+        classroomId: teacherClassroom.selectedClassroomId,
+        classroomTitle: teacherClassroom.selectedOverview.title,
+        learnerId: studentId,
+      })
+    } else {
+      setTeacherHandoffContext(null)
+    }
+
+    try {
+      await Promise.allSettled([
+        learnerWorkspace.loadLearnerWorkspace(studentId),
+        learnerContracts.loadContracts(studentId),
+      ])
+      setActiveView(targetView)
+    } finally {
+      setClassroomHandoffStudentId(null)
+    }
+  }
+
   return (
     <div className="app-shell">
       <WorkspaceHero
@@ -81,7 +119,10 @@ function App() {
             void learnerContracts.loadContracts()
             void teacherClassroom.loadClassrooms()
           }}
-          onPickLearner={(learnerId) => void learnerWorkspace.loadLearnerWorkspace(learnerId)}
+          onPickLearner={(learnerId) => {
+            setTeacherHandoffContext(null)
+            void learnerWorkspace.loadLearnerWorkspace(learnerId)
+          }}
         />
         <TabsList className="tabbar" aria-label="Workspace views">
           <TabsTrigger value="overview">Learner Overview</TabsTrigger>
@@ -163,10 +204,12 @@ function App() {
               intervention={learnerContracts.intervention}
               gaps={teacherContractGaps}
               dataSource={dataSource}
-              loading={learnerContracts.loading}
+              loading={learnerContracts.loading || learnerWorkspace.loading}
               submissionError={learnerContracts.interventionError}
               submittingDecision={learnerContracts.submittingIntervention}
               onSubmitDecision={(payload) => void learnerContracts.submitTeacherDecision(payload)}
+              handoffContext={teacherHandoffContext}
+              onReturnToClassroom={() => setActiveView('classroom')}
               showDebugPanels={config.showDebugPanels}
             />
           </TabsContent>
@@ -177,11 +220,24 @@ function App() {
               classroom={teacherClassroom.classroom}
               loading={teacherClassroom.loading}
               error={teacherClassroom.error}
+              handoffLoadingStudentId={classroomHandoffStudentId}
               onPickClassroom={(classroomId) => void teacherClassroom.loadClassroom(classroomId)}
-              onOpenLearner={(studentId) => {
-                void learnerWorkspace.loadLearnerWorkspace(studentId)
-                void learnerContracts.loadContracts(studentId)
-                setActiveView('teacher')
+              onOpenTeacher={(studentId) =>
+                void handoffClassroomLearner({
+                  studentId,
+                  targetView: 'teacher',
+                  includeTeacherContext: true,
+                })}
+              onContinueLearner={(studentId, continueActionKind) => {
+                const targetView = resolveContinueActionView(continueActionKind)
+                if (!targetView) {
+                  return
+                }
+
+                void handoffClassroomLearner({
+                  studentId,
+                  targetView,
+                })
               }}
               showDebugPanels={config.showDebugPanels}
             />

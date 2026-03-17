@@ -1,8 +1,9 @@
 import { Button } from '@/components/ui/button'
 
+import { labelForView, resolveContinueActionView } from '../app/workspace'
 import { MetricList, Pill, SectionHeader } from '../components/primitives'
 import { formatTimestamp, titleCase } from '../lib/formatters'
-import type { TeacherClassroomOverview, TeacherClassroomReadModel } from '../types'
+import type { TeacherClassroomOverview, TeacherClassroomReadModel, TeacherLearnerCard } from '../types'
 
 export function ClassroomView({
   classrooms,
@@ -11,7 +12,9 @@ export function ClassroomView({
   loading = false,
   error = '',
   onPickClassroom,
-  onOpenLearner,
+  onOpenTeacher,
+  onContinueLearner,
+  handoffLoadingStudentId = null,
   showDebugPanels = false,
 }: {
   classrooms: TeacherClassroomOverview[]
@@ -20,9 +23,16 @@ export function ClassroomView({
   loading?: boolean
   error?: string
   onPickClassroom: (classroomId: string) => void
-  onOpenLearner: (studentId: string) => void
+  onOpenTeacher: (studentId: string) => void
+  onContinueLearner: (studentId: string, continueActionKind: string) => void
+  handoffLoadingStudentId?: string | null
   showDebugPanels?: boolean
 }) {
+  const triageSections = buildTriageSections(classroom.learners)
+  const resumeReadyCount = classroom.learners.filter(
+    (learner) => resolveContinueActionView(learner.current_flow.continue_action.kind) !== null,
+  ).length
+
   return (
     <section className="view-grid">
       <div className="main-column">
@@ -73,58 +83,100 @@ export function ClassroomView({
 
         <div className="panel">
           <SectionHeader
-            eyebrow="Learner cards"
-            title="Which learners need attention right now"
-            description="Learner cards combine flow, curriculum progression, and teacher-intervention availability into one classroom-level read model."
+            eyebrow="Teacher triage queue"
+            title="Move from classroom posture to learner action handoff"
+            description="This queue stays summary-first: teachers can review backend-owned intervention readiness, see blocked progression separately from active work, and hand off directly into the right learner surface."
           />
-          <div className="classroom-learner-list">
-            {classroom.learners.map((learner) => (
-              <article key={learner.student_id} className="history-card">
-                <div className="history-card__meta">
+          <div className="stack">
+            {triageSections.map((section) => (
+              <section key={section.key} className="triage-section">
+                <div className="triage-section__header">
                   <div>
-                    <strong>{learner.student_id}</strong>
-                    <p className="muted">
-                      Grade {learner.grade_level} • {titleCase(learner.attention_level)} attention
-                    </p>
+                    <h3>{section.title}</h3>
+                    <p className="muted">{section.description}</p>
                   </div>
-                  <div className="hero-pills">
-                    <Pill label={learner.current_flow.flow_type} tone="neutral" />
-                    <Pill label={learner.curriculum_progression.status} tone={toneForProgression(learner.curriculum_progression.status)} />
-                    <Pill label={learner.intervention.proposal_status} tone={toneForIntervention(learner.intervention.proposal_status)} />
-                  </div>
+                  <Pill label={`${section.learners.length} learners`} tone={section.tone} />
                 </div>
-                <div className="summary-card__grid">
-                  <div>
-                    <span>Current phase</span>
-                    <strong>{learner.current_flow.current_phase}</strong>
-                  </div>
-                  <div>
-                    <span>Current resource</span>
-                    <strong>{learner.curriculum_progression.current_resource?.title ?? 'Not active'}</strong>
-                  </div>
-                  <div>
-                    <span>Next content</span>
-                    <strong>{learner.current_flow.next_step.content_type ?? 'monitor'}</strong>
-                  </div>
-                  <div>
-                    <span>Recommended action</span>
-                    <strong>{titleCase(learner.intervention.recommended_action_kind)}</strong>
-                  </div>
+                <div className="classroom-learner-list">
+                  {section.learners.length === 0 ? (
+                    <p className="muted">No learners currently match this queue.</p>
+                  ) : (
+                    section.learners.map((learner) => {
+                      const continueView = resolveContinueActionView(learner.current_flow.continue_action.kind)
+                      const isOpening = learner.student_id === handoffLoadingStudentId
+
+                      return (
+                        <article key={learner.student_id} className="history-card triage-card">
+                          <div className="history-card__meta">
+                            <div>
+                              <strong>{learner.student_id}</strong>
+                              <p className="muted">
+                                Grade {learner.grade_level} • {titleCase(learner.attention_level)} attention
+                              </p>
+                            </div>
+                            <div className="hero-pills">
+                              <Pill label={learner.current_flow.flow_type} tone="neutral" />
+                              <Pill
+                                label={learner.curriculum_progression.status}
+                                tone={toneForProgression(learner.curriculum_progression.status)}
+                              />
+                              <Pill
+                                label={learner.intervention.proposal_status}
+                                tone={toneForIntervention(learner.intervention.proposal_status)}
+                              />
+                            </div>
+                          </div>
+                          <div className="summary-card__grid">
+                            <div>
+                              <span>Current phase</span>
+                              <strong>{learner.current_flow.current_phase}</strong>
+                            </div>
+                            <div>
+                              <span>Current resource</span>
+                              <strong>{learner.curriculum_progression.current_resource?.title ?? 'Not active'}</strong>
+                            </div>
+                            <div>
+                              <span>Recommended teacher action</span>
+                              <strong>{titleCase(learner.intervention.recommended_action_kind)}</strong>
+                            </div>
+                            <div>
+                              <span>Next learner handoff</span>
+                              <strong>{continueView ? labelForView(continueView) : 'Teacher review first'}</strong>
+                            </div>
+                          </div>
+                          <p>{describeLearnerRationale(learner)}</p>
+                          <div className="action-row">
+                            {learner.attention_reasons.map((reason) => (
+                              <Pill key={reason} label={reason} tone="warning" />
+                            ))}
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => onOpenTeacher(learner.student_id)}
+                              disabled={isOpening}
+                            >
+                              {isOpening ? 'Opening learner…' : 'Open teacher triage'}
+                            </Button>
+                            {continueView ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() =>
+                                  onContinueLearner(learner.student_id, learner.current_flow.continue_action.kind)
+                                }
+                                disabled={isOpening}
+                              >
+                                {isOpening ? 'Opening learner…' : `Continue ${labelForView(continueView)}`}
+                              </Button>
+                            ) : null}
+                          </div>
+                        </article>
+                      )
+                    })
+                  )}
                 </div>
-                <p>
-                  {learner.curriculum_progression.rationale ??
-                    learner.current_flow.rationale ??
-                    'No learner-level rationale returned.'}
-                </p>
-                <div className="action-row">
-                  {learner.attention_reasons.map((reason) => (
-                    <Pill key={reason} label={reason} tone="warning" />
-                  ))}
-                  <Button type="button" variant="outline" size="sm" onClick={() => onOpenLearner(learner.student_id)}>
-                    Open learner detail
-                  </Button>
-                </div>
-              </article>
+              </section>
             ))}
           </div>
         </div>
@@ -146,6 +198,7 @@ export function ClassroomView({
               { label: 'Active flows', value: String(classroom.active_flow_count) },
               { label: 'Interventions', value: String(classroom.intervention_available_count) },
               { label: 'Blocked progression', value: String(classroom.blocked_progression_count) },
+              { label: 'Resume-ready learners', value: String(resumeReadyCount) },
               { label: 'Missing learners', value: String(classroom.missing_learner_count) },
               { label: 'Updated', value: formatTimestamp(classroom.updated_at) },
             ]}
@@ -186,6 +239,59 @@ export function ClassroomView({
       </aside>
     </section>
   )
+}
+
+function buildTriageSections(learners: TeacherLearnerCard[]): Array<{
+  key: string
+  title: string
+  description: string
+  tone: 'accent' | 'success' | 'warning' | 'danger' | 'neutral'
+  learners: TeacherLearnerCard[]
+}> {
+  const teacherAction = learners.filter((learner) => learner.intervention.proposal_status === 'available')
+  const blocked = learners.filter(
+    (learner) =>
+      learner.intervention.proposal_status !== 'available' &&
+      (learner.curriculum_progression.status.includes('blocked') ||
+        learner.attention_reasons.some((reason) => reason.includes('blocked'))),
+  )
+  const continuing = learners.filter(
+    (learner) => !teacherAction.includes(learner) && !blocked.includes(learner),
+  )
+
+  return [
+    {
+      key: 'teacher-action',
+      title: 'Needs teacher action now',
+      description: 'These learners already have a backend-generated intervention proposal ready for review.',
+      tone: 'accent',
+      learners: teacherAction,
+    },
+    {
+      key: 'blocked',
+      title: 'Blocked until prerequisites shift',
+      description: 'These learners are stalled by progression state, so the classroom view keeps them visible without inventing a local next-step policy.',
+      tone: 'warning',
+      learners: blocked,
+    },
+    {
+      key: 'continuing',
+      title: 'Ready for learner workflow handoff',
+      description: 'These learners can usually move straight into their backend-owned continue action.',
+      tone: 'success',
+      learners: continuing,
+    },
+  ]
+}
+
+function describeLearnerRationale(learner: TeacherLearnerCard): string {
+  return (
+    learner.intervention.latest_decision_status
+      ? `Latest teacher decision: ${titleCase(learner.intervention.latest_decision_status)}.`
+      : learner.curriculum_progression.rationale ??
+        learner.current_flow.next_step.rationale ??
+        learner.current_flow.rationale
+  ) ?? 'No learner-level rationale returned.'
 }
 
 function toneForProgression(status: string): 'accent' | 'success' | 'warning' | 'danger' | 'neutral' {

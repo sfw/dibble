@@ -90,6 +90,7 @@ These are the highest-signal frontend gaps discovered so far:
 ### P1: formalize backend asks from the frontend stream
 
 - Keep a dedicated `planning/from-front-to-back-needs.md` document updated with frontend-discovered contract needs.
+- Keep that document opinionated and current enough to serve as backend marching orders, not just as a historical notes dump.
 - Record remaining multimodal, analytics, and longer-horizon progression gaps there rather than letting them drift across chat and code comments.
 
 ### P1: implement newly available backend-owned contracts
@@ -156,14 +157,15 @@ These are the highest-signal frontend gaps discovered so far:
 - keep frontend-originated backend needs captured in a dedicated planning document
 - continue reducing legacy app-shell CSS where layout patterns are still duplicated
 - continue tightening workflow view integration now that generation, Socratic, and remediation screens can hydrate from backend-owned workspace context
-- keep evolving the new learner progression and classroom surfaces toward more curated teacher workflows
+- keep evolving the new learner progression and classroom surfaces toward more curated teacher workflows, especially around teacher triage and learner handoff continuity
+- keep reviewing new backend progression changes against the frontend contract stance so the UI continues trusting backend-owned repair, target, bridge, and transfer decisions
 
 ### Next up
 
-1. refine the new classroom workspace into a stronger teacher triage flow with clearer learner drill-in and action handoff
-2. add deeper behavioral tests around live/demo fallback transitions, teacher intervention decision states, progression surfaces, classroom views, and the new resume/history flows
-3. continue reducing legacy CSS by migrating repeated screen containers and layout helpers onto shared primitives where it improves clarity
-4. curate more explainability-first summaries so fewer product surfaces depend on raw debug payload inspection
+1. add deeper behavioral tests around live/demo fallback transitions, teacher intervention decision states, progression surfaces, classroom views, and the new resume/history flows
+2. continue reducing legacy CSS by migrating repeated screen containers and layout helpers onto shared primitives where it improves clarity
+3. curate more explainability-first summaries so fewer product surfaces depend on raw debug payload inspection
+4. keep extending teacher and classroom flows without inventing frontend-owned sequencing or intervention policy
 5. keep this work plan and `from-front-to-back-needs.md` updated together
 
 ## Completed
@@ -218,6 +220,13 @@ These are the highest-signal frontend gaps discovered so far:
 - reused workspace-owned generated content and session state so the workflow tabs reopen with learner-specific context instead of static defaults
 - expanded form-helper tests to cover workspace-driven hydration
 - verified the frontend still passes tests, lint, and production build after the workspace-hydration pass
+- rebased the frontend worktree onto the latest `origin/main` before starting the next substantial slice
+- refined the classroom workspace into a triage-oriented queue that separates teacher-action-ready, blocked, and resume-ready learners using backend-owned classroom signals
+- added direct classroom handoff into backend-owned learner continue actions instead of forcing every learner follow-up through the same screen
+- added classroom-to-teacher drill-in context so the teacher explainability screen can return cleanly to the originating classroom queue
+- expanded classroom and teacher view tests to cover the new triage and handoff behavior
+- rebased again onto `origin/main` and reviewed backend commit `93954f9` against the frontend-to-backend plan; it strengthens backend-owned repair-stage progression without creating a new frontend contract gap
+- rewrote `planning/from-front-to-back-needs.md` into a sharper backend marching-orders document that separates active asks, conditional future work, resolved seams, and frontend guardrails
 
 ## Notes For Future Updates
 
