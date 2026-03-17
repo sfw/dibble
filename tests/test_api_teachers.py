@@ -110,6 +110,7 @@ def test_teacher_classroom_read_model_packages_learner_cards_and_counts(client):
     assert active_card["curriculum_progression"]["status"] in {"active_curriculum_focus", "ready_for_next_resource"}
     assert active_card["attention_level"] == "medium"
     assert "teacher_intervention_available" in active_card["attention_reasons"]
+    assert active_card["current_flow"] == active_summary_payload["current_flow"]
     assert active_card["curriculum_progression"] == active_summary_payload["curriculum_progression"]
 
     assert blocked_card["current_flow"]["status"] == "idle"
@@ -117,6 +118,7 @@ def test_teacher_classroom_read_model_packages_learner_cards_and_counts(client):
     assert blocked_card["curriculum_progression"]["blocked_resources"][0]["resource_id"] == "CURR-2"
     assert blocked_card["attention_level"] == "medium"
     assert "blocked_on_prerequisites" in blocked_card["attention_reasons"]
+    assert blocked_card["current_flow"] == blocked_summary_payload["current_flow"]
     assert blocked_card["curriculum_progression"] == blocked_summary_payload["curriculum_progression"]
 
     assert list_payload[0]["classroom_id"] == "CLASS-1"

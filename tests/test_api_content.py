@@ -382,8 +382,10 @@ def test_generation_endpoint_uses_durable_ordinary_mastery_to_hold_assessment_re
     assert payload["workflow_summary"]["progression_action"] == "hold_target_before_assessment"
     assert payload["workflow_summary"]["rationale"] == (
         "Ordinary practice is still too support-heavy for transfer. "
+        "Keep the learner on target practice instead of assigning a transfer check yet. "
         "Ordinary mastery signal support_dependent at 0.81 confidence; "
-        "average observed mastery 0.60; 5 matched observation(s)."
+        "average observed mastery 0.60; low-support success rate 0.20; "
+        "high-support dependency rate 0.80; 5 matched observation(s)."
     )
     assert payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
 
@@ -686,7 +688,9 @@ def test_remedial_trigger_returns_remedial_generated_content(client, student_id,
     assert catalog_signal["primary_for_kc"] is True
     assert catalog_signal["disambiguation_score"] > 0
     assert catalog_signal["disambiguation_rationale"] is not None
-    assert "prerequisite knowledge components" in payload["request_context"]["remediation_rationale"]
+    assert "fraction-whole-number-bias" in payload["request_context"]["remediation_rationale"]
+    assert "Identify numerator and denominator" in payload["request_context"]["remediation_rationale"]
+    assert "Generate equivalent fractions" in payload["request_context"]["remediation_rationale"]
     assert payload["request_context"]["remediation_blueprint"]["trigger"] == "misconception_detected"
     assert payload["request_context"]["remediation_blueprint"]["primary_misconception_id"] == "fraction-whole-number-bias"
     assert payload["request_context"]["sequencing"]["action"] == "rebuild_prerequisite_first"
@@ -851,9 +855,10 @@ def test_generation_endpoint_uses_repair_target_ordinary_mastery_to_hold_backend
     assert payload["workflow_summary"]["target_stage"] == "repair"
     assert payload["workflow_summary"]["rationale"] == (
         "Repair practice on the prerequisite KC is still too support-heavy. "
-        "Keep the learner on the repair target before returning to the target KC. "
+        "Keep the learner on the repair target instead of returning to the target KC yet. "
         "Ordinary mastery signal support_dependent at 0.84 confidence; "
-        "average observed mastery 0.58; 5 matched observation(s)."
+        "average observed mastery 0.58; low-support success rate 0.20; "
+        "high-support dependency rate 0.80; 5 matched observation(s)."
     )
     assert payload["workflow_summary"]["next_step"]["content_type"] == "remedial_micro_module"
 

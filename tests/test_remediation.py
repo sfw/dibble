@@ -406,6 +406,10 @@ def test_remediation_planner_builds_structured_blueprint_for_known_misconception
     assert plan.module_blueprint["repair_target_kc_ids"] == ["KC-1"]
     assert plan.module_blueprint["sequence_action"] == "rebuild_prerequisite_first"
     assert [step["phase"] for step in plan.module_blueprint["steps"]] == ["step_back", "repair", "return"]
+    assert "fraction-part-role-swap" in plan.rationale
+    assert "numerator" in plan.rationale
+    assert "Identify numerator and denominator" in plan.rationale
+    assert "Generate equivalent fractions" in plan.rationale
 
 
 def test_remediation_planner_can_hold_target_before_prerequisite_step_back(tmp_path):
@@ -711,6 +715,8 @@ def test_remediation_planner_prioritizes_recurring_profile_patterns(tmp_path):
 
     assert plan.misconception_signals[0].source == "profile"
     assert plan.misconception_signals[0].recurrence_signal == "relapsing"
-    assert "repeated pattern" in plan.rationale
+    assert "fraction-whole-number-bias" in plan.rationale
+    assert "relapsing" in plan.rationale
+    assert "Identify numerator and denominator" in plan.rationale
     assert plan.module_blueprint["primary_misconception_source"] == "profile"
     assert plan.module_blueprint["primary_recurrence_signal"] == "relapsing"

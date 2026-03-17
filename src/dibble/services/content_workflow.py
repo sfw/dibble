@@ -548,11 +548,13 @@ class ContentWorkflowService:
                     progression_decision=progression_decision,
                 ),
                 target_kc_ids=next_target_kc_ids,
-                rationale=self._first_text(
-                    remediation_data.get("progression_rationale"),
-                    progression_data.get("mastery_gate_reason"),
-                    progression_data.get("rationale"),
-                    request_context.get("remediation_rationale"),
+                rationale=self._workflow_step_rationale(
+                    primary=self._maybe_str(remediation_data.get("progression_rationale")),
+                    fallback=self._first_text(
+                        progression_data.get("mastery_gate_reason"),
+                        progression_data.get("rationale"),
+                        request_context.get("remediation_rationale"),
+                    ),
                 ),
             )
             return generated_content.model_copy(
@@ -568,11 +570,14 @@ class ContentWorkflowService:
                         active_target_kc_ids=self._string_list(
                             progression_data.get("applied_target_kc_ids") or request_context.get("target_kc_ids")
                         ),
-                        rationale=self._first_text(
-                            progression_data.get("mastery_gate_reason"),
-                            progression_data.get("rationale"),
-                            remediation_data.get("progression_rationale"),
-                            request_context.get("remediation_rationale"),
+                        rationale=self._workflow_step_rationale(
+                            primary=next_step.rationale,
+                            fallback=self._first_text(
+                                progression_data.get("mastery_gate_reason"),
+                                progression_data.get("rationale"),
+                                remediation_data.get("progression_rationale"),
+                                request_context.get("remediation_rationale"),
+                            ),
                         ),
                         next_step=next_step,
                         continue_action=self._continue_action_for_remediation_content(
@@ -606,10 +611,13 @@ class ContentWorkflowService:
                     active_target_kc_ids=self._string_list(
                         progression_data.get("applied_target_kc_ids") or request_context.get("target_kc_ids")
                     ),
-                    rationale=self._first_text(
-                        progression_data.get("mastery_gate_reason"),
-                        progression_data.get("rationale"),
-                        self._dict_value(request_context.get("session_adaptation")).get("rationale"),
+                    rationale=self._workflow_step_rationale(
+                        primary=next_step.rationale,
+                        fallback=self._first_text(
+                            progression_data.get("mastery_gate_reason"),
+                            progression_data.get("rationale"),
+                            self._dict_value(request_context.get("session_adaptation")).get("rationale"),
+                        ),
                     ),
                     next_step=next_step,
                     continue_action=self._continue_action_for_lesson_content(
@@ -637,9 +645,9 @@ class ContentWorkflowService:
                 target_kc_ids=self._string_list(
                     progression.get("applied_target_kc_ids") or request_context.get("target_kc_ids")
                 ),
-                rationale=self._first_text(
-                    progression.get("mastery_gate_reason"),
-                    progression.get("rationale"),
+                rationale=self._workflow_step_rationale(
+                    primary=self._maybe_str(progression.get("mastery_gate_reason")),
+                    fallback=self._maybe_str(progression.get("rationale")),
                 ),
             )
         if predictive_plan is None or not predictive_plan.content_types:
@@ -650,9 +658,9 @@ class ContentWorkflowService:
                 target_kc_ids=self._string_list(
                     progression.get("applied_target_kc_ids") or request_context.get("target_kc_ids")
                 ),
-                rationale=self._first_text(
-                    progression.get("mastery_gate_reason"),
-                    progression.get("rationale"),
+                rationale=self._workflow_step_rationale(
+                    primary=self._maybe_str(progression.get("mastery_gate_reason")),
+                    fallback=self._maybe_str(progression.get("rationale")),
                 ),
             )
         next_content_type = predictive_plan.content_types[0]
@@ -665,10 +673,12 @@ class ContentWorkflowService:
             content_type=next_content_type,
             target_stage=str(progression.get("target_stage", "target")),
             target_kc_ids=target_kc_ids or self._string_list(request_context.get("target_kc_ids")),
-            rationale=self._first_text(
-                next_reason,
-                progression.get("mastery_gate_reason"),
-                progression.get("rationale"),
+            rationale=self._workflow_step_rationale(
+                primary=self._maybe_str(progression.get("mastery_gate_reason")),
+                fallback=self._first_text(
+                    progression.get("rationale"),
+                    next_reason,
+                ),
             ),
         )
 
@@ -724,6 +734,14 @@ class ContentWorkflowService:
         if action == "bridge_before_assessment":
             return RequestedContentType.practice_problem.value
         return None
+
+    def _workflow_step_rationale(
+        self,
+        *,
+        primary: str | None,
+        fallback: str | None,
+    ) -> str | None:
+        return self._first_text(primary, fallback)
 
     def _continue_action_for_lesson_content(
         self,

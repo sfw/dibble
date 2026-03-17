@@ -445,6 +445,12 @@ def test_continue_action_contract_stays_consistent_across_lesson_surfaces(client
     assert workspace_payload["continue_action"] == lesson_continue_action
     assert workspace_payload["generated_content"]["workflow_summary"]["continue_action"] == lesson_continue_action
     assert history_entry["continue_action"] == lesson_continue_action
+    assert generation_payload["workflow_summary"]["rationale"] == generation_payload["workflow_summary"]["next_step"]["rationale"]
+    assert flow_payload["rationale"] == generation_payload["workflow_summary"]["rationale"]
+    assert summary_payload["current_flow"]["rationale"] == generation_payload["workflow_summary"]["rationale"]
+    assert workspace_payload["summary"]["current_flow"]["rationale"] == generation_payload["workflow_summary"]["rationale"]
+    assert history_entry["rationale"] == generation_payload["workflow_summary"]["rationale"]
+    assert lesson_continue_action["rationale"] == generation_payload["workflow_summary"]["rationale"]
     assert intervention_payload["proposed_action"] == lesson_continue_action
     assert intervention_payload["available_options"][0]["option_id"] == "recommended"
     assert intervention_payload["available_options"][0]["continue_action"] == lesson_continue_action
@@ -739,9 +745,14 @@ def test_held_remediation_generation_history_stays_aligned_with_session_summary(
     assert remediation_generation_entry["continue_action"]["kind"] == session_summary["continue_action"]["kind"]
     assert remediation_generation_entry["continue_action"]["target_stage"] == session_summary["continue_action"]["target_stage"]
     assert remediation_generation_entry["continue_action"]["target_kc_ids"] == session_summary["continue_action"]["target_kc_ids"]
+    assert remediation_generation_entry["rationale"] == session_summary["next_step"]["rationale"]
+    assert remediation_generation_entry["continue_action"]["rationale"] == session_summary["continue_action"]["rationale"]
     assert workspace_payload["generated_content"]["workflow_summary"]["next_step"] == session_summary["next_step"]
     assert workspace_payload["continue_action"]["target_stage"] == session_summary["continue_action"]["target_stage"]
     assert workspace_payload["continue_action"]["target_kc_ids"] == session_summary["continue_action"]["target_kc_ids"]
+    assert workspace_payload["generated_content"]["workflow_summary"]["rationale"] == session_summary["next_step"]["rationale"]
+    assert workspace_payload["summary"]["current_flow"]["rationale"] == session_summary["next_step"]["rationale"]
+    assert workspace_payload["continue_action"]["rationale"] == session_summary["continue_action"]["rationale"]
 
 
 def test_teacher_intervention_action_contract_exposes_backend_owned_proposal_and_records_approval(client, student_id):

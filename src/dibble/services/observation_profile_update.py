@@ -256,11 +256,20 @@ class ObservationProfileUpdater:
             and low_support_success_count >= 1
             and repeated_high_support_success_count == 0
         ):
+            transfer_reason = (
+                "a recent Socratic assessment already demonstrated enough understanding"
+                if strong_assessment
+                else (
+                    f"{low_support_success_count} low-support ordinary success signal(s) now support release"
+                    if low_support_success_count > 0
+                    else "same-session evidence now supports a lighter release"
+                )
+            )
             return ProgressionEvidenceDecision(
                 decision="attempt_transfer",
                 rationale=(
                     f"Recent same-session evidence on {request.learning_session_id} suggests the learner is ready to test transfer "
-                    "before another support step."
+                    f"instead of another support step because {transfer_reason}."
                 ),
                 matched_observation_count=len(matched_observations),
                 matched_assessment_count=len(matched_assessments),
@@ -748,21 +757,21 @@ class ObservationProfileUpdater:
         if repeated_high_support_success_count > 0:
             return (
                 "Recent remediation success is still too support-heavy, so the workflow should stay on the current repair path "
-                "before advancing."
+                "instead of advancing to the next stage yet."
             )
         if prior_step.phase == "bridge":
             return (
                 f"Recent bridge evidence averaged {average_score:.2f} with {low_support_success_count} low-support success signal(s), "
-                "so the workflow should hold the bridge target before the final transfer return."
+                "so the workflow should hold the bridge target instead of returning to transfer yet."
             )
         if current_step.phase == "return":
             return (
                 f"Recent repair evidence averaged {average_score:.2f} with {medium_or_low_support_success_count} medium-or-low-support success signal(s), "
-                "so the workflow should stay on the repair target before returning to the target KC."
+                "so the workflow should stay on the repair target instead of returning to the target KC yet."
             )
         return (
             f"Recent repair evidence averaged {average_score:.2f}, so the workflow should hold on the current repair target "
-            "before advancing."
+            "instead of advancing."
         )
 
     def _remediation_advance_rationale(
@@ -776,12 +785,12 @@ class ObservationProfileUpdater:
         if prior_step.phase == "bridge":
             return (
                 f"Recent bridge evidence included {low_support_success_count} low-support success signal(s), "
-                "so the workflow can return to the target for transfer."
+                "so the workflow can return to the target for transfer instead of holding one more bridge step."
             )
         if current_step.phase == "return":
             return (
                 f"Recent repair evidence included {medium_or_low_support_success_count} medium-or-low-support success signal(s), "
-                "so the workflow can return to the target."
+                "so the workflow can return to the target instead of holding one more repair cycle."
             )
         return "Recent remediation evidence was strong enough to allow the workflow to advance."
 
@@ -803,16 +812,16 @@ class ObservationProfileUpdater:
         if decision == "hold_bridge_target":
             return (
                 f"Recent same-session evidence on {session_fragment} still needs one more guided bridge step "
-                "before the backend should return to transfer."
+                "instead of returning to transfer yet."
             )
         if decision == "hold_repair_target":
             return (
                 f"Recent same-session evidence on {session_fragment} still looks support-heavy or incomplete on the repair target, "
-                "so the backend should stay in repair before returning to the target."
+                "so the backend should stay in repair instead of returning to the target yet."
             )
         return (
             f"Recent same-session evidence on {session_fragment} still looks support-heavy or incomplete, "
-            "so the backend should hold on the current target before transfer."
+            "so the backend should hold on the current target instead of assigning transfer yet."
         )
 
     def _durable_mastery_summary(

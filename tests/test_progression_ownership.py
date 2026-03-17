@@ -593,6 +593,7 @@ def test_progression_ownership_uses_durable_ordinary_mastery_to_hold_target_befo
     assert decision.ordinary_mastery_confidence == 0.78
     assert decision.rationale == (
         "Ordinary practice is still too support-heavy for transfer. "
+        "Keep the learner on target practice instead of assigning a transfer check yet. "
         "Ordinary mastery signal support_dependent at 0.78 confidence; average observed mastery 0.61."
     )
     assert decision.request.requested_content_type == "practice_problem"
@@ -640,6 +641,6 @@ def test_progression_ownership_uses_durable_ordinary_mastery_to_hold_repair_targ
     assert decision.ordinary_mastery_signal == "support_dependent"
     assert decision.rationale == (
         "Recent ordinary practice on the prerequisite KC is still support-heavy. "
-        "Keep the learner on the repair target before returning to the target KC. "
+        "Keep the learner on the repair target instead of returning to the target KC yet. "
         "Ordinary mastery signal support_dependent at 0.79 confidence; average observed mastery 0.59."
     )

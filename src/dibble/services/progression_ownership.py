@@ -478,11 +478,33 @@ class ProgressionOwnershipService:
         summary: OrdinaryMasterySummary,
     ) -> str:
         if summary.rationale:
+            if target_stage == "target":
+                if signal == "support_dependent":
+                    return self._append_ordinary_mastery_snapshot(
+                        (
+                            f"{summary.rationale} Keep the learner on target practice instead of assigning a transfer check yet."
+                        ),
+                        summary=summary,
+                    )
+                if signal == "fragile":
+                    return self._append_ordinary_mastery_snapshot(
+                        (
+                            f"{summary.rationale} Keep the learner on target practice until the ordinary evidence is less fragile."
+                        ),
+                        summary=summary,
+                    )
+                if signal == "emerging_mastery":
+                    return self._append_ordinary_mastery_snapshot(
+                        (
+                            f"{summary.rationale} Keep the learner on target practice until the ordinary evidence looks more durable."
+                        ),
+                        summary=summary,
+                    )
             if target_stage == "repair":
                 if signal == "support_dependent":
                     return self._append_ordinary_mastery_snapshot(
                         (
-                            f"{summary.rationale} Keep the learner on the repair target before returning to the target KC."
+                            f"{summary.rationale} Keep the learner on the repair target instead of returning to the target KC yet."
                         ),
                         summary=summary,
                     )
@@ -512,6 +534,10 @@ class ProgressionOwnershipService:
         fragments = [f"Ordinary mastery signal {summary.signal} at {summary.confidence:.2f} confidence"]
         if summary.average_observed_mastery is not None:
             fragments.append(f"average observed mastery {summary.average_observed_mastery:.2f}")
+        if summary.low_support_success_rate > 0.0:
+            fragments.append(f"low-support success rate {summary.low_support_success_rate:.2f}")
+        if summary.high_support_dependency_rate > 0.0:
+            fragments.append(f"high-support dependency rate {summary.high_support_dependency_rate:.2f}")
         if summary.matched_observation_count > 0:
             fragments.append(f"{summary.matched_observation_count} matched observation(s)")
         return f"{rationale} {'; '.join(fragments)}."

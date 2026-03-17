@@ -89,31 +89,16 @@ class RemediationPlanner:
 
         matched_misconceptions = primary_misconception_signals
         if recurring_profile_signals:
-            strongest_profile_signal = recurring_profile_signals[0]
-            recurrence_fragment = (
-                f"{strongest_profile_signal.recurrence_signal} across {strongest_profile_signal.recurrence_session_count} sessions"
-            )
-            rationale = (
-                "Misconception profiles show a repeated pattern "
-                f"({recurrence_fragment}), so remediation should explicitly repair that reasoning"
-                + (
-                    " while stepping back through prerequisite knowledge components."
-                    if prerequisite_gaps
-                    else " before returning to the target."
-                )
+            rationale = self._misconception_path_rationale(
+                target_kc_id=target_kc_id,
+                primary_signal=recurring_profile_signals[0],
+                prerequisite_gaps=prerequisite_gaps,
             )
         elif matched_misconceptions:
-            labels = ", ".join(
-                signal.misconception_id or signal.category
-                for signal in matched_misconceptions[:2]
-            )
-            rationale = (
-                f"Misconception signals matched catalogued patterns ({labels}), so remediation should explicitly repair that reasoning"
-                + (
-                    " while stepping back through prerequisite knowledge components."
-                    if prerequisite_gaps
-                    else " before returning to the target."
-                )
+            rationale = self._misconception_path_rationale(
+                target_kc_id=target_kc_id,
+                primary_signal=matched_misconceptions[0],
+                prerequisite_gaps=prerequisite_gaps,
             )
         elif prerequisite_gaps:
             prerequisite_names = [
@@ -122,11 +107,14 @@ class RemediationPlanner:
                 if self.knowledge_component_store.get(kc_id) is not None
             ]
             rationale = (
-                "Misconception signals suggest stepping back through prerequisite knowledge components before returning to the target: "
+                "Misconception evidence points to prerequisite knowledge components that need repair before the learner returns to the target: "
                 + ", ".join(prerequisite_names)
             )
         elif target_component is not None:
-            rationale = f"Misconception signals stay centered on the target knowledge component: {target_component.name}."
+            rationale = (
+                f"Current misconception evidence stays centered on the target knowledge component {target_component.name}, "
+                "so remediation should repair that idea directly instead of stepping back to an unrelated prerequisite."
+            )
         else:
             rationale = "Misconception signals did not reveal a stronger prerequisite target, so remediation should reinforce the requested component."
         if kc_sequence.action != "monitor":
@@ -148,3 +136,46 @@ class RemediationPlanner:
             ),
             kc_sequence=kc_sequence,
         )
+
+    def _misconception_path_rationale(
+        self,
+        *,
+        target_kc_id: str,
+        primary_signal: MisconceptionSignal,
+        prerequisite_gaps: list[str],
+    ) -> str:
+        target_label = self._kc_label(target_kc_id)
+        signal_label = primary_signal.misconception_id or primary_signal.category.replace("_", " ")
+        signal_kc_label = self._kc_label(primary_signal.kc_id)
+        repair_targets = primary_signal.recommended_kc_ids or [primary_signal.kc_id]
+        repair_target_labels = ", ".join(self._kc_label(kc_id) for kc_id in repair_targets)
+        evidence_fragment = (
+            f" with evidence on {', '.join(primary_signal.evidence_terms[:3])}"
+            if primary_signal.evidence_terms
+            else ""
+        )
+        recurrence_fragment = ""
+        if primary_signal.recurrence_signal in {"recurring", "relapsing"} and primary_signal.recurrence_session_count > 0:
+            recurrence_fragment = (
+                f"; it has been {primary_signal.recurrence_signal} across {primary_signal.recurrence_session_count} sessions"
+            )
+        source_fragment = (
+            "Durable misconception history"
+            if primary_signal.source == "profile"
+            else "Current misconception evidence"
+        )
+        return (
+            f"{source_fragment} points to {signal_label} on {signal_kc_label} at {primary_signal.confidence:.2f} confidence"
+            f"{evidence_fragment}{recurrence_fragment}, so remediation should repair {repair_target_labels}"
+            + (
+                f" before returning to {target_label}."
+                if repair_target_labels != target_label or prerequisite_gaps
+                else f" directly on {target_label} rather than stepping back to a different prerequisite."
+            )
+        )
+
+    def _kc_label(self, kc_id: str) -> str:
+        component = self.knowledge_component_store.get(kc_id)
+        if component is None:
+            return kc_id
+        return component.name

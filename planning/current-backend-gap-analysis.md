@@ -161,6 +161,9 @@ Most recent progress:
 23. teacher intervention lesson-option rationales now name the actual stage target too, so repair and bridge alternatives do not read like generic “same target” moves when the backend is deliberately holding a different stage.
 24. micro-explanation prompts now reuse target-KC misconception, remediation, and nearby-concept hints too, so explanation generation can stay more concept-grounded without needing a broader retrieval project.
 25. held remediation follow-ups now keep delivered `workflow_summary`, learner workspace, and generation history aligned with the remediation session summary, so repair or bridge holds preserve the held stage target, held target KC ids, and latest held generation instead of drifting back toward stale return-step semantics on neighboring surfaces.
+26. lesson, remediation, learner-flow, workspace, history, intervention, and classroom surfaces now also lean on one more canonical next-step rationale path, so the same backend-owned decision reads more like one judgment seen from multiple angles instead of neighboring surfaces favoring different rationale fragments.
+27. same-session and ordinary-work progression rationales now more explicitly explain why the backend is holding repair, bridge, target, or transfer instead of the adjacent stage, and ordinary-work rationale snapshots now also surface low-support success versus high-support dependency rates directly in the existing rationale text.
+28. remediation planning rationale now names the primary misconception path, evidence terms, recurrence posture, and selected repair target directly in the existing remediation rationale field, so existing product surfaces can explain why that remediation path was chosen without requiring a new contract seam.
 
 ### Frontend Alignment Update
 
