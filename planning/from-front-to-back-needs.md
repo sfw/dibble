@@ -73,6 +73,7 @@ These are valid backend directions, but they are not current frontend blockers a
 - It does not create a new frontend contract gap and does not justify any frontend-owned progression workaround.
 - Recent frontend explainability, shell/fallback, and CSS cleanup passes also did not surface a new backend blocker.
 - The latest teacher-decision continuity and routing-coverage pass also did not surface a new backend blocker; the current intervention, workspace, history, and classroom contracts were sufficient once the frontend honored backend latest-decision state more faithfully.
+- The latest app-level fallback aggregation and failure-path coverage pass also did not surface a new backend blocker; the main issue was frontend shell honesty when one surface fell back while others stayed live.
 
 ## Frontend Guardrails While This Stance Holds
 

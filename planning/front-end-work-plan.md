@@ -160,14 +160,14 @@ These are the highest-signal frontend gaps discovered so far:
 - keep evolving the new learner progression and classroom surfaces toward more curated teacher workflows, especially around teacher triage and learner handoff continuity
 - keep reviewing new backend progression changes against the frontend contract stance so the UI continues trusting backend-owned repair, target, bridge, and transfer decisions
 - keep replacing enum-shaped or debug-shaped frontend copy with more curated explainability summaries built from existing backend contracts
-- keep making live-vs-demo fallback posture explicit in the shell so contract connectivity changes are visible without opening debug panels
+- keep making live-vs-demo fallback posture explicit in the shell so contract connectivity changes are visible without opening debug panels or being overwritten by unrelated live refreshes
 - keep consolidating shell and screen layout CSS onto shared primitives where it clearly removes one-off legacy classes instead of adding another styling layer
 - keep `App.css` focused on visual primitives and view-specific card treatment instead of generic page composition helpers
 - keep tightening teacher intervention continuity and routing coverage so backend-selected options, resume actions, and classroom drill-in behavior stay trustworthy as the product surface grows
 
 ### Next up
 
-1. add deeper behavioral tests around live/demo fallback transitions, teacher intervention decision states, progression surfaces, classroom views, and the new resume/history flows
+1. extend fallback/error-path coverage into no-demo-fallback branches plus generation, Socratic, and remediation action failures after a live-connected boot
 2. continue reducing legacy CSS by migrating repeated screen containers and layout helpers onto shared primitives where it improves clarity
 3. curate more explainability-first summaries so fewer product surfaces depend on raw debug payload inspection
 4. keep extending teacher and classroom flows without inventing frontend-owned sequencing or intervention policy
@@ -236,6 +236,8 @@ These are the highest-signal frontend gaps discovered so far:
 - expanded view coverage for curated labels plus overview/classroom/teacher loading, error, and empty-history states
 - added a shell-level workspace status surface that makes live connectivity and demo fallback posture visible from the main app chrome
 - added app-level regression coverage for classroom-to-teacher handoff continuity, return-to-classroom flow, learner continue-action routing, and live contract connectivity state
+- changed shell connectivity tracking from a single last-write-wins source flag to per-surface aggregation so one fallbacking contract family cannot be masked by another live refresh
+- added app-level regression coverage for teacher-decision fallback notices and classroom refresh fallback after a live-connected boot
 - curated the remaining overview-screen status, progression, strategy, and accommodation labels so fewer learner surfaces leak backend enum shapes directly
 - completed a frontend CSS cleanup pass that replaced the last legacy overview pills, route-reason badges, and learner chip styles with shared `Pill` and `Button` primitives
 - removed dead app-shell selectors that no longer affected layout after the shared primitive migration

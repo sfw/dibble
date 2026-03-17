@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import './App.css'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { resolveContinueActionView, type DataSource, type ViewKey } from './app/workspace'
@@ -22,7 +22,21 @@ import { TeacherView } from './views/TeacherView'
 
 function App() {
   const [activeView, setActiveView] = useState<ViewKey>('overview')
-  const [dataSource, setDataSource] = useState<DataSource>('demo')
+  const [surfaceDataSources, setSurfaceDataSources] = useState<{
+    learnerWorkspace: DataSource
+    learnerContracts: DataSource
+    generationWorkspace: DataSource
+    socraticWorkspace: DataSource
+    remediationWorkspace: DataSource
+    teacherClassroom: DataSource
+  }>({
+    learnerWorkspace: 'demo',
+    learnerContracts: 'demo',
+    generationWorkspace: 'demo',
+    socraticWorkspace: 'demo',
+    remediationWorkspace: 'demo',
+    teacherClassroom: 'demo',
+  })
   const [classroomHandoffStudentId, setClassroomHandoffStudentId] = useState<string | null>(null)
   const [teacherHandoffContext, setTeacherHandoffContext] = useState<{
     classroomId: string
@@ -30,40 +44,99 @@ function App() {
     learnerId: string
   } | null>(null)
   const { config, setConfig } = usePersistentConfig()
+
+  const dataSource = useMemo<DataSource>(
+    () =>
+      Object.values(surfaceDataSources).every((source) => source === 'live')
+        ? 'live'
+        : 'demo',
+    [surfaceDataSources],
+  )
+
+  const setLearnerWorkflowDataSource = useCallback((source: DataSource) => {
+    setSurfaceDataSources((current) => ({
+      ...current,
+      learnerWorkspace: source,
+      generationWorkspace: source,
+      socraticWorkspace: source,
+      remediationWorkspace: source,
+    }))
+  }, [])
+
+  const setSurfaceDataSource = useCallback((
+    surface:
+      | 'learnerContracts'
+      | 'generationWorkspace'
+      | 'socraticWorkspace'
+      | 'remediationWorkspace'
+      | 'teacherClassroom',
+    source: DataSource,
+  ) => {
+    setSurfaceDataSources((current) => ({
+      ...current,
+      [surface]: source,
+    }))
+  }, [])
+
+  const handleLearnerContractsDataSourceChange = useCallback(
+    (source: DataSource) => setSurfaceDataSource('learnerContracts', source),
+    [setSurfaceDataSource],
+  )
+  const handleGenerationDataSourceChange = useCallback(
+    (source: DataSource) => setSurfaceDataSource('generationWorkspace', source),
+    [setSurfaceDataSource],
+  )
+  const handleSocraticDataSourceChange = useCallback(
+    (source: DataSource) => setSurfaceDataSource('socraticWorkspace', source),
+    [setSurfaceDataSource],
+  )
+  const handleRemediationDataSourceChange = useCallback(
+    (source: DataSource) => setSurfaceDataSource('remediationWorkspace', source),
+    [setSurfaceDataSource],
+  )
+  const handleTeacherClassroomDataSourceChange = useCallback(
+    (source: DataSource) => setSurfaceDataSource('teacherClassroom', source),
+    [setSurfaceDataSource],
+  )
+
   const learnerWorkspace = useLearnerWorkspace({
     config,
-    onDataSourceChange: setDataSource,
+    onDataSourceChange: setLearnerWorkflowDataSource,
   })
   const learnerContracts = useLearnerContracts({
     config,
     learnerId: learnerWorkspace.learnerId,
-    onDataSourceChange: setDataSource,
+    onDataSourceChange: handleLearnerContractsDataSourceChange,
   })
   const generationWorkspace = useGenerationWorkspace({
     config,
     learnerId: learnerWorkspace.learnerId,
     workspace: learnerWorkspace.workspace,
-    onDataSourceChange: setDataSource,
+    onDataSourceChange: handleGenerationDataSourceChange,
   })
   const socraticWorkspace = useSocraticWorkspace({
     config,
     learnerId: learnerWorkspace.learnerId,
     workspace: learnerWorkspace.workspace,
-    onDataSourceChange: setDataSource,
+    onDataSourceChange: handleSocraticDataSourceChange,
   })
   const remediationWorkspace = useRemediationWorkspace({
     config,
     learnerId: learnerWorkspace.learnerId,
     workspace: learnerWorkspace.workspace,
-    onDataSourceChange: setDataSource,
+    onDataSourceChange: handleRemediationDataSourceChange,
   })
   const teacherClassroom = useTeacherClassroom({
     config,
-    onDataSourceChange: setDataSource,
+    onDataSourceChange: handleTeacherClassroomDataSourceChange,
   })
   const statusNotices = [
     learnerWorkspace.error,
     learnerContracts.error,
+    learnerContracts.interventionError,
+    generationWorkspace.error,
+    socraticWorkspace.error,
+    remediationWorkspace.error,
     teacherClassroom.error,
   ].filter(Boolean)
 
