@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Protocol
 from uuid import UUID
 
+from dibble.models.classroom import Classroom, ClassroomUpsert
 from dibble.models.curriculum import CurriculumResource, CurriculumResourceUpsert, KnowledgeComponent, KnowledgeComponentUpsert
 from dibble.models.assessment import SocraticAssessmentSession
 from dibble.models.generation import GeneratedContent, GenerationRequest, PredictiveWarmSweepResult, PredictiveWarmTask
@@ -31,6 +32,12 @@ class CurriculumStore(Protocol):
     def upsert(self, resource: CurriculumResourceUpsert) -> CurriculumResource: ...
     def get(self, resource_id: str) -> CurriculumResource | None: ...
     def list(self) -> list[CurriculumResource]: ...
+
+
+class ClassroomStore(Protocol):
+    def upsert(self, classroom: ClassroomUpsert) -> Classroom: ...
+    def get(self, classroom_id: str) -> Classroom | None: ...
+    def list(self) -> list[Classroom]: ...
 
 
 class KnowledgeComponentStore(Protocol):

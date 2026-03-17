@@ -66,6 +66,7 @@ This repository now includes a working MVP backend slice for the revised adaptiv
 - `GET /api/learners/{student_id}/workspace` now also includes a top-level backend-owned `continue_action`, so reload and continue buttons can reuse one server contract across lesson, remediation, and Socratic states
 - Learner-scoped history endpoints now expose compact backend-owned lists for prior generated content, Socratic sessions, and remediation sessions, so the frontend can build history views without replaying audit events or guessing which payloads matter
 - `GET` and `POST /api/learners/{student_id}/intervention-action` now expose a teacher-safe intervention contract derived from `current_flow`, including backend-generated alternative options plus `select_option`, so a teacher can approve the current move, choose a safer backend-owned alternative, defer, or escalate without the frontend inventing its own workflow authority
+- `GET /api/teachers/classrooms` and `GET /api/teachers/classrooms/{classroom_id}` now expose a compact teacher classroom read model with learner cards, current flow, curriculum progression, intervention availability, attention flags, and classroom-level counts, so the frontend can build classroom views without aggregating learner detail client-side
 - Predictive warming now also has a durable SQLite-backed queue plus an explicit processor path, so anticipated follow-up requests can be scheduled, canceled when new evidence arrives, prioritized by likely next-step urgency, expired when they go stale, and processed outside the original generation request when needed
 - The predictive follow-up planner is now calibration-aware, so declining practice can warm a worked example instead of a transfer check, stronger remediation progress can warm a transfer probe sooner, long-horizon learner-strategy signals can now escalate relapse toward prerequisite repair or break a plateau with varied modeled support, and newer within-session controller phases can now keep a session in consolidate or bridge before warming transfer
 - Knowledge Components can now carry catalogued misconception patterns, and the remedial trigger uses those patterns to produce richer misconception signals plus a structured remediation blueprint instead of only a generic step-back wrapper
@@ -123,6 +124,9 @@ env UV_CACHE_DIR=.uv-cache uv run pytest
 - `GET /api/learners/{student_id}/history/remediation-sessions`
 - `GET /api/learners/{student_id}/intervention-action`
 - `POST /api/learners/{student_id}/intervention-action`
+- `PUT /api/teachers/classrooms/{classroom_id}`
+- `GET /api/teachers/classrooms`
+- `GET /api/teachers/classrooms/{classroom_id}`
 - `PUT /api/curriculum/resources/{resource_id}`
 - `GET /api/curriculum/resources`
 - `PUT /api/knowledge-components/{kc_id}`

@@ -9,6 +9,7 @@ from dibble.api.content_routes import build_content_router
 from dibble.api.curriculum_routes import build_curriculum_router
 from dibble.api.learner_routes import build_learner_router
 from dibble.api.observability_routes import build_observability_router
+from dibble.api.teacher_routes import build_teacher_router
 
 
 def build_router(services: ApiServices) -> APIRouter:
@@ -24,5 +25,6 @@ def build_router(services: ApiServices) -> APIRouter:
     router.include_router(build_curriculum_router(context))
     router.include_router(build_content_router(context))
     router.include_router(build_assessment_router(context))
+    router.include_router(build_teacher_router(context))
     router.include_router(build_observability_router(context))
     return router

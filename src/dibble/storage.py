@@ -123,6 +123,14 @@ CREATE TABLE IF NOT EXISTS within_session_controller_states (
 );
 """
 
+CLASSROOM_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS classrooms (
+    classroom_id TEXT PRIMARY KEY,
+    payload TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+"""
+
 PREDICTIVE_WARM_QUEUE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS predictive_warm_queue (
     task_id TEXT PRIMARY KEY,
@@ -163,6 +171,7 @@ def ensure_database(database_path: str) -> None:
         connection.execute(SOCRATIC_SESSION_TABLE_SQL)
         connection.execute(REMEDIATION_SESSION_TABLE_SQL)
         connection.execute(WITHIN_SESSION_CONTROLLER_TABLE_SQL)
+        connection.execute(CLASSROOM_TABLE_SQL)
         connection.execute(PREDICTIVE_WARM_QUEUE_TABLE_SQL)
         _ensure_sqlite_columns(
             connection,

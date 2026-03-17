@@ -11,6 +11,7 @@ from dibble.services.auth_sessions import SQLiteAuthSessionStore
 from dibble.services.calibrated_router import CalibratedRouter
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.content_workflow import ContentWorkflowService
+from dibble.services.classroom_store import SQLiteClassroomStore
 from dibble.services.cognitive_trait_inference import CognitiveTraitInferenceService
 from dibble.services.curriculum_store import SQLiteCurriculumStore
 from dibble.services.generation_engine import GenerationEngine
@@ -59,6 +60,7 @@ from dibble.services.provider_health import SQLiteProviderHealthStore
 from dibble.services.profile_store import SQLiteProfileStore
 from dibble.services.protocols import (
     AuditStore,
+    ClassroomStore,
     CurriculumStore,
     GeneratedContentStore,
     KnowledgeComponentStore,
@@ -77,6 +79,7 @@ from dibble.services.socratic_policy import SocraticTurnPolicy
 from dibble.services.socratic_profile_update import SocraticProfileUpdater
 from dibble.services.socratic_session_store import SQLiteSocraticSessionStore
 from dibble.services.state_inference import LearnerStateInferenceService
+from dibble.services.teacher_classroom_service import TeacherClassroomService
 from dibble.services.teacher_intervention_actions import TeacherInterventionActionService
 from dibble.services.telemetry import TelemetryService
 from dibble.services.within_session_adaptation import WithinSessionAdaptationService
@@ -87,6 +90,7 @@ from dibble.storage import ensure_database
 @dataclass(slots=True)
 class ApplicationServices:
     profile_store: ProfileStore
+    classroom_store: ClassroomStore
     curriculum_store: CurriculumStore
     knowledge_component_store: KnowledgeComponentStore
     audit_store: AuditStore
@@ -117,6 +121,7 @@ class ApplicationServices:
     learner_progression_service: LearnerProgressionService
     learner_summary_service: LearnerSummaryService
     learner_workspace_service: LearnerWorkspaceService
+    teacher_classroom_service: TeacherClassroomService
     teacher_intervention_action_service: TeacherInterventionActionService
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_invalidator: PredictiveContentInvalidator
@@ -129,6 +134,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     ensure_database(settings.database_path)
 
     profile_store = SQLiteProfileStore(settings.database_path)
+    classroom_store = SQLiteClassroomStore(settings.database_path)
     curriculum_store = SQLiteCurriculumStore(settings.database_path)
     knowledge_component_store = SQLiteKnowledgeComponentStore(settings.database_path)
     audit_store = SQLiteAuditStore(settings.database_path)
@@ -256,6 +262,10 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         audit_store=audit_store,
         learner_flow_service=learner_flow_service,
     )
+    teacher_classroom_service = TeacherClassroomService(
+        learner_summary_service=learner_summary_service,
+        teacher_intervention_action_service=teacher_intervention_action_service,
+    )
     misconception_profile_recorder = LearningMisconceptionProfileRecorder(audit_store=audit_store)
     content_warmer = ContentWarmer(
         profile_store,
@@ -303,6 +313,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
 
     return ApplicationServices(
         profile_store=profile_store,
+        classroom_store=classroom_store,
         curriculum_store=curriculum_store,
         knowledge_component_store=knowledge_component_store,
         audit_store=audit_store,
@@ -338,6 +349,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         learner_progression_service=learner_progression_service,
         learner_summary_service=learner_summary_service,
         learner_workspace_service=learner_workspace_service,
+        teacher_classroom_service=teacher_classroom_service,
         teacher_intervention_action_service=teacher_intervention_action_service,
         generation_mode_calibrator=generation_mode_calibrator,
         predictive_content_invalidator=predictive_content_invalidator,

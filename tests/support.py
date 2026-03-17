@@ -102,3 +102,24 @@ def build_knowledge_component(
         "tags": ["fractions", "remediation"],
         "common_misconceptions": common_misconceptions or [],
     }
+
+
+def build_classroom(
+    classroom_id="CLASS-1",
+    *,
+    title="Fraction Intervention Group",
+    teacher_label="Ms. Rivera",
+    grade_level="5",
+    subject="math",
+    student_ids=None,
+    tags=None,
+):
+    return {
+        "classroom_id": classroom_id,
+        "title": title,
+        "teacher_label": teacher_label,
+        "grade_level": grade_level,
+        "subject": subject,
+        "student_ids": student_ids or [],
+        "tags": tags or ["math", "fractions"],
+    }

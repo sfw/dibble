@@ -14,6 +14,7 @@ from dibble.services.auth import (
 )
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.content_workflow import ContentWorkflowService
+from dibble.services.protocols import ClassroomStore
 from dibble.services.cognitive_trait_inference import CognitiveTraitInferenceService
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.generation_mode_calibration import GenerationModeCalibrator
@@ -45,6 +46,7 @@ from dibble.services.remediation_planner import RemediationPlanner
 from dibble.services.socratic_assessment import SocraticAssessmentService
 from dibble.services.socratic_profile_update import SocraticProfileUpdater
 from dibble.services.state_inference import LearnerStateInferenceService
+from dibble.services.teacher_classroom_service import TeacherClassroomService
 from dibble.services.teacher_intervention_actions import TeacherInterventionActionService
 from dibble.services.telemetry import TelemetryService
 from dibble.services.within_session_adaptation import WithinSessionAdaptationService
@@ -71,6 +73,7 @@ def api_error(
 
 class ApiServices(Protocol):
     profile_store: ProfileStore
+    classroom_store: ClassroomStore
     curriculum_store: CurriculumStore
     knowledge_component_store: KnowledgeComponentStore
     audit_store: AuditStore
@@ -101,6 +104,7 @@ class ApiServices(Protocol):
     learner_progression_service: LearnerProgressionService
     learner_summary_service: LearnerSummaryService
     learner_workspace_service: LearnerWorkspaceService
+    teacher_classroom_service: TeacherClassroomService
     teacher_intervention_action_service: TeacherInterventionActionService
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_invalidator: PredictiveContentInvalidator
