@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from dibble.models.assessment import SocraticAssessmentSession
 from dibble.models.generation import GeneratedContent
-from dibble.models.profile import ProfileSummary
+from dibble.models.profile import LearnerContinueAction, ProfileSummary
 from dibble.models.remediation import RemediationWorkflowSession
 
 
@@ -26,6 +26,7 @@ class LearnerWorkspace(BaseModel):
     student_id: UUID
     summary: ProfileSummary
     active_artifact: LearnerWorkspaceArtifact = Field(default_factory=LearnerWorkspaceArtifact)
+    continue_action: LearnerContinueAction = Field(default_factory=LearnerContinueAction)
     generated_content: GeneratedContent | None = None
     remediation_session: RemediationWorkflowSession | None = None
     socratic_session: SocraticAssessmentSession | None = None

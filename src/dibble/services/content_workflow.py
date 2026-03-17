@@ -15,7 +15,7 @@ from dibble.models.generation import (
     RemedialTriggerRequest,
     RequestedContentType,
 )
-from dibble.models.profile import LearnerFlowNextStep, LearnerProfile
+from dibble.models.profile import LearnerContinueAction, LearnerFlowNextStep, LearnerProfile
 from dibble.models.remediation import (
     RemediationWorkflowAdvanceRequest,
     RemediationWorkflowAdvanceResponse,
@@ -571,6 +571,12 @@ class ContentWorkflowService:
                             request_context.get("remediation_rationale"),
                         ),
                         next_step=next_step,
+                        continue_action=self._continue_action_for_remediation_content(
+                            generated_content=generated_content,
+                            request_context=request_context,
+                            remediation_data=remediation_data,
+                            next_step=next_step,
+                        ),
                     )
                 }
             )
@@ -602,6 +608,10 @@ class ContentWorkflowService:
                         self._dict_value(request_context.get("session_adaptation")).get("rationale"),
                     ),
                     next_step=next_step,
+                    continue_action=self._continue_action_for_lesson_content(
+                        generated_content=generated_content,
+                        next_step=next_step,
+                    ),
                 )
             }
         )
@@ -688,6 +698,104 @@ class ContentWorkflowService:
         if action == "bridge_before_assessment":
             return RequestedContentType.practice_problem.value
         return None
+
+    def _continue_action_for_lesson_content(
+        self,
+        *,
+        generated_content: GeneratedContent,
+        next_step: LearnerFlowNextStep,
+    ) -> LearnerContinueAction:
+        if next_step.content_type is None:
+            return LearnerContinueAction(rationale=next_step.rationale)
+        request_context = generated_content.request_context
+        return LearnerContinueAction(
+            kind="generate_follow_up",
+            method="POST",
+            endpoint="/api/content/generate",
+            resource_id=generated_content.generation_id,
+            generation_id=generated_content.generation_id,
+            learning_session_id=self._maybe_str(request_context.get("learning_session_id")),
+            content_type=next_step.content_type,
+            target_stage=next_step.target_stage,
+            target_kc_ids=list(next_step.target_kc_ids),
+            request_payload=self._generation_request_payload(
+                generated_content=generated_content,
+                next_step=next_step,
+            ),
+            rationale=next_step.rationale,
+        )
+
+    def _continue_action_for_remediation_content(
+        self,
+        *,
+        generated_content: GeneratedContent,
+        request_context: dict[str, object],
+        remediation_data: dict[str, object],
+        next_step: LearnerFlowNextStep,
+    ) -> LearnerContinueAction:
+        session_id = self._maybe_str(request_context.get("remediation_session_id"))
+        if session_id is None:
+            return LearnerContinueAction(rationale=next_step.rationale)
+        if str(remediation_data.get("status", "in_progress")) == "complete":
+            target_kc_ids = list(next_step.target_kc_ids) or self._string_list(
+                request_context.get("focus_kc_ids") or request_context.get("target_kc_ids")
+            )
+            follow_up_step = next_step.model_copy(
+                update={
+                    "content_type": RequestedContentType.practice_problem.value,
+                    "target_stage": "transfer",
+                    "target_kc_ids": target_kc_ids,
+                    "rationale": self._first_text(next_step.rationale, "Return to the target skill after remediation."),
+                }
+            )
+            return LearnerContinueAction(
+                kind="generate_follow_up",
+                method="POST",
+                endpoint="/api/content/generate",
+                resource_id=session_id,
+                generation_id=generated_content.generation_id,
+                learning_session_id=self._maybe_str(request_context.get("learning_session_id")),
+                content_type=follow_up_step.content_type,
+                target_stage=follow_up_step.target_stage,
+                target_kc_ids=list(follow_up_step.target_kc_ids),
+                request_payload=self._generation_request_payload(
+                    generated_content=generated_content,
+                    next_step=follow_up_step,
+                ),
+                rationale=follow_up_step.rationale,
+            )
+        return LearnerContinueAction(
+            kind="advance_remediation",
+            method="POST",
+            endpoint=f"/api/remedial/sessions/{session_id}/advance",
+            resource_id=session_id,
+            generation_id=generated_content.generation_id,
+            learning_session_id=self._maybe_str(request_context.get("learning_session_id")),
+            content_type=next_step.content_type,
+            target_stage=next_step.target_stage,
+            target_kc_ids=list(next_step.target_kc_ids),
+            request_payload={
+                "curriculum_context": list(generated_content.response.curriculum_context),
+            },
+            rationale=next_step.rationale,
+        )
+
+    def _generation_request_payload(
+        self,
+        *,
+        generated_content: GeneratedContent,
+        next_step: LearnerFlowNextStep,
+    ) -> dict[str, object]:
+        request_context = generated_content.request_context
+        return {
+            "student_id": str(generated_content.student_id),
+            "learning_session_id": self._maybe_str(request_context.get("learning_session_id")),
+            "target_kc_ids": list(next_step.target_kc_ids),
+            "target_lo_ids": self._string_list(request_context.get("target_lo_ids")),
+            "requested_content_type": next_step.content_type,
+            "curriculum_context": list(generated_content.response.curriculum_context),
+            "source_generation_id": generated_content.generation_id,
+        }
 
     def _target_stage_for_phase(self, phase: str) -> str:
         if phase == "bridge":

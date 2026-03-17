@@ -6,7 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from dibble.models.generation import GeneratedContent, RequestedContentType
-from dibble.models.profile import LearnerFlowNextStep, LearnerStrategySummary
+from dibble.models.profile import LearnerContinueAction, LearnerFlowNextStep, LearnerStrategySummary
 
 
 def utc_now() -> datetime:
@@ -42,6 +42,7 @@ class RemediationWorkflowSummary(BaseModel):
     progression_average_observed_mastery: float | None = Field(default=None, ge=0.0, le=1.0)
     progression_low_support_success_count: int = Field(default=0, ge=0)
     next_step: LearnerFlowNextStep = Field(default_factory=LearnerFlowNextStep)
+    continue_action: LearnerContinueAction = Field(default_factory=LearnerContinueAction)
 
 
 class KcSequenceSummary(BaseModel):

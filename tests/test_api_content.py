@@ -302,6 +302,9 @@ def test_generation_endpoint_holds_target_when_recent_same_session_evidence_is_s
     assert payload["workflow_summary"]["target_stage"] == "target"
     assert payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
     assert payload["workflow_summary"]["next_step"]["target_kc_ids"] == ["KC-1"]
+    assert payload["workflow_summary"]["continue_action"]["kind"] == "generate_follow_up"
+    assert payload["workflow_summary"]["continue_action"]["endpoint"] == "/api/content/generate"
+    assert payload["workflow_summary"]["continue_action"]["request_payload"]["requested_content_type"] == "practice_problem"
 
     predictive_event = next(
         event
@@ -852,6 +855,8 @@ def test_remediation_session_endpoints_advance_multi_step_workflow(client, stude
     assert session_payload["summary"]["progression_decision"] == "advance"
     assert session_payload["summary"]["next_step"]["content_type"] == "remedial_micro_module"
     assert session_payload["summary"]["next_step"]["target_kc_ids"] == ["KC-1"]
+    assert session_payload["summary"]["continue_action"]["kind"] == "advance_remediation"
+    assert session_payload["summary"]["continue_action"]["endpoint"].endswith("/advance")
 
     repair_response = client.post(
         f"/api/remedial/sessions/{remediation_session_id}/advance",
@@ -867,9 +872,11 @@ def test_remediation_session_endpoints_advance_multi_step_workflow(client, stude
     assert repair_payload["session"]["summary"]["current_phase"] == "return"
     assert repair_payload["session"]["summary"]["next_step"]["content_type"] == "practice_problem"
     assert repair_payload["session"]["summary"]["next_step"]["target_stage"] == "transfer"
+    assert repair_payload["session"]["summary"]["continue_action"]["kind"] == "advance_remediation"
     assert repair_payload["content"]["workflow_summary"]["flow_type"] == "remediation"
     assert repair_payload["content"]["workflow_summary"]["delivered_phase"] == "repair"
     assert repair_payload["content"]["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
+    assert repair_payload["content"]["workflow_summary"]["continue_action"]["kind"] == "advance_remediation"
 
     return_response = client.post(
         f"/api/remedial/sessions/{remediation_session_id}/advance",
@@ -890,9 +897,12 @@ def test_remediation_session_endpoints_advance_multi_step_workflow(client, stude
     assert return_payload["session"]["summary"]["status"] == "complete"
     assert return_payload["session"]["summary"]["next_step"]["action"] == "complete"
     assert return_payload["session"]["summary"]["next_step"]["content_type"] is None
+    assert return_payload["session"]["summary"]["continue_action"]["kind"] == "generate_follow_up"
+    assert return_payload["session"]["summary"]["continue_action"]["request_payload"]["requested_content_type"] == "practice_problem"
     assert return_payload["content"]["workflow_summary"]["flow_type"] == "remediation"
     assert return_payload["content"]["workflow_summary"]["delivered_phase"] == "return"
     assert return_payload["content"]["workflow_summary"]["next_step"]["action"] == "complete"
+    assert return_payload["content"]["workflow_summary"]["continue_action"]["kind"] == "generate_follow_up"
 
     completed_response = client.post(
         f"/api/remedial/sessions/{remediation_session_id}/advance",

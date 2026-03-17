@@ -85,6 +85,7 @@ class LearnerWorkspaceService:
             student_id=student_id,
             summary=summary,
             active_artifact=artifact,
+            continue_action=flow.continue_action,
             generated_content=generated_content,
             remediation_session=remediation_session,
             socratic_session=socratic_session,

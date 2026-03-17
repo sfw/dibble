@@ -228,10 +228,13 @@ def test_learner_flow_endpoint_exposes_backend_owned_next_step(client, student_i
     assert flow_payload["next_step_source"] == "workflow_summary"
     assert flow_payload["next_step"]["content_type"] == "practice_problem"
     assert flow_payload["next_step"]["target_kc_ids"] == ["KC-1"]
+    assert flow_payload["continue_action"]["kind"] == "generate_follow_up"
+    assert flow_payload["continue_action"]["endpoint"] == "/api/content/generate"
     assert summary_payload["current_flow"]["progression_action"] == "hold_target"
     assert summary_payload["current_flow"]["progression_source"] == "workflow_summary"
     assert summary_payload["current_flow"]["next_step_source"] == "workflow_summary"
     assert summary_payload["current_flow"]["next_step"]["content_type"] == "practice_problem"
+    assert summary_payload["current_flow"]["continue_action"]["kind"] == "generate_follow_up"
 
 
 def test_learner_flow_endpoint_prefers_active_remediation_workflow(client, student_id):
@@ -286,8 +289,10 @@ def test_learner_flow_endpoint_prefers_active_remediation_workflow(client, stude
     assert flow_payload["target_stage"] == "repair"
     assert flow_payload["next_step"]["content_type"] == "remedial_micro_module"
     assert flow_payload["next_step"]["target_kc_ids"] == ["KC-1"]
+    assert flow_payload["continue_action"]["kind"] == "advance_remediation"
     assert summary_payload["current_flow"]["flow_type"] == "remediation"
     assert summary_payload["current_flow"]["current_phase"] == "repair"
+    assert summary_payload["current_flow"]["continue_action"]["kind"] == "advance_remediation"
 
 
 def test_learner_workspace_returns_active_generated_content(client, student_id):
@@ -337,6 +342,8 @@ def test_learner_workspace_returns_active_generated_content(client, student_id):
     assert payload["generated_content"]["generation_id"] == generation_id
     assert payload["generated_content"]["workflow_summary"]["progression_action"] == "hold_target"
     assert payload["summary"]["current_flow"]["last_generation_id"] == generation_id
+    assert payload["continue_action"]["kind"] == "generate_follow_up"
+    assert payload["continue_action"]["request_payload"]["source_generation_id"] == generation_id
 
 
 def test_learner_flow_uses_persisted_workflow_summary_after_restart(app_settings):
@@ -402,6 +409,7 @@ def test_learner_flow_uses_persisted_workflow_summary_after_restart(app_settings
     assert flow_payload["next_step_source"] == "workflow_summary"
     assert flow_payload["next_step"]["content_type"] == "practice_problem"
     assert flow_payload["next_step"]["target_kc_ids"] == ["KC-1"]
+    assert flow_payload["continue_action"]["kind"] == "generate_follow_up"
 
 
 def test_learner_workspace_returns_active_remediation_session_and_content(client, student_id):
@@ -453,6 +461,48 @@ def test_learner_workspace_returns_active_remediation_session_and_content(client
     assert payload["remediation_session"]["session_id"] == remediation_session_id
     assert payload["generated_content"]["generation_id"] == generation_id
     assert payload["generated_content"]["workflow_summary"]["flow_type"] == "remediation"
+    assert payload["continue_action"]["kind"] == "advance_remediation"
+
+
+def test_learner_workspace_preserves_continue_action_for_remediation_after_restart(app_settings):
+    student_id = uuid4()
+    app_one = create_app(app_settings)
+    app_two = create_app(app_settings)
+
+    with TestClient(app_one) as client_one:
+        client_one.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
+        client_one.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+        client_one.put(
+            "/api/knowledge-components/KC-1",
+            json=build_knowledge_component("KC-1", name="Identify numerator and denominator"),
+        )
+        client_one.put(
+            "/api/knowledge-components/KC-2",
+            json=build_knowledge_component(
+                "KC-2",
+                prerequisite_kc_ids=["KC-1"],
+                name="Generate equivalent fractions",
+            ),
+        )
+        trigger_response = client_one.post(
+            "/api/remedial/trigger",
+            json={
+                "student_id": str(student_id),
+                "target_kc_id": "KC-2",
+                "misconception_description": "The learner compares numerator and denominator separately like whole numbers.",
+                "curriculum_context": ["Equivalent fractions"],
+            },
+        )
+
+        assert trigger_response.status_code == 200
+
+    with TestClient(app_two) as client_two:
+        workspace_response = client_two.get(f"/api/learners/{student_id}/workspace")
+
+    assert workspace_response.status_code == 200
+    payload = workspace_response.json()
+    assert payload["continue_action"]["kind"] == "advance_remediation"
+    assert payload["continue_action"]["endpoint"].endswith("/advance")
 
 
 def test_profile_endpoint_returns_extended_profile_metadata(client, student_id):

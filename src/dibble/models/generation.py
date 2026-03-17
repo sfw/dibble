@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from dibble.models.profile import LearnerFlowNextStep
+from dibble.models.profile import LearnerContinueAction, LearnerFlowNextStep
 
 
 def utc_now() -> datetime:
@@ -282,6 +282,7 @@ class GenerationWorkflowSummary(BaseModel):
     active_target_kc_ids: list[str] = Field(default_factory=list)
     rationale: str | None = None
     next_step: LearnerFlowNextStep = Field(default_factory=LearnerFlowNextStep)
+    continue_action: LearnerContinueAction = Field(default_factory=LearnerContinueAction)
 
 
 class GenerationResponse(BaseModel):

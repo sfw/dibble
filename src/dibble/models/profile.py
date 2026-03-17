@@ -283,6 +283,20 @@ class LearnerFlowNextStep(BaseModel):
     rationale: str | None = None
 
 
+class LearnerContinueAction(BaseModel):
+    kind: str = "idle"
+    method: str | None = None
+    endpoint: str | None = None
+    resource_id: str | None = None
+    generation_id: str | None = None
+    learning_session_id: str | None = None
+    content_type: str | None = None
+    target_stage: str = "target"
+    target_kc_ids: list[str] = Field(default_factory=list)
+    request_payload: dict[str, object] = Field(default_factory=dict)
+    rationale: str | None = None
+
+
 class LearnerFlowSummary(BaseModel):
     status: str = "idle"
     flow_type: str = "idle"
@@ -304,6 +318,7 @@ class LearnerFlowSummary(BaseModel):
     progression_source: str = "insufficient"
     next_step_source: str = "insufficient"
     next_step: LearnerFlowNextStep = Field(default_factory=LearnerFlowNextStep)
+    continue_action: LearnerContinueAction = Field(default_factory=LearnerContinueAction)
     updated_at: datetime | None = None
 
 

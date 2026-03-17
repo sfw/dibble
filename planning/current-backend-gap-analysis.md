@@ -41,6 +41,7 @@ The backend now covers a meaningful slice of the revised Phase 1 and early Phase
 - Remediation advancement now also enforces stage-aware evidence thresholds: repair-to-bridge, repair-to-return, and bridge-to-return moves now distinguish medium-support stabilization from true low-support readiness, can hold a bridge step before the final target return, and persist remediation progression evidence counts, confidence, low-support success counts, and average observed mastery into the workflow session, summary, request context, and audit trail.
 - Ordinary lesson progression now also reuses durable ordinary-work mastery signals directly: cross-session `support_dependent`, `fragile`, or only `emerging_mastery` ordinary practice can now hold an ordinary target or rewrite an assessment request back into target practice even when same-session evidence is sparse, with that durable mastery rationale exposed through progression metadata and audits.
 - Generated lesson content now also persists its canonical `workflow_summary`, and the learner-flow read model now prefers that stored lesson contract with explicit `progression_source` and `next_step_source` provenance, so backend-owned next-step answers survive reloads and restarts without re-deriving lesson state from audit breadcrumbs alone.
+- Lesson, remediation, Socratic, learner-flow, and learner-workspace payloads now also expose a shared `continue_action` contract with endpoint, method, and request-hint metadata, so resume and continue UX can follow one backend-owned instruction instead of inferring which request to make from raw state alone.
 - Curriculum grounding is now stronger end to end: generation and assessment can retrieve curriculum-aligned resources by KC, LO, free-text context, and grade-level metadata before routing and prompting, the provider plus deterministic fallback path now also consume short, deterministic curriculum excerpts instead of only titles and thin metadata, and the retriever now chooses a more relevant local sentence window inside each resource with passage-aware lexical plus semantic scoring instead of always trusting a broad whole-body excerpt, even though grounding is still intentionally lightweight rather than a fuller chunked curriculum-reading stack.
 - The generation engine now has an explicit moderation workflow separate from validation: it can flag unsafe learner requests before provider calls, re-check generated blocks before delivery, replace flagged request or response content with a teacher-safe fallback, surface richer moderation metadata such as decision, request-blocked versus response-rewritten state, provider-invocation and buffered-stream detail, original-versus-replacement block counts, emit explicit moderation events during streaming fallback, and write moderation state into generation audit and observability paths.
 - The backend now also compacts recent learner observations plus durable state-profile context into `learning.cognitive_trait.profile` events, including trait-stability, challenge-tolerance, per-trait reliability, and challenge-evidence-strength signals, and live cognitive-trait inference can blend those cross-session trait targets back into processing-speed, working-memory, and spatial-reasoning updates more selectively instead of treating every durable trait dimension as equally trustworthy.
@@ -121,6 +122,7 @@ Most recent progress:
 3. the within-session controller now blocks transfer promotion when live evidence still signals overload, disengagement, or support dependence.
 4. remediation sessions now carry the evidence behind a hold or advance decision directly on the persisted session and summary payloads.
 5. generated lesson content now persists its `workflow_summary`, and learner-flow responses now say whether progression and next-step answers came from that stored lesson summary or a fallback path.
+6. lesson, remediation, Socratic, learner-flow, and workspace payloads now all carry a small `continue_action` contract so the frontend can follow one backend-owned next request across reload and continue flows.
 
 ### Pre-Frontend Priorities
 
@@ -142,6 +144,7 @@ Progress now:
 1. a dedicated learner-flow read model now packages current phase, progression action, target stage, active target KCs, and next-step metadata behind one stable server contract.
 2. the flow contract prefers learner-visible generation and workflow decisions over lower-level controller traces, so the frontend sees the same backend-owned next step the API already warmed or audited.
 3. learner summary now embeds that same `current_flow` shape so dashboard or home surfaces do not need a separate audit-log reconstruction path.
+4. generation, remediation, Socratic, flow, and workspace payloads now share a small `continue_action` contract that tells the frontend which backend request should happen next.
 
 #### Priority 2: Stronger mastery-loop enforcement
 
@@ -174,6 +177,7 @@ Progress now:
 1. remediation sessions now include a summary read model with current phase, progression decision, and next-step contract.
 2. Socratic assessment responses and persisted sessions now include a matching summary read model with canonical status and next-step metadata.
 3. ordinary generation now mirrors those same summary shapes in both non-stream and stream completion payloads, so transport choice no longer changes progression or next-step packaging.
+4. workspace and flow payloads now carry backend-owned continue instructions that survive reload and restart for lesson and remediation states.
 
 #### Priority 4: Frontend-ready read models and API packaging
 

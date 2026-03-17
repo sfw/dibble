@@ -28,6 +28,8 @@ def test_socratic_assessment_starts_with_probe_when_no_learner_response(client, 
     assert payload["summary"]["latest_prompt_style"] == "diagnostic"
     assert payload["summary"]["latest_next_action"] == "ask_probe"
     assert payload["summary"]["next_step"]["content_type"] == "assessment_probe"
+    assert payload["summary"]["continue_action"]["kind"] == "continue_socratic"
+    assert payload["summary"]["continue_action"]["endpoint"] == "/api/assessments/socratic"
     assert payload["generation_metadata"]["prompt_template_name"] is not None
     assert payload["generated_blocks"]
     event_types = [event["event_type"] for event in audit_response.json()]
@@ -60,6 +62,8 @@ def test_socratic_assessment_detects_grounded_reasoning_in_learner_response(clie
     assert payload["summary"]["latest_next_action"] == "advance"
     assert payload["summary"]["next_step"]["content_type"] == "practice_problem"
     assert payload["summary"]["next_step"]["target_stage"] == "transfer"
+    assert payload["summary"]["continue_action"]["kind"] == "generate_follow_up"
+    assert payload["summary"]["continue_action"]["request_payload"]["requested_content_type"] == "practice_problem"
     assert "equivalent" in payload["evaluation"]["matched_terms"]
 
 
@@ -106,6 +110,7 @@ def test_socratic_assessment_session_persists_across_turns(client, student_id):
     assert session_payload["summary"]["turn_count"] == 2
     assert session_payload["summary"]["latest_prompt_style"] == "transfer_check"
     assert session_payload["summary"]["latest_next_action"] == "advance"
+    assert session_payload["summary"]["continue_action"]["kind"] == "generate_follow_up"
 
     third_response = client.post(
         "/api/assessments/socratic",

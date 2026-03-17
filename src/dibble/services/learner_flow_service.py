@@ -6,7 +6,7 @@ from uuid import UUID
 
 from dibble.models.assessment import SocraticAssessmentSession
 from dibble.models.generation import GenerationWorkflowSummary, RequestedContentType
-from dibble.models.profile import LearnerFlowNextStep, LearnerFlowSummary
+from dibble.models.profile import LearnerContinueAction, LearnerFlowNextStep, LearnerFlowSummary
 from dibble.models.remediation import RemediationWorkflowSession
 from dibble.models.session_adaptation import WithinSessionControllerState
 from dibble.services.predictive_next_step_planner import PredictiveNextStepPlanner
@@ -47,7 +47,7 @@ class LearnerFlowService:
             candidates.append((1, generation_flow.updated_at, generation_flow))
 
         if not candidates:
-            controller_flow = self._controller_flow(events=events)
+            controller_flow = self._controller_flow(student_id=student_id, events=events)
             if controller_flow is not None:
                 candidates.append((0, controller_flow.updated_at, controller_flow))
 
@@ -122,6 +122,11 @@ class LearnerFlowService:
             target_stage=target_stage,
             progression_action=progression_action,
         )
+        continue_action = self._continue_action_for_generation(
+            workflow_summary=workflow_summary,
+            latest_content=latest_content,
+            next_step=next_step,
+        )
 
         return LearnerFlowSummary(
             status="ready_for_next_step" if next_step.content_type is not None else "idle",
@@ -172,6 +177,7 @@ class LearnerFlowService:
             progression_source=progression_source,
             next_step_source=next_step_source,
             next_step=next_step,
+            continue_action=continue_action,
             updated_at=(
                 latest_content.created_at
                 if latest_content is not None
@@ -209,6 +215,7 @@ class LearnerFlowService:
             transfer_target_kc_ids=list(session.kc_sequence.deferred_kc_ids),
             rationale=self._first_text(summary.progression_rationale, session.rationale),
             next_step=summary.next_step,
+            continue_action=summary.continue_action,
             updated_at=session.updated_at,
         )
 
@@ -237,10 +244,11 @@ class LearnerFlowService:
             active_target_kc_ids=list(session.target_kc_ids),
             rationale=summary.rationale,
             next_step=summary.next_step,
+            continue_action=summary.continue_action,
             updated_at=session.updated_at,
         )
 
-    def _controller_flow(self, *, events) -> LearnerFlowSummary | None:
+    def _controller_flow(self, *, student_id: UUID, events) -> LearnerFlowSummary | None:
         if self.within_session_controller_store is None:
             return None
         learning_session_id = next(
@@ -276,6 +284,11 @@ class LearnerFlowService:
                 target_stage=self._controller_target_stage(controller),
                 target_kc_ids=list(controller.target_kc_ids),
                 rationale=controller.rationale,
+            ),
+            continue_action=self._continue_action_for_controller(
+                student_id=student_id,
+                controller=controller,
+                next_content_type=next_content_type,
             ),
             updated_at=controller.updated_at,
         )
@@ -476,6 +489,64 @@ class LearnerFlowService:
         if workflow_summary is None:
             return None
         return workflow_summary.next_step.model_copy()
+
+    def _continue_action_for_generation(
+        self,
+        *,
+        workflow_summary: GenerationWorkflowSummary | None,
+        latest_content,
+        next_step: LearnerFlowNextStep,
+    ) -> LearnerContinueAction:
+        if workflow_summary is not None and workflow_summary.continue_action.kind != "idle":
+            return workflow_summary.continue_action.model_copy()
+        if latest_content is None or next_step.content_type is None:
+            return LearnerContinueAction(rationale=next_step.rationale)
+        request_context = latest_content.request_context
+        return LearnerContinueAction(
+            kind="generate_follow_up",
+            method="POST",
+            endpoint="/api/content/generate",
+            resource_id=latest_content.generation_id,
+            generation_id=latest_content.generation_id,
+            learning_session_id=self._maybe_str(request_context.get("learning_session_id")),
+            content_type=next_step.content_type,
+            target_stage=next_step.target_stage,
+            target_kc_ids=list(next_step.target_kc_ids),
+            request_payload={
+                "student_id": str(latest_content.student_id),
+                "learning_session_id": self._maybe_str(request_context.get("learning_session_id")),
+                "target_kc_ids": list(next_step.target_kc_ids),
+                "target_lo_ids": self._string_list(request_context.get("target_lo_ids")),
+                "requested_content_type": next_step.content_type,
+                "curriculum_context": list(latest_content.response.curriculum_context),
+                "source_generation_id": latest_content.generation_id,
+            },
+            rationale=next_step.rationale,
+        )
+
+    def _continue_action_for_controller(
+        self,
+        *,
+        student_id: UUID,
+        controller: WithinSessionControllerState,
+        next_content_type: RequestedContentType,
+    ) -> LearnerContinueAction:
+        return LearnerContinueAction(
+            kind="generate_follow_up",
+            method="POST",
+            endpoint="/api/content/generate",
+            learning_session_id=controller.learning_session_id,
+            content_type=next_content_type.value,
+            target_stage=self._controller_target_stage(controller),
+            target_kc_ids=list(controller.target_kc_ids),
+            request_payload={
+                "student_id": str(student_id),
+                "learning_session_id": controller.learning_session_id,
+                "target_kc_ids": list(controller.target_kc_ids),
+                "requested_content_type": next_content_type.value,
+            },
+            rationale=controller.rationale,
+        )
 
     def _next_step_from_predictive_event(
         self,

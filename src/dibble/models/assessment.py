@@ -12,7 +12,7 @@ from dibble.models.generation import (
     GenerationMetadata,
     GroundingReference,
 )
-from dibble.models.profile import LearnerFlowNextStep
+from dibble.models.profile import LearnerContinueAction, LearnerFlowNextStep
 
 
 def utc_now() -> datetime:
@@ -88,6 +88,7 @@ class SocraticSessionSummary(BaseModel):
     latest_evidence_score: float = Field(default=0.0, ge=0.0, le=1.0)
     rationale: str | None = None
     next_step: LearnerFlowNextStep = Field(default_factory=LearnerFlowNextStep)
+    continue_action: LearnerContinueAction = Field(default_factory=LearnerContinueAction)
     updated_at: datetime | None = None
 
 

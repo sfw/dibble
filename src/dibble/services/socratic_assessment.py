@@ -16,9 +16,8 @@ from dibble.models.assessment import (
     SocraticSessionSummary,
     SocraticTurnRecord,
 )
-from dibble.models.generation import GenerationRequest
-from dibble.models.profile import LearnerFlowNextStep
-from dibble.models.profile import LearnerProfile
+from dibble.models.generation import GenerationRequest, RequestedContentType
+from dibble.models.profile import LearnerContinueAction, LearnerFlowNextStep, LearnerProfile
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.protocols import SocraticSessionStore
 from dibble.services.socratic_evidence import SocraticEvidenceScorer
@@ -193,6 +192,7 @@ class SocraticAssessmentService:
         latest_turn = session.turns[-1] if session.turns else None
         if latest_turn is None:
             return SocraticSessionSummary(updated_at=session.updated_at)
+        next_step = self._next_step_for(latest_turn=latest_turn, session=session)
         return SocraticSessionSummary(
             status=(
                 "ready_for_follow_up"
@@ -206,7 +206,12 @@ class SocraticAssessmentService:
             latest_evidence_strength=latest_turn.evaluation.evidence_strength.value,
             latest_evidence_score=latest_turn.evaluation.evidence_score,
             rationale=latest_turn.evaluation.rationale or latest_turn.policy_rationale,
-            next_step=self._next_step_for(latest_turn=latest_turn, session=session),
+            next_step=next_step,
+            continue_action=self._continue_action_for(
+                latest_turn=latest_turn,
+                next_step=next_step,
+                session=session,
+            ),
             updated_at=session.updated_at,
         )
 
@@ -231,4 +236,51 @@ class SocraticAssessmentService:
             target_stage=target_stage,
             target_kc_ids=list(session.target_kc_ids),
             rationale=latest_turn.evaluation.rationale or latest_turn.policy_rationale,
+        )
+
+    def _continue_action_for(
+        self,
+        *,
+        latest_turn: SocraticTurnRecord,
+        next_step: LearnerFlowNextStep,
+        session: SocraticAssessmentSession,
+    ) -> LearnerContinueAction:
+        if next_step.content_type == RequestedContentType.assessment_probe.value:
+            return LearnerContinueAction(
+                kind="continue_socratic",
+                method="POST",
+                endpoint="/api/assessments/socratic",
+                resource_id=session.session_id,
+                learning_session_id=session.learning_session_id,
+                content_type=next_step.content_type,
+                target_stage=next_step.target_stage,
+                target_kc_ids=list(next_step.target_kc_ids),
+                request_payload={
+                    "student_id": str(session.student_id),
+                    "session_id": session.session_id,
+                    "learning_session_id": session.learning_session_id,
+                    "target_kc_ids": list(session.target_kc_ids),
+                    "target_lo_ids": list(session.target_lo_ids),
+                    "curriculum_context": list(session.curriculum_context),
+                },
+                rationale=next_step.rationale,
+            )
+        return LearnerContinueAction(
+            kind="generate_follow_up",
+            method="POST",
+            endpoint="/api/content/generate",
+            resource_id=session.session_id,
+            learning_session_id=session.learning_session_id,
+            content_type=next_step.content_type,
+            target_stage=next_step.target_stage,
+            target_kc_ids=list(next_step.target_kc_ids),
+            request_payload={
+                "student_id": str(session.student_id),
+                "learning_session_id": session.learning_session_id,
+                "target_kc_ids": list(next_step.target_kc_ids),
+                "target_lo_ids": list(session.target_lo_ids),
+                "requested_content_type": next_step.content_type,
+                "curriculum_context": list(session.curriculum_context),
+            },
+            rationale=next_step.rationale or latest_turn.policy_rationale,
         )

@@ -6,7 +6,7 @@ from uuid import UUID
 from uuid import uuid4
 
 from dibble.models.generation import ContentIntent, GenerationRequest, RequestedContentType
-from dibble.models.profile import LearnerFlowNextStep, LearnerStrategySummary
+from dibble.models.profile import LearnerContinueAction, LearnerFlowNextStep, LearnerStrategySummary
 from dibble.models.remediation import RemediationWorkflowSession, RemediationWorkflowStep, RemediationWorkflowSummary
 from dibble.services.protocols import RemediationSessionStore
 from dibble.services.remediation_planner import RemediationPlan
@@ -246,6 +246,11 @@ class RemediationWorkflowCoordinator:
             progression_average_observed_mastery=session.progression_average_observed_mastery,
             progression_low_support_success_count=session.progression_low_support_success_count,
             next_step=next_step,
+            continue_action=self._continue_action_for_summary(
+                session=session,
+                status=status,
+                next_step=next_step,
+            ),
         )
 
     def _next_step_for_summary(
@@ -283,6 +288,45 @@ class RemediationWorkflowCoordinator:
             target_stage=target_stage,
             target_kc_ids=list(current_step.target_kc_ids),
             rationale=session.progression_rationale or current_step.guidance or session.rationale,
+        )
+
+    def _continue_action_for_summary(
+        self,
+        *,
+        session: RemediationWorkflowSession,
+        status: str,
+        next_step: LearnerFlowNextStep,
+    ) -> LearnerContinueAction:
+        if status == "complete":
+            target_kc_ids = list(session.kc_sequence.deferred_kc_ids or session.focus_kc_ids)
+            return LearnerContinueAction(
+                kind="generate_follow_up",
+                method="POST",
+                endpoint="/api/content/generate",
+                resource_id=session.session_id,
+                content_type=RequestedContentType.practice_problem.value,
+                target_stage="transfer",
+                target_kc_ids=target_kc_ids,
+                request_payload={
+                    "student_id": str(session.student_id),
+                    "target_kc_ids": target_kc_ids,
+                    "curriculum_context": list(session.curriculum_context),
+                    "requested_content_type": RequestedContentType.practice_problem.value,
+                },
+                rationale=next_step.rationale,
+            )
+        return LearnerContinueAction(
+            kind="advance_remediation",
+            method="POST",
+            endpoint=f"/api/remedial/sessions/{session.session_id}/advance",
+            resource_id=session.session_id,
+            content_type=next_step.content_type,
+            target_stage=next_step.target_stage,
+            target_kc_ids=list(next_step.target_kc_ids),
+            request_payload={
+                "curriculum_context": list(session.curriculum_context),
+            },
+            rationale=next_step.rationale,
         )
 
     def _intent_for(self, content_type: RequestedContentType) -> ContentIntent:
