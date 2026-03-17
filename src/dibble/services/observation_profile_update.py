@@ -6,9 +6,10 @@ from datetime import datetime, timezone
 from dibble.models.assessment import SocraticEvidenceStrength
 from dibble.models.generation import GenerationRequest
 from dibble.models.observations import LearnerObservation, ObservationSupportLevel, ObservationTaskType
-from dibble.models.profile import LearnerProfile
+from dibble.models.profile import LearnerProfile, OrdinaryMasterySummary
 from dibble.models.remediation import RemediationWorkflowSession, RemediationWorkflowStep
 from dibble.services.knowledge_state_migration import KnowledgeStateMigrator
+from dibble.services.ordinary_mastery_profiles import OrdinaryMasterySignalService
 
 
 def _clamp(value: float, *, lower: float = 0.0, upper: float = 1.0) -> float:
@@ -33,6 +34,14 @@ class ObservationProfileUpdateResult:
     lo_mastery_updates: dict[str, float] | None = None
     propagated_kc_mastery_updates: dict[str, float] | None = None
     propagated_lo_mastery_updates: dict[str, float] | None = None
+    durable_mastery_signal: str = "insufficient"
+    durable_mastery_source: str = "insufficient"
+    durable_mastery_confidence: float = 0.0
+    durable_mastery_matched_observation_count: int = 0
+    durable_mastery_average_observed_mastery: float | None = None
+    durable_mastery_low_support_success_rate: float = 0.0
+    durable_mastery_high_support_dependency_rate: float = 0.0
+    durable_mastery_rationale: str | None = None
     rationale: str | None = None
 
 
@@ -61,6 +70,7 @@ class ProgressionEvidenceDecision:
 @dataclass(slots=True)
 class ObservationProfileUpdater:
     knowledge_state_migrator: KnowledgeStateMigrator | None = None
+    ordinary_mastery_signal_service: OrdinaryMasterySignalService | None = None
 
     def apply(
         self,
@@ -87,6 +97,7 @@ class ObservationProfileUpdater:
 
         inferred_mastery = self._infer_observed_mastery(observation)
         evidence_strength = self._evidence_strength(observation=observation, inferred_mastery=inferred_mastery)
+        durable_mastery = self._durable_mastery_summary(profile=profile, observation=observation)
         supporting_observations = self._supporting_observations(
             observation=observation,
             observations=recent_observations or [observation],
@@ -105,6 +116,7 @@ class ObservationProfileUpdater:
             matched_observation_count=len(supporting_observations),
             average_recent_mastery=average_recent_mastery,
             repeated_high_support_success_count=self._repeated_high_support_success_count(supporting_observations),
+            durable_mastery=durable_mastery,
         )
         new_kc_mastery = dict(profile.knowledge_state.kc_mastery)
         new_lo_mastery = dict(profile.knowledge_state.lo_mastery)
@@ -162,6 +174,14 @@ class ObservationProfileUpdater:
             lo_mastery_updates=lo_updates,
             propagated_kc_mastery_updates=(migration_result.kc_mastery_updates if migration_result is not None else {}),
             propagated_lo_mastery_updates=(migration_result.lo_mastery_updates if migration_result is not None else {}),
+            durable_mastery_signal=durable_mastery.signal,
+            durable_mastery_source=durable_mastery.source,
+            durable_mastery_confidence=durable_mastery.confidence,
+            durable_mastery_matched_observation_count=durable_mastery.matched_observation_count,
+            durable_mastery_average_observed_mastery=durable_mastery.average_observed_mastery,
+            durable_mastery_low_support_success_rate=durable_mastery.low_support_success_rate,
+            durable_mastery_high_support_dependency_rate=durable_mastery.high_support_dependency_rate,
+            durable_mastery_rationale=durable_mastery.rationale,
             rationale=self._writeback_rationale(
                 observation=observation,
                 inferred_mastery=inferred_mastery,
@@ -413,6 +433,7 @@ class ObservationProfileUpdater:
         matched_observation_count: int,
         average_recent_mastery: float | None,
         repeated_high_support_success_count: int,
+        durable_mastery: OrdinaryMasterySummary,
     ) -> float:
         base_weight = {
             SocraticEvidenceStrength.insufficient: 0.14,
@@ -438,14 +459,33 @@ class ObservationProfileUpdater:
             and average_recent_mastery >= 0.62
         ) else 0.0
         support_dependence_penalty = 0.04 if repeated_high_support_success_count >= 2 else 0.0
-        return min(
-            0.42,
-            (base_weight * support_factor * linkage_factor)
-            + completion_bonus
-            + confidence_bonus
-            + mastery_bonus
-            + consistency_bonus
-            - support_dependence_penalty,
+        durable_adjustment = 0.0
+        if durable_mastery.signal == "durable_mastery":
+            durable_adjustment += 0.04 if observation.support_level == ObservationSupportLevel.low else 0.01
+        elif durable_mastery.signal == "emerging_mastery":
+            durable_adjustment += 0.02 if observation.support_level != ObservationSupportLevel.high else 0.0
+        elif durable_mastery.signal == "support_dependent":
+            durable_adjustment -= 0.04 if observation.support_level == ObservationSupportLevel.high else 0.02
+        elif durable_mastery.signal == "fragile" and observation.support_level != ObservationSupportLevel.low:
+            durable_adjustment -= 0.03
+        if durable_mastery.low_support_success_rate >= 0.6 and observation.support_level == ObservationSupportLevel.low:
+            durable_adjustment += 0.01
+        if durable_mastery.high_support_dependency_rate >= 0.6 and observation.support_level == ObservationSupportLevel.high:
+            durable_adjustment -= 0.02
+        durable_adjustment *= 0.6 + (durable_mastery.confidence * 0.4)
+        return round(
+            _clamp(
+                (base_weight * support_factor * linkage_factor)
+                + completion_bonus
+                + confidence_bonus
+                + mastery_bonus
+                + consistency_bonus
+                - support_dependence_penalty
+                + durable_adjustment,
+                lower=0.08,
+                upper=0.42,
+            ),
+            4,
         )
 
     def _apply_mastery_updates(
@@ -583,6 +623,22 @@ class ObservationProfileUpdater:
             if observation.completed
             and observation.support_level == ObservationSupportLevel.high
             and observation.hints_used >= 2
+        )
+
+    def _durable_mastery_summary(
+        self,
+        *,
+        profile: LearnerProfile,
+        observation: LearnerObservation,
+    ) -> OrdinaryMasterySummary:
+        if self.ordinary_mastery_signal_service is None:
+            return OrdinaryMasterySummary()
+        if not observation.target_kc_ids and not observation.target_lo_ids:
+            return OrdinaryMasterySummary()
+        return self.ordinary_mastery_signal_service.latest_for_student(
+            student_id=profile.student_id,
+            target_kc_ids=observation.target_kc_ids,
+            target_lo_ids=observation.target_lo_ids,
         )
 
     def _assessment_mastery_score(self, payload: dict[str, object]) -> float:

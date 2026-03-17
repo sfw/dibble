@@ -104,6 +104,14 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 "observation_matched_observation_count": observation_profile_update.matched_observation_count,
                 "observation_average_recent_mastery": observation_profile_update.average_recent_observed_mastery,
                 "observation_evidence_confidence": observation_profile_update.evidence_confidence,
+                "durable_mastery_signal": observation_profile_update.durable_mastery_signal,
+                "durable_mastery_source": observation_profile_update.durable_mastery_source,
+                "durable_mastery_confidence": observation_profile_update.durable_mastery_confidence,
+                "durable_mastery_matched_observation_count": observation_profile_update.durable_mastery_matched_observation_count,
+                "durable_mastery_average_observed_mastery": observation_profile_update.durable_mastery_average_observed_mastery,
+                "durable_mastery_low_support_success_rate": observation_profile_update.durable_mastery_low_support_success_rate,
+                "durable_mastery_high_support_dependency_rate": observation_profile_update.durable_mastery_high_support_dependency_rate,
+                "durable_mastery_rationale": observation_profile_update.durable_mastery_rationale,
                 "updated_kc_mastery": observation_profile_update.kc_mastery_updates or {},
                 "updated_lo_mastery": observation_profile_update.lo_mastery_updates or {},
                 "propagated_kc_mastery": observation_profile_update.propagated_kc_mastery_updates or {},
@@ -155,6 +163,9 @@ def build_learner_router(context: ApiContext) -> APIRouter:
         services.learning_strategy_profile_recorder.record_from_summary_events(summary_events=summary_events)
         services.learning_state_profile_recorder.record_from_summary_events(summary_events=summary_events)
         services.learning_trait_profile_recorder.record_from_observation_events(observation_events=[observation_audit_event])
+        services.ordinary_mastery_profile_recorder.record_from_observation_events(
+            observation_events=[observation_audit_event]
+        )
         return inferred_state
 
     @router.get("/learners/{student_id}/state", response_model=InferredLearnerState, dependencies=context.deps("viewer"))

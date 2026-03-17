@@ -9,6 +9,9 @@ from dibble.models.profile import LearnerProfile
 from dibble.models.remediation import RemediationWorkflowSession
 from dibble.services.knowledge_state_migration import KnowledgeStateMigrator
 from dibble.services.observation_profile_update import ObservationProfileUpdater
+from dibble.services.ordinary_mastery_profiles import OrdinaryMasterySignalService
+from dibble.services.audit_store import SQLiteAuditStore
+from dibble.storage import ensure_database
 from tests.support import build_profile
 
 
@@ -187,6 +190,63 @@ def test_observation_profile_updater_updates_strong_target_scoped_practice_witho
     assert result.applied is True
     assert result.linkage_source == "target_scoped_strong_observation"
     assert result.kc_mastery_updates["KC-2"] > 0.25
+
+
+def test_observation_profile_updater_uses_durable_mastery_signal_for_low_support_writeback(tmp_path):
+    database_path = str(tmp_path / "observation-ordinary-mastery.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = uuid4()
+    audit_store.append(
+        event_type="learning.ordinary_mastery.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "target_kc_ids": ["KC-2"],
+            "target_lo_ids": ["LO-1"],
+            "profile_signal": "durable_mastery",
+            "profile_confidence": 0.84,
+            "matched_observation_count": 5,
+            "matched_session_count": 3,
+            "average_observed_mastery": 0.8,
+            "low_support_success_rate": 0.8,
+            "high_support_dependency_rate": 0.0,
+            "ordinary_mastery_profile_rationale": "Practice evidence stayed strong.",
+        },
+    )
+    updater = ObservationProfileUpdater(
+        ordinary_mastery_signal_service=OrdinaryMasterySignalService(audit_store=audit_store)
+    )
+    profile = LearnerProfile.model_validate(build_profile(student_id, kc_mastery={"KC-2": 0.25}, frustration="low"))
+
+    result = updater.apply(
+        profile=profile,
+        observation=LearnerObservation.model_validate(
+            {
+                "observation_id": "obs-durable-1",
+                "student_id": str(student_id),
+                "response_time_ms": 13000,
+                "hints_used": 0,
+                "error_count": 0,
+                "pause_count": 0,
+                "modality_switches": 0,
+                "completed": True,
+                "confidence": 0.82,
+                "task_type": "practice",
+                "support_level": "low",
+                "expected_duration_ms": 18000,
+                "observed_content_type": "practice_problem",
+                "target_kc_ids": ["KC-2"],
+                "target_lo_ids": ["LO-1"],
+            }
+        ),
+    )
+
+    assert result.applied is True
+    assert result.durable_mastery_signal == "durable_mastery"
+    assert result.durable_mastery_confidence == 0.84
+    assert result.durable_mastery_low_support_success_rate == 0.8
+    assert result.kc_mastery_updates["KC-2"] > 0.42
 
 
 def test_observation_profile_updater_holds_remediation_return_when_recent_evidence_is_weak():

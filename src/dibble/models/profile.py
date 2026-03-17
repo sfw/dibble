@@ -209,6 +209,19 @@ class SocraticConversationSummary(BaseModel):
     updated_at: datetime | None = None
 
 
+class OrdinaryMasterySummary(BaseModel):
+    signal: str = "insufficient"
+    source: str = "insufficient"
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    matched_observation_count: int = Field(default=0, ge=0)
+    matched_session_count: int = Field(default=0, ge=0)
+    average_observed_mastery: float | None = Field(default=None, ge=0.0, le=1.0)
+    low_support_success_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    high_support_dependency_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    rationale: str | None = None
+    updated_at: datetime | None = None
+
+
 class LearnerStateProfileSummary(BaseModel):
     signal: str = "insufficient"
     source: str = "insufficient"

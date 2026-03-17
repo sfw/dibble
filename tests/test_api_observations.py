@@ -302,3 +302,46 @@ def test_observation_endpoint_writes_back_linked_practice_mastery(client, studen
     assert learner_observe_event["payload"]["observation_mastery_applied"] is True
     assert learner_observe_event["payload"]["updated_kc_mastery"]["KC-2"] > 0.22
     assert learner_observe_event["payload"]["observation_evidence_strength"] in {"emerging", "demonstrated"}
+
+
+def test_observation_endpoint_records_durable_ordinary_mastery_profile(client, student_id):
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, frustration="low", total_load=0.2, kc_mastery={"KC-2": 0.24}),
+    )
+
+    for session_id in ["ordinary-1", "ordinary-1", "ordinary-2", "ordinary-2"]:
+        observe_response = client.post(
+            f"/api/learners/{student_id}/observations",
+            json={
+                "response_time_ms": 13500,
+                "hints_used": 0,
+                "error_count": 0,
+                "pause_count": 0,
+                "modality_switches": 0,
+                "completed": True,
+                "confidence": 0.8,
+                "task_type": "practice",
+                "support_level": "low",
+                "expected_duration_ms": 18000,
+                "learning_session_id": session_id,
+                "observed_content_type": "practice_problem",
+                "target_kc_ids": ["KC-2"],
+                "target_lo_ids": ["LO-1"],
+            },
+        )
+        assert observe_response.status_code == 200
+
+    audit_response = client.get("/api/audit/events")
+    assert audit_response.status_code == 200
+
+    audit_events = audit_response.json()
+    mastery_profile_events = [
+        event for event in audit_events if event["event_type"] == "learning.ordinary_mastery.profile"
+    ]
+    learner_observe_event = next(event for event in audit_events if event["event_type"] == "learner.observe")
+
+    assert mastery_profile_events
+    assert mastery_profile_events[0]["payload"]["profile_signal"] == "durable_mastery"
+    assert mastery_profile_events[0]["payload"]["average_observed_mastery"] >= 0.72
+    assert learner_observe_event["payload"]["durable_mastery_signal"] in {"insufficient", "emerging_mastery", "durable_mastery"}
