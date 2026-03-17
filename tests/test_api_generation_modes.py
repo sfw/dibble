@@ -46,6 +46,8 @@ def test_worked_examples_endpoint_returns_fading_metadata(client, student_id):
     assert "setup: establish the representation" in payload["request_context"]["worked_example_step_outline"][0]
     assert "target completion:" in payload["request_context"]["worked_example_learner_release"]
     assert "Generate equivalent fractions" in payload["request_context"]["worked_example_transfer_move"]
+    assert payload["request_context"]["worked_example_transfer_plan"]["preserve"]
+    assert payload["request_context"]["worked_example_transfer_plan"]["change"]
     assert any(block["kind"] == "worked_example" for block in payload["response"]["blocks"])
     assert any(block["kind"] == "instruction" for block in payload["response"]["blocks"])
 
@@ -92,6 +94,8 @@ def test_problem_endpoint_returns_difficulty_band_metadata(client, student_id):
     assert payload["request_context"]["practice_distractor_family"] == "misconception_mirror_pair"
     assert payload["request_context"]["practice_distractor_support_intensity"] == "explicit"
     assert "Whole-number bias" in payload["request_context"]["practice_distractor_focus"]
+    assert payload["request_context"]["practice_distractor_blueprint"][0]["slot"] == "misconception_mirror"
+    assert "repair_cue" in payload["request_context"]["practice_distractor_blueprint"][0]
     assert "misconception_mirror" in payload["request_context"]["practice_distractor_slots"][0]
     assert "avoids Whole-number bias" in payload["request_context"]["practice_answer_check_focus"]
     assert payload["request_context"]["practice_distractor_misconception_ids"] == ["fraction-whole-number-bias"]

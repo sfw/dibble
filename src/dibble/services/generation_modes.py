@@ -30,6 +30,7 @@ class PracticeProgressionPlan:
     distractor_family: str
     distractor_support_intensity: str
     distractor_focus: str
+    distractor_blueprint: list[dict[str, str]]
     distractor_slots: list[str]
     answer_check_focus: str
     target_misconception_ids: list[str]
@@ -49,6 +50,7 @@ class WorkedExampleProgressionPlan:
     visible_step_roles: list[str]
     hidden_step_role: str
     transfer_move: str
+    transfer_plan: dict[str, str]
     step_outline: list[str]
     learner_release: str
     release_rationale: str
@@ -142,6 +144,7 @@ def build_generation_mode_plan(
         request_context["practice_distractor_family"] = progression.distractor_family
         request_context["practice_distractor_support_intensity"] = progression.distractor_support_intensity
         request_context["practice_distractor_focus"] = progression.distractor_focus
+        request_context["practice_distractor_blueprint"] = progression.distractor_blueprint
         request_context["practice_distractor_slots"] = progression.distractor_slots
         request_context["practice_answer_check_focus"] = progression.answer_check_focus
         request_context["practice_distractor_misconception_ids"] = progression.target_misconception_ids
@@ -149,12 +152,17 @@ def build_generation_mode_plan(
         request_context["practice_distractor_rationale"] = progression.distractor_rationale
         request_context["mode_calibration_applied"] = progression.calibration_applied
         distractor_slots = "; ".join(progression.distractor_slots)
+        blueprint_slots = "; ".join(
+            f"{entry['slot']} ({entry['surface_shift']})"
+            for entry in progression.distractor_blueprint
+        )
         prompt_guidance = (
             "Create one practice problem with a clear success target, one concise worked cue, "
             f"and a brief answer-check instruction. Tune the problem to {progression.difficulty_band.value} difficulty. "
             f"Use the {progression.distractor_family.replace('_', ' ')} distractor family at {progression.distractor_support_intensity} support intensity "
             f"and structure it for {progression.progression_action.replace('_', ' ')}. "
             f"Distractor focus: {progression.distractor_focus}. "
+            f"Distractor blueprint: {blueprint_slots}. "
             f"Distractor slots: {distractor_slots}. "
             f"Answer-check focus: {progression.answer_check_focus}. "
             f"Distractor rationale: {progression.distractor_rationale}."
@@ -176,6 +184,7 @@ def build_generation_mode_plan(
         request_context["worked_example_visible_step_roles"] = progression.visible_step_roles
         request_context["worked_example_hidden_step_role"] = progression.hidden_step_role
         request_context["worked_example_transfer_move"] = progression.transfer_move
+        request_context["worked_example_transfer_plan"] = progression.transfer_plan
         request_context["worked_example_step_outline"] = progression.step_outline
         request_context["worked_example_learner_release"] = progression.learner_release
         request_context["worked_example_release_rationale"] = progression.release_rationale
@@ -190,6 +199,7 @@ def build_generation_mode_plan(
                 visible_step_roles=progression.visible_step_roles,
                 hidden_step_role=progression.hidden_step_role,
                 transfer_move=progression.transfer_move,
+                transfer_plan=progression.transfer_plan,
                 step_outline=progression.step_outline,
                 learner_release=progression.learner_release,
                 release_rationale=progression.release_rationale,
@@ -428,10 +438,11 @@ def plan_practice_progression(
         progression_action=progression_action,
         mode_calibration=mode_calibration,
     )
-    distractor_slots, answer_check_focus = _practice_construction_plan(
+    distractor_blueprint, distractor_slots, answer_check_focus = _practice_distractor_blueprint(
         request=request,
         distractor_style=distractor_style,
         progression_action=progression_action,
+        support_intensity=distractor_support_intensity,
     )
 
     return PracticeProgressionPlan(
@@ -441,6 +452,7 @@ def plan_practice_progression(
         distractor_family=distractor_family,
         distractor_support_intensity=distractor_support_intensity,
         distractor_focus=distractor_focus,
+        distractor_blueprint=distractor_blueprint,
         distractor_slots=distractor_slots,
         answer_check_focus=answer_check_focus,
         target_misconception_ids=target_misconception_ids,
@@ -514,12 +526,19 @@ def plan_worked_example_progression(
         fading=fading,
         progression_action=progression_action,
     )
+    transfer_plan = _worked_example_transfer_plan(
+        request=request,
+        progression_action=progression_action,
+        hidden_step_role=hidden_step_role,
+        transfer_move=transfer_move,
+    )
     step_outline, learner_release = _worked_example_step_outline(
         request=request,
         visible_step_roles=visible_step_roles,
         hidden_step_role=hidden_step_role,
         progression_action=progression_action,
         transfer_move=transfer_move,
+        transfer_plan=transfer_plan,
     )
     release_stage, learner_release_intensity, release_transition, release_rationale = _worked_example_release_plan(
         profile=profile,
@@ -541,6 +560,7 @@ def plan_worked_example_progression(
         visible_step_roles=visible_step_roles,
         hidden_step_role=hidden_step_role,
         transfer_move=transfer_move,
+        transfer_plan=transfer_plan,
         step_outline=step_outline,
         learner_release=learner_release,
         release_rationale=release_rationale,
@@ -558,12 +578,19 @@ def _worked_example_guidance(
     visible_step_roles: list[str],
     hidden_step_role: str,
     transfer_move: str,
+    transfer_plan: dict[str, str],
     step_outline: list[str],
     learner_release: str,
     release_rationale: str,
 ) -> str:
     visible_roles = ", ".join(visible_step_roles)
     outline_text = "; ".join(step_outline)
+    transfer_summary = (
+        f"Preserve: {transfer_plan.get('preserve', 'the same structure')}. "
+        f"Change: {transfer_plan.get('change', transfer_move)}. "
+        f"Learner-owned move: {transfer_plan.get('learner_owned_move', hidden_step_role)}. "
+        f"Check prompt: {transfer_plan.get('check_prompt', 'have the learner name the structural carryover')}."
+    )
     if fading == WorkedExampleFading.full:
         return (
             "Generate one fully worked example with step-by-step reasoning, then ask the learner to explain why the final step works. "
@@ -573,6 +600,7 @@ def _worked_example_guidance(
             f"Use this step outline: {outline_text}. "
             f"Learner release: {learner_release}. "
             f"Use the example to prepare this transfer move: {transfer_move}. "
+            f"{transfer_summary} "
             f"Release rationale: {release_rationale}."
         )
     if fading == WorkedExampleFading.completion:
@@ -584,6 +612,7 @@ def _worked_example_guidance(
             f"Use this step outline: {outline_text}. "
             f"Learner release: {learner_release}. "
             f"Use the example to prepare this transfer move: {transfer_move}. "
+            f"{transfer_summary} "
             f"Release rationale: {release_rationale}."
         )
     return (
@@ -594,6 +623,7 @@ def _worked_example_guidance(
         f"Use this step outline: {outline_text}. "
         f"Learner release: {learner_release}. "
         f"Use the example to prepare this transfer move: {transfer_move}. "
+        f"{transfer_summary} "
         f"Release rationale: {release_rationale}."
     )
 
@@ -701,12 +731,13 @@ def _default_practice_distractor_focus(distractor_style: str, progression_action
     )
 
 
-def _practice_construction_plan(
+def _practice_distractor_blueprint(
     *,
     request: GenerationRequest,
     distractor_style: str,
     progression_action: str,
-) -> tuple[list[str], str]:
+    support_intensity: str,
+) -> tuple[list[dict[str, str]], list[str], str]:
     hint = _primary_target_hint(request)
     concept_anchor = hint.kc_name if hint is not None else "the target concept"
     nearby_anchor = hint.nearby_kc_names[0] if hint is not None and hint.nearby_kc_names else "a nearby parallel case"
@@ -716,25 +747,98 @@ def _practice_construction_plan(
         if hint is not None and hint.misconception_descriptions
         else "the most common wrong structural move"
     )
+    remediation_hint = (
+        hint.remediation_hints[0]
+        if hint is not None and hint.remediation_hints
+        else f"restate the corrected structure in {concept_anchor} before choosing"
+    )
+    surface_shift = {
+        "explicit": "same_representation",
+        "moderate": "light_surface_shift",
+        "light": "nearby_context_shift",
+    }.get(support_intensity, "light_surface_shift")
     slot_map = {
         "misconception_contrast": [
-            f"misconception_mirror: mirror {misconception_label} in {concept_anchor} without copying the learner's exact wording",
-            f"structural_contrast: include one option that preserves the correct structure of {concept_anchor}",
+            {
+                "slot": "misconception_mirror",
+                "role": "mirror the tempting wrong move",
+                "surface_shift": surface_shift,
+                "structural_target": f"preserve the correct structure in {concept_anchor}",
+                "temptation_basis": f"{misconception_label} around {concept_anchor}",
+                "repair_cue": remediation_hint,
+            },
+            {
+                "slot": "structural_contrast",
+                "role": "show the clean structural contrast",
+                "surface_shift": surface_shift,
+                "structural_target": f"keep the comparison anchored in {concept_anchor}",
+                "temptation_basis": misconception_description,
+                "repair_cue": f"name what the correct structure preserves in {concept_anchor}",
+            },
         ],
         "scaffolded_near_miss": [
-            f"near_miss: include one almost-correct option that slips on {misconception_description}",
-            f"clean_contrast: include one simpler structural comparison that makes {concept_anchor} easier to discriminate",
+            {
+                "slot": "near_miss",
+                "role": "include one almost-correct option",
+                "surface_shift": surface_shift,
+                "structural_target": f"discriminate the final structural move in {concept_anchor}",
+                "temptation_basis": misconception_description,
+                "repair_cue": remediation_hint,
+            },
+            {
+                "slot": "clean_contrast",
+                "role": "add one cleaner comparison case",
+                "surface_shift": surface_shift,
+                "structural_target": f"make the decisive structure of {concept_anchor} visible",
+                "temptation_basis": f"a simplified contrast around {concept_anchor}",
+                "repair_cue": f"state the decisive clue that keeps {concept_anchor} correct",
+            },
         ],
         "target_return": [
-            f"bridge_return: include one option that starts in {nearby_anchor} before returning to {concept_anchor}",
-            f"repair_anchor: include one option that reminds the learner of the corrected move in {concept_anchor}",
+            {
+                "slot": "bridge_return",
+                "role": "start from the nearby repair case and return",
+                "surface_shift": surface_shift,
+                "structural_target": f"carry the repaired move from {nearby_anchor} back to {concept_anchor}",
+                "temptation_basis": f"drifting from {nearby_anchor} without returning to {concept_anchor}",
+                "repair_cue": remediation_hint,
+            },
+            {
+                "slot": "repair_anchor",
+                "role": "anchor the repaired move explicitly",
+                "surface_shift": "same_representation",
+                "structural_target": f"hold the corrected structure in {concept_anchor}",
+                "temptation_basis": misconception_label,
+                "repair_cue": remediation_hint,
+            },
         ],
         "near_transfer": [
-            f"surface_swap: change the story or representation while preserving the same decision in {concept_anchor}",
-            "structural_echo: include one option that keeps the same deep structure but not the same surface cues",
+            {
+                "slot": "surface_swap",
+                "role": "change the story while keeping the structure",
+                "surface_shift": surface_shift,
+                "structural_target": f"preserve the same decision in {concept_anchor}",
+                "temptation_basis": f"surface cues that distract from {concept_anchor}",
+                "repair_cue": f"name what stayed structurally the same in {concept_anchor}",
+            },
+            {
+                "slot": "structural_echo",
+                "role": "echo the deep structure in a nearby context",
+                "surface_shift": "nearby_context_shift",
+                "structural_target": f"apply {concept_anchor} through {nearby_anchor}",
+                "temptation_basis": f"treating {nearby_anchor} as a different structure entirely",
+                "repair_cue": f"track the shared structure between {concept_anchor} and {nearby_anchor}",
+            },
         ],
         "single_contrast": [
-            f"main_contrast: include one concise wrong option that exposes {misconception_label} around {concept_anchor}",
+            {
+                "slot": "main_contrast",
+                "role": "expose one concise tempting contrast",
+                "surface_shift": surface_shift,
+                "structural_target": f"keep the key move visible in {concept_anchor}",
+                "temptation_basis": f"{misconception_label} around {concept_anchor}",
+                "repair_cue": remediation_hint,
+            },
         ],
     }
     answer_check_map = {
@@ -744,11 +848,22 @@ def _practice_construction_plan(
         "near_transfer": f"Ask the learner to name what stayed structurally the same even though the context changed from {concept_anchor} to {nearby_anchor}.",
         "single_contrast": f"Ask the learner to state the decisive structural clue that makes the correct choice work in {concept_anchor}.",
     }
+    blueprint = slot_map.get(
+        distractor_style,
+        [
+            {
+                "slot": "main_contrast",
+                "role": "support the target contrast cleanly",
+                "surface_shift": surface_shift,
+                "structural_target": f"support {progression_action.replace('_', ' ')} in {concept_anchor}",
+                "temptation_basis": f"a tempting wrong move around {concept_anchor}",
+                "repair_cue": remediation_hint,
+            }
+        ],
+    )
     return (
-        slot_map.get(
-            distractor_style,
-            [f"main_contrast: support {progression_action.replace('_', ' ')} without adding random variation."],
-        ),
+        blueprint,
+        [f"{entry['slot']}: {entry['role']}" for entry in blueprint],
         answer_check_map.get(
             distractor_style,
             f"Ask the learner to justify the key move that supports {progression_action.replace('_', ' ')}.",
@@ -846,6 +961,7 @@ def _worked_example_step_outline(
     hidden_step_role: str,
     progression_action: str,
     transfer_move: str,
+    transfer_plan: dict[str, str],
 ) -> tuple[list[str], str]:
     hint = _primary_target_hint(request)
     concept_anchor = hint.kc_name if hint is not None else "the target concept"
@@ -873,7 +989,42 @@ def _worked_example_step_outline(
         )
     if progression_action == "independent_transfer":
         learner_release = f"{learner_release} Keep the final cue light and point toward this transfer move: {transfer_move}."
+    if transfer_plan.get("check_prompt"):
+        learner_release = f"{learner_release} Check prompt: {transfer_plan['check_prompt']}."
     return step_outline, learner_release
+
+
+def _worked_example_transfer_plan(
+    *,
+    request: GenerationRequest,
+    progression_action: str,
+    hidden_step_role: str,
+    transfer_move: str,
+) -> dict[str, str]:
+    hint = _primary_target_hint(request)
+    concept_anchor = hint.kc_name if hint is not None else "the target concept"
+    nearby_anchor = hint.nearby_kc_names[0] if hint is not None and hint.nearby_kc_names else concept_anchor
+    bridge_context = nearby_anchor if progression_action in {"bridge_release", "independent_transfer", "accelerate_fade"} else concept_anchor
+    if progression_action == "bridge_release":
+        preserve = f"the repaired structure in {concept_anchor} stays the same"
+        change = f"the example now bridges through {nearby_anchor} before returning to {concept_anchor}"
+        check_prompt = f"name what stayed the same and carry the repaired move from {nearby_anchor} back to {concept_anchor}"
+    elif progression_action in {"independent_transfer", "accelerate_fade"}:
+        preserve = f"the same deep structure of {concept_anchor} stays in place"
+        change = f"the learner now applies it in {nearby_anchor} with lighter cueing"
+        check_prompt = f"name what stayed structurally the same and complete the {hidden_step_role}"
+    else:
+        preserve = f"the same target structure of {concept_anchor} stays visible"
+        change = f"the learner now owns the last move in {concept_anchor}"
+        check_prompt = f"state the structural carryover and complete the {hidden_step_role}"
+    return {
+        "source_context": concept_anchor,
+        "bridge_context": bridge_context,
+        "preserve": preserve,
+        "change": change,
+        "learner_owned_move": hidden_step_role,
+        "check_prompt": check_prompt,
+    }
 
 
 def _worked_example_release_plan(

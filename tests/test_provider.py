@@ -153,9 +153,34 @@ def test_prompt_builder_includes_distractor_and_fade_plans(sample_profile, sampl
 
     assert "Practice distractor plan:" in prompts.user_prompt
     assert "Whole-number bias" in prompts.user_prompt
+    assert "practice_distractor_blueprint=" in prompts.user_prompt
+    assert "repair_cue=" in prompts.user_prompt
     assert "distractor_slots=" in prompts.user_prompt
     assert "answer_check_focus=" in prompts.user_prompt
     assert "Worked example fade plan: none" in prompts.user_prompt
+
+
+def test_prompt_builder_includes_worked_example_transfer_plan(sample_profile, sample_route, sample_grounding):
+    prompts = build_generation_prompts(
+        sample_profile,
+        GenerationRequest(
+            student_id=sample_profile.student_id,
+            target_kc_ids=["KC-1"],
+            requested_content_type=RequestedContentType.worked_example,
+            target_kc_hints=[
+                TargetKcGenerationHint(
+                    kc_id="KC-1",
+                    kc_name="Generate equivalent fractions",
+                    nearby_kc_names=["Compare equivalent fractions"],
+                )
+            ],
+        ),
+        sample_route,
+        sample_grounding,
+    )
+
+    assert "transfer_plan_preserve=" in prompts.user_prompt
+    assert "learner_owned_move=" in prompts.user_prompt
 
 
 def test_prompt_builder_includes_reliability_plan(sample_profile, sample_route, sample_grounding):

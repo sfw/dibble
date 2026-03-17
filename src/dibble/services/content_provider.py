@@ -87,13 +87,21 @@ class MockLLMProvider:
             support_intensity = str(
                 plan.request_context.get("practice_distractor_support_intensity", "moderate")
             )
+            distractor_blueprint = plan.request_context.get("practice_distractor_blueprint") or []
+            blueprint_entry = distractor_blueprint[0] if isinstance(distractor_blueprint, list) and distractor_blueprint else {}
+            blueprint_text = (
+                f"Lead with {blueprint_entry.get('slot', 'main_contrast')} and repair via {blueprint_entry.get('repair_cue', 'the corrected move')}."
+                if isinstance(blueprint_entry, dict)
+                else ""
+            )
             return [
                 GeneratedBlock(
                     kind="practice",
                     title="Try a problem",
                     body=(
                         f"Try one {plan.request_context['difficulty_band']}-difficulty {focus} problem from {grounding_summary}. "
-                        f"Cue: {grounding_excerpt}. Use {distractor_family} distractors at {support_intensity} intensity around {distractor_focus}."
+                        f"Cue: {grounding_excerpt}. Use {distractor_family} distractors at {support_intensity} intensity around {distractor_focus}. "
+                        f"{blueprint_text}"
                     ),
                 ),
                 GeneratedBlock(
@@ -118,6 +126,10 @@ class MockLLMProvider:
             visible_roles = ", ".join(plan.request_context.get("worked_example_visible_step_roles", []))
             hidden_step_role = str(plan.request_context.get("worked_example_hidden_step_role", "the next step"))
             transfer_move = str(plan.request_context.get("worked_example_transfer_move", "a nearby application"))
+            transfer_plan = plan.request_context.get("worked_example_transfer_plan") or {}
+            preserve = str(transfer_plan.get("preserve", "the same structure"))
+            change = str(transfer_plan.get("change", transfer_move))
+            learner_owned_move = str(transfer_plan.get("learner_owned_move", hidden_step_role))
             return [
                 GeneratedBlock(
                     kind="worked_example",
@@ -125,14 +137,14 @@ class MockLLMProvider:
                     body=(
                         f"Model {focus} with {grounding_summary}. Cue: {grounding_excerpt}. "
                         f"Use {fading} fading at {release_stage}. Visible roles: {visible_roles}. "
-                        f"Transition: {release_transition}. Transfer: {transfer_move}."
+                        f"Transition: {release_transition}. Preserve: {preserve}. Change: {change}."
                     ),
                 ),
                 GeneratedBlock(
                     kind="instruction",
                     title="Now you try",
                     body=(
-                        f"Let the learner do {hidden_step_role}. "
+                        f"Let the learner do {learner_owned_move}. "
                         f"Stay aligned to {grounding_summary}. "
                         f"{instruction_close}"
                     ),

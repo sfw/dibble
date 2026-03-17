@@ -142,6 +142,7 @@ def _practice_distractor_plan_text(request_context: dict[str, object]) -> str:
         return "none"
     distractor_family = request_context.get("practice_distractor_family")
     support_intensity = request_context.get("practice_distractor_support_intensity")
+    blueprint = request_context.get("practice_distractor_blueprint") or []
     distractor_slots = request_context.get("practice_distractor_slots") or []
     answer_check_focus = request_context.get("practice_answer_check_focus")
     misconception_ids = request_context.get("practice_distractor_misconception_ids") or []
@@ -152,6 +153,19 @@ def _practice_distractor_plan_text(request_context: dict[str, object]) -> str:
         fragments.append(f"distractor_family={distractor_family}")
     if isinstance(support_intensity, str) and support_intensity:
         fragments.append(f"support_intensity={support_intensity}")
+    if blueprint:
+        fragments.append(
+            "practice_distractor_blueprint="
+            + " | ".join(
+                (
+                    f"{item.get('slot', 'slot')}"
+                    f"(temptation_basis={item.get('temptation_basis', 'n/a')};"
+                    f" repair_cue={item.get('repair_cue', 'n/a')})"
+                )
+                for item in blueprint
+                if isinstance(item, dict)
+            )
+        )
     if distractor_slots:
         fragments.append(f"distractor_slots={' | '.join(str(item) for item in distractor_slots)}")
     if isinstance(answer_check_focus, str) and answer_check_focus:
@@ -172,6 +186,7 @@ def _worked_example_fade_plan_text(request_context: dict[str, object]) -> str:
     release_intensity = request_context.get("worked_example_learner_release_intensity")
     release_transition = request_context.get("worked_example_release_transition")
     transfer_move = request_context.get("worked_example_transfer_move")
+    transfer_plan = request_context.get("worked_example_transfer_plan") or {}
     step_outline = request_context.get("worked_example_step_outline") or []
     learner_release = request_context.get("worked_example_learner_release")
     release_rationale = request_context.get("worked_example_release_rationale")
@@ -191,6 +206,11 @@ def _worked_example_fade_plan_text(request_context: dict[str, object]) -> str:
         fragments.append(f"learner_release={learner_release}")
     if isinstance(transfer_move, str) and transfer_move:
         fragments.append(f"transfer_move={transfer_move}")
+    if isinstance(transfer_plan, dict) and transfer_plan:
+        fragments.append(f"transfer_plan_preserve={transfer_plan.get('preserve')}")
+        fragments.append(f"transfer_plan_change={transfer_plan.get('change')}")
+        fragments.append(f"learner_owned_move={transfer_plan.get('learner_owned_move')}")
+        fragments.append(f"check_prompt={transfer_plan.get('check_prompt')}")
     if isinstance(release_rationale, str) and release_rationale:
         fragments.append(f"release_rationale={release_rationale}")
     return "; ".join(fragments)

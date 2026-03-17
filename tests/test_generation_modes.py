@@ -798,3 +798,147 @@ def test_generation_mode_plan_advances_practice_after_improving_progress():
     assert plan.request_context["difficulty_band"] == "stretch"
     assert plan.request_context["difficulty_progression_action"] == "advance_after_improvement"
     assert plan.request_context["practice_distractor_style"] == "near_transfer"
+
+
+def test_generation_mode_plan_builds_structured_practice_distractor_blueprint():
+    profile = LearnerProfile.model_validate(
+        build_profile(uuid4(), frustration="low", total_load=0.2, kc_mastery={"KC-1": 0.2}, engagement="medium")
+    )
+    request = GenerationRequest(
+        student_id=profile.student_id,
+        target_kc_ids=["KC-1"],
+        intent="practice",
+        target_kc_hints=[
+            TargetKcGenerationHint(
+                kc_id="KC-1",
+                kc_name="Generate equivalent fractions",
+                misconception_ids=["fraction-whole-number-bias"],
+                misconception_labels=["Whole-number bias"],
+                misconception_descriptions=["The learner compares numerators and denominators separately."],
+                remediation_hints=["Compare the whole amount before comparing the parts."],
+            )
+        ],
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.targeted_practice,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="medium",
+        reasons=["test"],
+    )
+
+    plan = build_generation_mode_plan(profile, request, route)
+    blueprint = plan.request_context["practice_distractor_blueprint"]
+
+    assert blueprint[0]["slot"] == "misconception_mirror"
+    assert "temptation_basis" in blueprint[0]
+    assert "repair_cue" in blueprint[0]
+    assert plan.request_context["practice_distractor_slots"][0].startswith("misconception_mirror")
+
+
+def test_generation_mode_plan_uses_support_intensity_to_tighten_practice_blueprint_surface_shift():
+    profile = LearnerProfile.model_validate(
+        build_profile(
+            uuid4(),
+            frustration="medium",
+            total_load=0.58,
+            kc_mastery={"KC-1": 0.56},
+            engagement="medium",
+            confidence_calibration=0.42,
+            help_seeking="high",
+        )
+    )
+    request = GenerationRequest(
+        student_id=profile.student_id,
+        target_kc_ids=["KC-1"],
+        intent="practice",
+        target_kc_hints=[
+            TargetKcGenerationHint(
+                kc_id="KC-1",
+                kc_name="Generate equivalent fractions",
+                misconception_labels=["Whole-number bias"],
+                remediation_hints=["Compare the whole amount before comparing the parts."],
+            )
+        ],
+        mode_calibration=GenerationModeCalibration(
+            signal="negative",
+            source="state_profile",
+            confidence=0.74,
+            support_bias=-1,
+            state_profile_signal="support_needed",
+            state_profile_source="state_profile",
+            state_profile_confidence=0.74,
+            state_profile_total_load=0.71,
+            state_profile_confidence_calibration=0.38,
+            state_profile_help_seeking="high",
+            state_profile_load_reliability=0.8,
+            state_profile_overload_risk=0.82,
+            state_profile_metacognitive_reliability=0.66,
+            rationale="test",
+        ),
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.targeted_practice,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="medium",
+        reasons=["test"],
+    )
+
+    plan = build_generation_mode_plan(profile, request, route)
+
+    assert plan.request_context["practice_distractor_support_intensity"] == "explicit"
+    assert plan.request_context["practice_distractor_blueprint"][0]["surface_shift"] == "same_representation"
+
+
+def test_generation_mode_plan_builds_worked_example_transfer_plan_for_independent_transfer():
+    profile = LearnerProfile.model_validate(
+        build_profile(
+            uuid4(),
+            frustration="low",
+            total_load=0.34,
+            kc_mastery={"KC-1": 0.78},
+            engagement="high",
+            confidence_calibration=0.74,
+            help_seeking="low",
+            self_monitoring=0.78,
+        )
+    )
+    request = GenerationRequest(
+        student_id=profile.student_id,
+        target_kc_ids=["KC-1"],
+        requested_content_type="worked_example",
+        target_kc_hints=[
+            TargetKcGenerationHint(
+                kc_id="KC-1",
+                kc_name="Generate equivalent fractions",
+                nearby_kc_names=["Compare equivalent fractions"],
+            )
+        ],
+        mode_calibration=GenerationModeCalibration(
+            signal="positive",
+            source="trait_profile",
+            confidence=0.72,
+            support_bias=1,
+            trait_profile_signal="stable",
+            trait_profile_source="trait_profile",
+            trait_profile_trait_stability=0.82,
+            trait_profile_challenge_tolerance=0.74,
+            trait_profile_challenge_evidence_strength=0.78,
+            trait_profile_working_memory_reliability=0.76,
+            rationale="test",
+        ),
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.stretch,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="low",
+        reasons=["test"],
+    )
+
+    plan = build_generation_mode_plan(profile, request, route)
+    transfer_plan = plan.request_context["worked_example_transfer_plan"]
+
+    assert transfer_plan["preserve"]
+    assert transfer_plan["change"]
+    assert transfer_plan["learner_owned_move"] == "independent application"
+    assert "Generate equivalent fractions" in plan.request_context["worked_example_transfer_move"]
+    assert "Compare equivalent fractions" in plan.request_context["worked_example_transfer_move"]
