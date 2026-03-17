@@ -48,6 +48,13 @@ def build_content_router(context: ApiContext) -> APIRouter:
         except RuntimeError as exc:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
 
+    @router.get("/content/{generation_id}", response_model=GeneratedContent, dependencies=context.deps("viewer"))
+    def get_generated_content(generation_id: str) -> GeneratedContent:
+        content = services.content_workflow_service.get_generated_content(generation_id)
+        if content is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Generated content not found.")
+        return content
+
     @router.post("/content/warm", response_model=ContentWarmResult, dependencies=context.deps("editor"))
     def warm_content(request: ContentWarmRequest) -> ContentWarmResult:
         return services.content_workflow_service.warm_content(request)

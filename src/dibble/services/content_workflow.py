@@ -34,7 +34,7 @@ from dibble.services.observation_profile_update import ObservationProfileUpdater
 from dibble.services.predictive_content_warming import PredictiveContentWarmer, PredictiveWarmPlan
 from dibble.services.predictive_warm_scheduler import PredictiveWarmScheduler
 from dibble.services.progression_ownership import ProgressionOwnershipDecision, ProgressionOwnershipService
-from dibble.services.protocols import AuditStore, KnowledgeComponentStore, ObservationStore, ProfileStore
+from dibble.services.protocols import AuditStore, GeneratedContentStore, KnowledgeComponentStore, ObservationStore, ProfileStore
 from dibble.services.remediation_planner import RemediationPlanner
 from dibble.services.remediation_workflows import (
     RemediationWorkflowCoordinator,
@@ -61,6 +61,7 @@ class ContentWorkflowService:
     profile_store: ProfileStore
     observation_store: ObservationStore
     knowledge_component_store: KnowledgeComponentStore
+    generated_content_store: GeneratedContentStore
     router: RouterPlugin
     generation_engine: GenerationEngine
     content_warmer: ContentWarmer
@@ -356,10 +357,12 @@ class ContentWorkflowService:
                     "claim_details": [detail.model_dump(mode="json") for detail in inline_process_result.claim_details],
                 },
             )
-        return self._apply_generation_workflow_summary(
+        finalized_content = self._apply_generation_workflow_summary(
             generated_content=generated_content,
             predictive_plan=predictive_plan,
         )
+        self._refresh_generated_content(finalized_content)
+        return finalized_content
 
     def _record_moderation_event(
         self,
@@ -834,6 +837,12 @@ class ContentWorkflowService:
             raise RemediationWorkflowNotFoundError(session_id)
         return session
 
+    def get_generated_content(self, generation_id: str) -> GeneratedContent | None:
+        generated_content = self.generated_content_store.get(generation_id=generation_id)
+        if generated_content is None:
+            return None
+        return self._apply_generation_workflow_summary(generated_content=generated_content)
+
     def advance_remediation_session(
         self,
         *,
@@ -987,13 +996,18 @@ class ContentWorkflowService:
         if misconception_signals is not None:
             enriched_request_context["misconception_signals"] = misconception_signals
         enriched_content = generated_content.model_copy(update={"request_context": enriched_request_context})
-        return self._apply_generation_workflow_summary(generated_content=enriched_content)
+        finalized_content = self._apply_generation_workflow_summary(generated_content=enriched_content)
+        self._refresh_generated_content(finalized_content)
+        return finalized_content
 
     def _current_remediation_step(self, session: RemediationWorkflowSession) -> RemediationWorkflowStep | None:
         current_index = session.current_step_index
         if current_index is None or current_index >= len(session.steps):
             return None
         return session.steps[current_index]
+
+    def _refresh_generated_content(self, generated_content: GeneratedContent) -> None:
+        self.generated_content_store.refresh(content=generated_content)
 
     def _next_remediation_phase(self, session: RemediationWorkflowSession) -> str | None:
         next_step = self._current_remediation_step(session)

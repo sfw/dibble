@@ -70,6 +70,7 @@ This repository now includes a working MVP backend slice for the revised adaptiv
 - Generated content is now persisted with quality/provenance metadata and reused through a lightweight SQLite-backed generation cache
 - Generated content responses now also include a compact `workflow_summary` contract so clients can read delivered phase, progression action, active targets, and next-step metadata without unpacking the raw `request_context` tree
 - Stream `complete` events now carry that same compact `workflow_summary` contract and run through the same progression-ownership and session-finalization path as non-stream generation, so frontend state does not diverge between SSE and normal response modes
+- Generated content can now be reloaded by `generation_id`, and learner workspace responses can now bundle learner summary/flow with the active generation or active remediation/Socratic session for resume-after-refresh frontend work
 - Optional principal-based API key auth with `viewer`/`editor`/`admin` roles can protect every endpoint except `GET /health`
 - Signed bearer tokens can be minted, refreshed, and revoked for request-scoped sessions
 - Dynamic plugin loading for router, retriever, provider, and validator factories
@@ -105,6 +106,7 @@ env UV_CACHE_DIR=.uv-cache uv run pytest
 - `GET /api/learners/{student_id}/state`
 - `GET /api/learners/{student_id}/summary`
 - `GET /api/learners/{student_id}/flow`
+- `GET /api/learners/{student_id}/workspace`
 - `PUT /api/curriculum/resources/{resource_id}`
 - `GET /api/curriculum/resources`
 - `PUT /api/knowledge-components/{kc_id}`
@@ -112,6 +114,7 @@ env UV_CACHE_DIR=.uv-cache uv run pytest
 - `GET /api/knowledge-components/{kc_id}/prerequisites`
 - `POST /api/router/decide`
 - `POST /api/content/generate`
+- `GET /api/content/{generation_id}`
 - `POST /api/content/warm`
 - `POST /api/content/warm/process`
 - `POST /api/explanations/generate`

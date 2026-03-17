@@ -286,6 +286,106 @@ def test_learner_flow_endpoint_prefers_active_remediation_workflow(client, stude
     assert summary_payload["current_flow"]["current_phase"] == "repair"
 
 
+def test_learner_workspace_returns_active_generated_content(client, student_id):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+
+    for hints_used, confidence in [(3, 0.62), (2, 0.58)]:
+        observe_response = client.post(
+            f"/api/learners/{student_id}/observations",
+            json={
+                "response_time_ms": 21000,
+                "hints_used": hints_used,
+                "error_count": 0,
+                "pause_count": 1,
+                "modality_switches": 0,
+                "completed": True,
+                "confidence": confidence,
+                "task_type": "practice",
+                "support_level": "high",
+                "expected_duration_ms": 18000,
+                "learning_session_id": "workspace-lesson-session",
+                "target_kc_ids": ["KC-1"],
+                "target_lo_ids": ["LO-1"],
+            },
+        )
+        assert observe_response.status_code == 200
+
+    generate_response = client.post(
+        "/api/problems/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "workspace-lesson-session",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": ["LO-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    workspace_response = client.get(f"/api/learners/{student_id}/workspace")
+
+    assert generate_response.status_code == 200
+    assert workspace_response.status_code == 200
+
+    generation_id = generate_response.json()["generation_id"]
+    payload = workspace_response.json()
+    assert payload["active_artifact"]["kind"] == "generated_content"
+    assert payload["active_artifact"]["resource_id"] == generation_id
+    assert payload["generated_content"]["generation_id"] == generation_id
+    assert payload["generated_content"]["workflow_summary"]["progression_action"] == "hold_target"
+    assert payload["summary"]["current_flow"]["last_generation_id"] == generation_id
+
+
+def test_learner_workspace_returns_active_remediation_session_and_content(client, student_id):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put(
+        "/api/knowledge-components/KC-1",
+        json=build_knowledge_component("KC-1", name="Identify numerator and denominator"),
+    )
+    client.put(
+        "/api/knowledge-components/KC-2",
+        json=build_knowledge_component(
+            "KC-2",
+            prerequisite_kc_ids=["KC-1"],
+            name="Generate equivalent fractions",
+            common_misconceptions=[
+                {
+                    "misconception_id": "fraction-whole-number-bias",
+                    "label": "Treats fraction parts like unrelated whole numbers",
+                    "description": "The learner compares numerator and denominator separately instead of the whole amount.",
+                    "trigger_terms": ["different amounts", "numerator", "denominator", "whole number"],
+                    "prerequisite_kc_ids": ["KC-1"],
+                    "remediation_hint": "Use one visual model to compare the total amount before naming the parts.",
+                }
+            ],
+        ),
+    )
+
+    trigger_response = client.post(
+        "/api/remedial/trigger",
+        json={
+            "student_id": str(student_id),
+            "target_kc_id": "KC-2",
+            "misconception_description": "The learner compares numerator and denominator separately like whole numbers.",
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    workspace_response = client.get(f"/api/learners/{student_id}/workspace")
+
+    assert trigger_response.status_code == 200
+    assert workspace_response.status_code == 200
+
+    generation_id = trigger_response.json()["generation_id"]
+    remediation_session_id = trigger_response.json()["request_context"]["remediation_session_id"]
+    payload = workspace_response.json()
+    assert payload["active_artifact"]["kind"] == "remediation_session"
+    assert payload["active_artifact"]["resource_id"] == remediation_session_id
+    assert payload["active_artifact"]["generation_id"] == generation_id
+    assert payload["remediation_session"]["session_id"] == remediation_session_id
+    assert payload["generated_content"]["generation_id"] == generation_id
+    assert payload["generated_content"]["workflow_summary"]["flow_type"] == "remediation"
+
+
 def test_profile_endpoint_returns_extended_profile_metadata(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
 

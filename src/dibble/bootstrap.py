@@ -36,6 +36,7 @@ from dibble.services.learner_strategy_profiles import (
 from dibble.services.learner_state_calibration import LearnerStateCalibrator
 from dibble.services.learner_flow_service import LearnerFlowService
 from dibble.services.learner_summary_service import LearnerSummaryService
+from dibble.services.learner_workspace_service import LearnerWorkspaceService
 from dibble.services.misconception_detector import MisconceptionDetector
 from dibble.services.misconception_profiles import (
     LearningMisconceptionProfileRecorder,
@@ -110,6 +111,7 @@ class ApplicationServices:
     ordinary_mastery_profile_recorder: OrdinaryMasteryProfileRecorder
     learner_flow_service: LearnerFlowService
     learner_summary_service: LearnerSummaryService
+    learner_workspace_service: LearnerWorkspaceService
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_invalidator: PredictiveContentInvalidator
     predictive_warm_scheduler: PredictiveWarmScheduler
@@ -254,6 +256,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         profile_store=profile_store,
         observation_store=observation_store,
         knowledge_component_store=knowledge_component_store,
+        generated_content_store=generated_content_store,
         router=router_plugin,
         generation_engine=generation_engine,
         content_warmer=content_warmer,
@@ -268,6 +271,11 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         within_session_adaptation_service=within_session_adaptation_service,
         observation_profile_updater=observation_profile_updater,
         progression_ownership_service=progression_ownership_service,
+    )
+    learner_workspace_service = LearnerWorkspaceService(
+        learner_summary_service=learner_summary_service,
+        content_workflow_service=content_workflow_service,
+        socratic_assessment_service=socratic_assessment_service,
     )
 
     return ApplicationServices(
@@ -304,6 +312,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         ordinary_mastery_profile_recorder=ordinary_mastery_profile_recorder,
         learner_flow_service=learner_flow_service,
         learner_summary_service=learner_summary_service,
+        learner_workspace_service=learner_workspace_service,
         generation_mode_calibrator=generation_mode_calibrator,
         predictive_content_invalidator=predictive_content_invalidator,
         predictive_warm_scheduler=predictive_warm_scheduler,

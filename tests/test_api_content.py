@@ -60,6 +60,54 @@ def test_generation_endpoint_returns_generated_content_and_cache_hit(client, stu
     assert second_payload["response"]["generation_metadata"]["cache_hit"] is True
 
 
+def test_generated_content_can_be_reloaded_by_generation_id(client, student_id):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+
+    for confidence, hints_used in [(0.62, 3), (0.58, 2)]:
+        observe_response = client.post(
+            f"/api/learners/{student_id}/observations",
+            json={
+                "response_time_ms": 18000,
+                "hints_used": hints_used,
+                "error_count": 0,
+                "pause_count": 1,
+                "modality_switches": 0,
+                "completed": True,
+                "confidence": confidence,
+                "task_type": "practice",
+                "support_level": "high",
+                "expected_duration_ms": 18000,
+                "learning_session_id": "reloadable-generation-session",
+                "target_kc_ids": ["KC-1"],
+                "target_lo_ids": ["LO-1"],
+            },
+        )
+        assert observe_response.status_code == 200
+
+    generate_response = client.post(
+        "/api/problems/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "reloadable-generation-session",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": ["LO-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+
+    generation_id = generate_response.json()["generation_id"]
+    reload_response = client.get(f"/api/content/{generation_id}")
+
+    assert generate_response.status_code == 200
+    assert reload_response.status_code == 200
+    payload = reload_response.json()
+    assert payload["generation_id"] == generation_id
+    assert payload["request_context"]["progression"]["action"] == "hold_target"
+    assert payload["workflow_summary"]["progression_action"] == "hold_target"
+    assert payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
+
+
 def test_generation_cache_ignores_learning_session_id(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())

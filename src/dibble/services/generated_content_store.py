@@ -72,35 +72,55 @@ class SQLiteGeneratedContentStore:
         if row is None:
             return None
 
-        (
-            generation_id,
-            student_id,
-            content_type,
-            request_context_json,
-            response_payload,
-            quality_payload,
-            created_at,
-            expires_at,
-        ) = row
-
-        expires_at_value = _parse_datetime(expires_at)
+        generation_content = self._content_from_row(row)
+        expires_at_value = generation_content.expires_at
         comparison_time = now or datetime.now(timezone.utc)
         if expires_at_value is not None and expires_at_value <= comparison_time:
             return None
+        return generation_content
 
-        response = GeneratedContent.model_validate(
-            {
-                "generation_id": generation_id,
-                "student_id": student_id,
-                "content_type": content_type,
-                "request_context": json.loads(request_context_json),
-                "response": json.loads(response_payload),
-                "quality": json.loads(quality_payload),
-                "created_at": created_at,
-                "expires_at": expires_at,
-            }
-        )
-        return response
+    def get(self, *, generation_id: str) -> GeneratedContent | None:
+        with sqlite3.connect(self.database_path) as connection:
+            row = connection.execute(
+                """
+                SELECT generation_id, student_id, content_type, request_context, response_payload, quality_payload, created_at, expires_at
+                FROM generated_content
+                WHERE generation_id = ?
+                """,
+                (generation_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return self._content_from_row(row)
+
+    def refresh(self, *, content: GeneratedContent) -> GeneratedContent:
+        with sqlite3.connect(self.database_path) as connection:
+            connection.execute(
+                """
+                UPDATE generated_content
+                SET
+                    student_id = ?,
+                    content_type = ?,
+                    request_context = ?,
+                    response_payload = ?,
+                    quality_payload = ?,
+                    created_at = ?,
+                    expires_at = ?
+                WHERE generation_id = ?
+                """,
+                (
+                    str(content.student_id),
+                    content.content_type,
+                    json.dumps(content.request_context),
+                    content.response.model_dump_json(),
+                    content.quality.model_dump_json(),
+                    content.created_at.isoformat(),
+                    content.expires_at.isoformat() if content.expires_at is not None else None,
+                    content.generation_id,
+                ),
+            )
+            connection.commit()
+        return content
 
     def list_recent(self, *, limit: int = 50) -> list[GeneratedContent]:
         with sqlite3.connect(self.database_path) as connection:
@@ -114,30 +134,7 @@ class SQLiteGeneratedContentStore:
                 (limit,),
             ).fetchall()
 
-        return [
-            GeneratedContent.model_validate(
-                {
-                    "generation_id": generation_id,
-                    "student_id": student_id,
-                    "content_type": content_type,
-                    "request_context": json.loads(request_context_json),
-                    "response": json.loads(response_payload),
-                    "quality": json.loads(quality_payload),
-                    "created_at": created_at,
-                    "expires_at": expires_at,
-                }
-            )
-            for (
-                generation_id,
-                student_id,
-                content_type,
-                request_context_json,
-                response_payload,
-                quality_payload,
-                created_at,
-                expires_at,
-            ) in rows
-        ]
+        return [self._content_from_row(row) for row in rows]
 
     def expire_predictive_content(
         self,
@@ -211,6 +208,30 @@ class SQLiteGeneratedContentStore:
             "fresh_entries": int(fresh_entries),
             "expired_entries": int(total_entries - fresh_entries),
         }
+
+    def _content_from_row(self, row) -> GeneratedContent:
+        (
+            generation_id,
+            student_id,
+            content_type,
+            request_context_json,
+            response_payload,
+            quality_payload,
+            created_at,
+            expires_at,
+        ) = row
+        return GeneratedContent.model_validate(
+            {
+                "generation_id": generation_id,
+                "student_id": student_id,
+                "content_type": content_type,
+                "request_context": json.loads(request_context_json),
+                "response": json.loads(response_payload),
+                "quality": json.loads(quality_payload),
+                "created_at": created_at,
+                "expires_at": expires_at,
+            }
+        )
 
 
 def _matches_predictive_invalidation(
