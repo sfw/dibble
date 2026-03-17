@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   demoCurriculumProgression,
@@ -88,5 +89,34 @@ describe('OverviewView', () => {
     expect(screen.getByText('Refreshing workspace contracts…')).toBeInTheDocument()
     expect(screen.getByText('Workspace contracts failed to refresh.')).toBeInTheDocument()
     expect(screen.getAllByText('Nothing to review yet').length).toBeGreaterThan(0)
+  })
+
+  it('routes resume and history actions through the selected view callback', async () => {
+    const user = userEvent.setup()
+    const onSelectView = vi.fn()
+
+    render(
+      <OverviewView
+        summary={demoProfileSummary}
+        profile={demoProfile}
+        flow={demoLearnerFlow}
+        workspace={demoLearnerWorkspace}
+        progression={demoCurriculumProgression}
+        generationHistory={demoGenerationHistory}
+        socraticHistory={demoSocraticHistory}
+        remediationHistory={demoRemediationHistory}
+        onSelectView={onSelectView}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Open generated content workspace' }))
+    await user.click(screen.getAllByRole('button', { name: 'Open generation' })[0]!)
+    await user.click(screen.getByRole('button', { name: 'Open Socratic' }))
+    await user.click(screen.getByRole('button', { name: 'Open remediation' }))
+
+    expect(onSelectView).toHaveBeenNthCalledWith(1, 'generation')
+    expect(onSelectView).toHaveBeenNthCalledWith(2, 'generation')
+    expect(onSelectView).toHaveBeenNthCalledWith(3, 'socratic')
+    expect(onSelectView).toHaveBeenNthCalledWith(4, 'remediation')
   })
 })

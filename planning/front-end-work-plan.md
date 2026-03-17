@@ -163,6 +163,7 @@ These are the highest-signal frontend gaps discovered so far:
 - keep making live-vs-demo fallback posture explicit in the shell so contract connectivity changes are visible without opening debug panels
 - keep consolidating shell and screen layout CSS onto shared primitives where it clearly removes one-off legacy classes instead of adding another styling layer
 - keep `App.css` focused on visual primitives and view-specific card treatment instead of generic page composition helpers
+- keep tightening teacher intervention continuity and routing coverage so backend-selected options, resume actions, and classroom drill-in behavior stay trustworthy as the product surface grows
 
 ### Next up
 
@@ -240,6 +241,8 @@ These are the highest-signal frontend gaps discovered so far:
 - removed dead app-shell selectors that no longer affected layout after the shared primitive migration
 - finished the remaining frontend layout-CSS sweep by migrating shell and view composition helpers onto explicit Tailwind utility classes across the app shell, workspace controls, and learner/teacher views
 - reduced `frontend/src/App.css` to a smaller set of visual and card-level selectors instead of using it as a generic layout framework
+- aligned the teacher intervention screen with backend-recorded latest decision state so the default selected option reflects the latest backend choice instead of always snapping back to the recommended option
+- expanded behavioral coverage around teacher option submission, learner overview resume/history routing, and classroom selection plus teacher-first blocked-learner posture
 
 ## Notes For Future Updates
 

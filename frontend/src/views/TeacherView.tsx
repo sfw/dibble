@@ -66,12 +66,19 @@ export function TeacherView({
     [intervention.available_options],
   )
   const [selectedOptionId, setSelectedOptionId] = useState('')
+  const latestDecisionOptionId =
+    intervention.latest_decision?.selected_option_id &&
+    intervention.available_options.some(
+      (option) => option.option_id === intervention.latest_decision?.selected_option_id,
+    )
+      ? intervention.latest_decision.selected_option_id
+      : ''
   const [note, setNote] = useState('')
   const effectiveSelectedOptionId = intervention.available_options.some(
     (option) => option.option_id === selectedOptionId,
   )
     ? selectedOptionId
-    : (recommendedOption?.option_id ?? '')
+    : (latestDecisionOptionId || recommendedOption?.option_id || '')
   const selectedOption =
     intervention.available_options.find((option) => option.option_id === effectiveSelectedOptionId) ?? recommendedOption
 

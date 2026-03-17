@@ -44,6 +44,36 @@ describe('ClassroomView', () => {
     expect(screen.getByText('Debug classroom payload')).toBeInTheDocument()
   })
 
+  it('lets the teacher switch classrooms and keeps blocked learners in teacher-first posture', async () => {
+    const user = userEvent.setup()
+    const onPickClassroom = vi.fn()
+
+    render(
+      <ClassroomView
+        classrooms={[
+          ...demoTeacherClassrooms,
+          {
+            ...demoTeacherClassrooms[0],
+            classroom_id: 'CLASS-2',
+            title: 'Grade 5 Decimals',
+            learner_count: 3,
+          },
+        ]}
+        selectedClassroomId={demoTeacherClassroom.classroom_id}
+        classroom={demoTeacherClassroom}
+        onPickClassroom={onPickClassroom}
+        onOpenTeacher={() => {}}
+        onContinueLearner={() => {}}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: /Grade 5 Decimals/i }))
+
+    expect(onPickClassroom).toHaveBeenCalledWith('CLASS-2')
+    expect(screen.getByText('Teacher review first')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Continue learner overview' })).not.toBeInTheDocument()
+  })
+
   it('renders classroom refresh, error, and empty-queue states', () => {
     render(
       <ClassroomView
