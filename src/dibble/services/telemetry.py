@@ -150,7 +150,19 @@ class TelemetryService:
             moderation_rewritten_responses=sum(
                 1
                 for event in moderation_events
-                if event.payload.get("stage") == "response" and bool(event.payload.get("fallback_applied"))
+                if event.payload.get("stage") == "response" and bool(event.payload.get("response_rewritten"))
+            ),
+            moderation_provider_bypass_events=sum(
+                1
+                for event in moderation_events
+                if bool(event.payload.get("request_blocked")) and not bool(event.payload.get("provider_invoked"))
+            ),
+            moderation_buffered_stream_rewrites=sum(
+                1
+                for event in moderation_events
+                if bool(event.payload.get("stream_emitted"))
+                and bool(event.payload.get("response_rewritten"))
+                and bool(event.payload.get("stream_buffered"))
             ),
             validation_issue_events=sum(
                 1 for event in generation_events if int(event.payload.get("validation_issue_count", 0)) > 0

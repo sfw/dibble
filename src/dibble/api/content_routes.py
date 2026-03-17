@@ -166,13 +166,20 @@ def build_content_router(context: ApiContext) -> APIRouter:
                                 "learning_session_id": calibrated_request.learning_session_id,
                                 "stage": event.moderation.stage,
                                 "severity": event.moderation.severity,
+                                "decision": event.moderation.decision,
                                 "blocked": event.moderation.blocked,
+                                "request_blocked": event.moderation.request_blocked,
+                                "response_rewritten": event.moderation.response_rewritten,
                                 "categories": event.moderation.categories,
                                 "matched_terms": event.moderation.matched_terms,
                                 "matches": [match.model_dump(mode="json") for match in event.moderation.matches],
                                 "fallback_applied": event.moderation.fallback_applied,
                                 "fallback_kind": event.moderation.fallback_kind,
                                 "stream_action": event.moderation.stream_action,
+                                "provider_invoked": event.moderation.provider_invoked,
+                                "stream_buffered": event.moderation.stream_buffered,
+                                "original_block_count": event.moderation.original_block_count,
+                                "replacement_block_count": event.moderation.replacement_block_count,
                                 "audit_message": event.moderation.audit_message,
                                 "stream_emitted": True,
                             },
@@ -241,8 +248,23 @@ def build_content_router(context: ApiContext) -> APIRouter:
                                         if response.generation_metadata is not None
                                         else "none"
                                     ),
+                                    "moderation_decision": (
+                                        response.generation_metadata.moderation.decision
+                                        if response.generation_metadata is not None
+                                        else "allow"
+                                    ),
                                     "moderation_blocked": bool(
                                         response.generation_metadata.moderation.blocked
+                                        if response.generation_metadata is not None
+                                        else False
+                                    ),
+                                    "moderation_request_blocked": bool(
+                                        response.generation_metadata.moderation.request_blocked
+                                        if response.generation_metadata is not None
+                                        else False
+                                    ),
+                                    "moderation_response_rewritten": bool(
+                                        response.generation_metadata.moderation.response_rewritten
                                         if response.generation_metadata is not None
                                         else False
                                     ),
@@ -265,6 +287,26 @@ def build_content_router(context: ApiContext) -> APIRouter:
                                         response.generation_metadata.moderation.stream_action
                                         if response.generation_metadata is not None
                                         else "none"
+                                    ),
+                                    "moderation_provider_invoked": bool(
+                                        response.generation_metadata.moderation.provider_invoked
+                                        if response.generation_metadata is not None
+                                        else False
+                                    ),
+                                    "moderation_stream_buffered": bool(
+                                        response.generation_metadata.moderation.stream_buffered
+                                        if response.generation_metadata is not None
+                                        else False
+                                    ),
+                                    "moderation_original_block_count": (
+                                        response.generation_metadata.moderation.original_block_count
+                                        if response.generation_metadata is not None
+                                        else 0
+                                    ),
+                                    "moderation_replacement_block_count": (
+                                        response.generation_metadata.moderation.replacement_block_count
+                                        if response.generation_metadata is not None
+                                        else 0
                                     ),
                                     "moderation_audit_message": (
                                         response.generation_metadata.moderation.audit_message

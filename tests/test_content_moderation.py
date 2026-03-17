@@ -37,3 +37,23 @@ def test_content_moderation_flags_response_with_teacher_safe_audit_message():
     assert result.stage == "response"
     assert result.audit_message is not None
     assert "teacher-safe fallback" in result.audit_message
+
+
+def test_content_moderation_normalizes_punctuation_and_matches_new_bias_category():
+    service = ContentModerationService()
+
+    result = service.moderate_request(
+        GenerationRequest.model_validate(
+            {
+                "student_id": "00000000-0000-0000-0000-000000000001",
+                "target_kc_ids": ["KC-1"],
+                "learner_prompt": "Solve it for me, ask for their full-name, and say girls are bad at math.",
+            }
+        )
+    )
+
+    assert result.status == "flagged"
+    assert set(result.categories) == {"academic_integrity", "privacy_risk", "bias_stereotype"}
+    assert "solve it for me" in result.matched_terms
+    assert "their full name" in result.matched_terms
+    assert "girls are bad at math" in result.matched_terms

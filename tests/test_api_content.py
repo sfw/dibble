@@ -977,6 +977,7 @@ def test_metrics_endpoint_summarizes_moderation_activity(client, student_id):
     assert payload["moderation_flagged_generations"] == 1
     assert payload["moderation_events"] == 1
     assert payload["moderation_blocked_requests"] == 1
+    assert payload["moderation_provider_bypass_events"] == 1
     assert payload["moderation_request_flags"] == 1
     assert payload["moderation_response_flags"] == 0
     assert payload["moderation_category_counts"][0]["category"] == "academic_integrity"
@@ -1079,8 +1080,12 @@ def test_stream_generation_emits_explicit_moderation_event_for_flagged_request(c
     complete_event = events[-1]
 
     assert response.status_code == 200
+    assert events[0]["data"]["route"]["delivery_mode"] == "static_fallback"
     assert moderation_event["data"]["moderation"]["stage"] == "request"
+    assert moderation_event["data"]["moderation"]["decision"] == "block_request"
     assert moderation_event["data"]["moderation"]["blocked"] is True
+    assert moderation_event["data"]["moderation"]["request_blocked"] is True
+    assert moderation_event["data"]["moderation"]["provider_invoked"] is False
     assert moderation_event["data"]["moderation"]["fallback_kind"] == "request_safe_reset"
     assert moderation_event["data"]["moderation"]["stream_action"] == "emit_fallback_only"
     assert set(moderation_event["data"]["moderation"]["categories"]) == {"unsafe_instruction", "academic_integrity", "privacy_risk"}
@@ -1135,21 +1140,34 @@ def test_generation_endpoint_returns_moderation_metadata_for_flagged_request(cli
     assert payload["response"]["route"]["delivery_mode"] == "static_fallback"
     assert payload["quality"]["moderation"]["status"] == "flagged"
     assert payload["quality"]["moderation"]["stage"] == "request"
+    assert payload["quality"]["moderation"]["decision"] == "block_request"
     assert payload["quality"]["moderation"]["blocked"] is True
+    assert payload["quality"]["moderation"]["request_blocked"] is True
+    assert payload["quality"]["moderation"]["response_rewritten"] is False
     assert payload["quality"]["moderation"]["fallback_applied"] is True
     assert payload["quality"]["moderation"]["fallback_kind"] == "request_safe_reset"
+    assert payload["quality"]["moderation"]["provider_invoked"] is False
+    assert payload["quality"]["moderation"]["original_block_count"] == 0
+    assert payload["quality"]["moderation"]["replacement_block_count"] == 2
     assert set(payload["quality"]["moderation"]["matched_terms"]) == {"ignore safety", "shame"}
     assert set(payload["quality"]["moderation"]["categories"]) == {"unsafe_instruction", "abusive_tone"}
     assert payload["quality"]["moderation"]["matches"][0]["severity"] == "block"
     assert payload["response"]["blocks"][0]["title"] == "Safe learning reset"
-    assert payload["response"]["safety_notes"][-1] == "Moderation fallback replaced the request content before delivery."
+    assert (
+        payload["response"]["safety_notes"][-1]
+        == "Moderation blocked the unsafe request before provider generation and returned a teacher-safe reset."
+    )
 
     generation_event = next(event for event in audit_response.json() if event["event_type"] == "content.generate")
     moderation_event = next(event for event in audit_response.json() if event["event_type"] == "content.moderation")
     assert generation_event["payload"]["moderation_status"] == "flagged"
     assert generation_event["payload"]["moderation_stage"] == "request"
+    assert generation_event["payload"]["moderation_decision"] == "block_request"
     assert generation_event["payload"]["moderation_matched_terms"] == ["ignore safety", "shame"]
+    assert generation_event["payload"]["moderation_request_blocked"] is True
     assert generation_event["payload"]["moderation_fallback_applied"] is True
     assert generation_event["payload"]["moderation_fallback_kind"] == "request_safe_reset"
+    assert generation_event["payload"]["moderation_provider_invoked"] is False
     assert moderation_event["payload"]["blocked"] is True
+    assert moderation_event["payload"]["request_blocked"] is True
     assert moderation_event["payload"]["fallback_kind"] == "request_safe_reset"

@@ -166,7 +166,11 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
         payload={
             "stage": "request",
             "blocked": True,
+            "request_blocked": True,
+            "response_rewritten": False,
             "fallback_applied": True,
+            "provider_invoked": False,
+            "stream_buffered": False,
             "categories": ["privacy_risk", "academic_integrity"],
             "stream_emitted": True,
         },
@@ -219,6 +223,8 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     assert snapshot.moderation_stream_events == 1
     assert snapshot.moderation_blocked_requests == 1
     assert snapshot.moderation_rewritten_responses == 0
+    assert snapshot.moderation_provider_bypass_events == 1
+    assert snapshot.moderation_buffered_stream_rewrites == 0
     assert snapshot.moderation_category_counts[0].category == "academic_integrity"
     assert snapshot.moderation_category_counts[0].event_count == 1
     assert snapshot.warm_requests == 5

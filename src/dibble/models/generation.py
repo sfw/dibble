@@ -229,14 +229,21 @@ class ModerationResult(BaseModel):
     status: str = "clear"
     stage: str = "none"
     severity: str = "none"
+    decision: str = "allow"
     categories: list[str] = Field(default_factory=list)
     reasons: list[str] = Field(default_factory=list)
     matched_terms: list[str] = Field(default_factory=list)
     matches: list[ModerationMatch] = Field(default_factory=list)
     blocked: bool = False
+    request_blocked: bool = False
+    response_rewritten: bool = False
     fallback_applied: bool = False
     fallback_kind: str | None = None
     stream_action: str = "none"
+    provider_invoked: bool = False
+    stream_buffered: bool = False
+    original_block_count: int = Field(default=0, ge=0)
+    replacement_block_count: int = Field(default=0, ge=0)
     audit_message: str | None = None
 
 

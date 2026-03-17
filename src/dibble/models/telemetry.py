@@ -94,6 +94,8 @@ class TelemetrySnapshot(BaseModel):
     moderation_response_flags: int = 0
     moderation_blocked_requests: int = 0
     moderation_rewritten_responses: int = 0
+    moderation_provider_bypass_events: int = 0
+    moderation_buffered_stream_rewrites: int = 0
     validation_issue_events: int = 0
     cache_hit_generations: int = 0
     warm_requests: int = 0

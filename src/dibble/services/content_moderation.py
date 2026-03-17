@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
 from dibble.models.generation import (
     GeneratedBlock,
@@ -26,61 +27,177 @@ class ContentModerationService:
 
     def __post_init__(self) -> None:
         if self.request_term_categories is None:
-            self.request_term_categories = {
-                "ignore safety": ModerationRule("unsafe_instruction", "Request asked to bypass safety guidance."),
-                "bypass safety": ModerationRule("unsafe_instruction", "Request asked to bypass safety guidance."),
-                "shame": ModerationRule("abusive_tone", "Request asked for shaming or degrading language."),
-                "humiliate": ModerationRule("abusive_tone", "Request asked for humiliating language."),
-                "idiot": ModerationRule("abusive_tone", "Request used insulting language toward the learner."),
-                "cheat": ModerationRule("academic_integrity", "Request asked for help cheating or bypassing the learner's own work."),
-                "do the test": ModerationRule("academic_integrity", "Request asked the system to complete a test for the learner."),
-                "just give the answer": ModerationRule("academic_integrity", "Request asked for answer-only help instead of instruction."),
-                "only the answer": ModerationRule("academic_integrity", "Request asked for answer-only help instead of instruction."),
-                "answer key": ModerationRule("academic_integrity", "Request asked for answer-key style help."),
-                "submit this": ModerationRule("academic_integrity", "Request asked the system to submit or finish work for the learner."),
-                "home address": ModerationRule("privacy_risk", "Request asked for personal location or contact details."),
-                "their address": ModerationRule("privacy_risk", "Request asked for personal location or contact details."),
-                "phone number": ModerationRule("privacy_risk", "Request asked for personal contact details."),
-                "email address": ModerationRule("privacy_risk", "Request asked for personal contact details."),
-                "password": ModerationRule("privacy_risk", "Request asked for credential or account details."),
-                "social security": ModerationRule("privacy_risk", "Request asked for highly sensitive identity details."),
-                "diagnose": ModerationRule("sensitive_advice", "Request asked for diagnosis-oriented content."),
-                "therapy": ModerationRule("sensitive_advice", "Request asked for therapy-style advice beyond classroom support."),
-                "kill": ModerationRule("violence", "Request included violent wording outside normal classroom support."),
-                "weapon": ModerationRule("violence", "Request included weapon-oriented wording."),
-                "suicide": ModerationRule("self_harm", "Request included self-harm wording."),
-                "self-harm": ModerationRule("self_harm", "Request included self-harm wording."),
-                "cut myself": ModerationRule("self_harm", "Request included self-harm wording."),
-                "nude": ModerationRule("sexual_content", "Request included age-inappropriate sexual wording."),
-            }
+            self.request_term_categories = self._build_default_request_terms()
         if self.response_term_categories is None:
-            self.response_term_categories = {
-                "ignore safety": ModerationRule("unsafe_instruction", "Generated content attempted to bypass safety guidance."),
-                "bypass safety": ModerationRule("unsafe_instruction", "Generated content attempted to bypass safety guidance."),
-                "shame": ModerationRule("abusive_tone", "Generated content used shaming language."),
-                "humiliate": ModerationRule("abusive_tone", "Generated content used humiliating language."),
-                "punish": ModerationRule("abusive_tone", "Generated content suggested punitive treatment of the learner."),
-                "idiot": ModerationRule("abusive_tone", "Generated content used insulting language."),
-                "cheat": ModerationRule("academic_integrity", "Generated content encouraged cheating instead of learning."),
-                "do the test": ModerationRule("academic_integrity", "Generated content offered to complete a test for the learner."),
-                "just give the answer": ModerationRule("academic_integrity", "Generated content drifted into answer-only help."),
-                "only the answer": ModerationRule("academic_integrity", "Generated content drifted into answer-only help."),
-                "answer key": ModerationRule("academic_integrity", "Generated content drifted into answer-key style help."),
-                "home address": ModerationRule("privacy_risk", "Generated content included personal address or location details."),
-                "their address": ModerationRule("privacy_risk", "Generated content included personal address or location details."),
-                "phone number": ModerationRule("privacy_risk", "Generated content included personal contact details."),
-                "email address": ModerationRule("privacy_risk", "Generated content included personal contact details."),
-                "password": ModerationRule("privacy_risk", "Generated content included credential-oriented details."),
-                "social security": ModerationRule("privacy_risk", "Generated content included highly sensitive identity details."),
-                "diagnose": ModerationRule("sensitive_advice", "Generated content drifted into diagnosis-oriented language."),
-                "therapy": ModerationRule("sensitive_advice", "Generated content drifted into therapy-style advice."),
-                "kill": ModerationRule("violence", "Generated content included violent wording."),
-                "suicide": ModerationRule("self_harm", "Generated content included self-harm wording."),
-                "self-harm": ModerationRule("self_harm", "Generated content included self-harm wording."),
-                "weapon": ModerationRule("violence", "Generated content included weapon-oriented wording."),
-                "cut myself": ModerationRule("self_harm", "Generated content included self-harm wording."),
-                "nude": ModerationRule("sexual_content", "Generated content included age-inappropriate sexual wording."),
-            }
+            self.response_term_categories = self._build_default_response_terms()
+
+    def _build_default_request_terms(self) -> dict[str, ModerationRule]:
+        return self._build_term_categories(
+            (
+                (
+                    ModerationRule("unsafe_instruction", "Request asked to bypass safety guidance."),
+                    ["ignore safety", "bypass safety", "skip the safety rules"],
+                ),
+                (
+                    ModerationRule("abusive_tone", "Request asked for shaming or degrading language."),
+                    ["shame", "shaming", "humiliate", "embarrass", "mock", "idiot", "stupid"],
+                ),
+                (
+                    ModerationRule(
+                        "academic_integrity",
+                        "Request asked for help cheating or bypassing the learner's own work.",
+                    ),
+                    [
+                        "cheat",
+                        "do the test",
+                        "take the test for me",
+                        "just give the answer",
+                        "just the answer",
+                        "only the answer",
+                        "answer key",
+                        "submit this",
+                        "solve it for me",
+                        "do my homework",
+                        "write my essay",
+                        "complete this for me",
+                    ],
+                ),
+                (
+                    ModerationRule("privacy_risk", "Request asked for personal or credential details."),
+                    [
+                        "home address",
+                        "their address",
+                        "mailing address",
+                        "phone number",
+                        "email address",
+                        "contact information",
+                        "contact info",
+                        "their full name",
+                        "their last name",
+                        "password",
+                        "login",
+                        "username",
+                        "social security",
+                        "credit card",
+                    ],
+                ),
+                (
+                    ModerationRule("sensitive_advice", "Request asked for diagnosis-oriented or therapeutic advice."),
+                    ["diagnose", "diagnosis", "therapy", "therapist", "prescribe"],
+                ),
+                (
+                    ModerationRule("violence", "Request included violent or weapon-oriented wording."),
+                    ["kill", "weapon", "gun", "knife", "stab", "bomb"],
+                ),
+                (
+                    ModerationRule("self_harm", "Request included self-harm wording."),
+                    ["suicide", "suicidal", "self-harm", "self harm", "cut myself", "hurt myself", "end my life"],
+                ),
+                (
+                    ModerationRule("sexual_content", "Request included age-inappropriate sexual wording."),
+                    ["nude", "naked", "porn", "sexual content", "sexually explicit"],
+                ),
+                (
+                    ModerationRule("bias_stereotype", "Request asked for biased or stereotype-based framing."),
+                    [
+                        "girls are bad at math",
+                        "boys are better at math",
+                        "because she is a girl",
+                        "because he is a boy",
+                    ],
+                ),
+                (
+                    ModerationRule("substance_use", "Request included age-inappropriate substance-use wording."),
+                    ["beer", "vodka", "get drunk", "get high", "marijuana"],
+                ),
+            )
+        )
+
+    def _build_default_response_terms(self) -> dict[str, ModerationRule]:
+        return self._build_term_categories(
+            (
+                (
+                    ModerationRule("unsafe_instruction", "Generated content attempted to bypass safety guidance."),
+                    ["ignore safety", "bypass safety", "skip the safety rules"],
+                ),
+                (
+                    ModerationRule("abusive_tone", "Generated content used shaming or degrading language."),
+                    ["shame", "shaming", "humiliate", "punish", "embarrass", "mock", "idiot", "stupid"],
+                ),
+                (
+                    ModerationRule("academic_integrity", "Generated content encouraged cheating instead of learning."),
+                    [
+                        "cheat",
+                        "do the test",
+                        "take the test for me",
+                        "just give the answer",
+                        "just the answer",
+                        "only the answer",
+                        "answer key",
+                        "solve it for me",
+                        "complete this for me",
+                    ],
+                ),
+                (
+                    ModerationRule("privacy_risk", "Generated content included personal or credential details."),
+                    [
+                        "home address",
+                        "their address",
+                        "mailing address",
+                        "phone number",
+                        "email address",
+                        "contact information",
+                        "contact info",
+                        "their full name",
+                        "their last name",
+                        "password",
+                        "login",
+                        "username",
+                        "social security",
+                        "credit card",
+                    ],
+                ),
+                (
+                    ModerationRule("sensitive_advice", "Generated content drifted into diagnosis-oriented or therapeutic advice."),
+                    ["diagnose", "diagnosis", "therapy", "therapist", "prescribe"],
+                ),
+                (
+                    ModerationRule("violence", "Generated content included violent or weapon-oriented wording."),
+                    ["kill", "weapon", "gun", "knife", "stab", "bomb"],
+                ),
+                (
+                    ModerationRule("self_harm", "Generated content included self-harm wording."),
+                    ["suicide", "suicidal", "self-harm", "self harm", "cut myself", "hurt myself", "end my life"],
+                ),
+                (
+                    ModerationRule("sexual_content", "Generated content included age-inappropriate sexual wording."),
+                    ["nude", "naked", "porn", "sexual content", "sexually explicit"],
+                ),
+                (
+                    ModerationRule("bias_stereotype", "Generated content used biased or stereotype-based framing."),
+                    [
+                        "girls are bad at math",
+                        "boys are better at math",
+                        "because she is a girl",
+                        "because he is a boy",
+                    ],
+                ),
+                (
+                    ModerationRule("substance_use", "Generated content included age-inappropriate substance-use wording."),
+                    ["beer", "vodka", "get drunk", "get high", "marijuana"],
+                ),
+            )
+        )
+
+    def _build_term_categories(
+        self,
+        entries: tuple[tuple[ModerationRule, list[str]], ...],
+    ) -> dict[str, ModerationRule]:
+        term_categories: dict[str, ModerationRule] = {}
+        for rule, terms in entries:
+            for term in terms:
+                term_categories[term] = rule
+        return term_categories
 
     def moderate_request(self, request: GenerationRequest) -> ModerationResult:
         text = " ".join(
@@ -135,7 +252,7 @@ class ContentModerationService:
         stage: str,
         term_categories: dict[str, ModerationRule],
     ) -> ModerationResult:
-        normalized = text.lower()
+        normalized = self._normalize_text(text)
         categories: list[str] = []
         reasons: list[str] = []
         matched_terms: list[str] = []
@@ -143,7 +260,7 @@ class ContentModerationService:
         category_reasons: dict[str, str] = {}
         category_severities: dict[str, str] = {}
         for term, rule in term_categories.items():
-            if term not in normalized:
+            if not self._contains_term(normalized_text=normalized, term=term):
                 continue
             if term not in matched_terms:
                 matched_terms.append(term)
@@ -173,6 +290,7 @@ class ContentModerationService:
             status="flagged",
             stage=stage,
             severity=severity,
+            decision="flagged",
             categories=categories,
             reasons=reasons,
             matched_terms=sorted(matched_terms),
@@ -186,8 +304,24 @@ class ContentModerationService:
             return "Keep the help instructional: provide a hint, model, or worked example instead of doing the work for the learner."
         if "privacy_risk" in moderation.categories:
             return "Avoid asking for or repeating personal contact, location, or identity details."
+        if "bias_stereotype" in moderation.categories:
+            return "Keep the response inclusive, neutral, and free from stereotype-based assumptions."
+        if "substance_use" in moderation.categories:
+            return "Keep examples and directions classroom-appropriate without normalizing substance use."
         if "sexual_content" in moderation.categories:
             return "Keep the response classroom-appropriate and age-appropriate."
         if "violence" in moderation.categories or "self_harm" in moderation.categories:
             return "Keep the response calm, non-violent, and focused on safe classroom learning."
         return "Avoid unsafe or degrading wording."
+
+    def _contains_term(self, *, normalized_text: str, term: str) -> bool:
+        normalized_term = self._normalize_text(term).strip()
+        if not normalized_term:
+            return False
+        return f" {normalized_term} " in normalized_text
+
+    def _normalize_text(self, value: str) -> str:
+        collapsed = re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+        if not collapsed:
+            return " "
+        return f" {collapsed} "

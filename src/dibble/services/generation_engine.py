@@ -64,14 +64,20 @@ class GenerationEngine:
             )
             moderation = self._apply_moderation_fallback(
                 moderation=request_moderation,
+                decision="block_request",
                 fallback_kind="request_safe_reset",
                 stream_action="emit_fallback_only",
+                provider_invoked=False,
+                stream_buffered=False,
+                original_block_count=0,
+                replacement_block_count=len(blocks),
             )
             route.delivery_mode = DeliveryMode.static_fallback
         else:
             blocks = self.provider.generate(profile, request, route, grounding)
             moderation = self.moderation_service.moderate_blocks(blocks)
             if moderation.status == "flagged":
+                original_blocks = len(blocks)
                 blocks = self._moderation_fallback_blocks(
                     request=request,
                     grounding=grounding,
@@ -79,8 +85,13 @@ class GenerationEngine:
                 )
                 moderation = self._apply_moderation_fallback(
                     moderation=moderation,
+                    decision="rewrite_response",
                     fallback_kind="response_teacher_safe_rewrite",
                     stream_action="replace_before_delivery",
+                    provider_invoked=True,
+                    stream_buffered=False,
+                    original_block_count=original_blocks,
+                    replacement_block_count=len(blocks),
                 )
                 route.delivery_mode = DeliveryMode.static_fallback
         response = self._build_response(profile, request, route, grounding, blocks, moderation=moderation)
@@ -123,13 +134,6 @@ class GenerationEngine:
             )
             return
 
-        yield GenerationStreamEvent(
-            event="start",
-            student_id=profile.student_id,
-            route=route,
-            grounding=grounding,
-        )
-
         started_at = self.time_provider()
         request_moderation = self.moderation_service.moderate_request(request)
         if request_moderation.status == "flagged":
@@ -140,12 +144,29 @@ class GenerationEngine:
             )
             moderation = self._apply_moderation_fallback(
                 moderation=request_moderation,
+                decision="block_request",
                 fallback_kind="request_safe_reset",
                 stream_action="emit_fallback_only",
+                provider_invoked=False,
+                stream_buffered=False,
+                original_block_count=0,
+                replacement_block_count=len(blocks),
             )
             route.delivery_mode = DeliveryMode.static_fallback
+            yield GenerationStreamEvent(
+                event="start",
+                student_id=profile.student_id,
+                route=route,
+                grounding=grounding,
+            )
             yield self._moderation_event(profile=profile, route=route, moderation=moderation)
         else:
+            yield GenerationStreamEvent(
+                event="start",
+                student_id=profile.student_id,
+                route=route,
+                grounding=grounding,
+            )
             block_buffers: dict[int, GeneratedBlock] = {}
             for chunk in self.provider.stream_generate(profile, request, route, grounding):
                 current = block_buffers.get(chunk.block_index)
@@ -156,6 +177,7 @@ class GenerationEngine:
             blocks = [block_buffers[index] for index in sorted(block_buffers)]
             moderation = self.moderation_service.moderate_blocks(blocks)
             if moderation.status == "flagged":
+                original_blocks = len(blocks)
                 blocks = self._moderation_fallback_blocks(
                     request=request,
                     grounding=grounding,
@@ -163,8 +185,13 @@ class GenerationEngine:
                 )
                 moderation = self._apply_moderation_fallback(
                     moderation=moderation,
+                    decision="rewrite_response",
                     fallback_kind="response_teacher_safe_rewrite",
                     stream_action="replace_before_stream",
+                    provider_invoked=True,
+                    stream_buffered=True,
+                    original_block_count=original_blocks,
+                    replacement_block_count=len(blocks),
                 )
                 route.delivery_mode = DeliveryMode.static_fallback
                 yield self._moderation_event(profile=profile, route=route, moderation=moderation)
@@ -311,15 +338,27 @@ class GenerationEngine:
         self,
         *,
         moderation: ModerationResult,
+        decision: str,
         fallback_kind: str,
         stream_action: str,
+        provider_invoked: bool,
+        stream_buffered: bool,
+        original_block_count: int,
+        replacement_block_count: int,
     ) -> ModerationResult:
         return moderation.model_copy(
             update={
                 "blocked": True,
+                "decision": decision,
+                "request_blocked": decision == "block_request",
+                "response_rewritten": decision == "rewrite_response",
                 "fallback_applied": True,
                 "fallback_kind": fallback_kind,
                 "stream_action": stream_action,
+                "provider_invoked": provider_invoked,
+                "stream_buffered": stream_buffered,
+                "original_block_count": max(0, original_block_count),
+                "replacement_block_count": max(0, replacement_block_count),
             }
         )
 
@@ -385,8 +424,12 @@ class GenerationEngine:
             "Generation is a scaffolded draft and should be validated against curriculum standards before student delivery.",
             "Profiles should avoid sensitive inference beyond declared accommodations and observable learning signals.",
         ]
-        if moderation.status == "flagged":
+        if moderation.request_blocked:
             notes.append(
-                f"Moderation fallback replaced the {moderation.stage} content before delivery."
+                "Moderation blocked the unsafe request before provider generation and returned a teacher-safe reset."
+            )
+        elif moderation.response_rewritten:
+            notes.append(
+                "Moderation withheld an unsafe generated draft and rewrote it as a teacher-safe fallback before delivery."
             )
         return notes
