@@ -125,13 +125,13 @@ Legend:
 
 ## Highest-Value Next Gaps
 
-Based on `planning/4 - revised-spec/implementation-roadmap.md`, `planning/5 - dev-handoff-revised-spec/requirements-traceability.csv`, the current code seams, and the frontend implementation note in `planning/from-front-to-back-needs.md`, the strongest next backend slices are now:
+Based on `planning/4 - revised-spec/implementation-roadmap.md`, `planning/5 - dev-handoff-revised-spec/requirements-traceability.csv`, the current code seams, `planning/front-end-work-plan.md`, and `planning/from-front-to-back-needs.md`, the strongest next backend slices are now:
 
 1. treat the current frontend scope as unblocked and avoid inventing new backend work just because the platform can support it.
 2. revisit a true course-level planner only if product needs exceed the current learner `curriculum_progression` read model and local progression ownership.
-3. keep classroom detail compact and summary-first; add explainability-oriented teacher analytics only if product needs exceed the current learner cards, intervention summaries, and classroom counts.
-4. keep multimodal expansion behind the new explicit discriminated artifact contract (`GEN-005`) rather than stretching text-oriented payloads or forcing the frontend to infer future artifact types.
-5. keep scheduler autonomy, broader orchestration ideas, and other deeper intelligence work behind observed product pressure rather than treating them as default pre-frontend work.
+3. keep multimodal expansion behind the explicit `response.artifacts` envelope and only add richer artifact variants if product needs exceed the current text-oriented contract.
+4. keep classroom detail compact and summary-first; add more dashboard-grade teacher analytics only if product needs exceed the current learner cards, intervention summaries, and classroom counts.
+5. keep scheduler autonomy, broader orchestration ideas, and other deeper intelligence work behind observed product pressure rather than treating them as default frontend-adjacent work.
 
 Most recent progress:
 
@@ -160,117 +160,94 @@ Most recent progress:
 23. teacher intervention lesson-option rationales now name the actual stage target too, so repair and bridge alternatives do not read like generic “same target” moves when the backend is deliberately holding a different stage.
 24. micro-explanation prompts now reuse target-KC misconception, remediation, and nearby-concept hints too, so explanation generation can stay more concept-grounded without needing a broader retrieval project.
 
-### Pre-Frontend Priorities
+### Frontend Alignment Update
 
-Before serious frontend work begins, the backend does **not** need to be "finished," but a few seams should be stabilized first so the UI is not forced to own workflow rules that belong on the server.
+The frontend work plan now shows a materially different posture than the older backend-readiness framing:
 
-#### Priority 1: Backend-owned learner flow and next-step ownership
+1. the frontend is already building against backend-owned learner summary, `current_flow`, workspace, history, progression, intervention, remediation, Socratic, and classroom contracts.
+2. the main frontend work is now implementation depth, UI quality, and test coverage, not waiting on new backend endpoint families.
+3. the key product guardrail remains the same: the frontend should render backend-owned workflow decisions, not invent progression logic locally.
+4. `planning/from-front-to-back-needs.md` should remain the dedicated place for any newly discovered backend asks from the frontend stream.
 
-The highest pre-frontend priority is stronger backend ownership of learner progression and next-step selection:
+That means the backend gap list should stay narrow and product-driven rather than reverting to a broad "finish backend before frontend" stance.
 
-1. tighten `ORCH-001` learner progression orchestration so the backend can answer "what should this learner do next?" with a stable, inspectable contract.
-2. keep target stage, redirect state, transfer target, and requested-versus-applied content type explicit and trustworthy in generation/session metadata.
-3. avoid pushing curriculum-to-course progression logic into the frontend just because the current local orchestration layer is still incomplete.
-4. keep the larger planner, learned tracing, and orchestration-subsystem ideas tracked as explicit deferred backend requirements (`ORCH-002`, `DATA-005`, `ORCH-003`) instead of letting those future seams leak into frontend-owned rules.
+#### Stable Frontend Contracts In Use
 
-This is the biggest frontend dependency because the UI can render learner flow, but it should not have to decide prerequisite rebuild versus bridge versus target practice itself.
+The frontend plan now explicitly treats these backend surfaces as stable enough to build on:
 
-Progress now:
+1. learner summary, `current_flow`, workspace, generation `workflow_summary`, Socratic summaries, remediation summaries, intervention-action, learner progression, and teacher classroom contracts are all now frontend-facing sources of truth.
+2. progression parity, machine-readable error codes, and explicit `continue_action` / teacher intervention vocabularies are now hardened cross-surface contracts rather than loose conventions.
+3. the frontend work plan explicitly prefers these backend-owned read and write models over frontend reconstruction from audit logs, raw `request_context`, or local policy.
 
-1. a dedicated learner-flow read model now packages current phase, progression action, target stage, active target KCs, and next-step metadata behind one stable server contract.
-2. the flow contract prefers learner-visible generation and workflow decisions over lower-level controller traces, so the frontend sees the same backend-owned next step the API already warmed or audited.
-3. learner summary now embeds that same `current_flow` shape so dashboard or home surfaces do not need a separate audit-log reconstruction path.
-4. generation, remediation, Socratic, flow, and workspace payloads now share a small `continue_action` contract that tells the frontend which backend request should happen next.
+#### Remaining Frontend-Originated Backend Needs
 
-#### Priority 2: Stronger mastery-loop enforcement
+The frontend plan now narrows the remaining backend asks to three conditional product-expansion seams:
 
-The next priority is finishing enough of `ADAPT-006` that the backend owns hold/advance/transfer decisions with more authority across ordinary generation and remediation:
+| Priority | Gap | Backend implication |
+|---|---|---|
+| P1 | Course-level progression planning is still intentionally lighter than a true course planner | Keep `curriculum_progression` as the source of truth for current UI; only add `ORCH-002` if product needs exceed that contract |
+| P2 | Richer multimodal artifact payloads are still absent in practice | Extend `response.artifacts` through explicit discriminated variants when product needs more than the current `text` artifact contract |
+| P2 | Teacher-safe analytics are classroom-card oriented, not dashboard-grade | Add compact backend-owned teacher summaries only if product needs exceed current learner cards, intervention summaries, and classroom counts |
 
-1. strengthen the current local mastery gates so repair, bridge, target, and transfer transitions are stable enough for frontend state rendering.
-2. make sure practice, remediation, and assessment evidence can hold a learner on concept when needed without relying on UI conventions or hidden assumptions.
-3. keep those decisions inspectable in metadata and audits so frontend state remains explainable.
+Everything else the frontend plan highlights as "next" is now mostly frontend execution work: UI primitives, behavioral tests, workspace/history/resume polish, teacher workflow curation, and better explainability presentation on top of existing backend contracts.
 
-This matters before frontend because otherwise screen structure will keep changing around ambiguous "ready/not ready" backend behavior.
+#### Backend Responsibilities That Remain Important
 
-Progress now:
+Even with the narrower frontend ask list, the backend still owns a few stability responsibilities:
 
-1. hold-versus-advance decisions are now exposed through compact session summaries instead of only raw remediation step state or assessment turn history.
-2. remediation sessions now surface canonical `in_progress`, `held`, or `complete` status plus next-step metadata tied to the actual hold/advance decision.
-3. Socratic sessions now surface canonical follow-up state such as latest prompt style, steering action, next action, and next-step content target directly on both live responses and persisted session payloads.
+1. keep `current_flow`, `curriculum_progression`, session summaries, `workflow_summary`, `continue_action`, and teacher intervention vocabularies stable and regression-protected.
+2. keep repair, bridge, target, and transfer decisions inspectable through explicit rationale and stage metadata rather than allowing logic to drift into UI-only heuristics.
+3. keep new frontend-discovered backend needs centralized in `planning/from-front-to-back-needs.md` rather than scattering them across chat or code comments.
 
-#### Priority 3: Stabilize session-backed learner workflows
+#### Lower-Priority Backend Futures
 
-The current backend already has a promising learner-flow spine, remediation sessions, within-session controller state, and richer generation metadata. Before frontend, those workflow contracts should be made intentionally stable:
-
-1. confirm the canonical session states, next actions, and phase transitions the frontend should render.
-2. make sure remediation and ordinary learning flows expose enough summary metadata that the UI does not need to reconstruct state from audit events.
-3. prefer compact read models and session detail payloads over asking the frontend to interpret low-level adaptive traces.
-
-This is mostly contract-hardening work, not a call for major new adaptive intelligence.
-
-Progress now:
-
-1. remediation sessions now include a summary read model with current phase, progression decision, and next-step contract.
-2. Socratic assessment responses and persisted sessions now include a matching summary read model with canonical status and next-step metadata.
-3. ordinary generation now mirrors those same summary shapes in both non-stream and stream completion payloads, so transport choice no longer changes progression or next-step packaging.
-4. workspace and flow payloads now carry backend-owned continue instructions that survive reload and restart for lesson and remediation states.
-
-#### Priority 4: Frontend-ready read models and API packaging
-
-Before frontend starts in earnest, the backend should provide clean API surfaces for the first UI:
-
-1. learner summary and session views should be complete enough that the frontend can render dashboard, current-step, and recent-activity surfaces without replaying backend internals.
-2. generation, remediation, and Socratic endpoints should return stable, UI-friendly metadata for status, rationale, and next-step display.
-3. any missing aggregate or summary endpoints should be prioritized above deeper adaptive heuristics.
-
-This is the highest-leverage "finish before frontend" work after progression and mastery ownership because it directly reduces UI complexity and churn.
-
-Progress now:
-
-1. `GET /api/learners/{student_id}/flow` is available as a compact read-model endpoint for first-pass frontend work.
-2. `GET /api/learners/{student_id}/summary` now includes `current_flow`, so overview surfaces can render recent activity and current next-step state from one response.
-3. remediation and Socratic session endpoints now also expose canonical summary payloads, so the first frontend can rely on compact workflow state instead of reconstructing it from raw step arrays or turn history.
-4. generation responses now expose `workflow_summary`, which gives the frontend a stable response-local contract for delivered phase, progression action, active targets, rationale, and next-step display without parsing the full internal `request_context`.
-5. stream `complete` events now expose the same `workflow_summary` contract and progression-owned next-step metadata, so the frontend can switch between SSE and non-stream generation without maintaining separate state reconstruction logic.
-6. generated content is now resumable by `generation_id`, and `GET /api/learners/{student_id}/workspace` can return learner summary/flow together with the active generated artifact or workflow session for first-pass resume and reload UX.
-7. those same frontend-facing routes now also return stable `X-Dibble-Error-Code` headers on common auth, not-found, and completed-workflow failures.
-8. learner-scoped history endpoints now provide compact generation, Socratic-session, and remediation-session lists that the frontend can render directly.
-9. a teacher-safe intervention contract now exposes one backend-owned current proposal, explicit backend-generated alternatives, allowed teacher decisions, and persisted latest-decision state.
-10. learner progression ownership now also includes a backend-owned curriculum progression summary with resource-level `active`, `ready`, `blocked`, and `mastered` states so the frontend does not need to infer broader sequencing from `current_flow` alone.
-11. teacher classroom views now also have a backend-owned read model with learner cards and classroom-level counts instead of requiring the frontend to aggregate individual learner responses into a dashboard.
-
-#### Frontend-Discovered Backend Needs
-
-Frontend implementation has now surfaced a smaller set of concrete backend asks that are more actionable than another broad architectural pass:
-
-1. learner history is now covered by backend-owned generation, Socratic-session, and remediation-session list endpoints (`API-005`, `API-006`, `API-007`).
-2. teacher intervention control is now covered by a backend-owned current-action contract plus approve, select-option, defer, and escalate write endpoints (`API-008`, `ORCH-004`).
-3. backend-owned curriculum progression is now materially stronger through `GET /api/learners/{student_id}/progression`, `summary.curriculum_progression`, and classroom learner cards, and that parity is now regression-protected (`API-010`) instead of left as an implicit code-path coincidence.
-4. `continue_action` is now central across learner flow, workspace, history, generation, remediation, Socratic, and teacher intervention, and its `kind` plus `method` semantics are now explicit backend-owned vocabularies with regression coverage (`API-011`).
-5. teacher workflow control now also has stable finite vocabularies for proposal status, allowed decisions, decision status, and linked continue-action kinds (`API-012`) so the frontend can treat them as explicit backend-owned enums.
-6. classroom or cohort aggregation is now covered by `GET /api/teachers/classrooms` and `GET /api/teachers/classrooms/{classroom_id}` (`API-009`), and future classroom detail should stay compact and summary-first rather than dumping lower-level telemetry into learner cards.
-7. machine-readable errors are now consistent in both header and body (`API-013`) across the main frontend-facing auth, learner, teacher, content, and assessment flows.
-8. no active `P0` backend blockers remain for the current frontend scope.
-9. richer multimodal artifact variants and teacher analytics remain future needs, but multimodal now has a first backend-owned discriminated contract (`GEN-005`) and analytics should only expand if product needs exceed the current classroom cards and counts.
-
-Until those frontend-discovered gaps are addressed, the safest frontend stance remains:
-
-1. prefer backend-provided history lists over reconstructing prior activity from audit events.
-2. treat `current_flow`, `curriculum_progression`, session summaries, `workflow_summary`, `continue_action`, `intervention-action`, teacher classroom read models, and machine-readable error codes as the canonical backend-owned contracts rather than reconstructing policy or authority in the UI.
-3. assume progression, `continue_action`, and intervention vocabulary stability are backend responsibilities, not places for frontend adapters to paper over drift.
-4. keep richer analytics or multimodal dashboard behaviors out of the frontend until the backend ships explicit contracts for them.
-5. treat a true course-level planner as future backend work only if product scope actually outgrows the current curriculum progression contract.
-
-#### Lower priority before frontend
-
-The following gaps are still real, but they should not block a first frontend unless the product direction changes:
+The following gaps are still real, but they are now clearly later-stage work rather than current frontend blockers:
 
 1. richer predictive scheduler autonomy beyond the current inspectable queue ownership model
 2. broader retrieval-platform expansion beyond the current passage-aware resource grounding
 3. richer long-horizon Socratic discourse modeling
-4. multi-modal synthesis such as diagrams, simulations, or interactive generation
+4. richer multimodal synthesis such as diagrams, simulations, or interactive generation
 
-Those are better treated as parallel or later backend tracks once the frontend can already rely on stable learner-flow and summary contracts.
+Those are better treated as parallel or later backend tracks once product pressure proves the current contract set is insufficient.
+
+## Leadership Lens
+
+From a leadership perspective, the backend is now strongly aligned with the direction of the revised product vision, but only partially aligned with the full ambition of building the most adaptable, flexible, and tailored AI-driven learning platform in the world. The key distinction is not direction anymore; it is depth. The current backend is no longer a thin MVP content API. It is becoming a real adaptive learning system with backend-owned learner flow, durable learner modeling, inspectable progression decisions, session-backed remediation, and cross-surface workflow contracts. That is meaningful differentiation already.
+
+### World-Class Differentiation Already Emerging
+
+The backend already shows several traits that are strategically stronger than a generic "LLM tutor" architecture:
+
+1. adaptation is now backend-owned rather than frontend-invented, with learner summary, learner flow, progression, workflow summary, continue-action, intervention, and classroom contracts all acting as explicit sources of truth
+2. the system can adapt across multiple timescales, combining same-request routing, same-session control, and cross-session durable profiles rather than making each generation call in isolation
+3. ordinary lesson generation, Socratic assessment, remediation, and predictive warming are increasingly connected by shared evidence loops instead of operating as separate product features
+4. progression decisions are now becoming inspectable, with explicit repair, bridge, target, and transfer stages plus rationale and evidence snapshots instead of opaque prompt behavior
+5. teacher-facing control is built into the backend contract layer, which means human override and classroom workflow can remain aligned to the same adaptive state rather than creating a second policy system in the UI
+
+That combination gives Dibble a credible claim to having an unusually strong adaptive backend foundation, especially for the current product stage.
+
+### World-Class Gaps That Still Exist
+
+At the same time, the document also makes clear why the platform is not yet at a defensible world-leading endpoint:
+
+1. most adaptation is still heuristic, inspectable, and rules-guided rather than learned, probabilistic, or outcome-optimized over longer horizons
+2. there is still no true course-level planner that owns progression across lessons, units, and broader sequences with strong authority
+3. the mastery loop is now materially better, but it is still local and stage-bounded rather than a full stay-until-understood system across the broader learning journey
+4. curriculum grounding is improved, but still relies on lightweight excerpts rather than deeper curriculum reasoning over richer source material
+5. multimodal capability is still mostly an extension seam through `response.artifacts`, not a shipped differentiator with diagrams, simulations, or interactive learning artifacts
+6. learner-state, cognitive-trait, metacognitive, and misconception systems are more capable than before, but they are still mostly heuristic inference layers rather than deeply validated learner models
+7. teacher analytics remain intentionally compact and workflow-oriented, which is good for current scope, but not yet a richer explainability or instructional-intelligence surface
+
+These gaps are not current frontend blockers, but they are the main reasons the backend should be described as a strong adaptive foundation rather than a finished world-class adaptive platform.
+
+### Leadership Implication
+
+The right executive readout is therefore:
+
+1. Dibble is now directionally strong and structurally differentiated; the backend increasingly reflects the revised spec's generative, adaptive, backend-owned learning model rather than a recommendation-first or UI-driven adaptation model.
+2. The platform is ready to support the current frontend product scope without major backend rework.
+3. The next phase of competitive differentiation should come from depth investments, especially course-level progression authority, stronger mastery enforcement, deeper evidence and knowledge tracing, richer curriculum grounding, and practical multimodal learning artifacts.
+4. Until those depth layers are implemented and validated against learner outcomes, leadership should avoid overstating the platform as already being the most adaptable system in the market.
 
 ## Recommendation
 
