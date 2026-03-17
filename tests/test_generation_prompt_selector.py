@@ -306,6 +306,45 @@ def test_generation_prompt_selector_uses_session_arc_to_break_support_loop(tmp_p
     )
 
 
+def test_generation_prompt_selector_steers_guided_reflection_for_reliable_overload_signals(tmp_path):
+    database_path = str(tmp_path / "generation-selector-state-steer.db")
+    ensure_database(database_path)
+    selector = GenerationPromptSelector(audit_store=SQLiteAuditStore(database_path), min_samples_per_variant=2)
+
+    variant = selector.select_variant(
+        content_type=RequestedContentType.practice_problem,
+        fallback_variant="baseline",
+        mode_calibration=GenerationModeCalibration(
+            state_profile_signal="support_needed",
+            state_profile_source="state_profile",
+            state_profile_load_reliability=0.82,
+            state_profile_overload_risk=0.84,
+        ),
+    )
+
+    assert variant == "guided_reflection"
+
+
+def test_generation_prompt_selector_steers_baseline_for_stable_trait_release(tmp_path):
+    database_path = str(tmp_path / "generation-selector-trait-steer.db")
+    ensure_database(database_path)
+    selector = GenerationPromptSelector(audit_store=SQLiteAuditStore(database_path), min_samples_per_variant=2)
+
+    variant = selector.select_variant(
+        content_type=RequestedContentType.worked_example,
+        fallback_variant="guided_reflection",
+        mode_calibration=GenerationModeCalibration(
+            trait_profile_signal="stable",
+            trait_profile_source="trait_profile",
+            trait_profile_trait_stability=0.8,
+            trait_profile_challenge_tolerance=0.72,
+            trait_profile_challenge_evidence_strength=0.76,
+        ),
+    )
+
+    assert variant == "baseline"
+
+
 def test_generation_prompt_selector_prefers_variant_with_stronger_persisted_run_summaries(tmp_path):
     database_path = str(tmp_path / "generation-selector-persisted-summary.db")
     ensure_database(database_path)

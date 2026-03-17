@@ -3,7 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from dibble.models.generation import GenerationModeCalibration, GenerationRequest
+from dibble.models.profile import LearnerStateProfileSummary, LearnerTraitProfileSummary
 from dibble.services.kc_sequence_planner import KcSequencePlanner
+from dibble.services.learning_state_profiles import LearnerStateSignalService
+from dibble.services.learning_trait_profiles import LearnerTraitProfileSignalService
 from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
 from dibble.services.router_calibration_signals import RouterCalibrationSignalService
 from dibble.services.within_session_adaptation import WithinSessionAdaptationService
@@ -14,6 +17,8 @@ class GenerationModeCalibrator:
     calibration_signal_service: RouterCalibrationSignalService
     strategy_signal_service: LearnerStrategySignalService
     within_session_adaptation_service: WithinSessionAdaptationService
+    state_signal_service: LearnerStateSignalService | None = None
+    trait_profile_signal_service: LearnerTraitProfileSignalService | None = None
     kc_sequence_planner: KcSequencePlanner = KcSequencePlanner()
     minimum_confidence_for_bias: float = 0.65
     minimum_session_confidence_for_bias: float = 0.55
@@ -33,18 +38,55 @@ class GenerationModeCalibrator:
         signal = self.calibration_signal_service.signal_for(student_id=request.student_id, request=request)
         strategy = self.strategy_signal_service.strategy_for(student_id=request.student_id, request=request)
         session = self.within_session_adaptation_service.adaptation_for(student_id=request.student_id, request=request)
-        support_bias = self._support_bias(signal=signal, strategy=strategy, session=session)
+        state_profile = (
+            self.state_signal_service.state_for(student_id=request.student_id, request=request)
+            if self.state_signal_service is not None
+            else LearnerStateProfileSummary()
+        )
+        trait_profile = (
+            self.trait_profile_signal_service.latest_for_student(student_id=request.student_id)
+            if self.trait_profile_signal_service is not None
+            else LearnerTraitProfileSummary()
+        )
+        support_bias = self._support_bias(
+            signal=signal,
+            strategy=strategy,
+            session=session,
+            state_profile=state_profile,
+            trait_profile=trait_profile,
+        )
         if (
             signal.source == "insufficient"
             and strategy.source == "insufficient"
             and session.source == "insufficient"
+            and state_profile.source == "insufficient"
+            and trait_profile.source == "insufficient"
             and support_bias == 0
         ):
             return None
 
-        source = self._source(signal=signal, strategy=strategy, session=session)
-        calibration_signal = self._calibration_signal(signal=signal, strategy=strategy, session=session, support_bias=support_bias)
-        confidence = self._confidence(signal=signal, strategy=strategy, session=session)
+        source = self._source(
+            signal=signal,
+            strategy=strategy,
+            session=session,
+            state_profile=state_profile,
+            trait_profile=trait_profile,
+            support_bias=support_bias,
+        )
+        calibration_signal = self._calibration_signal(
+            signal=signal,
+            strategy=strategy,
+            session=session,
+            state_profile=state_profile,
+            support_bias=support_bias,
+        )
+        confidence = self._confidence(
+            signal=signal,
+            strategy=strategy,
+            session=session,
+            state_profile=state_profile,
+            trait_profile=trait_profile,
+        )
         average_run_outcome_score = (
             signal.average_run_outcome_score
             if signal.average_run_outcome_score is not None
@@ -62,7 +104,14 @@ class GenerationModeCalibrator:
         matched_run_count = signal.matched_run_count if signal.source != "insufficient" else strategy.matched_run_count
         progress_signal = signal.progress_signal if signal.source != "insufficient" else strategy.progress_signal
         progress_delta = signal.progress_delta if signal.source != "insufficient" else strategy.progress_delta
-        rationale = self._rationale(signal=signal, strategy=strategy, session=session, support_bias=support_bias)
+        rationale = self._rationale(
+            signal=signal,
+            strategy=strategy,
+            session=session,
+            state_profile=state_profile,
+            trait_profile=trait_profile,
+            support_bias=support_bias,
+        )
         return GenerationModeCalibration(
             signal=calibration_signal,
             source=source,
@@ -80,6 +129,25 @@ class GenerationModeCalibrator:
             strategy_relapse_risk=strategy.relapse_risk,
             strategy_source=strategy.source,
             strategy_rationale=strategy.rationale,
+            state_profile_signal=state_profile.signal,
+            state_profile_source=state_profile.source,
+            state_profile_confidence=state_profile.confidence,
+            state_profile_total_load=state_profile.total_load,
+            state_profile_confidence_calibration=state_profile.confidence_calibration,
+            state_profile_help_seeking=state_profile.help_seeking.value,
+            state_profile_affective_reliability=state_profile.affective_reliability,
+            state_profile_load_reliability=state_profile.load_reliability,
+            state_profile_recovery_stability=state_profile.recovery_stability,
+            state_profile_overload_risk=state_profile.overload_risk,
+            state_profile_metacognitive_reliability=state_profile.metacognitive_reliability,
+            trait_profile_signal=trait_profile.signal,
+            trait_profile_source=trait_profile.source,
+            trait_profile_trait_stability=trait_profile.trait_stability,
+            trait_profile_challenge_tolerance=trait_profile.challenge_tolerance,
+            trait_profile_challenge_evidence_strength=trait_profile.challenge_evidence_strength,
+            trait_profile_processing_speed_reliability=trait_profile.processing_speed_reliability,
+            trait_profile_working_memory_reliability=trait_profile.working_memory_reliability,
+            trait_profile_spatial_reasoning_reliability=trait_profile.spatial_reasoning_reliability,
             strategy_sequence_action=strategy_sequence.action,
             strategy_sequence_primary_kc_id=strategy_sequence.primary_kc_id,
             strategy_sequence_kc_ids=strategy_sequence.ordered_kc_ids,
@@ -116,15 +184,19 @@ class GenerationModeCalibrator:
             rationale=rationale,
         )
 
-    def _support_bias(self, *, signal, strategy, session) -> int:
+    def _support_bias(self, *, signal, strategy, session, state_profile, trait_profile) -> int:
+        durable_bias = self._durable_profile_support_bias(
+            state_profile=state_profile,
+            trait_profile=trait_profile,
+        )
         if self._is_decisive_session(session):
             return session.support_bias
         if signal.confidence < self.minimum_confidence_for_bias:
-            return strategy.support_bias
+            return strategy.support_bias if strategy.support_bias != 0 else durable_bias
         calibration_bias = self._calibration_support_bias(signal=signal)
         if calibration_bias != 0:
             return calibration_bias
-        return strategy.support_bias
+        return strategy.support_bias if strategy.support_bias != 0 else durable_bias
 
     def _calibration_support_bias(self, *, signal) -> int:
         if signal.confidence < self.minimum_confidence_for_bias:
@@ -159,11 +231,16 @@ class GenerationModeCalibrator:
             return -1
         return 0
 
-    def _calibration_signal(self, *, signal, strategy, session, support_bias: int) -> str:
+    def _calibration_signal(self, *, signal, strategy, session, state_profile, support_bias: int) -> str:
         if self._is_decisive_session(session):
             return session.signal
         if signal.source != "insufficient":
             return signal.signal
+        if state_profile.source != "insufficient" and state_profile.signal != "insufficient":
+            if state_profile.signal == "independence_ready":
+                return "positive"
+            if state_profile.signal == "support_needed":
+                return "negative"
         if support_bias > 0:
             return "positive"
         if support_bias < 0:
@@ -172,17 +249,35 @@ class GenerationModeCalibrator:
             return "mixed"
         return "insufficient"
 
-    def _source(self, *, signal, strategy, session) -> str:
+    def _source(self, *, signal, strategy, session, state_profile, trait_profile, support_bias: int) -> str:
         if self._is_decisive_session(session):
             return session.source
         if signal.source != "insufficient":
             return signal.source
+        if strategy.source != "insufficient":
+            return strategy.source
+        if support_bias != 0 and state_profile.source != "insufficient":
+            return state_profile.source
+        if support_bias != 0 and trait_profile.source != "insufficient":
+            return trait_profile.source
+        if state_profile.source != "insufficient":
+            return state_profile.source
+        if trait_profile.source != "insufficient":
+            return trait_profile.source
         return strategy.source
 
-    def _confidence(self, *, signal, strategy, session) -> float:
+    def _confidence(self, *, signal, strategy, session, state_profile, trait_profile) -> float:
         if self._is_decisive_session(session):
             return session.confidence
-        return signal.confidence if signal.source != "insufficient" else strategy.confidence
+        if signal.source != "insufficient":
+            return signal.confidence
+        if strategy.source != "insufficient":
+            return strategy.confidence
+        if state_profile.source != "insufficient":
+            return state_profile.confidence
+        if trait_profile.source != "insufficient":
+            return self._trait_profile_confidence(trait_profile=trait_profile)
+        return 0.0
 
     def _sequence_for(self, *, request, strategy_sequence, session):
         if session.sequence_action == "monitor":
@@ -198,7 +293,7 @@ class GenerationModeCalibrator:
             }
         )
 
-    def _rationale(self, *, signal, strategy, session, support_bias: int) -> str:
+    def _rationale(self, *, signal, strategy, session, state_profile, trait_profile, support_bias: int) -> str:
         if self._is_decisive_session(session):
             if session.arc_action == "reprobe_new_angle":
                 return (
@@ -267,8 +362,100 @@ class GenerationModeCalibrator:
             return strategy.rationale or (
                 "Long-horizon learner strategy shows relapse across sessions, so the next step should rebuild prerequisite support."
             )
+        if (
+            state_profile.source != "insufficient"
+            and support_bias < 0
+            and state_profile.load_reliability >= 0.58
+            and state_profile.overload_risk >= 0.64
+        ):
+            return (
+                "Durable learner-state evidence still shows reliable overload risk, so the next generation step should keep support explicit instead of fading too quickly."
+            )
+        if (
+            state_profile.source != "insufficient"
+            and support_bias > 0
+            and state_profile.recovery_stability >= 0.68
+            and state_profile.metacognitive_reliability >= 0.58
+        ):
+            return (
+                "Durable learner-state evidence shows stable recovery, so the next generation step can release one more move to the learner without overcommitting."
+            )
+        if (
+            trait_profile.source != "insufficient"
+            and support_bias < 0
+            and trait_profile.working_memory_reliability >= 0.68
+            and trait_profile.challenge_tolerance < 0.48
+        ):
+            return (
+                "Durable cognitive-trait evidence suggests challenge tolerance is still fragile, so the next step should keep the comparison space tight and the learner release small."
+            )
+        if (
+            trait_profile.source != "insufficient"
+            and support_bias > 0
+            and trait_profile.trait_stability >= 0.72
+            and trait_profile.challenge_tolerance >= 0.66
+        ):
+            return (
+                "Durable cognitive-trait evidence suggests the learner can handle a lighter release, so the next step can shift toward transfer with minimal cueing."
+            )
         return (
             "Recent matching runs were informative but not decisive enough to override the baseline mode heuristics."
+        )
+
+    def _durable_profile_support_bias(self, *, state_profile, trait_profile) -> int:
+        support_pressure = 0
+        release_pressure = 0
+        if state_profile.source != "insufficient":
+            if state_profile.load_reliability >= 0.58 and state_profile.overload_risk >= 0.64:
+                support_pressure += 2
+            if (
+                state_profile.metacognitive_reliability >= 0.58
+                and state_profile.confidence_calibration <= 0.42
+                and state_profile.help_seeking.value in {"medium", "high"}
+            ):
+                support_pressure += 1
+            if (
+                state_profile.recovery_stability >= 0.68
+                and state_profile.metacognitive_reliability >= 0.58
+                and state_profile.total_load <= 0.5
+                and state_profile.confidence_calibration >= 0.62
+                and state_profile.signal == "independence_ready"
+            ):
+                release_pressure += 2
+        if trait_profile.source != "insufficient":
+            if (
+                trait_profile.working_memory_reliability >= 0.68
+                and trait_profile.challenge_tolerance < 0.48
+                and trait_profile.challenge_evidence_strength >= 0.52
+            ):
+                support_pressure += 1
+            if (
+                trait_profile.trait_stability >= 0.72
+                and trait_profile.challenge_tolerance >= 0.66
+                and trait_profile.challenge_evidence_strength >= 0.58
+            ):
+                release_pressure += 1
+        if support_pressure >= 2 and release_pressure == 0:
+            return -1
+        if release_pressure >= 2 and support_pressure == 0:
+            return 1
+        return 0
+
+    def _trait_profile_confidence(self, *, trait_profile) -> float:
+        reliability = max(
+            trait_profile.processing_speed_reliability,
+            trait_profile.working_memory_reliability,
+            trait_profile.spatial_reasoning_reliability,
+        )
+        return round(
+            min(
+                1.0,
+                0.12
+                + (trait_profile.trait_stability * 0.34)
+                + (trait_profile.challenge_evidence_strength * 0.22)
+                + (reliability * 0.32),
+            ),
+            2,
         )
 
     def _is_decisive_session(self, session) -> bool:

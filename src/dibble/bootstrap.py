@@ -180,6 +180,8 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
         strategy_signal_service=learner_strategy_signal_service,
         within_session_adaptation_service=within_session_adaptation_service,
+        state_signal_service=learner_state_signal_service,
+        trait_profile_signal_service=learner_trait_profile_signal_service,
     )
     learning_run_summary_recorder = LearningRunSummaryRecorder(audit_store=audit_store)
     learning_calibration_profile_recorder = LearningCalibrationProfileRecorder(audit_store=audit_store)

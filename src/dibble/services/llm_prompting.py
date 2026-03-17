@@ -49,6 +49,7 @@ def build_generation_prompts(
     socratic_follow_up = _socratic_follow_up_text(request.mode_calibration)
     practice_distractor_plan = _practice_distractor_plan_text(plan.request_context)
     worked_example_fade_plan = _worked_example_fade_plan_text(plan.request_context)
+    reliability_plan = _reliability_plan_text(request.mode_calibration)
 
     system_prompt = (
         "You generate curriculum-aligned adaptive learning content for Dibble. "
@@ -81,6 +82,7 @@ def build_generation_prompts(
         f"Recent Socratic steering: {socratic_follow_up}\n"
         f"Practice distractor plan: {practice_distractor_plan}\n"
         f"Worked example fade plan: {worked_example_fade_plan}\n"
+        f"Reliability plan: {reliability_plan}\n"
         f"Generation guidance: {plan.prompt_guidance}\n"
         f"Template guidance: {selection.user_directives}\n"
         "Generate 2 or 3 blocks that are specific, age-appropriate, and grounded in the listed curriculum context."
@@ -137,11 +139,18 @@ def _practice_distractor_plan_text(request_context: dict[str, object]) -> str:
     focus = request_context.get("practice_distractor_focus")
     if not isinstance(focus, str):
         return "none"
+    distractor_family = request_context.get("practice_distractor_family")
+    support_intensity = request_context.get("practice_distractor_support_intensity")
     distractor_slots = request_context.get("practice_distractor_slots") or []
     answer_check_focus = request_context.get("practice_answer_check_focus")
     misconception_ids = request_context.get("practice_distractor_misconception_ids") or []
     remediation_hint = request_context.get("practice_distractor_remediation_hint")
+    rationale = request_context.get("practice_distractor_rationale")
     fragments = [focus]
+    if isinstance(distractor_family, str) and distractor_family:
+        fragments.append(f"distractor_family={distractor_family}")
+    if isinstance(support_intensity, str) and support_intensity:
+        fragments.append(f"support_intensity={support_intensity}")
     if distractor_slots:
         fragments.append(f"distractor_slots={' | '.join(str(item) for item in distractor_slots)}")
     if isinstance(answer_check_focus, str) and answer_check_focus:
@@ -150,23 +159,60 @@ def _practice_distractor_plan_text(request_context: dict[str, object]) -> str:
         fragments.append(f"misconception_ids={','.join(str(item) for item in misconception_ids)}")
     if isinstance(remediation_hint, str) and remediation_hint:
         fragments.append(f"remediation_hint={remediation_hint}")
+    if isinstance(rationale, str) and rationale:
+        fragments.append(f"rationale={rationale}")
     return "; ".join(fragments)
 
 
 def _worked_example_fade_plan_text(request_context: dict[str, object]) -> str:
     visible_roles = request_context.get("worked_example_visible_step_roles")
     hidden_step_role = request_context.get("worked_example_hidden_step_role")
+    release_stage = request_context.get("worked_example_release_stage")
+    release_intensity = request_context.get("worked_example_learner_release_intensity")
+    release_transition = request_context.get("worked_example_release_transition")
     transfer_move = request_context.get("worked_example_transfer_move")
     step_outline = request_context.get("worked_example_step_outline") or []
     learner_release = request_context.get("worked_example_learner_release")
+    release_rationale = request_context.get("worked_example_release_rationale")
     if not isinstance(visible_roles, list) or not isinstance(hidden_step_role, str):
         return "none"
     roles = ", ".join(str(role) for role in visible_roles)
     fragments = [f"visible_roles={roles}", f"hidden_step_role={hidden_step_role}"]
+    if isinstance(release_stage, str) and release_stage:
+        fragments.append(f"release_stage={release_stage}")
+    if isinstance(release_intensity, str) and release_intensity:
+        fragments.append(f"release_intensity={release_intensity}")
+    if isinstance(release_transition, str) and release_transition:
+        fragments.append(f"release_transition={release_transition}")
     if step_outline:
         fragments.append(f"step_outline={' | '.join(str(item) for item in step_outline)}")
     if isinstance(learner_release, str) and learner_release:
         fragments.append(f"learner_release={learner_release}")
     if isinstance(transfer_move, str) and transfer_move:
         fragments.append(f"transfer_move={transfer_move}")
+    if isinstance(release_rationale, str) and release_rationale:
+        fragments.append(f"release_rationale={release_rationale}")
     return "; ".join(fragments)
+
+
+def _reliability_plan_text(mode_calibration) -> str:
+    if mode_calibration is None:
+        return "none"
+    fragments: list[str] = []
+    if mode_calibration.state_profile_source != "insufficient":
+        fragments.append(
+            "state="
+            f"{mode_calibration.state_profile_signal}"
+            f"(overload={mode_calibration.state_profile_overload_risk:.2f},"
+            f" load_rel={mode_calibration.state_profile_load_reliability:.2f},"
+            f" metacog_rel={mode_calibration.state_profile_metacognitive_reliability:.2f})"
+        )
+    if mode_calibration.trait_profile_source != "insufficient":
+        fragments.append(
+            "traits="
+            f"{mode_calibration.trait_profile_signal}"
+            f"(stability={mode_calibration.trait_profile_trait_stability:.2f},"
+            f" tolerance={mode_calibration.trait_profile_challenge_tolerance:.2f},"
+            f" challenge_evidence={mode_calibration.trait_profile_challenge_evidence_strength:.2f})"
+        )
+    return "; ".join(fragments) if fragments else "none"

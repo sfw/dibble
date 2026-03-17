@@ -66,13 +66,20 @@ class MockLLMProvider:
     ) -> list[GeneratedBlock]:
         if plan.content_type.value == "practice_problem":
             distractor_focus = str(plan.request_context.get("practice_distractor_focus", "a clear structural contrast"))
+            distractor_family = str(
+                plan.request_context.get("practice_distractor_family", "single_structural_contrast")
+            )
+            support_intensity = str(
+                plan.request_context.get("practice_distractor_support_intensity", "moderate")
+            )
             return [
                 GeneratedBlock(
                     kind="practice",
                     title="Try a problem",
                     body=(
                         f"Solve one {plan.request_context['difficulty_band']}-difficulty {focus} problem using {grounding_text}. "
-                        f"Show one worked cue before the learner completes the final step and make the distractor contrast center on {distractor_focus}."
+                        f"Show one worked cue before the learner completes the final step and use the {distractor_family} family at "
+                        f"{support_intensity} intensity so the distractor contrast centers on {distractor_focus}."
                     ),
                 ),
                 GeneratedBlock(
@@ -87,6 +94,12 @@ class MockLLMProvider:
 
         if plan.content_type.value == "worked_example":
             fading = str(plan.request_context["fading_strategy"])
+            release_stage = str(
+                plan.request_context.get("worked_example_release_stage", "completion_then_justify")
+            )
+            release_transition = str(
+                plan.request_context.get("worked_example_release_transition", "worked step -> learner step")
+            )
             visible_roles = ", ".join(plan.request_context.get("worked_example_visible_step_roles", []))
             hidden_step_role = str(plan.request_context.get("worked_example_hidden_step_role", "the next step"))
             transfer_move = str(plan.request_context.get("worked_example_transfer_move", "a nearby application"))
@@ -96,7 +109,8 @@ class MockLLMProvider:
                     title="See it solved",
                     body=(
                         f"Model {focus} with {grounding_text}. "
-                        f"Use a {fading} fading pattern with visible roles {visible_roles} so the learner owns {hidden_step_role}. "
+                        f"Use a {fading} fading pattern with release stage {release_stage} and visible roles {visible_roles} "
+                        f"so the learner transition is {release_transition}. "
                         f"Aim the fade toward {transfer_move}."
                     ),
                 ),

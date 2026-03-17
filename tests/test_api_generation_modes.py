@@ -39,6 +39,8 @@ def test_worked_examples_endpoint_returns_fading_metadata(client, student_id):
     assert payload["request_context"]["selected_content_type"] == "worked_example"
     assert payload["request_context"]["selection_mode"] == "explicit"
     assert payload["request_context"]["fading_strategy"] == "completion"
+    assert payload["request_context"]["worked_example_release_stage"] == "completion_then_justify"
+    assert payload["request_context"]["worked_example_learner_release_intensity"] == "guided_release"
     assert payload["request_context"]["worked_example_visible_step_roles"] == ["setup", "worked step"]
     assert payload["request_context"]["worked_example_hidden_step_role"] == "target completion"
     assert "setup: establish the representation" in payload["request_context"]["worked_example_step_outline"][0]
@@ -87,6 +89,8 @@ def test_problem_endpoint_returns_difficulty_band_metadata(client, student_id):
     assert payload["request_context"]["selected_content_type"] == "practice_problem"
     assert payload["request_context"]["selection_mode"] == "explicit"
     assert payload["request_context"]["difficulty_band"] == "support"
+    assert payload["request_context"]["practice_distractor_family"] == "misconception_mirror_pair"
+    assert payload["request_context"]["practice_distractor_support_intensity"] == "explicit"
     assert "Whole-number bias" in payload["request_context"]["practice_distractor_focus"]
     assert "misconception_mirror" in payload["request_context"]["practice_distractor_slots"][0]
     assert "avoids Whole-number bias" in payload["request_context"]["practice_answer_check_focus"]

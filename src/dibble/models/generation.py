@@ -84,6 +84,25 @@ class GenerationModeCalibration(BaseModel):
     strategy_relapse_risk: float = Field(default=0.0, ge=0.0, le=1.0)
     strategy_source: str = "insufficient"
     strategy_rationale: str | None = None
+    state_profile_signal: str = "insufficient"
+    state_profile_source: str = "insufficient"
+    state_profile_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    state_profile_total_load: float = Field(default=0.4, ge=0.0, le=1.0)
+    state_profile_confidence_calibration: float = Field(default=0.5, ge=0.0, le=1.0)
+    state_profile_help_seeking: str = "low"
+    state_profile_affective_reliability: float = Field(default=0.0, ge=0.0, le=1.0)
+    state_profile_load_reliability: float = Field(default=0.0, ge=0.0, le=1.0)
+    state_profile_recovery_stability: float = Field(default=0.0, ge=0.0, le=1.0)
+    state_profile_overload_risk: float = Field(default=0.0, ge=0.0, le=1.0)
+    state_profile_metacognitive_reliability: float = Field(default=0.0, ge=0.0, le=1.0)
+    trait_profile_signal: str = "insufficient"
+    trait_profile_source: str = "insufficient"
+    trait_profile_trait_stability: float = Field(default=0.0, ge=0.0, le=1.0)
+    trait_profile_challenge_tolerance: float = Field(default=0.0, ge=0.0, le=1.0)
+    trait_profile_challenge_evidence_strength: float = Field(default=0.0, ge=0.0, le=1.0)
+    trait_profile_processing_speed_reliability: float = Field(default=0.0, ge=0.0, le=1.0)
+    trait_profile_working_memory_reliability: float = Field(default=0.0, ge=0.0, le=1.0)
+    trait_profile_spatial_reasoning_reliability: float = Field(default=0.0, ge=0.0, le=1.0)
     strategy_sequence_action: str = "monitor"
     strategy_sequence_primary_kc_id: str | None = None
     strategy_sequence_kc_ids: list[str] = Field(default_factory=list)

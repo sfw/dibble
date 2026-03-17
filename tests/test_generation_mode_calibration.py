@@ -3,6 +3,8 @@ from uuid import uuid4
 from dibble.models.generation import GenerationRequest
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.generation_mode_calibration import GenerationModeCalibrator
+from dibble.services.learning_state_profiles import LearnerStateSignalService
+from dibble.services.learning_trait_profiles import LearnerTraitProfileSignalService
 from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
 from dibble.services.router_calibration_signals import RouterCalibrationSignalService
 from dibble.services.within_session_adaptation import WithinSessionAdaptationService
@@ -255,6 +257,101 @@ def test_generation_mode_calibrator_exposes_transfer_sequence_for_independence_r
     assert calibrated_request.mode_calibration is not None
     assert calibrated_request.mode_calibration.strategy_sequence_action == "attempt_transfer"
     assert calibrated_request.mode_calibration.strategy_sequence_primary_kc_id == "KC-2"
+
+
+def test_generation_mode_calibrator_uses_durable_state_profile_when_other_signals_are_sparse(tmp_path):
+    database_path = str(tmp_path / "generation-mode-state-profile.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = str(uuid4())
+    audit_store.append(
+        event_type="learning.state.profile",
+        status="success",
+        student_id=student_id,
+        payload={
+            "intent": "practice",
+            "content_type": "practice_problem",
+            "target_kc_ids": ["KC-1"],
+            "matched_run_count": 4,
+            "matched_session_count": 3,
+            "average_run_confidence": 0.74,
+            "state_profile_signal": "support_needed",
+            "total_load": 0.71,
+            "confidence_calibration": 0.38,
+            "help_seeking": "high",
+            "load_reliability": 0.8,
+            "overload_risk": 0.82,
+            "metacognitive_reliability": 0.66,
+        },
+    )
+
+    request = GenerationRequest.model_validate(
+        {
+            "student_id": student_id,
+            "target_kc_ids": ["KC-1"],
+            "intent": "practice",
+            "requested_content_type": "practice_problem",
+        }
+    )
+    calibrator = GenerationModeCalibrator(
+        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
+        state_signal_service=LearnerStateSignalService(audit_store=audit_store),
+        trait_profile_signal_service=LearnerTraitProfileSignalService(audit_store=audit_store),
+    )
+
+    calibrated_request = calibrator.calibrate_request(request=request)
+
+    assert calibrated_request.mode_calibration is not None
+    assert calibrated_request.mode_calibration.source == "state_profile"
+    assert calibrated_request.mode_calibration.support_bias == -1
+    assert calibrated_request.mode_calibration.state_profile_signal == "support_needed"
+    assert calibrated_request.mode_calibration.state_profile_overload_risk == 0.82
+
+
+def test_generation_mode_calibrator_surfaces_trait_profile_release_readiness(tmp_path):
+    database_path = str(tmp_path / "generation-mode-trait-profile.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = str(uuid4())
+    audit_store.append(
+        event_type="learning.cognitive_trait.profile",
+        status="success",
+        student_id=student_id,
+        payload={
+            "profile_signal": "stable",
+            "trait_stability": 0.82,
+            "challenge_tolerance": 0.74,
+            "challenge_evidence_strength": 0.78,
+            "processing_speed_reliability": 0.64,
+            "working_memory_reliability": 0.76,
+            "spatial_reasoning_reliability": 0.4,
+        },
+    )
+
+    request = GenerationRequest.model_validate(
+        {
+            "student_id": student_id,
+            "target_kc_ids": ["KC-1"],
+            "intent": "explanation",
+            "requested_content_type": "worked_example",
+        }
+    )
+    calibrator = GenerationModeCalibrator(
+        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
+        state_signal_service=LearnerStateSignalService(audit_store=audit_store),
+        trait_profile_signal_service=LearnerTraitProfileSignalService(audit_store=audit_store),
+    )
+
+    calibrated_request = calibrator.calibrate_request(request=request)
+
+    assert calibrated_request.mode_calibration is not None
+    assert calibrated_request.mode_calibration.trait_profile_source == "trait_profile"
+    assert calibrated_request.mode_calibration.trait_profile_trait_stability == 0.82
+    assert calibrated_request.mode_calibration.trait_profile_challenge_tolerance == 0.74
 
 
 def test_generation_mode_calibrator_uses_same_session_observation_to_raise_support(tmp_path):

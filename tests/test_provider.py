@@ -6,6 +6,7 @@ from dibble.config import Settings
 from dibble.models.generation import (
     AdaptiveRouteDecision,
     DeliveryMode,
+    GenerationModeCalibration,
     GenerationRequest,
     InterventionType,
     RequestedContentType,
@@ -132,6 +133,39 @@ def test_prompt_builder_includes_distractor_and_fade_plans(sample_profile, sampl
     assert "distractor_slots=" in prompts.user_prompt
     assert "answer_check_focus=" in prompts.user_prompt
     assert "Worked example fade plan: none" in prompts.user_prompt
+
+
+def test_prompt_builder_includes_reliability_plan(sample_profile, sample_route):
+    prompts = build_generation_prompts(
+        sample_profile,
+        GenerationRequest(
+            student_id=sample_profile.student_id,
+            target_kc_ids=["KC-1"],
+            requested_content_type=RequestedContentType.worked_example,
+            mode_calibration=GenerationModeCalibration(
+                signal="positive",
+                source="state_profile",
+                confidence=0.72,
+                support_bias=1,
+                state_profile_signal="independence_ready",
+                state_profile_source="state_profile",
+                state_profile_overload_risk=0.24,
+                state_profile_load_reliability=0.74,
+                state_profile_metacognitive_reliability=0.78,
+                trait_profile_signal="stable",
+                trait_profile_source="trait_profile",
+                trait_profile_trait_stability=0.82,
+                trait_profile_challenge_tolerance=0.74,
+                trait_profile_challenge_evidence_strength=0.78,
+            ),
+        ),
+        sample_route,
+        ["Equivalent Fractions Foundations"],
+    )
+
+    assert "Reliability plan:" in prompts.user_prompt
+    assert "state=independence_ready" in prompts.user_prompt
+    assert "traits=stable" in prompts.user_prompt
 
 
 def test_provider_uses_llm_output_when_response_is_valid(sample_profile, sample_request, sample_route):

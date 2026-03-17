@@ -548,6 +548,8 @@ def test_generation_mode_plan_uses_target_kc_misconceptions_to_focus_distractors
     plan = build_generation_mode_plan(profile, request, route)
 
     assert "Whole-number bias" in plan.request_context["practice_distractor_focus"]
+    assert plan.request_context["practice_distractor_family"] == "misconception_mirror_pair"
+    assert plan.request_context["practice_distractor_support_intensity"] == "explicit"
     assert "misconception_mirror" in plan.request_context["practice_distractor_slots"][0]
     assert "avoids Whole-number bias" in plan.request_context["practice_answer_check_focus"]
     assert plan.request_context["practice_distractor_misconception_ids"] == ["fraction-whole-number-bias"]
@@ -555,6 +557,7 @@ def test_generation_mode_plan_uses_target_kc_misconceptions_to_focus_distractors
         plan.request_context["practice_distractor_remediation_hint"]
         == "Compare the total amount before comparing the parts."
     )
+    assert "Ground the wrong answer family" in plan.request_context["practice_distractor_rationale"]
     assert "Whole-number bias" in plan.prompt_guidance
     assert "Distractor slots:" in plan.prompt_guidance
     assert "Compare the total amount before comparing the parts." in plan.prompt_guidance
@@ -653,15 +656,110 @@ def test_generation_mode_plan_names_visible_and_hidden_worked_example_roles():
 
     assert plan.request_context["worked_example_visible_step_roles"] == ["cue"]
     assert plan.request_context["worked_example_hidden_step_role"] == "independent application"
+    assert plan.request_context["worked_example_release_stage"] == "cue_then_transfer"
+    assert plan.request_context["worked_example_learner_release_intensity"] == "light_release"
+    assert plan.request_context["worked_example_release_transition"] == "cue -> independent application"
     assert (
         plan.request_context["worked_example_transfer_move"]
         == "apply Generate equivalent fractions in Compare equivalent fractions"
     )
     assert "cue: give only the lightest setup needed" in plan.request_context["worked_example_step_outline"][0]
     assert "independent application" in plan.request_context["worked_example_learner_release"]
+    assert "light release" in plan.prompt_guidance
     assert "visible step roles (cue)" in plan.prompt_guidance
     assert "independent application" in plan.prompt_guidance
     assert "Use this step outline:" in plan.prompt_guidance
+
+
+def test_generation_mode_plan_uses_reliable_state_signals_to_keep_practice_distractors_explicit():
+    profile = LearnerProfile.model_validate(
+        build_profile(
+            uuid4(),
+            frustration="medium",
+            total_load=0.58,
+            kc_mastery={"KC-1": 0.56},
+            engagement="medium",
+            confidence_calibration=0.42,
+            help_seeking="high",
+        )
+    )
+    request = GenerationRequest(
+        student_id=profile.student_id,
+        target_kc_ids=["KC-1"],
+        intent="practice",
+        mode_calibration=GenerationModeCalibration(
+            signal="negative",
+            source="state_profile",
+            confidence=0.74,
+            support_bias=-1,
+            state_profile_signal="support_needed",
+            state_profile_source="state_profile",
+            state_profile_confidence=0.74,
+            state_profile_total_load=0.71,
+            state_profile_confidence_calibration=0.38,
+            state_profile_help_seeking="high",
+            state_profile_load_reliability=0.8,
+            state_profile_overload_risk=0.82,
+            state_profile_metacognitive_reliability=0.66,
+            rationale="test",
+        ),
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.targeted_practice,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="medium",
+        reasons=["test"],
+    )
+
+    plan = build_generation_mode_plan(profile, request, route)
+
+    assert plan.request_context["practice_distractor_support_intensity"] == "explicit"
+    assert "Reliable durable load or metacognitive signals" in plan.request_context["practice_distractor_rationale"]
+
+
+def test_generation_mode_plan_uses_reliable_trait_signals_for_lighter_worked_example_release():
+    profile = LearnerProfile.model_validate(
+        build_profile(
+            uuid4(),
+            frustration="low",
+            total_load=0.34,
+            kc_mastery={"KC-1": 0.78},
+            engagement="high",
+            confidence_calibration=0.74,
+            help_seeking="low",
+            self_monitoring=0.78,
+        )
+    )
+    request = GenerationRequest(
+        student_id=profile.student_id,
+        target_kc_ids=["KC-1"],
+        requested_content_type="worked_example",
+        mode_calibration=GenerationModeCalibration(
+            signal="positive",
+            source="trait_profile",
+            confidence=0.72,
+            support_bias=1,
+            trait_profile_signal="stable",
+            trait_profile_source="trait_profile",
+            trait_profile_trait_stability=0.82,
+            trait_profile_challenge_tolerance=0.74,
+            trait_profile_challenge_evidence_strength=0.78,
+            trait_profile_working_memory_reliability=0.76,
+            rationale="test",
+        ),
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.stretch,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="low",
+        reasons=["test"],
+    )
+
+    plan = build_generation_mode_plan(profile, request, route)
+
+    assert plan.request_context["worked_example_release_stage"] == "cue_then_transfer"
+    assert plan.request_context["worked_example_learner_release_intensity"] == "light_release"
+    assert "Stable recovery and challenge readiness support a light release" in plan.request_context["worked_example_release_rationale"]
 
 
 def test_generation_mode_plan_advances_practice_after_improving_progress():
