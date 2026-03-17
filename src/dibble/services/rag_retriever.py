@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dibble.models.curriculum import CurriculumResource
 from dibble.models.generation import GenerationRequest, GroundingReference
+from dibble.services.grounding_context import extract_grounding_excerpt
 from dibble.models.profile import LearnerProfile
 from dibble.services.protocols import CurriculumStore, EmbeddingStore
 from dibble.services.retrieval.embedding_store import InMemoryEmbeddingStore
@@ -52,8 +53,14 @@ class RAGRetriever:
                 resource_id=resource.resource_id,
                 title=resource.title,
                 grade_level=resource.grade_level,
+                subject=resource.subject,
+                source_type=resource.source_type,
                 score=score,
                 matched_terms=matched_terms,
+                excerpt=extract_grounding_excerpt(
+                    resource.body,
+                    matched_terms=matched_terms,
+                ),
             )
             for score, resource, matched_terms in scored[:limit]
         ]

@@ -24,6 +24,7 @@ class StubRetriever:
                 resource_id="CURR-1",
                 title="Equivalent Fractions Foundations",
                 grade_level="5",
+                excerpt="Use visual fraction models to explain why equivalent fractions name the same amount.",
                 score=1.0,
                 matched_terms=["equivalent fractions"],
             )
@@ -44,12 +45,15 @@ class CountingProvider:
     def __init__(self, blocks: list[GeneratedBlock]) -> None:
         self.blocks = blocks
         self.generate_calls = 0
+        self.last_grounding: list[GroundingReference] = []
 
-    def generate(self, profile, request, route, grounding_titles):
+    def generate(self, profile, request, route, grounding):
         self.generate_calls += 1
+        self.last_grounding = grounding
         return self.blocks
 
-    def stream_generate(self, profile, request, route, grounding_titles) -> Iterator[GeneratedBlockChunk]:
+    def stream_generate(self, profile, request, route, grounding) -> Iterator[GeneratedBlockChunk]:
+        self.last_grounding = grounding
         for index, block in enumerate(self.blocks):
             yield GeneratedBlockChunk(
                 block_index=index,
@@ -135,6 +139,7 @@ def test_generation_engine_replaces_flagged_response_with_moderation_fallback():
     )
 
     assert provider.generate_calls == 1
+    assert provider.last_grounding[0].excerpt is not None
     assert response.route.delivery_mode == DeliveryMode.static_fallback
     assert response.generation_metadata is not None
     assert response.generation_metadata.moderation.status == "flagged"

@@ -8,6 +8,7 @@ from dibble.models.generation import (
     DeliveryMode,
     GenerationModeCalibration,
     GenerationRequest,
+    GroundingReference,
     InterventionType,
     RequestedContentType,
     TargetKcGenerationHint,
@@ -48,6 +49,22 @@ def sample_route():
         scaffolding_level="high",
         reasons=["High frustration and low mastery suggest a step-back explanation."],
     )
+
+
+@pytest.fixture
+def sample_grounding():
+    return [
+        GroundingReference(
+            resource_id="CURR-1",
+            title="Equivalent Fractions Foundations",
+            grade_level="5",
+            subject="math",
+            source_type="curriculum_standard",
+            score=2.0,
+            matched_terms=["equivalent fractions", "fraction models"],
+            excerpt="Use visual fraction models to explain why equivalent fractions name the same amount.",
+        )
+    ]
 
 
 class FakeClient:
@@ -91,15 +108,21 @@ class FakeClient:
             yield part
 
 
-def test_prompt_builder_mentions_grounding_and_preferences(sample_profile, sample_request, sample_route):
+def test_prompt_builder_mentions_grounding_and_preferences(
+    sample_profile,
+    sample_request,
+    sample_route,
+    sample_grounding,
+):
     prompts = build_generation_prompts(
         sample_profile,
         sample_request,
         sample_route,
-        ["Equivalent Fractions Foundations"],
+        sample_grounding,
     )
 
     assert "Equivalent Fractions Foundations" in prompts.user_prompt
+    assert "excerpt=Use visual fraction models" in prompts.user_prompt
     assert "slower_than_average" in prompts.user_prompt
     assert '"blocks"' in prompts.system_prompt
     assert prompts.template_name.startswith("remedial_micro_module.")
@@ -107,7 +130,7 @@ def test_prompt_builder_mentions_grounding_and_preferences(sample_profile, sampl
     assert prompts.template_variant == "baseline"
 
 
-def test_prompt_builder_includes_distractor_and_fade_plans(sample_profile, sample_route):
+def test_prompt_builder_includes_distractor_and_fade_plans(sample_profile, sample_route, sample_grounding):
     prompts = build_generation_prompts(
         sample_profile,
         GenerationRequest(
@@ -125,7 +148,7 @@ def test_prompt_builder_includes_distractor_and_fade_plans(sample_profile, sampl
             ],
         ),
         sample_route,
-        ["Equivalent Fractions Foundations"],
+        sample_grounding,
     )
 
     assert "Practice distractor plan:" in prompts.user_prompt
@@ -135,7 +158,7 @@ def test_prompt_builder_includes_distractor_and_fade_plans(sample_profile, sampl
     assert "Worked example fade plan: none" in prompts.user_prompt
 
 
-def test_prompt_builder_includes_reliability_plan(sample_profile, sample_route):
+def test_prompt_builder_includes_reliability_plan(sample_profile, sample_route, sample_grounding):
     prompts = build_generation_prompts(
         sample_profile,
         GenerationRequest(
@@ -160,7 +183,7 @@ def test_prompt_builder_includes_reliability_plan(sample_profile, sample_route):
             ),
         ),
         sample_route,
-        ["Equivalent Fractions Foundations"],
+        sample_grounding,
     )
 
     assert "Reliability plan:" in prompts.user_prompt
@@ -168,7 +191,12 @@ def test_prompt_builder_includes_reliability_plan(sample_profile, sample_route):
     assert "traits=stable" in prompts.user_prompt
 
 
-def test_provider_uses_llm_output_when_response_is_valid(sample_profile, sample_request, sample_route):
+def test_provider_uses_llm_output_when_response_is_valid(
+    sample_profile,
+    sample_request,
+    sample_route,
+    sample_grounding,
+):
     provider = LLMOrchestrationProvider(
         clients=[("primary", FakeClient(
             """
@@ -187,7 +215,7 @@ def test_provider_uses_llm_output_when_response_is_valid(sample_profile, sample_
         sample_profile,
         sample_request,
         sample_route,
-        ["Equivalent Fractions Foundations"],
+        sample_grounding,
     )
 
     assert [block.kind for block in blocks] == ["summary", "instruction"]
@@ -196,7 +224,12 @@ def test_provider_uses_llm_output_when_response_is_valid(sample_profile, sample_
     assert provider.last_used_descriptor["prompt_template_variant"] == "baseline"
 
 
-def test_provider_falls_back_to_mock_when_llm_call_fails(sample_profile, sample_request, sample_route):
+def test_provider_falls_back_to_mock_when_llm_call_fails(
+    sample_profile,
+    sample_request,
+    sample_route,
+    sample_grounding,
+):
     provider = LLMOrchestrationProvider(
         clients=[("primary", FakeClient(error=LLMClientError("boom")))],
         fallback_provider=MockLLMProvider(),
@@ -206,11 +239,12 @@ def test_provider_falls_back_to_mock_when_llm_call_fails(sample_profile, sample_
         sample_profile,
         sample_request,
         sample_route,
-        ["Equivalent Fractions Foundations"],
+        sample_grounding,
     )
 
     assert blocks[0].title == "Learning focus"
     assert blocks[1].kind == "instruction"
+    assert "Cue: Use visual fraction models" in blocks[0].body
 
 
 def test_chat_client_parses_openai_compatible_payload():
@@ -267,7 +301,12 @@ def test_chat_client_streams_openai_compatible_sse_chunks():
     assert parts == ["hello ", "world"]
 
 
-def test_provider_streams_upstream_ndjson_chunks(sample_profile, sample_request, sample_route):
+def test_provider_streams_upstream_ndjson_chunks(
+    sample_profile,
+    sample_request,
+    sample_route,
+    sample_grounding,
+):
     provider = LLMOrchestrationProvider(
         clients=[("primary", FakeClient(
             stream_parts=[
@@ -284,7 +323,7 @@ def test_provider_streams_upstream_ndjson_chunks(sample_profile, sample_request,
             sample_profile,
             sample_request,
             sample_route,
-            ["Equivalent Fractions Foundations"],
+            sample_grounding,
         )
     )
 
@@ -308,7 +347,7 @@ def test_plugin_loader_passes_settings_to_provider_factory(tmp_path):
     assert plugins.provider.clients
 
 
-def test_provider_fails_over_to_secondary_client(sample_profile, sample_request, sample_route):
+def test_provider_fails_over_to_secondary_client(sample_profile, sample_request, sample_route, sample_grounding):
     provider = LLMOrchestrationProvider(
         clients=[
             ("primary", FakeClient(error=LLMClientError("primary boom"))),
@@ -333,13 +372,18 @@ def test_provider_fails_over_to_secondary_client(sample_profile, sample_request,
         sample_profile,
         sample_request,
         sample_route,
-        ["Equivalent Fractions Foundations"],
+        sample_grounding,
     )
 
     assert blocks[0].title == "Secondary"
 
 
-def test_provider_stream_fails_over_to_secondary_client(sample_profile, sample_request, sample_route):
+def test_provider_stream_fails_over_to_secondary_client(
+    sample_profile,
+    sample_request,
+    sample_route,
+    sample_grounding,
+):
     provider = LLMOrchestrationProvider(
         clients=[
             ("primary", FakeClient(error=LLMClientError("primary boom"))),
@@ -361,7 +405,7 @@ def test_provider_stream_fails_over_to_secondary_client(sample_profile, sample_r
             sample_profile,
             sample_request,
             sample_route,
-            ["Equivalent Fractions Foundations"],
+            sample_grounding,
         )
     )
 
@@ -369,7 +413,12 @@ def test_provider_stream_fails_over_to_secondary_client(sample_profile, sample_r
     assert chunks[-1].done is True
 
 
-def test_provider_opens_circuit_after_repeated_primary_failures(sample_profile, sample_request, sample_route):
+def test_provider_opens_circuit_after_repeated_primary_failures(
+    sample_profile,
+    sample_request,
+    sample_route,
+    sample_grounding,
+):
     current_time = {"value": 100.0}
     primary = FakeClient(error=LLMClientError("primary boom"))
     secondary = FakeClient(
@@ -390,15 +439,20 @@ def test_provider_opens_circuit_after_repeated_primary_failures(sample_profile, 
         time_provider=lambda: current_time["value"],
     )
 
-    provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
-    provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
-    provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+    provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
+    provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
+    provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
 
     assert primary.complete_calls == 2
     assert secondary.complete_calls == 3
 
 
-def test_provider_retries_primary_after_circuit_cooldown(sample_profile, sample_request, sample_route):
+def test_provider_retries_primary_after_circuit_cooldown(
+    sample_profile,
+    sample_request,
+    sample_route,
+    sample_grounding,
+):
     current_time = {"value": 100.0}
     primary = FakeClient(error=LLMClientError("primary boom"))
     secondary = FakeClient(
@@ -419,16 +473,21 @@ def test_provider_retries_primary_after_circuit_cooldown(sample_profile, sample_
         time_provider=lambda: current_time["value"],
     )
 
-    provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+    provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
     current_time["value"] = 110.0
-    provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+    provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
     current_time["value"] = 131.0
-    provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+    provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
 
     assert primary.complete_calls == 2
 
 
-def test_provider_round_robin_balances_healthy_clients(sample_profile, sample_request, sample_route):
+def test_provider_round_robin_balances_healthy_clients(
+    sample_profile,
+    sample_request,
+    sample_route,
+    sample_grounding,
+):
     primary = FakeClient(
         """
         {
@@ -455,8 +514,8 @@ def test_provider_round_robin_balances_healthy_clients(sample_profile, sample_re
         selection_strategy="round_robin",
     )
 
-    first = provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
-    second = provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+    first = provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
+    second = provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
 
     assert first[0].title == "Primary"
     assert second[0].title == "Secondary"
@@ -464,7 +523,12 @@ def test_provider_round_robin_balances_healthy_clients(sample_profile, sample_re
     assert secondary.complete_calls == 1
 
 
-def test_provider_latency_aware_prefers_faster_healthy_client(sample_profile, sample_request, sample_route):
+def test_provider_latency_aware_prefers_faster_healthy_client(
+    sample_profile,
+    sample_request,
+    sample_route,
+    sample_grounding,
+):
     clock = {"value": 100.0}
     primary = FakeClient(
         """
@@ -497,9 +561,9 @@ def test_provider_latency_aware_prefers_faster_healthy_client(sample_profile, sa
         time_provider=lambda: clock["value"],
     )
 
-    first = provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
-    second = provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
-    third = provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+    first = provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
+    second = provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
+    third = provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
 
     assert first[0].title == "Primary"
     assert second[0].title == "Secondary"
@@ -508,7 +572,13 @@ def test_provider_latency_aware_prefers_faster_healthy_client(sample_profile, sa
     assert secondary.complete_calls == 2
 
 
-def test_provider_hydrates_latency_history_from_health_store(tmp_path, sample_profile, sample_request, sample_route):
+def test_provider_hydrates_latency_history_from_health_store(
+    tmp_path,
+    sample_profile,
+    sample_request,
+    sample_route,
+    sample_grounding,
+):
     database_path = str(tmp_path / "provider-latency-history.db")
     ensure_database(database_path)
     health_store = SQLiteProviderHealthStore(database_path)
@@ -546,7 +616,7 @@ def test_provider_hydrates_latency_history_from_health_store(tmp_path, sample_pr
         health_store=health_store,
     )
 
-    warm_provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+    warm_provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
 
     fresh_primary = FakeClient(
         """
@@ -580,14 +650,20 @@ def test_provider_hydrates_latency_history_from_health_store(tmp_path, sample_pr
         health_store=health_store,
     )
 
-    blocks = hydrated_provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+    blocks = hydrated_provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
 
     assert blocks[0].title == "Secondary"
     assert fresh_primary.complete_calls == 0
     assert fresh_secondary.complete_calls == 1
 
 
-def test_provider_hydrates_open_circuit_from_health_store(tmp_path, sample_profile, sample_request, sample_route):
+def test_provider_hydrates_open_circuit_from_health_store(
+    tmp_path,
+    sample_profile,
+    sample_request,
+    sample_route,
+    sample_grounding,
+):
     database_path = str(tmp_path / "provider-circuit-history.db")
     ensure_database(database_path)
     health_store = SQLiteProviderHealthStore(database_path)
@@ -616,7 +692,7 @@ def test_provider_hydrates_open_circuit_from_health_store(tmp_path, sample_profi
         health_store=health_store,
     )
 
-    warm_provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+    warm_provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
 
     fresh_primary = FakeClient(error=LLMClientError("primary still down"))
     fresh_secondary = FakeClient(
@@ -638,7 +714,7 @@ def test_provider_hydrates_open_circuit_from_health_store(tmp_path, sample_profi
         health_store=health_store,
     )
 
-    blocks = hydrated_provider.generate(sample_profile, sample_request, sample_route, ["Equivalent Fractions Foundations"])
+    blocks = hydrated_provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
 
     assert blocks[0].title == "Secondary"
     assert fresh_primary.complete_calls == 0

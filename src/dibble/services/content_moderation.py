@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from dibble.models.generation import GeneratedBlock, GenerationRequest, ModerationMatch, ModerationResult
+from dibble.models.generation import (
+    GeneratedBlock,
+    GenerationRequest,
+    GroundingReference,
+    ModerationMatch,
+    ModerationResult,
+)
+from dibble.services.grounding_context import summarize_grounding_titles
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,11 +101,11 @@ class ContentModerationService:
         self,
         *,
         request: GenerationRequest,
-        grounding_titles: list[str],
+        grounding: list[GroundingReference],
         moderation: ModerationResult,
     ) -> list[GeneratedBlock]:
         focus = ", ".join(request.target_kc_ids or request.target_lo_ids or ["the current lesson"])
-        grounding_text = ", ".join(grounding_titles) if grounding_titles else "the current curriculum context"
+        grounding_text = summarize_grounding_titles(grounding)
         categories = ", ".join(moderation.categories) if moderation.categories else "safety review"
         reason_text = moderation.reasons[0] if moderation.reasons else "The request or generated draft needs a safer reframe."
         coaching_note = self._fallback_coaching_note(moderation)

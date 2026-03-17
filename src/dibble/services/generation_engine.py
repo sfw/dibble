@@ -16,6 +16,7 @@ from dibble.models.generation import (
     GenerationRequest,
     GenerationResponse,
     GenerationStreamEvent,
+    GroundingReference,
 )
 from dibble.models.profile import LearnerProfile
 from dibble.plugins.contracts import ProviderPlugin, RetrieverPlugin, RouterPlugin, ValidatorPlugin
@@ -54,12 +55,11 @@ class GenerationEngine:
             return cached.response
 
         started_at = self.time_provider()
-        grounding_titles = [item.title for item in grounding]
         request_moderation = self.moderation_service.moderate_request(request)
         if request_moderation.status == "flagged":
             blocks = self._moderation_fallback_blocks(
                 request=request,
-                grounding_titles=grounding_titles,
+                grounding=grounding,
                 moderation=request_moderation,
             )
             moderation = self._apply_moderation_fallback(
@@ -69,12 +69,12 @@ class GenerationEngine:
             )
             route.delivery_mode = DeliveryMode.static_fallback
         else:
-            blocks = self.provider.generate(profile, request, route, grounding_titles)
+            blocks = self.provider.generate(profile, request, route, grounding)
             moderation = self.moderation_service.moderate_blocks(blocks)
             if moderation.status == "flagged":
                 blocks = self._moderation_fallback_blocks(
                     request=request,
-                    grounding_titles=grounding_titles,
+                    grounding=grounding,
                     moderation=moderation,
                 )
                 moderation = self._apply_moderation_fallback(
@@ -131,12 +131,11 @@ class GenerationEngine:
         )
 
         started_at = self.time_provider()
-        grounding_titles = [item.title for item in grounding]
         request_moderation = self.moderation_service.moderate_request(request)
         if request_moderation.status == "flagged":
             blocks = self._moderation_fallback_blocks(
                 request=request,
-                grounding_titles=grounding_titles,
+                grounding=grounding,
                 moderation=request_moderation,
             )
             moderation = self._apply_moderation_fallback(
@@ -148,7 +147,7 @@ class GenerationEngine:
             yield self._moderation_event(profile=profile, route=route, moderation=moderation)
         else:
             block_buffers: dict[int, GeneratedBlock] = {}
-            for chunk in self.provider.stream_generate(profile, request, route, grounding_titles):
+            for chunk in self.provider.stream_generate(profile, request, route, grounding):
                 current = block_buffers.get(chunk.block_index)
                 if current is None:
                     current = GeneratedBlock(kind=chunk.kind, title=chunk.title, body="")
@@ -159,7 +158,7 @@ class GenerationEngine:
             if moderation.status == "flagged":
                 blocks = self._moderation_fallback_blocks(
                     request=request,
-                    grounding_titles=grounding_titles,
+                    grounding=grounding,
                     moderation=moderation,
                 )
                 moderation = self._apply_moderation_fallback(
@@ -372,12 +371,12 @@ class GenerationEngine:
         self,
         *,
         request: GenerationRequest,
-        grounding_titles: list[str],
+        grounding: list[GroundingReference],
         moderation: ModerationResult,
     ) -> list[GeneratedBlock]:
         return self.moderation_service.build_fallback_blocks(
             request=request,
-            grounding_titles=grounding_titles,
+            grounding=grounding,
             moderation=moderation,
         )
 

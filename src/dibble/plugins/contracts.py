@@ -32,7 +32,7 @@ class ProviderPlugin(Protocol):
         profile: LearnerProfile,
         request: GenerationRequest,
         route: AdaptiveRouteDecision,
-        grounding_titles: list[str],
+        grounding: list[GroundingReference],
     ) -> list[GeneratedBlock]: ...
 
     def stream_generate(
@@ -40,7 +40,7 @@ class ProviderPlugin(Protocol):
         profile: LearnerProfile,
         request: GenerationRequest,
         route: AdaptiveRouteDecision,
-        grounding_titles: list[str],
+        grounding: list[GroundingReference],
     ) -> Iterator[GeneratedBlockChunk]: ...
 
 

@@ -7,7 +7,13 @@ from time import monotonic
 from typing import Callable
 
 from dibble.config import Settings
-from dibble.models.generation import AdaptiveRouteDecision, GeneratedBlock, GeneratedBlockChunk, GenerationRequest
+from dibble.models.generation import (
+    AdaptiveRouteDecision,
+    GeneratedBlock,
+    GeneratedBlockChunk,
+    GenerationRequest,
+    GroundingReference,
+)
 from dibble.models.profile import LearnerProfile
 from dibble.services.content_provider import MockLLMProvider
 from dibble.services.llm_client import LLMClientError, OpenAICompatibleChatClient
@@ -164,17 +170,17 @@ class LLMOrchestrationProvider:
         profile: LearnerProfile,
         request: GenerationRequest,
         route: AdaptiveRouteDecision,
-        grounding_titles: list[str],
+        grounding: list[GroundingReference],
     ) -> list[GeneratedBlock]:
         prompts = build_generation_prompts(
             profile,
             request,
             route,
-            grounding_titles,
+            grounding,
             prompt_manager=self.prompt_manager,
         )
         if not self.clients:
-            return self._fallback(profile, request, route, grounding_titles, prompts, "LLM client not configured.")
+            return self._fallback(profile, request, route, grounding, prompts, "LLM client not configured.")
 
         for name, client in self._iter_candidate_clients():
             started_at = self.time_provider()
@@ -191,25 +197,25 @@ class LLMOrchestrationProvider:
                 self._record_failure(name, latency_ms=(self.time_provider() - started_at) * 1000.0)
                 continue
 
-        return self._fallback(profile, request, route, grounding_titles, prompts, "LLM call failed.")
+        return self._fallback(profile, request, route, grounding, prompts, "LLM call failed.")
 
     def stream_generate(
         self,
         profile: LearnerProfile,
         request: GenerationRequest,
         route: AdaptiveRouteDecision,
-        grounding_titles: list[str],
+        grounding: list[GroundingReference],
     ) -> Iterator[GeneratedBlockChunk]:
         prompts = build_stream_generation_prompts(
             profile,
             request,
             route,
-            grounding_titles,
+            grounding,
             prompt_manager=self.prompt_manager,
         )
         if not self.clients:
             yield from iter_block_chunks(
-                self._fallback(profile, request, route, grounding_titles, prompts, "LLM client not configured.")
+                self._fallback(profile, request, route, grounding, prompts, "LLM client not configured.")
             )
             return
         for name, client in self._iter_candidate_clients():
@@ -232,7 +238,7 @@ class LLMOrchestrationProvider:
                 self._record_failure(name, latency_ms=(self.time_provider() - started_at) * 1000.0)
                 continue
 
-        yield from iter_block_chunks(self._fallback(profile, request, route, grounding_titles, prompts, "LLM stream failed."))
+        yield from iter_block_chunks(self._fallback(profile, request, route, grounding, prompts, "LLM stream failed."))
 
     def _is_available(self, name: str) -> bool:
         state = self.client_states.get(name)
@@ -371,14 +377,14 @@ class LLMOrchestrationProvider:
         profile: LearnerProfile,
         request: GenerationRequest,
         route: AdaptiveRouteDecision,
-        grounding_titles: list[str],
+        grounding: list[GroundingReference],
         prompts,
         reason: str,
     ) -> list[GeneratedBlock]:
         if self.fallback_provider is None:
             raise LLMProviderError(reason)
 
-        blocks = self.fallback_provider.generate(profile, request, route, grounding_titles)
+        blocks = self.fallback_provider.generate(profile, request, route, grounding)
         fallback_descriptor = getattr(
             self.fallback_provider,
             "last_used_descriptor",

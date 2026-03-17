@@ -1,6 +1,12 @@
 from uuid import uuid4
 
-from dibble.models.generation import AdaptiveRouteDecision, DeliveryMode, GenerationRequest, InterventionType
+from dibble.models.generation import (
+    AdaptiveRouteDecision,
+    DeliveryMode,
+    GenerationRequest,
+    GroundingReference,
+    InterventionType,
+)
 from dibble.models.profile import LearnerProfile
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.llm_client import LLMClientError
@@ -64,7 +70,21 @@ def test_telemetry_snapshot_includes_provider_health(tmp_path):
         reasons=["test"],
     )
 
-    provider.generate(profile, request, route, ["Equivalent Fractions Foundations"])
+    provider.generate(
+        profile,
+        request,
+        route,
+        [
+            GroundingReference(
+                resource_id="CURR-1",
+                title="Equivalent Fractions Foundations",
+                grade_level="5",
+                score=1.0,
+                matched_terms=["equivalent fractions"],
+                excerpt="Use visual fraction models to explain why equivalent fractions name the same amount.",
+            )
+        ],
+    )
 
     snapshot = telemetry.snapshot()
 

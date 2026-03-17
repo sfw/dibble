@@ -68,6 +68,37 @@ def test_retriever_matches_free_text_curriculum_context_without_exact_phrase(tmp
     assert "fraction" in results[0].matched_terms
 
 
+def test_retriever_adds_deterministic_excerpt_from_matching_sentence(tmp_path):
+    database_path = str(tmp_path / "retrieval-excerpt.db")
+    ensure_database(database_path)
+    store = SQLiteCurriculumStore(database_path)
+    store.upsert(
+        CurriculumResourceUpsert(
+            **{
+                **build_curriculum_resource("CURR-EXCERPT"),
+                "body": (
+                    "Students review denominators with simple shapes. "
+                    "Use visual fraction models to explain why equivalent fractions name the same amount. "
+                    "Then connect the model to the symbolic form."
+                ),
+            }
+        )
+    )
+    retriever = RAGRetriever(store)
+    profile = LearnerProfile.model_validate(build_profile(uuid4(), frustration="low", total_load=0.2))
+    request = GenerationRequest(
+        student_id=profile.student_id,
+        target_kc_ids=["KC-1"],
+        curriculum_context=["Use fraction models to show equivalent fractions have the same value."],
+    )
+
+    results = retriever.retrieve(profile, request)
+
+    assert results[0].excerpt is not None
+    assert "visual fraction models" in results[0].excerpt.lower()
+    assert "equivalent fractions" in results[0].excerpt.lower()
+
+
 def test_validator_reports_missing_grounding():
     issues = ContentValidator().validate(
         blocks=[GeneratedBlock(kind="instruction", title="Teach", body="Explain the concept.")],

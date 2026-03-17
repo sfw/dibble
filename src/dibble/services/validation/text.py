@@ -56,6 +56,8 @@ def salient_grounding_terms(grounding: list[GroundingReference]) -> set[str]:
     for reference in grounding:
         terms.update(term.lower() for term in reference.matched_terms if len(term.strip()) >= 3)
         terms.update(_salient_title_words(reference.title))
+        if reference.excerpt:
+            terms.update(_salient_excerpt_words(reference.excerpt))
 
     return {term for term in terms if term and term not in _STOPWORDS}
 
@@ -121,6 +123,14 @@ def infer_target_grade(grounding: list[GroundingReference]) -> int | None:
 
 def _salient_title_words(title: str) -> set[str]:
     return {word for word in normalize_words(title) if len(word) >= 4}
+
+
+def _salient_excerpt_words(excerpt: str) -> set[str]:
+    return {
+        word
+        for word in normalize_words(excerpt)
+        if len(word) >= 5 and word not in _STOPWORDS
+    }
 
 
 def _parse_grade_value(value: str) -> int | None:

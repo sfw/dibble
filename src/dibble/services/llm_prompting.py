@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from dibble.models.generation import AdaptiveRouteDecision, GenerationRequest
+from dibble.models.generation import AdaptiveRouteDecision, GenerationRequest, GroundingReference
+from dibble.services.grounding_context import render_grounding_context
 from dibble.models.profile import LearnerProfile
 from dibble.services.generation_modes import build_generation_mode_plan
 from dibble.services.prompt_manager import PromptManager
@@ -21,7 +22,7 @@ def build_generation_prompts(
     profile: LearnerProfile,
     request: GenerationRequest,
     route: AdaptiveRouteDecision,
-    grounding_titles: list[str],
+    grounding: list[GroundingReference],
     prompt_manager: PromptManager | None = None,
 ) -> GenerationPrompts:
     manager = prompt_manager or PromptManager()
@@ -38,7 +39,7 @@ def build_generation_prompts(
         reverse=True,
     )
     modality_names = [name for name, score in preferred_modalities[:2] if score >= 0.5]
-    grounding_text = ", ".join(grounding_titles) if grounding_titles else "No grounding documents were retrieved."
+    grounding_text = render_grounding_context(grounding)
     learner_prompt = request.learner_prompt or "Keep the tone calm, specific, and encouraging."
     accommodations = ", ".join(profile.accommodations) if profile.accommodations else "None declared"
     example_domains = (
@@ -75,7 +76,7 @@ def build_generation_prompts(
         f"Preferred modalities: {', '.join(modality_names) or 'textual'}\n"
         f"Preferred example domains: {example_domains}\n"
         f"Accommodations: {accommodations}\n"
-        f"Grounding titles: {grounding_text}\n"
+        f"Grounding context: {grounding_text}\n"
         f"Learner prompt: {learner_prompt}\n"
         f"Requested content type: {plan.content_type.value}\n"
         f"Prompt variant: {selection.template_variant}\n"
@@ -100,10 +101,10 @@ def build_stream_generation_prompts(
     profile: LearnerProfile,
     request: GenerationRequest,
     route: AdaptiveRouteDecision,
-    grounding_titles: list[str],
+    grounding: list[GroundingReference],
     prompt_manager: PromptManager | None = None,
 ) -> GenerationPrompts:
-    prompts = build_generation_prompts(profile, request, route, grounding_titles, prompt_manager=prompt_manager)
+    prompts = build_generation_prompts(profile, request, route, grounding, prompt_manager=prompt_manager)
     return GenerationPrompts(
         system_prompt=(
             "You are streaming adaptive learning content for Dibble. "
