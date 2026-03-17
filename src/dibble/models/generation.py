@@ -131,6 +131,9 @@ class GenerationModeCalibration(BaseModel):
     session_generated_step_count: int = Field(default=0, ge=0)
     session_positive_streak: int = Field(default=0, ge=0)
     session_negative_streak: int = Field(default=0, ge=0)
+    current_evidence_signal: str = "steady"
+    current_evidence_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    current_evidence_rationale: str | None = None
     session_latest_prompt_style: str | None = None
     session_latest_next_action: str = "monitor"
     session_latest_evidence_strength: str = "insufficient"

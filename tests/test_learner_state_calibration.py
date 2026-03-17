@@ -404,3 +404,145 @@ def test_learner_state_calibrator_skips_durable_independence_when_current_observ
     assert result.state.metacognitive_state.help_seeking == SignalLevel.high
     assert result.state.metacognitive_state.confidence_calibration < 0.34
     assert result.state.metacognitive_state.self_monitoring < 0.4
+
+
+def test_learner_state_calibrator_does_not_force_support_profile_over_productive_struggle(tmp_path):
+    database_path = str(tmp_path / "learner-state-productive-struggle.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = uuid4()
+    audit_store.append(
+        event_type="learning.state.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "intent": "practice",
+            "content_type": "practice_problem",
+            "target_kc_ids": ["KC-1"],
+            "matched_run_count": 4,
+            "matched_session_count": 3,
+            "state_profile_signal": "support_needed",
+            "engagement": "low",
+            "frustration": "high",
+            "total_load": 0.78,
+            "confidence_calibration": 0.34,
+            "help_seeking": "high",
+            "self_monitoring": 0.28,
+            "affective_reliability": 0.76,
+            "load_reliability": 0.78,
+            "recovery_stability": 0.32,
+            "overload_risk": 0.82,
+            "metacognitive_reliability": 0.7,
+        },
+    )
+    calibrator = LearnerStateCalibrator(
+        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        state_signal_service=LearnerStateSignalService(audit_store=audit_store),
+    )
+    inferred_state = InferredLearnerState(
+        student_id=student_id,
+        affective_state=AffectiveState(engagement=SignalLevel.medium, frustration=SignalLevel.low, confidence=0.6),
+        cognitive_load=CognitiveLoadState(total_load=0.42, capacity_utilization=0.48),
+        metacognitive_state=MetacognitiveState(
+            confidence_calibration=0.58,
+            help_seeking=SignalLevel.low,
+            help_seeking_effectiveness=0.58,
+            self_monitoring=0.56,
+        ),
+        current_evidence={
+            "signal": "productive_struggle",
+            "confidence": 0.74,
+            "challenge_exposure": 1.0,
+            "productive_struggle_score": 0.76,
+            "overload_score": 0.36,
+            "disengagement_score": 0.18,
+            "support_dependence_score": 0.1,
+            "rationale": "Recent low-support work looks like productive struggle.",
+        },
+        observation_count=2,
+    )
+
+    result = calibrator.calibrate(
+        student_id=student_id,
+        observation=LearnerObservationCreate(
+            response_time_ms=16000,
+            task_type="practice",
+            support_level="low",
+            target_kc_ids=["KC-1"],
+        ),
+        inferred_state=inferred_state,
+    )
+
+    assert result.applied is False
+    assert result.current_evidence_signal == "productive_struggle"
+
+
+def test_learner_state_calibrator_blocks_release_profile_when_current_evidence_shows_overload(tmp_path):
+    database_path = str(tmp_path / "learner-state-overload-guardrail.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = uuid4()
+    audit_store.append(
+        event_type="learning.state.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "intent": "practice",
+            "content_type": "practice_problem",
+            "target_kc_ids": ["KC-1"],
+            "matched_run_count": 4,
+            "matched_session_count": 3,
+            "state_profile_signal": "independence_ready",
+            "engagement": "high",
+            "frustration": "none",
+            "total_load": 0.34,
+            "confidence_calibration": 0.78,
+            "help_seeking": "low",
+            "self_monitoring": 0.8,
+            "affective_reliability": 0.82,
+            "load_reliability": 0.74,
+            "recovery_stability": 0.84,
+            "overload_risk": 0.22,
+            "metacognitive_reliability": 0.78,
+        },
+    )
+    calibrator = LearnerStateCalibrator(
+        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        state_signal_service=LearnerStateSignalService(audit_store=audit_store),
+    )
+    inferred_state = InferredLearnerState(
+        student_id=student_id,
+        affective_state=AffectiveState(engagement=SignalLevel.medium, frustration=SignalLevel.medium, confidence=0.4),
+        cognitive_load=CognitiveLoadState(total_load=0.74, capacity_utilization=0.82),
+        metacognitive_state=MetacognitiveState(
+            confidence_calibration=0.42,
+            help_seeking=SignalLevel.high,
+            help_seeking_effectiveness=0.32,
+            self_monitoring=0.38,
+        ),
+        current_evidence={
+            "signal": "overload",
+            "confidence": 0.78,
+            "challenge_exposure": 0.5,
+            "productive_struggle_score": 0.32,
+            "overload_score": 0.82,
+            "disengagement_score": 0.4,
+            "support_dependence_score": 0.22,
+            "rationale": "Recent observations look overloaded.",
+        },
+        observation_count=2,
+    )
+
+    result = calibrator.calibrate(
+        student_id=student_id,
+        observation=LearnerObservationCreate(
+            response_time_ms=28000,
+            task_type="practice",
+            support_level="low",
+            target_kc_ids=["KC-1"],
+        ),
+        inferred_state=inferred_state,
+    )
+
+    assert result.applied is False
+    assert result.current_evidence_signal == "overload"

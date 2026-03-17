@@ -216,4 +216,10 @@ def _reliability_plan_text(mode_calibration) -> str:
             f" tolerance={mode_calibration.trait_profile_challenge_tolerance:.2f},"
             f" challenge_evidence={mode_calibration.trait_profile_challenge_evidence_strength:.2f})"
         )
+    if mode_calibration.current_evidence_signal != "steady" and mode_calibration.current_evidence_confidence > 0.0:
+        fragments.append(
+            "current="
+            f"{mode_calibration.current_evidence_signal}"
+            f"(confidence={mode_calibration.current_evidence_confidence:.2f})"
+        )
     return "; ".join(fragments) if fragments else "none"

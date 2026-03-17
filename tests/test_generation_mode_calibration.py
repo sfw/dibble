@@ -596,3 +596,51 @@ def test_generation_mode_calibrator_carries_recent_socratic_prompt_metadata(tmp_
     assert calibrated_request.mode_calibration.session_latest_next_action == "step_back"
     assert calibrated_request.mode_calibration.session_latest_evidence_strength == "insufficient"
     assert calibrated_request.mode_calibration.socratic_steering_action == "repair_then_model"
+
+
+def test_generation_mode_calibrator_carries_current_evidence_guardrail_from_session_observations(tmp_path):
+    database_path = str(tmp_path / "generation-mode-session-current-evidence.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = str(uuid4())
+    audit_store.append(
+        event_type="learner.observe",
+        status="success",
+        student_id=student_id,
+        payload={
+            "learning_session_id": "session-live",
+            "target_kc_ids": ["KC-1"],
+            "error_count": 0,
+            "hints_used": 2,
+            "support_level": "high",
+            "frustration": "low",
+            "total_load": 0.42,
+            "confidence_calibration": 0.66,
+            "help_seeking": "medium",
+            "current_evidence_signal": "support_dependence",
+            "current_evidence_confidence": 0.78,
+            "current_evidence_rationale": "Recent success still relies on heavy support.",
+        },
+    )
+
+    request = GenerationRequest.model_validate(
+        {
+            "student_id": student_id,
+            "learning_session_id": "session-live",
+            "target_kc_ids": ["KC-1"],
+            "intent": "practice",
+            "requested_content_type": "practice_problem",
+        }
+    )
+    calibrator = GenerationModeCalibrator(
+        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
+    )
+
+    calibrated_request = calibrator.calibrate_request(request=request)
+
+    assert calibrated_request.mode_calibration is not None
+    assert calibrated_request.mode_calibration.current_evidence_signal == "support_dependence"
+    assert calibrated_request.mode_calibration.current_evidence_confidence == 0.78
+    assert calibrated_request.mode_calibration.support_bias == -1

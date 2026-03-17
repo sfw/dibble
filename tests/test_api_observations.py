@@ -86,6 +86,7 @@ def test_observation_endpoint_updates_inferred_state_and_profile(client, student
     assert observed["cognitive_load"]["total_load"] >= 0.5
     assert observed["metacognitive_state"]["help_seeking"] in {"medium", "high"}
     assert observed["metacognitive_state"]["confidence_calibration"] < 0.8
+    assert observed["current_evidence"]["signal"] == "overload"
     assert state["observation_count"] == 1
     assert profile["affective_state"]["frustration"] == observed["affective_state"]["frustration"]
     assert profile["cognitive_load"]["total_load"] == observed["cognitive_load"]["total_load"]
@@ -114,6 +115,8 @@ def test_observation_endpoint_updates_inferred_state_and_profile(client, student
     assert "state_calibration_recovery_stability" in learner_observe_event["payload"]
     assert "state_calibration_overload_risk" in learner_observe_event["payload"]
     assert "state_calibration_metacognitive_reliability" in learner_observe_event["payload"]
+    assert learner_observe_event["payload"]["current_evidence_signal"] == "overload"
+    assert learner_observe_event["payload"]["state_calibration_current_evidence_signal"] == "overload"
     assert "observation_matched_observation_count" in learner_observe_event["payload"]
     assert "observation_average_recent_mastery" in learner_observe_event["payload"]
     assert "observation_evidence_confidence" in learner_observe_event["payload"]

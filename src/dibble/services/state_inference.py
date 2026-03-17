@@ -12,7 +12,7 @@ from dibble.models.profile import (
     SignalLevel,
 )
 from dibble.services.learning_state_profiles import LearnerStateSignalService
-from dibble.services.state_calibration import summarize_observations
+from dibble.services.state_calibration import discriminate_current_evidence, summarize_observations
 
 
 @dataclass(slots=True)
@@ -32,6 +32,10 @@ class LearnerStateInferenceService:
 
         calibrated = summarize_observations(observations)
         evidence = _state_evidence(observations)
+        current_evidence = discriminate_current_evidence(
+            observations,
+            calibrated_summary=calibrated,
+        )
 
         frustration = self._frustration_level(
             calibrated.normalized_error_pressure,
@@ -120,6 +124,7 @@ class LearnerStateInferenceService:
                 help_seeking_effectiveness=round(help_seeking_effectiveness, 2),
                 self_monitoring=round(self_monitoring, 2),
             ),
+            current_evidence=current_evidence,
             observation_count=len(observations),
             last_observation_at=max(item.created_at for item in observations),
         )

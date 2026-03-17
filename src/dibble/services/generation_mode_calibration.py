@@ -176,6 +176,9 @@ class GenerationModeCalibrator:
             session_generated_step_count=session.generated_step_count,
             session_positive_streak=session.positive_streak,
             session_negative_streak=session.negative_streak,
+            current_evidence_signal=session.current_evidence_signal,
+            current_evidence_confidence=session.current_evidence_confidence,
+            current_evidence_rationale=session.current_evidence_rationale,
             session_latest_prompt_style=session.latest_assessment_prompt_style,
             session_latest_next_action=session.latest_assessment_next_action,
             session_latest_evidence_strength=session.latest_assessment_evidence_strength,
@@ -185,12 +188,21 @@ class GenerationModeCalibrator:
         )
 
     def _support_bias(self, *, signal, strategy, session, state_profile, trait_profile) -> int:
+        current_evidence_bias = self._current_evidence_support_bias(
+            session=session,
+            state_profile=state_profile,
+            trait_profile=trait_profile,
+        )
         durable_bias = self._durable_profile_support_bias(
             state_profile=state_profile,
             trait_profile=trait_profile,
         )
         if self._is_decisive_session(session):
+            if current_evidence_bias < 0 and session.support_bias >= 0:
+                return current_evidence_bias
             return session.support_bias
+        if current_evidence_bias != 0:
+            return current_evidence_bias
         if signal.confidence < self.minimum_confidence_for_bias:
             return strategy.support_bias if strategy.support_bias != 0 else durable_bias
         calibration_bias = self._calibration_support_bias(signal=signal)
@@ -398,9 +410,39 @@ class GenerationModeCalibrator:
             return (
                 "Durable cognitive-trait evidence suggests the learner can handle a lighter release, so the next step can shift toward transfer with minimal cueing."
             )
+        if session.current_evidence_signal == "productive_struggle" and session.current_evidence_confidence >= 0.58:
+            return (
+                "Current observation evidence looks like productive struggle rather than overload, so the next step should preserve challenge while keeping support targeted."
+            )
+        if session.current_evidence_signal == "overload" and session.current_evidence_confidence >= 0.58:
+            return (
+                "Current observation evidence looks like reliable overload, so the next generation step should keep support explicit instead of treating the learner's friction as healthy challenge."
+            )
+        if session.current_evidence_signal == "disengagement" and session.current_evidence_confidence >= 0.58:
+            return (
+                "Current observation evidence looks more like disengagement than productive challenge, so the next generation step should re-engage the learner before adding independence."
+            )
+        if session.current_evidence_signal == "support_dependence" and session.current_evidence_confidence >= 0.58:
+            return (
+                "Current observation evidence shows the learner succeeding mainly under heavy support, so the next generation step should tighten scaffolds instead of releasing a bigger transfer move."
+            )
         return (
             "Recent matching runs were informative but not decisive enough to override the baseline mode heuristics."
         )
+
+    def _current_evidence_support_bias(self, *, session, state_profile, trait_profile) -> int:
+        if session.current_evidence_confidence < 0.58:
+            return 0
+        if session.current_evidence_signal in {"overload", "disengagement", "support_dependence"}:
+            return -1
+        if (
+            session.current_evidence_signal == "productive_struggle"
+            and session.current_evidence_confidence >= 0.64
+            and state_profile.overload_risk <= 0.68
+            and trait_profile.challenge_tolerance >= 0.45
+        ):
+            return 0
+        return 0
 
     def _durable_profile_support_bias(self, *, state_profile, trait_profile) -> int:
         support_pressure = 0

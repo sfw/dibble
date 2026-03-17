@@ -321,3 +321,44 @@ def test_within_session_controller_moves_through_consolidate_and_bridge_before_t
 
     assert phases == ["consolidate", "bridge", "transfer_check"]
     assert sequence_actions == ["hold_target", "hold_repair_target", "attempt_transfer"]
+
+
+def test_within_session_adaptation_keeps_productive_struggle_out_of_negative_bucket(tmp_path):
+    database_path = str(tmp_path / "within-session-adaptation-productive-struggle.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = str(uuid4())
+    audit_store.append(
+        event_type="learner.observe",
+        status="success",
+        student_id=student_id,
+        payload={
+            "learning_session_id": "session-productive",
+            "target_kc_ids": ["KC-1"],
+            "error_count": 1,
+            "hints_used": 1,
+            "support_level": "low",
+            "frustration": "low",
+            "total_load": 0.48,
+            "confidence_calibration": 0.58,
+            "help_seeking": "low",
+            "current_evidence_signal": "productive_struggle",
+            "current_evidence_confidence": 0.76,
+            "current_evidence_rationale": "Recoverable friction under low support.",
+        },
+    )
+
+    summary = WithinSessionAdaptationService(audit_store=audit_store).adaptation_for(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            learning_session_id="session-productive",
+            target_kc_ids=["KC-1"],
+            intent="practice",
+            requested_content_type="practice_problem",
+        ),
+    )
+
+    assert summary.current_evidence_signal == "productive_struggle"
+    assert summary.signal in {"mixed", "positive"}
+    assert summary.support_bias >= 0

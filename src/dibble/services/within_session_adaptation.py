@@ -28,6 +28,9 @@ class WithinSessionAdaptationSummary:
     generated_step_count: int = 0
     positive_streak: int = 0
     negative_streak: int = 0
+    current_evidence_signal: str = "steady"
+    current_evidence_confidence: float = 0.0
+    current_evidence_rationale: str | None = None
     latest_assessment_prompt_style: str | None = None
     latest_assessment_next_action: str = "monitor"
     latest_assessment_evidence_strength: str = "insufficient"
@@ -191,6 +194,9 @@ class WithinSessionAdaptationService:
         confidence = round(min(0.92, 0.46 + (len(observation_events) * 0.16) + (len(assessment_events) * 0.22)), 2)
         primary_kc_id = self._primary_kc_id(request=request, events=events)
         strong_assessment_recovery = self._strong_assessment_recovery(latest_assessment.payload if latest_assessment is not None else None)
+        current_evidence_signal, current_evidence_confidence, current_evidence_rationale = self._current_evidence_summary(
+            observation_events
+        )
 
         if negative_score >= 0.55 and net <= -0.1:
             if strong_assessment_recovery and positive_score >= 0.72:
@@ -205,6 +211,9 @@ class WithinSessionAdaptationService:
                     matched_assessment_count=len(assessment_events),
                     phase="transfer_check",
                     recovery_intent="fade_support",
+                    current_evidence_signal=current_evidence_signal,
+                    current_evidence_confidence=current_evidence_confidence,
+                    current_evidence_rationale=current_evidence_rationale,
                     latest_assessment_prompt_style=latest_assessment_prompt_style,
                     latest_assessment_next_action=latest_assessment_next_action,
                     latest_assessment_evidence_strength=latest_assessment_evidence_strength,
@@ -227,6 +236,9 @@ class WithinSessionAdaptationService:
                 matched_assessment_count=len(assessment_events),
                 phase="stabilize",
                 recovery_intent="stabilize_support",
+                current_evidence_signal=current_evidence_signal,
+                current_evidence_confidence=current_evidence_confidence,
+                current_evidence_rationale=current_evidence_rationale,
                 latest_assessment_prompt_style=latest_assessment_prompt_style,
                 latest_assessment_next_action=latest_assessment_next_action,
                 latest_assessment_evidence_strength=latest_assessment_evidence_strength,
@@ -250,6 +262,9 @@ class WithinSessionAdaptationService:
                 matched_assessment_count=len(assessment_events),
                 phase="transfer_check",
                 recovery_intent="fade_support",
+                current_evidence_signal=current_evidence_signal,
+                current_evidence_confidence=current_evidence_confidence,
+                current_evidence_rationale=current_evidence_rationale,
                 latest_assessment_prompt_style=latest_assessment_prompt_style,
                 latest_assessment_next_action=latest_assessment_next_action,
                 latest_assessment_evidence_strength=latest_assessment_evidence_strength,
@@ -272,6 +287,9 @@ class WithinSessionAdaptationService:
             matched_assessment_count=len(assessment_events),
             phase="monitor",
             recovery_intent="monitor",
+            current_evidence_signal=current_evidence_signal,
+            current_evidence_confidence=current_evidence_confidence,
+            current_evidence_rationale=current_evidence_rationale,
             latest_assessment_prompt_style=latest_assessment_prompt_style,
             latest_assessment_next_action=latest_assessment_next_action,
             latest_assessment_evidence_strength=latest_assessment_evidence_strength,
@@ -327,6 +345,8 @@ class WithinSessionAdaptationService:
         frustration = str(payload.get("frustration", "low"))
         help_seeking = str(payload.get("help_seeking", "low"))
         support_level = str(payload.get("support_level", "medium"))
+        current_evidence_signal = str(payload.get("current_evidence_signal", "steady"))
+        current_evidence_confidence = float(payload.get("current_evidence_confidence", 0.0))
 
         negative = 0.0
         positive = 0.0
@@ -337,6 +357,12 @@ class WithinSessionAdaptationService:
         negative += {"high": 0.24, "medium": 0.12}.get(frustration, 0.0)
         negative += {"high": 0.14, "medium": 0.07}.get(help_seeking, 0.0)
         negative += 0.14 if confidence_calibration <= 0.35 else 0.07 if confidence_calibration <= 0.5 else 0.0
+        if current_evidence_signal == "overload":
+            negative += 0.24 * current_evidence_confidence
+        elif current_evidence_signal == "disengagement":
+            negative += 0.22 * current_evidence_confidence
+        elif current_evidence_signal == "support_dependence":
+            negative += 0.18 * current_evidence_confidence
         if support_level == "low" and negative >= 0.4:
             negative += 0.08
 
@@ -346,6 +372,9 @@ class WithinSessionAdaptationService:
         positive += 0.16 if frustration in {"none", "low"} else 0.0
         positive += 0.08 if help_seeking in {"none", "low"} else 0.0
         positive += 0.14 if confidence_calibration >= 0.7 else 0.08 if confidence_calibration >= 0.6 else 0.0
+        if current_evidence_signal == "productive_struggle":
+            positive += 0.2 * current_evidence_confidence
+            negative = max(0.0, negative - (0.1 * current_evidence_confidence))
         return round(negative, 2), round(positive, 2)
 
     def _strong_assessment_recovery(self, latest_assessment: dict[str, object] | None) -> bool:
@@ -453,6 +482,9 @@ class WithinSessionAdaptationService:
             generated_step_count=controller.generation_count,
             positive_streak=controller.positive_streak,
             negative_streak=controller.negative_streak,
+            current_evidence_signal=controller.current_evidence_signal,
+            current_evidence_confidence=controller.current_evidence_confidence,
+            current_evidence_rationale=controller.current_evidence_rationale,
             latest_assessment_prompt_style=controller.latest_assessment_prompt_style,
             latest_assessment_next_action=controller.latest_assessment_next_action,
             latest_assessment_evidence_strength=controller.latest_assessment_evidence_strength,
@@ -545,6 +577,9 @@ class WithinSessionAdaptationService:
             positive_streak=positive_streak,
             negative_streak=negative_streak,
             mixed_streak=mixed_streak,
+            current_evidence_signal=raw_summary.current_evidence_signal,
+            current_evidence_confidence=raw_summary.current_evidence_confidence,
+            current_evidence_rationale=raw_summary.current_evidence_rationale,
             latest_assessment_prompt_style=raw_summary.latest_assessment_prompt_style,
             latest_assessment_next_action=raw_summary.latest_assessment_next_action,
             latest_assessment_evidence_strength=raw_summary.latest_assessment_evidence_strength,
@@ -636,12 +671,34 @@ class WithinSessionAdaptationService:
             positive_streak=positive_streak,
             negative_streak=negative_streak,
             mixed_streak=mixed_streak,
+            current_evidence_signal=raw_summary.current_evidence_signal,
+            current_evidence_confidence=raw_summary.current_evidence_confidence,
+            current_evidence_rationale=raw_summary.current_evidence_rationale,
             latest_assessment_prompt_style=raw_summary.latest_assessment_prompt_style,
             latest_assessment_next_action=raw_summary.latest_assessment_next_action,
             latest_assessment_evidence_strength=raw_summary.latest_assessment_evidence_strength,
             socratic_steering_action=raw_summary.socratic_steering_action,
             rationale=raw_summary.rationale,
         )
+
+    def _current_evidence_summary(self, observation_events) -> tuple[str, float, str | None]:
+        if not observation_events:
+            return "steady", 0.0, None
+        ranked: dict[str, float] = {}
+        rationale: str | None = None
+        for event in observation_events:
+            signal = str(event.payload.get("current_evidence_signal", "steady"))
+            confidence = float(event.payload.get("current_evidence_confidence", 0.0))
+            if signal == "steady" or confidence <= 0.0:
+                continue
+            ranked[signal] = ranked.get(signal, 0.0) + confidence
+            if rationale is None:
+                rationale = event.payload.get("current_evidence_rationale")
+        if not ranked:
+            return "steady", 0.0, None
+        signal, weight = max(ranked.items(), key=lambda item: item[1])
+        confidence = round(min(0.92, weight / max(1, len(observation_events))), 2)
+        return signal, confidence, rationale
 
     def _socratic_steering_action(self, latest_assessment: dict[str, object] | None) -> str:
         if latest_assessment is None:

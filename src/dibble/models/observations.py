@@ -52,10 +52,22 @@ class LearnerObservation(LearnerObservationCreate):
     created_at: datetime = Field(default_factory=utc_now)
 
 
+class CurrentEvidenceSignal(BaseModel):
+    signal: str = "steady"
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    challenge_exposure: float = Field(default=0.0, ge=0.0, le=1.0)
+    productive_struggle_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    overload_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    disengagement_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    support_dependence_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    rationale: str | None = None
+
+
 class InferredLearnerState(BaseModel):
     student_id: UUID
     affective_state: AffectiveState
     cognitive_load: CognitiveLoadState
     metacognitive_state: MetacognitiveState
+    current_evidence: CurrentEvidenceSignal | None = None
     observation_count: int = Field(default=0, ge=0)
     last_observation_at: datetime | None = None

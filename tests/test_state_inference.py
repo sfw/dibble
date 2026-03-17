@@ -415,3 +415,126 @@ def _signal_rank(value: SignalLevel) -> int:
         SignalLevel.medium: 2,
         SignalLevel.high: 3,
     }[value]
+
+
+def test_state_inference_marks_productive_struggle_for_low_support_recoverable_friction():
+    service = LearnerStateInferenceService()
+    student_id = uuid4()
+    observations = [
+        LearnerObservation(
+            observation_id="obs-1",
+            student_id=student_id,
+            response_time_ms=17000,
+            hints_used=1,
+            error_count=1,
+            pause_count=0,
+            modality_switches=0,
+            completed=True,
+            confidence=0.62,
+            task_type="practice",
+            support_level="low",
+            expected_duration_ms=15000,
+        ),
+        LearnerObservation(
+            observation_id="obs-2",
+            student_id=student_id,
+            response_time_ms=18000,
+            hints_used=1,
+            error_count=1,
+            pause_count=1,
+            modality_switches=0,
+            completed=True,
+            confidence=0.58,
+            task_type="assessment",
+            support_level="low",
+            expected_duration_ms=16000,
+        ),
+    ]
+
+    inferred = service.infer(student_id=student_id, observations=observations)
+
+    assert inferred.current_evidence is not None
+    assert inferred.current_evidence.signal == "productive_struggle"
+    assert inferred.current_evidence.challenge_exposure >= 0.5
+
+
+def test_state_inference_marks_overload_for_heavy_pressure():
+    service = LearnerStateInferenceService()
+    student_id = uuid4()
+    observations = [
+        LearnerObservation(
+            observation_id="obs-1",
+            student_id=student_id,
+            response_time_ms=32000,
+            hints_used=3,
+            error_count=3,
+            pause_count=4,
+            modality_switches=1,
+            completed=False,
+            confidence=0.18,
+            task_type="practice",
+            support_level="low",
+            expected_duration_ms=16000,
+        ),
+        LearnerObservation(
+            observation_id="obs-2",
+            student_id=student_id,
+            response_time_ms=28000,
+            hints_used=2,
+            error_count=2,
+            pause_count=3,
+            modality_switches=1,
+            completed=False,
+            confidence=0.22,
+            task_type="assessment",
+            support_level="low",
+            expected_duration_ms=18000,
+        ),
+    ]
+
+    inferred = service.infer(student_id=student_id, observations=observations)
+
+    assert inferred.current_evidence is not None
+    assert inferred.current_evidence.signal == "overload"
+    assert inferred.current_evidence.confidence >= 0.58
+
+
+def test_state_inference_marks_support_dependence_for_high_support_success():
+    service = LearnerStateInferenceService()
+    student_id = uuid4()
+    observations = [
+        LearnerObservation(
+            observation_id="obs-1",
+            student_id=student_id,
+            response_time_ms=15000,
+            hints_used=2,
+            error_count=0,
+            pause_count=0,
+            modality_switches=0,
+            completed=True,
+            confidence=0.7,
+            task_type="practice",
+            support_level="high",
+            expected_duration_ms=17000,
+        ),
+        LearnerObservation(
+            observation_id="obs-2",
+            student_id=student_id,
+            response_time_ms=16000,
+            hints_used=2,
+            error_count=1,
+            pause_count=0,
+            modality_switches=0,
+            completed=True,
+            confidence=0.68,
+            task_type="practice",
+            support_level="high",
+            expected_duration_ms=17000,
+        ),
+    ]
+
+    inferred = service.infer(student_id=student_id, observations=observations)
+
+    assert inferred.current_evidence is not None
+    assert inferred.current_evidence.signal == "support_dependence"
+    assert inferred.current_evidence.support_dependence_score >= 0.55

@@ -180,6 +180,8 @@ def test_prompt_builder_includes_reliability_plan(sample_profile, sample_route, 
                 trait_profile_trait_stability=0.82,
                 trait_profile_challenge_tolerance=0.74,
                 trait_profile_challenge_evidence_strength=0.78,
+                current_evidence_signal="productive_struggle",
+                current_evidence_confidence=0.7,
             ),
         ),
         sample_route,
@@ -189,6 +191,7 @@ def test_prompt_builder_includes_reliability_plan(sample_profile, sample_route, 
     assert "Reliability plan:" in prompts.user_prompt
     assert "state=independence_ready" in prompts.user_prompt
     assert "traits=stable" in prompts.user_prompt
+    assert "current=productive_struggle" in prompts.user_prompt
 
 
 def test_provider_uses_llm_output_when_response_is_valid(

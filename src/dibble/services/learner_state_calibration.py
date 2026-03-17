@@ -24,6 +24,9 @@ class LearnerStateCalibrationResult:
     recovery_stability: float = 0.0
     overload_risk: float = 0.0
     metacognitive_reliability: float = 0.0
+    current_evidence_signal: str = "steady"
+    current_evidence_confidence: float = 0.0
+    current_evidence_rationale: str | None = None
     rationale: str | None = None
     applied: bool = False
 
@@ -54,6 +57,7 @@ class LearnerStateCalibrator:
             observation=observation,
             inferred_state=inferred_state,
         ):
+            current_evidence = inferred_state.current_evidence
             return LearnerStateCalibrationResult(
                 state=self._blend_with_state_profile(
                     inferred_state,
@@ -71,11 +75,15 @@ class LearnerStateCalibrator:
                 recovery_stability=state_profile.recovery_stability,
                 overload_risk=state_profile.overload_risk,
                 metacognitive_reliability=state_profile.metacognitive_reliability,
+                current_evidence_signal=(current_evidence.signal if current_evidence is not None else "steady"),
+                current_evidence_confidence=(current_evidence.confidence if current_evidence is not None else 0.0),
+                current_evidence_rationale=(current_evidence.rationale if current_evidence is not None else None),
                 rationale=state_profile.rationale,
                 applied=True,
             )
 
         signal = self.calibration_signal_service.signal_for(student_id=student_id, request=request)
+        current_evidence = inferred_state.current_evidence
         if signal.signal == "positive" and signal.confidence >= self.positive_confidence_threshold:
             return LearnerStateCalibrationResult(
                 state=inferred_state.model_copy(
@@ -96,6 +104,9 @@ class LearnerStateCalibrator:
                 matched_run_count=signal.matched_run_count,
                 progress_signal=signal.progress_signal,
                 overload_risk=self._observation_strain(observation=observation, state=inferred_state),
+                current_evidence_signal=(current_evidence.signal if current_evidence is not None else "steady"),
+                current_evidence_confidence=(current_evidence.confidence if current_evidence is not None else 0.0),
+                current_evidence_rationale=(current_evidence.rationale if current_evidence is not None else None),
                 applied=True,
             )
         if signal.signal == "negative" and signal.confidence >= self.negative_confidence_threshold:
@@ -118,6 +129,9 @@ class LearnerStateCalibrator:
                 matched_run_count=signal.matched_run_count,
                 progress_signal=signal.progress_signal,
                 overload_risk=self._observation_strain(observation=observation, state=inferred_state),
+                current_evidence_signal=(current_evidence.signal if current_evidence is not None else "steady"),
+                current_evidence_confidence=(current_evidence.confidence if current_evidence is not None else 0.0),
+                current_evidence_rationale=(current_evidence.rationale if current_evidence is not None else None),
                 applied=True,
             )
         return LearnerStateCalibrationResult(
@@ -129,6 +143,9 @@ class LearnerStateCalibrator:
             matched_run_count=signal.matched_run_count,
             progress_signal=signal.progress_signal,
             overload_risk=self._observation_strain(observation=observation, state=inferred_state),
+            current_evidence_signal=(current_evidence.signal if current_evidence is not None else "steady"),
+            current_evidence_confidence=(current_evidence.confidence if current_evidence is not None else 0.0),
+            current_evidence_rationale=(current_evidence.rationale if current_evidence is not None else None),
             applied=False,
         )
 
@@ -208,6 +225,7 @@ class LearnerStateCalibrator:
         if profile.confidence < self.state_profile_confidence_threshold:
             return False
         observation_strain = self._observation_strain(observation=observation, state=inferred_state)
+        current_evidence = inferred_state.current_evidence
         if profile.signal == "independence_ready":
             return (
                 profile.recovery_stability >= 0.58
@@ -220,14 +238,25 @@ class LearnerStateCalibrator:
                 >= 0.52
                 and profile.overload_risk <= 0.68
                 and observation_strain < 0.72
+                and not self._current_evidence_blocks_release(current_evidence)
             )
         if profile.signal == "support_needed":
-            return (
+            return not self._current_evidence_blocks_support(current_evidence, observation_strain=observation_strain) and (
                 profile.overload_risk >= 0.44
                 or profile.load_reliability >= 0.5
                 or observation_strain >= 0.36
             )
         return profile.recovery_stability >= 0.5
+
+    def _current_evidence_blocks_release(self, current_evidence) -> bool:
+        if current_evidence is None or current_evidence.confidence < 0.58:
+            return False
+        return current_evidence.signal in {"overload", "disengagement", "support_dependence"}
+
+    def _current_evidence_blocks_support(self, current_evidence, *, observation_strain: float) -> bool:
+        if current_evidence is None or current_evidence.confidence < 0.62:
+            return False
+        return current_evidence.signal == "productive_struggle" and observation_strain < 0.52
 
     def _blend_with_state_profile(
         self,

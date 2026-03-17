@@ -114,6 +114,15 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 "total_load": inferred_state.cognitive_load.total_load,
                 "confidence_calibration": inferred_state.metacognitive_state.confidence_calibration,
                 "help_seeking": inferred_state.metacognitive_state.help_seeking.value,
+                "current_evidence_signal": (
+                    inferred_state.current_evidence.signal if inferred_state.current_evidence is not None else "steady"
+                ),
+                "current_evidence_confidence": (
+                    inferred_state.current_evidence.confidence if inferred_state.current_evidence is not None else 0.0
+                ),
+                "current_evidence_rationale": (
+                    inferred_state.current_evidence.rationale if inferred_state.current_evidence is not None else None
+                ),
                 "updated_cognitive_traits": sorted(inferred_cognitive_traits.keys()),
                 "state_calibration_signal": calibration.signal,
                 "state_calibration_source": calibration.source,
@@ -126,6 +135,9 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 "state_calibration_recovery_stability": calibration.recovery_stability,
                 "state_calibration_overload_risk": calibration.overload_risk,
                 "state_calibration_metacognitive_reliability": calibration.metacognitive_reliability,
+                "state_calibration_current_evidence_signal": calibration.current_evidence_signal,
+                "state_calibration_current_evidence_confidence": calibration.current_evidence_confidence,
+                "state_calibration_current_evidence_rationale": calibration.current_evidence_rationale,
                 "state_calibration_rationale": calibration.rationale,
                 "state_calibration_applied": calibration.applied,
             },
