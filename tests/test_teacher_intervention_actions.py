@@ -52,10 +52,19 @@ def test_teacher_intervention_labels_follow_repair_stage_for_lesson_options(tmp_
 
     contract = service.build_for_student(student_id=student_id)
     labels = {option.option_id: option.label for option in contract.available_options}
+    rationales = {option.option_id: option.rationale for option in contract.available_options}
 
     assert labels["recommended"] == "Repair Explanation"
     assert labels["worked_example_support_reset"] == "Repair Worked Example"
     assert labels["practice_problem_same_target"] == "Repair Practice"
+    assert (
+        rationales["worked_example_support_reset"]
+        == "Offer a more supported worked example on the repair target before returning to the requested target."
+    )
+    assert (
+        rationales["practice_problem_same_target"]
+        == "Stay on the repair target with another practice step before returning to the requested target."
+    )
 
 
 def test_teacher_intervention_labels_follow_transfer_stage_for_lesson_options(tmp_path):
@@ -97,7 +106,16 @@ def test_teacher_intervention_labels_follow_transfer_stage_for_lesson_options(tm
 
     contract = service.build_for_student(student_id=student_id)
     labels = {option.option_id: option.label for option in contract.available_options}
+    rationales = {option.option_id: option.rationale for option in contract.available_options}
 
     assert labels["recommended"] == "Transfer Worked Example"
     assert labels["practice_problem_same_target"] == "Transfer Practice"
     assert labels["assessment_probe_transfer_check"] == "Transfer Check"
+    assert (
+        rationales["practice_problem_same_target"]
+        == "Stay on the transfer target with one more practice step before assigning a transfer check."
+    )
+    assert (
+        rationales["assessment_probe_transfer_check"]
+        == "Verify transfer explicitly on the current target before assigning more independent work."
+    )

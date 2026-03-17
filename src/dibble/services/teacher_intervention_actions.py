@@ -191,20 +191,24 @@ class TeacherInterventionActionService:
 
         current_type = proposed_action.content_type
         if current_type != RequestedContentType.worked_example.value:
+            worked_example_stage = "target" if flow.target_stage == "transfer" else flow.target_stage
             options.append(
                 self._generation_option(
                     option_id="worked_example_support_reset",
                     label=self._label_for_content_type(
                         content_type=RequestedContentType.worked_example.value,
-                        target_stage="target" if flow.target_stage == "transfer" else flow.target_stage,
+                        target_stage=worked_example_stage,
                         fallback="Worked Example",
                     ),
-                    rationale="Offer a more supported worked example on the active target before continuing.",
+                    rationale=self._rationale_for_content_type(
+                        content_type=RequestedContentType.worked_example.value,
+                        target_stage=worked_example_stage,
+                    ),
                     base_payload=lesson_payload,
                     learning_session_id=flow.learning_session_id,
                     source_generation_id=proposed_action.generation_id,
                     content_type=RequestedContentType.worked_example.value,
-                    target_stage="target" if flow.target_stage == "transfer" else flow.target_stage,
+                    target_stage=worked_example_stage,
                     target_kc_ids=target_kc_ids,
                 )
             )
@@ -217,7 +221,10 @@ class TeacherInterventionActionService:
                         target_stage=flow.target_stage,
                         fallback="Practice Problem",
                     ),
-                    rationale="Stay on the same target with another practice step before moving on.",
+                    rationale=self._rationale_for_content_type(
+                        content_type=RequestedContentType.practice_problem.value,
+                        target_stage=flow.target_stage,
+                    ),
                     base_payload=lesson_payload,
                     learning_session_id=flow.learning_session_id,
                     source_generation_id=proposed_action.generation_id,
@@ -235,7 +242,10 @@ class TeacherInterventionActionService:
                         target_stage="transfer",
                         fallback="Assessment Probe",
                     ),
-                    rationale="Verify transfer explicitly before assigning more independent work.",
+                    rationale=self._rationale_for_content_type(
+                        content_type=RequestedContentType.assessment_probe.value,
+                        target_stage="transfer",
+                    ),
                     base_payload=lesson_payload,
                     learning_session_id=flow.learning_session_id,
                     source_generation_id=proposed_action.generation_id,
@@ -365,6 +375,30 @@ class TeacherInterventionActionService:
                 return "Transfer Check"
             return "Assessment Probe"
         return fallback
+
+    @staticmethod
+    def _rationale_for_content_type(
+        *,
+        content_type: str,
+        target_stage: str,
+    ) -> str:
+        if content_type == RequestedContentType.worked_example.value:
+            if target_stage == "repair":
+                return "Offer a more supported worked example on the repair target before returning to the requested target."
+            if target_stage == "bridge":
+                return "Offer a more supported worked example on the bridge target before the learner resumes transfer."
+            return "Offer a more supported worked example on the active target before continuing."
+        if content_type == RequestedContentType.practice_problem.value:
+            if target_stage == "repair":
+                return "Stay on the repair target with another practice step before returning to the requested target."
+            if target_stage == "bridge":
+                return "Stay on the bridge target with one more guided practice step before resuming transfer."
+            if target_stage == "transfer":
+                return "Stay on the transfer target with one more practice step before assigning a transfer check."
+            return "Stay on the same target with another practice step before moving on."
+        if content_type == RequestedContentType.assessment_probe.value and target_stage == "transfer":
+            return "Verify transfer explicitly on the current target before assigning more independent work."
+        return "Continue with the backend-owned next step."
 
     def _base_generation_payload(
         self,
