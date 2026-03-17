@@ -703,6 +703,9 @@ class WithinSessionAdaptationService:
     def _socratic_steering_action(self, latest_assessment: dict[str, object] | None) -> str:
         if latest_assessment is None:
             return "steady"
+        explicit_action = latest_assessment.get("steering_action")
+        if explicit_action is not None:
+            return str(explicit_action)
         next_action = str(latest_assessment.get("next_action", "monitor"))
         prompt_style = str(latest_assessment.get("prompt_style", ""))
         evidence_strength = str(latest_assessment.get("evidence_strength", "insufficient"))

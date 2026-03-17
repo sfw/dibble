@@ -10,6 +10,7 @@ from dibble.models.assessment import (
     SocraticEvidenceStrength,
     SocraticNextAction,
     SocraticPromptStyle,
+    SocraticSteeringAction,
     SocraticTurnRecord,
 )
 from dibble.services.socratic_policy import SocraticTurnPolicy
@@ -33,6 +34,7 @@ def test_socratic_policy_starts_with_diagnostic_probe():
     )
 
     assert decision.prompt_style == SocraticPromptStyle.diagnostic
+    assert decision.steering_action == SocraticSteeringAction.open_probe
 
 
 def test_socratic_policy_steps_back_after_repeated_low_signal_turns():
@@ -75,6 +77,7 @@ def test_socratic_policy_steps_back_after_repeated_low_signal_turns():
     )
 
     assert decision.prompt_style == SocraticPromptStyle.scaffolded_step_back
+    assert decision.steering_action == SocraticSteeringAction.repair_then_model
 
 
 def test_socratic_policy_advances_to_transfer_when_evidence_is_demonstrated():
@@ -107,6 +110,7 @@ def test_socratic_policy_advances_to_transfer_when_evidence_is_demonstrated():
     )
 
     assert decision.prompt_style == SocraticPromptStyle.transfer_check
+    assert decision.steering_action == SocraticSteeringAction.verify_transfer
 
 
 def test_socratic_policy_uses_clarification_after_recovery_from_step_back():
@@ -160,6 +164,8 @@ def test_socratic_policy_uses_clarification_after_recovery_from_step_back():
     )
 
     assert decision.prompt_style == SocraticPromptStyle.clarification
+    assert decision.steering_action == SocraticSteeringAction.restate_then_apply
+    assert decision.steering_action == SocraticSteeringAction.restate_then_apply
 
 
 def test_socratic_policy_clarifies_after_failed_transfer_check_when_gap_is_narrow():
@@ -279,3 +285,4 @@ def test_socratic_policy_reprobes_from_new_angle_when_clarification_loops():
     )
 
     assert decision.prompt_style == SocraticPromptStyle.diagnostic
+    assert decision.steering_action == SocraticSteeringAction.probe_from_new_angle

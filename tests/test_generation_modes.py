@@ -202,6 +202,55 @@ def test_generation_mode_plan_uses_recent_socratic_transfer_to_select_practice()
     assert "selection_rationale" in plan.request_context
 
 
+def test_generation_mode_plan_uses_restate_then_apply_socratic_follow_up_for_guided_practice():
+    profile = LearnerProfile.model_validate(
+        build_profile(
+            uuid4(),
+            frustration="low",
+            total_load=0.3,
+            kc_mastery={"KC-1": 0.68},
+            engagement="medium",
+        )
+    )
+    request = GenerationRequest(
+        student_id=profile.student_id,
+        learning_session_id="session-socratic-restate",
+        target_kc_ids=["KC-1"],
+        intent="explanation",
+        mode_calibration=GenerationModeCalibration(
+            signal="mixed",
+            source="session_controller",
+            confidence=0.74,
+            support_bias=0,
+            session_signal="mixed",
+            session_source="session_controller",
+            session_confidence=0.74,
+            session_support_bias=0,
+            session_assessment_count=1,
+            session_phase="consolidate",
+            session_recovery_intent="stabilize_support",
+            session_latest_prompt_style="clarification",
+            session_latest_next_action="clarify",
+            session_latest_evidence_strength="demonstrated",
+            socratic_steering_action="restate_then_apply",
+            rationale="test",
+        ),
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.reteach,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="medium",
+        reasons=["test"],
+    )
+
+    plan = build_generation_mode_plan(profile, request, route)
+
+    assert plan.content_type == RequestedContentType.practice_problem
+    assert plan.request_context["selection_mode"] == "socratic_follow_up"
+    assert plan.request_context["socratic_follow_up"]["action"] == "restate_then_apply"
+    assert "restate the repaired idea briefly" in plan.prompt_guidance
+
+
 def test_generation_mode_plan_uses_bridge_arc_to_select_guided_practice():
     profile = LearnerProfile.model_validate(
         build_profile(

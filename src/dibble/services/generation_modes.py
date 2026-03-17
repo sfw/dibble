@@ -267,6 +267,12 @@ def select_content_type(
                 "socratic_follow_up",
                 "Recent Socratic turns still point to prerequisite repair, so the next generated step should model the correction before freer explanation.",
             )
+        if mode_calibration.socratic_steering_action == "restate_then_apply":
+            return (
+                RequestedContentType.practice_problem,
+                "socratic_follow_up",
+                "Recent Socratic turns suggest the learner should restate the repaired idea and apply it once before a broader transfer move.",
+            )
         if (
             mode_calibration.socratic_steering_action == "verify_transfer"
             and mode_calibration.session_support_bias > 0
@@ -651,6 +657,10 @@ def _append_socratic_guidance(
     if mode_calibration.socratic_steering_action == "repair_then_model":
         return (
             f"{guidance} Start from the exact prerequisite gap surfaced in the recent Socratic turn and make the corrected reasoning explicit before asking for independence."
+        )
+    if mode_calibration.socratic_steering_action == "restate_then_apply":
+        return (
+            f"{guidance} Ask the learner to restate the repaired idea briefly, then apply it once in a closely related case before any broader transfer move."
         )
     if mode_calibration.session_arc_action == "bridge_with_target":
         return (

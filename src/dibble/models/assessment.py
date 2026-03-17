@@ -43,6 +43,16 @@ class SocraticPromptStyle(str, Enum):
     transfer_check = "transfer_check"
 
 
+class SocraticSteeringAction(str, Enum):
+    steady = "steady"
+    open_probe = "open_probe"
+    clarify_then_check = "clarify_then_check"
+    repair_then_model = "repair_then_model"
+    verify_transfer = "verify_transfer"
+    probe_from_new_angle = "probe_from_new_angle"
+    restate_then_apply = "restate_then_apply"
+
+
 class SocraticMessage(BaseModel):
     role: SocraticMessageRole
     text: str = Field(min_length=1)
@@ -60,6 +70,7 @@ class SocraticTurnRecord(BaseModel):
     turn_id: str
     prompt: str
     prompt_style: SocraticPromptStyle
+    steering_action: SocraticSteeringAction = SocraticSteeringAction.steady
     policy_rationale: str
     learner_response: str | None = None
     evaluation: "SocraticAssessmentEvaluation"
@@ -108,6 +119,7 @@ class SocraticAssessmentResponse(BaseModel):
     turn_id: str
     prompt: str
     prompt_style: SocraticPromptStyle
+    steering_action: SocraticSteeringAction = SocraticSteeringAction.steady
     policy_rationale: str
     evaluation: SocraticAssessmentEvaluation
     route: AdaptiveRouteDecision

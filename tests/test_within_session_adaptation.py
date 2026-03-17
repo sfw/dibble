@@ -81,6 +81,41 @@ def test_within_session_adaptation_detects_transfer_readiness_from_assessment(tm
     assert summary.matched_assessment_count == 1
 
 
+def test_within_session_adaptation_uses_explicit_socratic_steering_action_when_present(tmp_path):
+    database_path = str(tmp_path / "within-session-adaptation-steering.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = str(uuid4())
+    audit_store.append(
+        event_type="assessment.socratic",
+        status="success",
+        student_id=student_id,
+        payload={
+            "learning_session_id": "session-steering",
+            "target_kc_ids": ["KC-2"],
+            "prompt_style": "diagnostic",
+            "steering_action": "open_probe",
+            "evidence_strength": "insufficient",
+            "evidence_score": 0.0,
+            "next_action": "ask_probe",
+        },
+    )
+
+    summary = WithinSessionAdaptationService(audit_store=audit_store).adaptation_for(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            learning_session_id="session-steering",
+            target_kc_ids=["KC-2"],
+            intent="assessment",
+            requested_content_type="assessment_probe",
+        ),
+    )
+
+    assert summary.latest_assessment_prompt_style == "diagnostic"
+    assert summary.socratic_steering_action == "open_probe"
+
+
 def test_within_session_controller_persists_repair_state_across_steps(tmp_path):
     database_path = str(tmp_path / "within-session-controller-repair.db")
     ensure_database(database_path)

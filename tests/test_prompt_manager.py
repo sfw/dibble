@@ -176,3 +176,32 @@ def test_prompt_manager_can_use_recent_socratic_steering_for_generation_variant(
 
     assert selection.template_variant == "guided_reflection"
     assert selection.template_name == "practice_problem.guided_reflection"
+
+
+def test_prompt_manager_uses_guided_reflection_for_restate_then_apply_socratic_follow_up(tmp_path):
+    database_path = str(tmp_path / "prompt-manager-socratic-restate.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    manager = PromptManager(
+        library_version="1.0",
+        experiment_enabled=True,
+        adaptive_selection_enabled=True,
+        generation_prompt_selector=GenerationPromptSelector(audit_store),
+    )
+
+    selection = manager.select(
+        student_id=UUID("00000000-0000-0000-0000-000000000124"),
+        content_type=RequestedContentType.practice_problem,
+        mode_calibration=GenerationModeCalibration(
+            session_source="session_controller",
+            session_confidence=0.76,
+            session_assessment_count=1,
+            session_latest_prompt_style="clarification",
+            session_latest_next_action="clarify",
+            session_latest_evidence_strength="demonstrated",
+            socratic_steering_action="restate_then_apply",
+        ),
+    )
+
+    assert selection.template_variant == "guided_reflection"
+    assert selection.template_name == "practice_problem.guided_reflection"

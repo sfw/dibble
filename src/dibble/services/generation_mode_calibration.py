@@ -323,6 +323,10 @@ class GenerationModeCalibrator:
                 return (
                     "Recent Socratic turns still point to prerequisite repair, so the next generated step should model the correction before expecting freer explanation."
                 )
+            if session.socratic_steering_action == "restate_then_apply":
+                return (
+                    "Recent Socratic turns show the learner has repaired the idea but still needs to restate it clearly and apply it once before a freer transfer move."
+                )
             if session.socratic_steering_action == "clarify_then_check":
                 return (
                     "Recent Socratic turns exposed a narrow reasoning gap, so the next generated step should clarify that language and quickly check the learner's explanation."

@@ -55,6 +55,7 @@ def build_assessment_router(context: ApiContext) -> APIRouter:
                     profile_update.help_seeking.value if profile_update.help_seeking is not None else None
                 ),
                 "prompt_style": result.prompt_style.value,
+                "steering_action": result.steering_action.value,
                 "prompt_template_name": (
                     result.generation_metadata.prompt_template_name
                     if result.generation_metadata is not None

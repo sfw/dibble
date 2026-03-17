@@ -20,6 +20,7 @@ def test_socratic_assessment_starts_with_probe_when_no_learner_response(client, 
     assert payload["session_id"] is not None
     assert "?" in payload["prompt"]
     assert payload["prompt_style"] == "diagnostic"
+    assert payload["steering_action"] == "open_probe"
     assert payload["evaluation"]["evidence_strength"] == "insufficient"
     assert payload["evaluation"]["next_action"] == "ask_probe"
     assert payload["evaluation"]["evidence_score"] == 0.0
@@ -47,6 +48,7 @@ def test_socratic_assessment_detects_grounded_reasoning_in_learner_response(clie
     assert response.status_code == 200
     payload = response.json()
     assert payload["prompt_style"] == "transfer_check"
+    assert payload["steering_action"] == "verify_transfer"
     assert payload["evaluation"]["evidence_strength"] == "demonstrated"
     assert payload["evaluation"]["next_action"] == "advance"
     assert payload["evaluation"]["evidence_score"] >= 0.62
@@ -85,9 +87,11 @@ def test_socratic_assessment_session_persists_across_turns(client, student_id):
     session_payload = session_response.json()
     assert second_payload["session_id"] == session_id
     assert second_payload["prompt_style"] == "transfer_check"
+    assert second_payload["steering_action"] == "verify_transfer"
     assert len(second_payload["conversation_history"]) >= 2
     assert len(session_payload["turns"]) == 2
     assert session_payload["turns"][1]["learner_response"] is not None
+    assert session_payload["turns"][0]["steering_action"] == "open_probe"
 
     third_response = client.post(
         "/api/assessments/socratic",
@@ -277,5 +281,6 @@ def test_socratic_assessment_propagates_mastery_to_prerequisites_and_parent_lo(c
     )
     assert profile_payload["knowledge_state"]["kc_mastery"]["KC-1"] > 0.42
     assert profile_payload["knowledge_state"]["lo_mastery"]["LO-1"] > 0.6
+    assert assessment_event["payload"]["steering_action"] == "verify_transfer"
     assert assessment_event["payload"]["propagated_kc_mastery"]["KC-1"] > 0.42
     assert assessment_event["payload"]["propagated_lo_mastery"]["LO-1"] > 0.6

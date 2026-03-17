@@ -8,12 +8,14 @@ from dibble.models.assessment import (
     SocraticAssessmentSession,
     SocraticEvidenceStrength,
     SocraticPromptStyle,
+    SocraticSteeringAction,
 )
 
 
 @dataclass(frozen=True, slots=True)
 class SocraticPolicyDecision:
     prompt_style: SocraticPromptStyle
+    steering_action: SocraticSteeringAction
     rationale: str
 
 
@@ -26,8 +28,9 @@ class SocraticTurnPolicy:
         current_evaluation: SocraticAssessmentEvaluation,
     ) -> SocraticPolicyDecision:
         if not session.turns and not request.learner_response:
-            return SocraticPolicyDecision(
+            return self._decision(
                 prompt_style=SocraticPromptStyle.diagnostic,
+                steering_action=SocraticSteeringAction.open_probe,
                 rationale="Start with an open probe so the system can observe the learner's current reasoning without over-scaffolding.",
             )
 
@@ -76,39 +79,46 @@ class SocraticTurnPolicy:
                     or latest_evaluation.evidence_dimensions.progression_signal < 0.55
                 )
             ):
-                return SocraticPolicyDecision(
+                return self._decision(
                     prompt_style=SocraticPromptStyle.clarification,
+                    steering_action=SocraticSteeringAction.restate_then_apply,
                     rationale="The learner recovered after a step-back prompt but still needs to restate the repaired idea clearly before transfer.",
                 )
             if request.learner_confidence is not None and request.learner_confidence < 0.45:
-                return SocraticPolicyDecision(
+                return self._decision(
                     prompt_style=SocraticPromptStyle.clarification,
+                    steering_action=SocraticSteeringAction.clarify_then_check,
                     rationale="The learner showed understanding but low confidence, so a short clarification can stabilize the idea before transfer.",
                 )
             if request.learner_response is None:
-                return SocraticPolicyDecision(
+                return self._decision(
                     prompt_style=SocraticPromptStyle.transfer_check,
+                    steering_action=SocraticSteeringAction.verify_transfer,
                     rationale="The latest stored turn demonstrated understanding, so the next prompt should keep pressure on transfer to confirm the idea holds in a nearby example.",
                 )
             if already_checked_transfer and mastery_trend >= 0.0:
-                return SocraticPolicyDecision(
+                return self._decision(
                     prompt_style=SocraticPromptStyle.diagnostic,
+                    steering_action=SocraticSteeringAction.probe_from_new_angle,
                     rationale="Recent turns already checked transfer, so the next best move is a fresh probe from a new angle rather than repeating the same prompt style.",
                 )
-            return SocraticPolicyDecision(
+            return self._decision(
                 prompt_style=SocraticPromptStyle.transfer_check,
+                steering_action=SocraticSteeringAction.verify_transfer,
                 rationale="Recent evidence is strong enough to test whether the learner can transfer the idea to a nearby example.",
             )
 
         if latest_evaluation.evidence_strength == SocraticEvidenceStrength.emerging:
             if clarification_loop:
-                return SocraticPolicyDecision(
+                return self._decision(
                     prompt_style=SocraticPromptStyle.diagnostic,
+                    steering_action=SocraticSteeringAction.probe_from_new_angle,
                     rationale="Recent clarification turns are circling the same gap, so the next prompt should probe from a new angle instead of repeating the same wording.",
                 )
             if step_back_loop:
-                return SocraticPolicyDecision(
+                return self._decision(
                     prompt_style=SocraticPromptStyle.diagnostic,
+                    steering_action=SocraticSteeringAction.probe_from_new_angle,
                     rationale="Repeated step-back turns are no longer moving the learner forward, so the next prompt should test the idea through a new representation before adding more scaffold.",
                 )
             if (
@@ -118,25 +128,29 @@ class SocraticTurnPolicy:
                     or latest_evaluation.evidence_dimensions.progression_signal >= 0.55
                 )
             ):
-                return SocraticPolicyDecision(
+                return self._decision(
                     prompt_style=SocraticPromptStyle.clarification,
+                    steering_action=SocraticSteeringAction.restate_then_apply,
                     rationale="The learner is improving after a step-back turn, so the next prompt should refine the repaired reasoning before any transfer check.",
                 )
             if repeated_clarification and (
                 latest_evaluation.evidence_dimensions.confidence_alignment < 0.4
                 or (request.learner_confidence is not None and request.learner_confidence < 0.45)
             ):
-                return SocraticPolicyDecision(
+                return self._decision(
                     prompt_style=SocraticPromptStyle.scaffolded_step_back,
+                    steering_action=SocraticSteeringAction.repair_then_model,
                     rationale="Repeated clarification has not stabilized the learner's explanation, so the next prompt should step back to a prerequisite anchor.",
                 )
             if mastery_trend < -0.08 and not already_step_back:
-                return SocraticPolicyDecision(
+                return self._decision(
                     prompt_style=SocraticPromptStyle.scaffolded_step_back,
+                    steering_action=SocraticSteeringAction.repair_then_model,
                     rationale="The learner is regressing across recent turns, so stepping back to a prerequisite idea is safer than pushing for another thin clarification.",
                 )
-            return SocraticPolicyDecision(
+            return self._decision(
                 prompt_style=SocraticPromptStyle.clarification,
+                steering_action=SocraticSteeringAction.clarify_then_check,
                 rationale="The learner is showing partial understanding, so the next prompt should sharpen their explanation before the system advances.",
             )
 
@@ -144,26 +158,44 @@ class SocraticTurnPolicy:
             last_prompt_style == SocraticPromptStyle.transfer_check
             and latest_evaluation.evidence_dimensions.misconception_risk < 0.45
         ):
-            return SocraticPolicyDecision(
+            return self._decision(
                 prompt_style=SocraticPromptStyle.clarification,
+                steering_action=SocraticSteeringAction.clarify_then_check,
                 rationale="The learner did not yet transfer the idea, but the gap looks narrow enough for one focused clarification before a full step-back.",
             )
         if clarification_loop or step_back_loop:
-            return SocraticPolicyDecision(
+            return self._decision(
                 prompt_style=SocraticPromptStyle.diagnostic,
+                steering_action=SocraticSteeringAction.probe_from_new_angle,
                 rationale="Recent Socratic turns have started to loop, so the next prompt should re-probe the learner's thinking from a new angle.",
             )
         if repeated_low_signal and not already_step_back:
-            return SocraticPolicyDecision(
+            return self._decision(
                 prompt_style=SocraticPromptStyle.scaffolded_step_back,
+                steering_action=SocraticSteeringAction.repair_then_model,
                 rationale="Multiple recent turns stayed below the evidence bar, so the next prompt should step back to prerequisite reasoning.",
             )
         if latest_evaluation.evidence_dimensions.misconception_risk >= 0.45:
-            return SocraticPolicyDecision(
+            return self._decision(
                 prompt_style=SocraticPromptStyle.scaffolded_step_back,
+                steering_action=SocraticSteeringAction.repair_then_model,
                 rationale="The current response carries elevated misconception risk, so the next prompt should rebuild the prerequisite idea explicitly.",
             )
-        return SocraticPolicyDecision(
+        return self._decision(
             prompt_style=SocraticPromptStyle.clarification,
+            steering_action=SocraticSteeringAction.clarify_then_check,
             rationale="The system needs one more focused clarification before deciding whether to step back further.",
+        )
+
+    def _decision(
+        self,
+        *,
+        prompt_style: SocraticPromptStyle,
+        steering_action: SocraticSteeringAction,
+        rationale: str,
+    ) -> SocraticPolicyDecision:
+        return SocraticPolicyDecision(
+            prompt_style=prompt_style,
+            steering_action=steering_action,
+            rationale=rationale,
         )

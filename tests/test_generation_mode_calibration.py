@@ -598,6 +598,47 @@ def test_generation_mode_calibrator_carries_recent_socratic_prompt_metadata(tmp_
     assert calibrated_request.mode_calibration.socratic_steering_action == "repair_then_model"
 
 
+def test_generation_mode_calibrator_prefers_explicit_socratic_steering_action_over_prompt_style_inference(tmp_path):
+    database_path = str(tmp_path / "generation-mode-session-explicit-steering.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = str(uuid4())
+    audit_store.append(
+        event_type="assessment.socratic",
+        status="success",
+        student_id=student_id,
+        payload={
+            "learning_session_id": "session-explicit-steering",
+            "target_kc_ids": ["KC-5"],
+            "prompt_style": "diagnostic",
+            "steering_action": "open_probe",
+            "evidence_strength": "insufficient",
+            "evidence_score": 0.0,
+            "next_action": "ask_probe",
+        },
+    )
+
+    request = GenerationRequest.model_validate(
+        {
+            "student_id": student_id,
+            "learning_session_id": "session-explicit-steering",
+            "target_kc_ids": ["KC-5"],
+            "intent": "explanation",
+        }
+    )
+    calibrator = GenerationModeCalibrator(
+        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
+    )
+
+    calibrated_request = calibrator.calibrate_request(request=request)
+
+    assert calibrated_request.mode_calibration is not None
+    assert calibrated_request.mode_calibration.session_latest_prompt_style == "diagnostic"
+    assert calibrated_request.mode_calibration.socratic_steering_action == "open_probe"
+
+
 def test_generation_mode_calibrator_carries_current_evidence_guardrail_from_session_observations(tmp_path):
     database_path = str(tmp_path / "generation-mode-session-current-evidence.db")
     ensure_database(database_path)
