@@ -707,6 +707,9 @@ def test_remedial_trigger_returns_remedial_generated_content(client, student_id,
     assert payload["request_context"]["learner_strategy"]["recovery_focus"] == "prerequisite_rebuild"
     assert payload["workflow_summary"]["flow_type"] == "remediation"
     assert payload["workflow_summary"]["delivered_phase"] == "step_back"
+    assert payload["workflow_summary"]["rationale"] == payload["workflow_summary"]["next_step"]["rationale"]
+    assert "fraction-whole-number-bias" in payload["workflow_summary"]["rationale"]
+    assert "Current repair step:" in payload["workflow_summary"]["rationale"]
     assert payload["workflow_summary"]["next_step"]["action"] == "repair"
     assert payload["workflow_summary"]["next_step"]["content_type"] == "remedial_micro_module"
 

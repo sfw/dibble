@@ -59,11 +59,11 @@ def test_teacher_intervention_labels_follow_repair_stage_for_lesson_options(tmp_
     assert labels["practice_problem_same_target"] == "Repair Practice"
     assert (
         rationales["worked_example_support_reset"]
-        == "Offer a more supported worked example on the repair target before returning to the requested target."
+        == "Keep working on the repair target. Alternative: Offer a more supported worked example on the repair target before returning to the requested target."
     )
     assert (
         rationales["practice_problem_same_target"]
-        == "Stay on the repair target with another practice step before returning to the requested target."
+        == "Keep working on the repair target. Alternative: Stay on the repair target with another practice step before returning to the requested target."
     )
 
 
@@ -113,9 +113,9 @@ def test_teacher_intervention_labels_follow_transfer_stage_for_lesson_options(tm
     assert labels["assessment_probe_transfer_check"] == "Transfer Check"
     assert (
         rationales["practice_problem_same_target"]
-        == "Stay on the transfer target with one more practice step before assigning a transfer check."
+        == "Test whether the learner can transfer independently. Alternative: Stay on the transfer target with one more practice step before assigning a transfer check."
     )
     assert (
         rationales["assessment_probe_transfer_check"]
-        == "Verify transfer explicitly on the current target before assigning more independent work."
+        == "Test whether the learner can transfer independently. Alternative: Verify transfer explicitly on the current target before assigning more independent work."
     )

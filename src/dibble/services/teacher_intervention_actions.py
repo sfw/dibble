@@ -204,6 +204,7 @@ class TeacherInterventionActionService:
                         content_type=RequestedContentType.worked_example.value,
                         target_stage=worked_example_stage,
                     ),
+                    flow_rationale=flow.rationale,
                     base_payload=lesson_payload,
                     learning_session_id=flow.learning_session_id,
                     source_generation_id=proposed_action.generation_id,
@@ -225,6 +226,7 @@ class TeacherInterventionActionService:
                         content_type=RequestedContentType.practice_problem.value,
                         target_stage=flow.target_stage,
                     ),
+                    flow_rationale=flow.rationale,
                     base_payload=lesson_payload,
                     learning_session_id=flow.learning_session_id,
                     source_generation_id=proposed_action.generation_id,
@@ -246,6 +248,7 @@ class TeacherInterventionActionService:
                         content_type=RequestedContentType.assessment_probe.value,
                         target_stage="transfer",
                     ),
+                    flow_rationale=flow.rationale,
                     base_payload=lesson_payload,
                     learning_session_id=flow.learning_session_id,
                     source_generation_id=proposed_action.generation_id,
@@ -423,6 +426,7 @@ class TeacherInterventionActionService:
         option_id: str,
         label: str,
         rationale: str,
+        flow_rationale: str | None,
         base_payload: dict[str, object],
         learning_session_id: str | None,
         source_generation_id: str | None,
@@ -436,10 +440,11 @@ class TeacherInterventionActionService:
         payload["target_kc_ids"] = list(target_kc_ids)
         if source_generation_id is not None:
             payload["source_generation_id"] = source_generation_id
+        option_rationale = self._option_rationale(flow_rationale=flow_rationale, option_rationale=rationale)
         return TeacherInterventionOption(
             option_id=option_id,
             label=label,
-            rationale=rationale,
+            rationale=option_rationale,
             continue_action=LearnerContinueAction.generate_follow_up(
                 resource_id=source_generation_id,
                 generation_id=source_generation_id,
@@ -448,7 +453,7 @@ class TeacherInterventionActionService:
                 target_stage=target_stage,
                 target_kc_ids=list(target_kc_ids),
                 request_payload=payload,
-                rationale=rationale,
+                rationale=option_rationale,
             ),
         )
 
@@ -462,6 +467,15 @@ class TeacherInterventionActionService:
             RequestedContentType.remedial_micro_module.value: "remediation",
         }
         return mapping.get(content_type, "explanation")
+
+    @staticmethod
+    def _option_rationale(*, flow_rationale: str | None, option_rationale: str) -> str:
+        if flow_rationale is None or not flow_rationale.strip():
+            return option_rationale
+        normalized_flow_rationale = flow_rationale.strip()
+        if normalized_flow_rationale == option_rationale:
+            return option_rationale
+        return f"{normalized_flow_rationale} Alternative: {option_rationale}"
 
     @staticmethod
     def _allowed_decisions_for(

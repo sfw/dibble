@@ -510,9 +510,12 @@ def test_learner_flow_endpoint_prefers_active_remediation_workflow(client, stude
     assert flow_payload["next_step"]["content_type"] == "remedial_micro_module"
     assert flow_payload["next_step"]["target_kc_ids"] == ["KC-1"]
     assert flow_payload["continue_action"]["kind"] == "advance_remediation"
+    assert flow_payload["rationale"] == trigger_response.json()["workflow_summary"]["rationale"]
+    assert "Current repair step:" in flow_payload["rationale"]
     assert summary_payload["current_flow"]["flow_type"] == "remediation"
     assert summary_payload["current_flow"]["current_phase"] == "repair"
     assert summary_payload["current_flow"]["continue_action"]["kind"] == "advance_remediation"
+    assert summary_payload["current_flow"]["rationale"] == flow_payload["rationale"]
 
 
 def test_learner_history_endpoints_expose_generation_socratic_and_remediation_history(client, student_id):

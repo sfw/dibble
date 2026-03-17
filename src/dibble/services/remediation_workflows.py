@@ -293,7 +293,7 @@ class RemediationWorkflowCoordinator:
             content_type=current_step.recommended_content_type.value,
             target_stage=target_stage,
             target_kc_ids=list(current_step.target_kc_ids),
-            rationale=session.progression_rationale or current_step.guidance or session.rationale,
+            rationale=self._active_step_rationale(session=session, current_step=current_step),
         )
 
     def _continue_action_for_summary(
@@ -348,6 +348,23 @@ class RemediationWorkflowCoordinator:
         if learner_prompt:
             return f"{learner_prompt} {workflow_prompt}".strip()
         return workflow_prompt
+
+    def _active_step_rationale(
+        self,
+        *,
+        session: RemediationWorkflowSession,
+        current_step: RemediationWorkflowStep,
+    ) -> str | None:
+        if session.progression_rationale:
+            return session.progression_rationale
+        base = session.rationale or current_step.objective or current_step.guidance
+        instruction = current_step.guidance or current_step.objective
+        if not base:
+            return instruction
+        if not instruction or instruction in base:
+            return base
+        phase_label = current_step.phase.replace("_", " ")
+        return f"{base} Current {phase_label} step: {instruction}"
 
     def _strategy_curriculum_context(self, strategy_summary: LearnerStrategySummary) -> list[str]:
         if strategy_summary.signal == "insufficient":

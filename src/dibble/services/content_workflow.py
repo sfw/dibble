@@ -549,7 +549,8 @@ class ContentWorkflowService:
                 ),
                 target_kc_ids=next_target_kc_ids,
                 rationale=self._workflow_step_rationale(
-                    primary=self._maybe_str(remediation_data.get("progression_rationale")),
+                    primary=self._maybe_str(remediation_data.get("next_step_rationale"))
+                    or self._maybe_str(remediation_data.get("progression_rationale")),
                     fallback=self._first_text(
                         progression_data.get("mastery_gate_reason"),
                         progression_data.get("rationale"),
@@ -1163,6 +1164,7 @@ class ContentWorkflowService:
                 "progression_evidence_confidence": session.progression_evidence_confidence,
                 "progression_average_observed_mastery": session.progression_average_observed_mastery,
                 "progression_low_support_success_count": session.progression_low_support_success_count,
+                "next_step_rationale": session.summary.next_step.rationale,
             },
         }
         if misconception_signals is not None:

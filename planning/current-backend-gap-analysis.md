@@ -164,6 +164,8 @@ Most recent progress:
 26. lesson, remediation, learner-flow, workspace, history, intervention, and classroom surfaces now also lean on one more canonical next-step rationale path, so the same backend-owned decision reads more like one judgment seen from multiple angles instead of neighboring surfaces favoring different rationale fragments.
 27. same-session and ordinary-work progression rationales now more explicitly explain why the backend is holding repair, bridge, target, or transfer instead of the adjacent stage, and ordinary-work rationale snapshots now also surface low-support success versus high-support dependency rates directly in the existing rationale text.
 28. remediation planning rationale now names the primary misconception path, evidence terms, recurrence posture, and selected repair target directly in the existing remediation rationale field, so existing product surfaces can explain why that remediation path was chosen without requiring a new contract seam.
+29. active remediation summaries and delivered remediation workflow payloads now also carry remediation-path rationale plus current-step framing instead of falling back to bare execution guidance, so product surfaces can explain why the learner is in that remediation step now instead of only what the step asks them to do.
+30. teacher intervention alternative options now also inherit the current backend posture in their rationale, so intervention lists read like explicit deviations from one backend judgment instead of generic detached suggestions.
 
 ### Frontend Alignment Update
 
