@@ -14,7 +14,10 @@ from dibble.models.observations import InferredLearnerState, LearnerObservationC
 from dibble.models.profile import LearnerFlowSummary, LearnerProfile, LearnerProfileV2, ProfileSummary
 from dibble.models.teacher_actions import TeacherInterventionActionContract, TeacherInterventionDecisionRequest
 from dibble.models.workspace import LearnerWorkspace
-from dibble.services.teacher_intervention_actions import TeacherInterventionActionUnavailableError
+from dibble.services.teacher_intervention_actions import (
+    TeacherInterventionActionUnavailableError,
+    TeacherInterventionOptionNotFoundError,
+)
 
 
 def build_learner_router(context: ApiContext) -> APIRouter:
@@ -336,6 +339,12 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 status_code=status.HTTP_409_CONFLICT,
                 detail=str(exc),
                 code="teacher_intervention_unavailable",
+            ) from exc
+        except TeacherInterventionOptionNotFoundError as exc:
+            raise api_error(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+                code="teacher_intervention_option_not_found",
             ) from exc
         except ValueError as exc:
             raise api_error(

@@ -439,12 +439,20 @@ def test_teacher_intervention_action_contract_exposes_backend_owned_proposal_and
 
     assert contract_payload["proposal_status"] == "available"
     assert contract_payload["flow_type"] == "lesson"
-    assert contract_payload["allowed_decisions"] == ["approve", "defer", "escalate_human"]
+    assert contract_payload["allowed_decisions"] == ["approve", "select_option", "defer", "escalate_human"]
     assert contract_payload["proposed_action"]["kind"] == "generate_follow_up"
     assert contract_payload["proposed_action"]["endpoint"] == "/api/content/generate"
+    assert contract_payload["available_options"][0]["option_id"] == "recommended"
+    assert contract_payload["available_options"][0]["is_recommended"] is True
+    assert {option["option_id"] for option in contract_payload["available_options"]} >= {
+        "recommended",
+        "worked_example_support_reset",
+        "practice_problem_same_target",
+    }
 
     assert approve_payload["latest_decision"]["decision"] == "approve"
     assert approve_payload["latest_decision"]["status"] == "approved"
+    assert approve_payload["latest_decision"]["selected_option_id"] == "recommended"
     assert approve_payload["latest_decision"]["note"] == "Teacher approves the next backend-owned move."
     assert approve_payload["latest_decision"]["execution_action"]["kind"] == "generate_follow_up"
     assert approve_payload["latest_decision"]["execution_action"]["request_payload"]["source_generation_id"] == (
@@ -460,7 +468,51 @@ def test_teacher_intervention_action_contract_exposes_backend_owned_proposal_and
     )
     assert decision_event["payload"]["action_key"] == approve_payload["action_key"]
     assert decision_event["payload"]["decision"] == "approve"
+    assert decision_event["payload"]["selected_option_id"] == "recommended"
     assert decision_event["payload"]["execution_action"]["kind"] == "generate_follow_up"
+
+
+def test_teacher_intervention_action_contract_supports_backend_owned_option_selection(client, student_id):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+
+    client.post(
+        "/api/problems/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "teacher-action-select-option",
+            "target_kc_ids": ["KC-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    contract_response = client.get(f"/api/learners/{student_id}/intervention-action")
+    select_response = client.post(
+        f"/api/learners/{student_id}/intervention-action",
+        json={
+            "decision": "select_option",
+            "option_id": "worked_example_support_reset",
+            "note": "Reset with a modeled example first.",
+        },
+    )
+
+    assert contract_response.status_code == 200
+    assert select_response.status_code == 200
+
+    contract_payload = contract_response.json()
+    select_payload = select_response.json()
+    selected_option = next(
+        option for option in contract_payload["available_options"] if option["option_id"] == "worked_example_support_reset"
+    )
+
+    assert select_payload["latest_decision"]["decision"] == "select_option"
+    assert select_payload["latest_decision"]["status"] == "option_selected"
+    assert select_payload["latest_decision"]["selected_option_id"] == "worked_example_support_reset"
+    assert select_payload["latest_decision"]["execution_action"] == selected_option["continue_action"]
+    assert select_payload["latest_decision"]["execution_action"]["content_type"] == "worked_example"
+    assert select_payload["latest_decision"]["execution_action"]["request_payload"]["requested_content_type"] == (
+        "worked_example"
+    )
+    assert select_payload["latest_decision"]["execution_action"]["request_payload"]["intent"] == "explanation"
 
 
 def test_teacher_intervention_action_contract_rejects_idle_or_invalid_teacher_decisions(client, student_id):
@@ -492,9 +544,21 @@ def test_teacher_intervention_action_contract_rejects_idle_or_invalid_teacher_de
         f"/api/learners/{student_id}/intervention-action",
         json={"decision": "skip"},
     )
+    missing_option_response = client.post(
+        f"/api/learners/{student_id}/intervention-action",
+        json={"decision": "select_option"},
+    )
+    unknown_option_response = client.post(
+        f"/api/learners/{student_id}/intervention-action",
+        json={"decision": "select_option", "option_id": "not-a-real-option"},
+    )
 
     assert invalid_response.status_code == 400
     assert invalid_response.headers["x-dibble-error-code"] == "teacher_intervention_invalid_decision"
+    assert missing_option_response.status_code == 400
+    assert missing_option_response.headers["x-dibble-error-code"] == "teacher_intervention_invalid_decision"
+    assert unknown_option_response.status_code == 400
+    assert unknown_option_response.headers["x-dibble-error-code"] == "teacher_intervention_option_not_found"
 
 
 def test_learner_workspace_returns_active_generated_content(client, student_id):

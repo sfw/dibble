@@ -99,7 +99,7 @@ Legend:
 | `API-005` Learner generation history endpoints | Implemented | `GET /api/learners/{student_id}/history/generations` now returns a compact backend-owned generation history with workflow and continue-action metadata |
 | `API-006` Learner Socratic session history endpoints | Implemented | `GET /api/learners/{student_id}/history/socratic-sessions` now returns compact Socratic session history by learner |
 | `API-007` Learner remediation session history endpoints | Implemented | `GET /api/learners/{student_id}/history/remediation-sessions` now returns compact remediation workflow history by learner |
-| `API-008` Teacher intervention override/approval endpoints | Partial | `POST /api/learners/{student_id}/intervention-action` now lets a teacher approve, defer, or escalate the current backend-owned intervention, but it does not yet support selecting an alternative intervention path |
+| `API-008` Teacher intervention override/approval endpoints | Implemented | `POST /api/learners/{student_id}/intervention-action` now lets a teacher approve the current backend-owned move, select a backend-generated alternative option, defer, or escalate for human review |
 | `API-009` Teacher cohort/classroom read model | Missing | There is still no compact backend-owned classroom or cohort summary contract for teacher workflows beyond single-learner drill-in |
 | `DATA-001` KnowledgeComponent entity and prerequisite graph | Implemented | Persisted KC entity plus prerequisite traversal API and remediation-planner integration |
 | `DATA-002` Extended learner profile | Implemented | Current profile model includes cognitive, affective, load, and preference dimensions |
@@ -107,7 +107,7 @@ Legend:
 | `DATA-004` Practice-driven knowledge updates | Partial | Socratic assessment can update KC and LO mastery and propagate that evidence through the KC graph, linked practice or remediation observations can now also write target mastery back through the same migration layer, repeated same-session target observations can now strengthen that writeback, strong target-scoped ordinary-work observations can still count without an explicit generation/session link when the evidence is specific enough, and a newer durable `learning.ordinary_mastery.profile` layer can now summarize repeated ordinary-work evidence into inspectable `durable_mastery`, `emerging_mastery`, `support_dependent`, or `fragile` signals that modestly shape later writeback trust; ordinary writeback now also gives repeated low-support success a clearer edge over support-heavy success when blending mastery, but the pipeline is still heuristic rather than a learned knowledge-tracing system |
 | `DATA-005` Learned knowledge tracing | Deferred | Replace the current inspectable heuristic writeback and durable ordinary mastery summaries with a learned or probabilistic knowledge-tracing layer only after the current backend-owned evidence loop has stabilized and proven where heuristics genuinely fall short |
 | `ORCH-001` Learner progression orchestration | Partial | The backend now carries mode-calibration, KC-sequencing, session-phase, remediation-session, predictive next-step metadata, a first remediation-local hold/advance decision that can reuse linked learner evidence, and a broader local progression-ownership layer that can redirect ordinary generation to prerequisite or bridge KCs before honoring the caller's requested target, explicitly name whether work is in a repair, bridge, target, or transfer stage, now evaluate progression evidence against the backend-applied repair or bridge target instead of only the originally requested KC, now also let durable ordinary mastery profiles veto premature ordinary transfer when same-session evidence is sparse, resume transfer on the deferred target when stronger same-session evidence earns that override, and rewrite premature assessment probes back into practice on the appropriate stage target, but there is still no single backend service that owns curriculum-to-course progression for an individual learner |
-| `ORCH-004` Teacher-safe intervention action contract | Partial | `GET /api/learners/{student_id}/intervention-action` now exposes a backend-owned proposal keyed to the current learner flow with allowed teacher decisions and persisted latest-decision state, but it does not yet support backend-owned alternative-step override selection |
+| `ORCH-004` Teacher-safe intervention action contract | Implemented | `GET /api/learners/{student_id}/intervention-action` now exposes a backend-owned proposal keyed to the current learner flow, explicit selectable backend-generated alternatives, allowed teacher decisions, and persisted latest-decision state |
 | `ORCH-002` Course-level progression planner | Deferred | Add a single backend-owned planner for cross-lesson, cross-unit, and course-level progression only if the current local stage ownership, learner-flow contract, and inspectable next-step rules prove insufficient for broader progression control |
 | `ORCH-003` Curriculum progression orchestration subsystem | Deferred | Introduce a dedicated curriculum sequencing/orchestration subsystem only if future product needs exceed the current focused services; this should remain explicitly backend-owned future work, not logic pushed into the frontend |
 | `INFRA-003` Pre-generation and intelligent caching | Partial | Request-time generation cache and an explicit warmup endpoint now have calibration-aware anticipatory follow-up warming, predictive request metadata, a durable SQLite-backed predictive warm queue, explicit queue processing, overlap-based invalidation from observation and Socratic outcomes, telemetry coverage, newer strategy-aware escalation for relapse or plateau follow-ups, phase-aware follow-up selection that can keep a session in consolidate or bridge before transfer, queue-side priority plus stale-task expiry so the most urgent likely-next steps are warmed first, bounded urgency-class batch selection so routine work is not starved by repeated urgent bursts, age-based claim boosting so long-waiting routine work can eventually outrank fresher high-priority work, urgency-tuned retry/backoff and stale-processing recovery so urgent work can be reclaimed faster, retry caps so routine work fails faster while urgent work gets one more chance, clearer queue-health telemetry such as eligible-now versus blocked-deferred work and next-eligible delay, a bounded inline catch-up path that can spend spare request-time warm budget on other eligible backlog tasks instead of only the freshly enqueued ids, and newer claim-ownership metadata that makes inline-targeted, inline-autonomous, and explicit background queue work auditable per task and per processing pass, but there is still no richer learned prediction policy or broader non-request-driven scheduler loop |
@@ -116,11 +116,11 @@ Legend:
 
 Based on `planning/4 - revised-spec/implementation-roadmap.md`, `planning/5 - dev-handoff-revised-spec/requirements-traceability.csv`, the current code seams, and the frontend implementation note in `planning/from-front-to-back-needs.md`, the strongest next backend slices are now:
 
-1. extend the current teacher intervention contract from approve/defer/escalate into explicit backend-owned override selection only if the product truly needs teachers to choose an alternative next move instead of only confirming or pausing the backend recommendation.
-2. revisit broader backend-owned progression orchestration only if the current local mastery, stage, and transfer signals still leave the frontend unable to trust `current_flow` as the only live progression surface it needs.
-3. add a classroom or cohort teacher read model only if the product scope now requires teacher workflows beyond single-learner drill-in.
-4. keep multimodal artifacts and richer teacher analytics behind these concrete workflow-contract gaps.
-5. keep scheduler autonomy and broader orchestration ideas behind observed frontend or product pressure rather than treating them as default pre-frontend work.
+1. revisit broader backend-owned progression orchestration only if the current local mastery, stage, and transfer signals still leave the frontend unable to trust `current_flow` as the only live progression surface it needs.
+2. add a classroom or cohort teacher read model only if the product scope now requires teacher workflows beyond single-learner drill-in.
+3. keep multimodal artifacts and richer teacher analytics behind these concrete workflow-contract gaps.
+4. keep scheduler autonomy and broader orchestration ideas behind observed frontend or product pressure rather than treating them as default pre-frontend work.
+5. only broaden teacher override beyond the current backend-generated option set if real product needs exceed approve, select-option, defer, and escalate.
 
 Most recent progress:
 
@@ -132,8 +132,8 @@ Most recent progress:
 6. lesson, remediation, Socratic, learner-flow, and workspace payloads now all carry a small `continue_action` contract so the frontend can follow one backend-owned next request across reload and continue flows.
 7. frontend-facing auth and workflow routes now also carry a shared machine-readable error-code header, so failure handling is less brittle.
 8. learner-scoped history endpoints now expose prior generated runs, Socratic sessions, and remediation workflows through compact backend-owned read models instead of requiring frontend audit replay.
-9. teacher workflow support now includes a backend-owned intervention-action contract plus approval, defer, and escalate write handling tied directly to the current learner flow.
-10. frontend implementation still points to two smaller next seams after that work: fuller teacher override selection and an optional teacher cohort/classroom read model.
+9. teacher workflow support now includes a backend-owned intervention-action contract, backend-generated alternative options, and approve, select-option, defer, and escalate write handling tied directly to the current learner flow.
+10. frontend implementation still points to one main adjacent seam after that work: an optional teacher cohort/classroom read model if teacher workflows broaden beyond single-learner drill-in.
 
 ### Pre-Frontend Priorities
 
@@ -210,14 +210,14 @@ Progress now:
 6. generated content is now resumable by `generation_id`, and `GET /api/learners/{student_id}/workspace` can return learner summary/flow together with the active generated artifact or workflow session for first-pass resume and reload UX.
 7. those same frontend-facing routes now also return stable `X-Dibble-Error-Code` headers on common auth, not-found, and completed-workflow failures.
 8. learner-scoped history endpoints now provide compact generation, Socratic-session, and remediation-session lists that the frontend can render directly.
-9. a teacher-safe intervention contract now exposes one backend-owned current proposal with explicit allowed decisions plus persisted latest-decision state.
+9. a teacher-safe intervention contract now exposes one backend-owned current proposal, explicit backend-generated alternatives, allowed teacher decisions, and persisted latest-decision state.
 
 #### Frontend-Discovered Backend Needs
 
 Frontend implementation has now surfaced a smaller set of concrete backend asks that are more actionable than another broad architectural pass:
 
 1. learner history is now covered by backend-owned generation, Socratic-session, and remediation-session list endpoints (`API-005`, `API-006`, `API-007`).
-2. teacher intervention control is now partially covered by a backend-owned current-action contract plus approve, defer, and escalate write endpoints (`API-008`, `ORCH-004`), but explicit backend-owned override selection is still open.
+2. teacher intervention control is now covered by a backend-owned current-action contract plus approve, select-option, defer, and escalate write endpoints (`API-008`, `ORCH-004`).
 3. clearer backend-owned curriculum or course progression remains relevant only if the frontend needs to reason about more than the current active `current_flow` contract.
 4. a classroom or cohort teacher read model (`API-009`) still matters only if teacher workflows now need to span more than one learner at a time.
 5. multimodal artifact contracts and richer teacher analytics remain real future needs, but they are secondary to the concrete workflow contracts above.
@@ -226,7 +226,7 @@ Until those frontend-discovered gaps are addressed, the safest frontend stance r
 
 1. prefer backend-provided history lists over reconstructing prior activity from audit events.
 2. treat `current_flow`, session summaries, `workflow_summary`, `continue_action`, `intervention-action`, and `X-Dibble-Error-Code` as the canonical backend-owned contracts rather than reconstructing policy or authority in the UI.
-3. keep fuller teacher override selection and classroom dashboards out of the frontend until the backend ships those explicit contracts.
+3. keep classroom dashboards out of the frontend until the backend ships an explicit cohort/classroom read model.
 
 #### Lower priority before frontend
 

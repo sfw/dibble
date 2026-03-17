@@ -9,7 +9,16 @@ from dibble.models.profile import LearnerContinueAction, LearnerFlowNextStep
 
 class TeacherInterventionDecisionRequest(BaseModel):
     decision: str
+    option_id: str | None = None
     note: str | None = None
+
+
+class TeacherInterventionOption(BaseModel):
+    option_id: str
+    label: str
+    rationale: str | None = None
+    is_recommended: bool = False
+    continue_action: LearnerContinueAction = Field(default_factory=LearnerContinueAction)
 
 
 class TeacherInterventionDecisionRecord(BaseModel):
@@ -17,6 +26,7 @@ class TeacherInterventionDecisionRecord(BaseModel):
     decision_id: str
     decision: str
     status: str
+    selected_option_id: str | None = None
     note: str | None = None
     decided_by: str | None = None
     decided_role: str | None = None
@@ -39,6 +49,7 @@ class TeacherInterventionActionContract(BaseModel):
     source: str = "learner_flow"
     next_step: LearnerFlowNextStep = Field(default_factory=LearnerFlowNextStep)
     proposed_action: LearnerContinueAction = Field(default_factory=LearnerContinueAction)
+    available_options: list[TeacherInterventionOption] = Field(default_factory=list)
     allowed_decisions: list[str] = Field(default_factory=list)
     latest_decision: TeacherInterventionDecisionRecord | None = None
     updated_at: datetime | None = None
