@@ -63,6 +63,8 @@ This repository now includes a working MVP backend slice for the revised adaptiv
 - `GET /api/learners/{student_id}/summary` now exposes a frontend-ready learner overview with engagement, metacognitive snapshot, latest calibration summary, latest progress trend summary, latest learner-strategy summary, recent activity counts, and a backend-owned `current_flow` summary so the UI does not need to read audit logs directly
 - `GET /api/learners/{student_id}/flow` exposes the same learner-flow contract directly, including current phase, progression action, active targets, and next-step metadata for ordinary generation, remediation, and Socratic workflows
 - `GET /api/learners/{student_id}/workspace` now also includes a top-level backend-owned `continue_action`, so reload and continue buttons can reuse one server contract across lesson, remediation, and Socratic states
+- Learner-scoped history endpoints now expose compact backend-owned lists for prior generated content, Socratic sessions, and remediation sessions, so the frontend can build history views without replaying audit events or guessing which payloads matter
+- `GET` and `POST /api/learners/{student_id}/intervention-action` now expose a teacher-safe intervention contract derived from `current_flow`, so a teacher can approve, defer, or escalate the backend-recommended next move without the frontend inventing its own workflow authority
 - Predictive warming now also has a durable SQLite-backed queue plus an explicit processor path, so anticipated follow-up requests can be scheduled, canceled when new evidence arrives, prioritized by likely next-step urgency, expired when they go stale, and processed outside the original generation request when needed
 - The predictive follow-up planner is now calibration-aware, so declining practice can warm a worked example instead of a transfer check, stronger remediation progress can warm a transfer probe sooner, long-horizon learner-strategy signals can now escalate relapse toward prerequisite repair or break a plateau with varied modeled support, and newer within-session controller phases can now keep a session in consolidate or bridge before warming transfer
 - Knowledge Components can now carry catalogued misconception patterns, and the remedial trigger uses those patterns to produce richer misconception signals plus a structured remediation blueprint instead of only a generic step-back wrapper
@@ -114,6 +116,11 @@ env UV_CACHE_DIR=.uv-cache uv run pytest
 - `GET /api/learners/{student_id}/summary`
 - `GET /api/learners/{student_id}/flow`
 - `GET /api/learners/{student_id}/workspace`
+- `GET /api/learners/{student_id}/history/generations`
+- `GET /api/learners/{student_id}/history/socratic-sessions`
+- `GET /api/learners/{student_id}/history/remediation-sessions`
+- `GET /api/learners/{student_id}/intervention-action`
+- `POST /api/learners/{student_id}/intervention-action`
 - `PUT /api/curriculum/resources/{resource_id}`
 - `GET /api/curriculum/resources`
 - `PUT /api/knowledge-components/{kc_id}`

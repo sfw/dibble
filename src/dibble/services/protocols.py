@@ -4,6 +4,7 @@ from typing import Protocol
 from uuid import UUID
 
 from dibble.models.curriculum import CurriculumResource, CurriculumResourceUpsert, KnowledgeComponent, KnowledgeComponentUpsert
+from dibble.models.assessment import SocraticAssessmentSession
 from dibble.models.generation import GeneratedContent, GenerationRequest, PredictiveWarmSweepResult, PredictiveWarmTask
 from dibble.models.observations import LearnerObservation, LearnerObservationCreate
 from dibble.models.profile import LearnerProfile
@@ -58,6 +59,13 @@ class GeneratedContentStore(Protocol):
     def get_fresh(self, *, cache_key: str) -> GeneratedContent | None: ...
     def refresh(self, *, content: GeneratedContent) -> GeneratedContent: ...
     def list_recent(self, *, limit: int = 50) -> list[GeneratedContent]: ...
+    def list_recent_for_student(
+        self,
+        *,
+        student_id: str,
+        limit: int = 20,
+        include_predictive_warm: bool = False,
+    ) -> list[GeneratedContent]: ...
     def expire_predictive_content(
         self,
         *,
@@ -117,13 +125,15 @@ class ProviderHealthStore(Protocol):
 
 
 class SocraticSessionStore(Protocol):
-    def upsert(self, session: object) -> object: ...
-    def get(self, session_id: str) -> object | None: ...
+    def upsert(self, session: SocraticAssessmentSession) -> SocraticAssessmentSession: ...
+    def get(self, session_id: str) -> SocraticAssessmentSession | None: ...
+    def list_recent_for_student(self, *, student_id: str, limit: int = 20) -> list[SocraticAssessmentSession]: ...
 
 
 class RemediationSessionStore(Protocol):
     def upsert(self, session: RemediationWorkflowSession) -> RemediationWorkflowSession: ...
     def get(self, session_id: str) -> RemediationWorkflowSession | None: ...
+    def list_recent_for_student(self, *, student_id: str, limit: int = 20) -> list[RemediationWorkflowSession]: ...
 
 
 class WithinSessionControllerStore(Protocol):

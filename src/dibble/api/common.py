@@ -25,6 +25,7 @@ from dibble.services.learning_trait_profiles import LearningTraitProfileRecorder
 from dibble.services.learner_strategy_profiles import LearningStrategyProfileRecorder
 from dibble.services.learner_state_calibration import LearnerStateCalibrator
 from dibble.services.learner_flow_service import LearnerFlowService
+from dibble.services.learner_history_service import LearnerHistoryService
 from dibble.services.learner_summary_service import LearnerSummaryService
 from dibble.services.learner_workspace_service import LearnerWorkspaceService
 from dibble.services.observation_profile_update import ObservationProfileUpdater
@@ -43,6 +44,7 @@ from dibble.services.remediation_planner import RemediationPlanner
 from dibble.services.socratic_assessment import SocraticAssessmentService
 from dibble.services.socratic_profile_update import SocraticProfileUpdater
 from dibble.services.state_inference import LearnerStateInferenceService
+from dibble.services.teacher_intervention_actions import TeacherInterventionActionService
 from dibble.services.telemetry import TelemetryService
 from dibble.services.within_session_adaptation import WithinSessionAdaptationService
 
@@ -94,8 +96,10 @@ class ApiServices(Protocol):
     learning_trait_profile_recorder: LearningTraitProfileRecorder
     ordinary_mastery_profile_recorder: OrdinaryMasteryProfileRecorder
     learner_flow_service: LearnerFlowService
+    learner_history_service: LearnerHistoryService
     learner_summary_service: LearnerSummaryService
     learner_workspace_service: LearnerWorkspaceService
+    teacher_intervention_action_service: TeacherInterventionActionService
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_invalidator: PredictiveContentInvalidator
     predictive_warm_scheduler: PredictiveWarmScheduler

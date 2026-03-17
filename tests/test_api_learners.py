@@ -302,6 +302,201 @@ def test_learner_flow_endpoint_prefers_active_remediation_workflow(client, stude
     assert summary_payload["current_flow"]["continue_action"]["kind"] == "advance_remediation"
 
 
+def test_learner_history_endpoints_expose_generation_socratic_and_remediation_history(client, student_id):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put(
+        "/api/knowledge-components/KC-1",
+        json=build_knowledge_component("KC-1", name="Identify numerator and denominator"),
+    )
+    client.put(
+        "/api/knowledge-components/KC-2",
+        json=build_knowledge_component(
+            "KC-2",
+            prerequisite_kc_ids=["KC-1"],
+            name="Generate equivalent fractions",
+            common_misconceptions=[
+                {
+                    "misconception_id": "fraction-whole-number-bias",
+                    "label": "Treats fraction parts like unrelated whole numbers",
+                    "description": "The learner compares numerator and denominator separately instead of the whole amount.",
+                    "trigger_terms": ["numerator", "denominator", "whole number", "fraction"],
+                    "prerequisite_kc_ids": ["KC-1"],
+                    "remediation_hint": "Use one visual model to compare the total amount before naming the parts.",
+                }
+            ],
+        ),
+    )
+
+    lesson_response = client.post(
+        "/api/problems/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "history-lesson-session",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": ["LO-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    socratic_response = client.post(
+        "/api/assessments/socratic",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "history-socratic-session",
+            "target_kc_ids": ["KC-1"],
+            "curriculum_context": ["Equivalent fractions"],
+            "learner_response": "Equivalent fractions are the same amount because 1/2 and 2/4 cover equal space on the model.",
+            "learner_confidence": 0.72,
+        },
+    )
+    remediation_response = client.post(
+        "/api/remedial/trigger",
+        json={
+            "student_id": str(student_id),
+            "target_kc_id": "KC-2",
+            "misconception_description": "The learner compares numerator and denominator like whole numbers.",
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+
+    generations_response = client.get(f"/api/learners/{student_id}/history/generations")
+    socratic_history_response = client.get(f"/api/learners/{student_id}/history/socratic-sessions")
+    remediation_history_response = client.get(f"/api/learners/{student_id}/history/remediation-sessions")
+
+    assert lesson_response.status_code == 200
+    assert socratic_response.status_code == 200
+    assert remediation_response.status_code == 200
+    assert generations_response.status_code == 200
+    assert socratic_history_response.status_code == 200
+    assert remediation_history_response.status_code == 200
+
+    generations_payload = generations_response.json()
+    socratic_history_payload = socratic_history_response.json()
+    remediation_history_payload = remediation_history_response.json()
+
+    assert generations_payload[0]["flow_type"] == "remediation"
+    assert generations_payload[0]["generation_id"] == remediation_response.json()["generation_id"]
+    assert generations_payload[0]["continue_action"]["kind"] == "advance_remediation"
+    assert generations_payload[0]["content_type"] == "remedial_micro_module"
+    assert generations_payload[0]["intervention_type"] is not None
+    assert any(entry["generation_id"] == lesson_response.json()["generation_id"] for entry in generations_payload)
+
+    assert socratic_history_payload[0]["session_id"] == socratic_response.json()["session_id"]
+    assert socratic_history_payload[0]["status"] == "ready_for_follow_up"
+    assert socratic_history_payload[0]["latest_steering_action"] == "verify_transfer"
+    assert socratic_history_payload[0]["continue_action"]["kind"] == "generate_follow_up"
+
+    assert remediation_history_payload[0]["session_id"] == remediation_response.json()["request_context"]["remediation_session_id"]
+    assert remediation_history_payload[0]["target_kc_id"] == "KC-2"
+    assert remediation_history_payload[0]["status"] == "in_progress"
+    assert remediation_history_payload[0]["current_phase"] == "repair"
+    assert remediation_history_payload[0]["continue_action"]["kind"] == "advance_remediation"
+
+
+def test_learner_history_endpoints_return_machine_readable_not_found_error(client, student_id):
+    generations_response = client.get(f"/api/learners/{student_id}/history/generations")
+    socratic_history_response = client.get(f"/api/learners/{student_id}/history/socratic-sessions")
+    remediation_history_response = client.get(f"/api/learners/{student_id}/history/remediation-sessions")
+
+    assert generations_response.status_code == 404
+    assert generations_response.headers["x-dibble-error-code"] == "learner_profile_not_found"
+    assert socratic_history_response.status_code == 404
+    assert socratic_history_response.headers["x-dibble-error-code"] == "learner_profile_not_found"
+    assert remediation_history_response.status_code == 404
+    assert remediation_history_response.headers["x-dibble-error-code"] == "learner_profile_not_found"
+
+
+def test_teacher_intervention_action_contract_exposes_backend_owned_proposal_and_records_approval(client, student_id):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+
+    generate_response = client.post(
+        "/api/problems/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "teacher-action-session",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": ["LO-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    contract_response = client.get(f"/api/learners/{student_id}/intervention-action")
+    approve_response = client.post(
+        f"/api/learners/{student_id}/intervention-action",
+        json={"decision": "approve", "note": "Teacher approves the next backend-owned move."},
+    )
+    refreshed_contract_response = client.get(f"/api/learners/{student_id}/intervention-action")
+    audit_response = client.get("/api/audit/events")
+
+    assert generate_response.status_code == 200
+    assert contract_response.status_code == 200
+    assert approve_response.status_code == 200
+    assert refreshed_contract_response.status_code == 200
+
+    contract_payload = contract_response.json()
+    approve_payload = approve_response.json()
+    refreshed_payload = refreshed_contract_response.json()
+
+    assert contract_payload["proposal_status"] == "available"
+    assert contract_payload["flow_type"] == "lesson"
+    assert contract_payload["allowed_decisions"] == ["approve", "defer", "escalate_human"]
+    assert contract_payload["proposed_action"]["kind"] == "generate_follow_up"
+    assert contract_payload["proposed_action"]["endpoint"] == "/api/content/generate"
+
+    assert approve_payload["latest_decision"]["decision"] == "approve"
+    assert approve_payload["latest_decision"]["status"] == "approved"
+    assert approve_payload["latest_decision"]["note"] == "Teacher approves the next backend-owned move."
+    assert approve_payload["latest_decision"]["execution_action"]["kind"] == "generate_follow_up"
+    assert approve_payload["latest_decision"]["execution_action"]["request_payload"]["source_generation_id"] == (
+        generate_response.json()["generation_id"]
+    )
+
+    assert refreshed_payload["latest_decision"]["decision"] == "approve"
+    assert refreshed_payload["latest_decision"]["status"] == "approved"
+    assert refreshed_payload["action_key"] == approve_payload["action_key"]
+
+    decision_event = next(
+        event for event in audit_response.json() if event["event_type"] == "teacher.intervention.decision"
+    )
+    assert decision_event["payload"]["action_key"] == approve_payload["action_key"]
+    assert decision_event["payload"]["decision"] == "approve"
+    assert decision_event["payload"]["execution_action"]["kind"] == "generate_follow_up"
+
+
+def test_teacher_intervention_action_contract_rejects_idle_or_invalid_teacher_decisions(client, student_id):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
+
+    idle_contract_response = client.get(f"/api/learners/{student_id}/intervention-action")
+    unavailable_response = client.post(
+        f"/api/learners/{student_id}/intervention-action",
+        json={"decision": "approve"},
+    )
+
+    assert idle_contract_response.status_code == 200
+    assert idle_contract_response.json()["proposal_status"] == "unavailable"
+    assert idle_contract_response.json()["allowed_decisions"] == []
+    assert unavailable_response.status_code == 409
+    assert unavailable_response.headers["x-dibble-error-code"] == "teacher_intervention_unavailable"
+
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.post(
+        "/api/problems/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "teacher-action-invalid-decision",
+            "target_kc_ids": ["KC-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    invalid_response = client.post(
+        f"/api/learners/{student_id}/intervention-action",
+        json={"decision": "skip"},
+    )
+
+    assert invalid_response.status_code == 400
+    assert invalid_response.headers["x-dibble-error-code"] == "teacher_intervention_invalid_decision"
+
+
 def test_learner_workspace_returns_active_generated_content(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())

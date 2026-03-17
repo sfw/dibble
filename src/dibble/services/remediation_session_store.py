@@ -39,3 +39,17 @@ class SQLiteRemediationSessionStore:
         if row is None:
             return None
         return RemediationWorkflowSession.model_validate_json(row[0])
+
+    def list_recent_for_student(self, *, student_id: str, limit: int = 20) -> list[RemediationWorkflowSession]:
+        with sqlite3.connect(self.database_path) as connection:
+            rows = connection.execute(
+                """
+                SELECT payload
+                FROM remediation_workflow_sessions
+                WHERE student_id = ?
+                ORDER BY updated_at DESC, session_id DESC
+                LIMIT ?
+                """,
+                (student_id, limit),
+            ).fetchall()
+        return [RemediationWorkflowSession.model_validate_json(row[0]) for row in rows]

@@ -39,3 +39,17 @@ class SQLiteSocraticSessionStore:
         if row is None:
             return None
         return SocraticAssessmentSession.model_validate_json(row[0])
+
+    def list_recent_for_student(self, *, student_id: str, limit: int = 20) -> list[SocraticAssessmentSession]:
+        with sqlite3.connect(self.database_path) as connection:
+            rows = connection.execute(
+                """
+                SELECT payload
+                FROM socratic_assessment_sessions
+                WHERE student_id = ?
+                ORDER BY updated_at DESC, session_id DESC
+                LIMIT ?
+                """,
+                (student_id, limit),
+            ).fetchall()
+        return [SocraticAssessmentSession.model_validate_json(row[0]) for row in rows]

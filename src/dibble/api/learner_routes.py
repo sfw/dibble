@@ -2,12 +2,19 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Request, status
 
 from dibble.api.common import ApiContext, api_error
+from dibble.models.history import (
+    LearnerGenerationHistoryEntry,
+    LearnerRemediationSessionHistoryEntry,
+    LearnerSocraticSessionHistoryEntry,
+)
 from dibble.models.observations import InferredLearnerState, LearnerObservationCreate
 from dibble.models.profile import LearnerFlowSummary, LearnerProfile, LearnerProfileV2, ProfileSummary
+from dibble.models.teacher_actions import TeacherInterventionActionContract, TeacherInterventionDecisionRequest
 from dibble.models.workspace import LearnerWorkspace
+from dibble.services.teacher_intervention_actions import TeacherInterventionActionUnavailableError
 
 
 def build_learner_router(context: ApiContext) -> APIRouter:
@@ -237,5 +244,104 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 code="learner_profile_not_found",
             )
         return workspace
+
+    @router.get(
+        "/learners/{student_id}/history/generations",
+        response_model=list[LearnerGenerationHistoryEntry],
+        dependencies=context.deps("viewer"),
+    )
+    def list_generation_history(student_id: UUID, limit: int = 20) -> list[LearnerGenerationHistoryEntry]:
+        profile = services.profile_store.get(student_id)
+        if profile is None:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Learner profile not found.",
+                code="learner_profile_not_found",
+            )
+        return services.learner_history_service.list_generation_history(student_id=student_id, limit=limit)
+
+    @router.get(
+        "/learners/{student_id}/history/socratic-sessions",
+        response_model=list[LearnerSocraticSessionHistoryEntry],
+        dependencies=context.deps("viewer"),
+    )
+    def list_socratic_session_history(student_id: UUID, limit: int = 20) -> list[LearnerSocraticSessionHistoryEntry]:
+        profile = services.profile_store.get(student_id)
+        if profile is None:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Learner profile not found.",
+                code="learner_profile_not_found",
+            )
+        return services.learner_history_service.list_socratic_session_history(student_id=student_id, limit=limit)
+
+    @router.get(
+        "/learners/{student_id}/history/remediation-sessions",
+        response_model=list[LearnerRemediationSessionHistoryEntry],
+        dependencies=context.deps("viewer"),
+    )
+    def list_remediation_session_history(
+        student_id: UUID,
+        limit: int = 20,
+    ) -> list[LearnerRemediationSessionHistoryEntry]:
+        profile = services.profile_store.get(student_id)
+        if profile is None:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Learner profile not found.",
+                code="learner_profile_not_found",
+            )
+        return services.learner_history_service.list_remediation_session_history(student_id=student_id, limit=limit)
+
+    @router.get(
+        "/learners/{student_id}/intervention-action",
+        response_model=TeacherInterventionActionContract,
+        dependencies=context.deps("viewer"),
+    )
+    def get_teacher_intervention_action(student_id: UUID) -> TeacherInterventionActionContract:
+        profile = services.profile_store.get(student_id)
+        if profile is None:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Learner profile not found.",
+                code="learner_profile_not_found",
+            )
+        return services.teacher_intervention_action_service.build_for_student(student_id=student_id)
+
+    @router.post(
+        "/learners/{student_id}/intervention-action",
+        response_model=TeacherInterventionActionContract,
+        dependencies=context.deps("editor"),
+    )
+    def record_teacher_intervention_action(
+        student_id: UUID,
+        decision: TeacherInterventionDecisionRequest,
+        request: Request,
+    ) -> TeacherInterventionActionContract:
+        profile = services.profile_store.get(student_id)
+        if profile is None:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Learner profile not found.",
+                code="learner_profile_not_found",
+            )
+        try:
+            return services.teacher_intervention_action_service.record_decision(
+                student_id=student_id,
+                decision=decision,
+                identity=getattr(request.state, "auth_identity", None),
+            )
+        except TeacherInterventionActionUnavailableError as exc:
+            raise api_error(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(exc),
+                code="teacher_intervention_unavailable",
+            ) from exc
+        except ValueError as exc:
+            raise api_error(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+                code="teacher_intervention_invalid_decision",
+            ) from exc
 
     return router

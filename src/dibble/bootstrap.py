@@ -35,6 +35,7 @@ from dibble.services.learner_strategy_profiles import (
 )
 from dibble.services.learner_state_calibration import LearnerStateCalibrator
 from dibble.services.learner_flow_service import LearnerFlowService
+from dibble.services.learner_history_service import LearnerHistoryService
 from dibble.services.learner_summary_service import LearnerSummaryService
 from dibble.services.learner_workspace_service import LearnerWorkspaceService
 from dibble.services.misconception_detector import MisconceptionDetector
@@ -75,6 +76,7 @@ from dibble.services.socratic_policy import SocraticTurnPolicy
 from dibble.services.socratic_profile_update import SocraticProfileUpdater
 from dibble.services.socratic_session_store import SQLiteSocraticSessionStore
 from dibble.services.state_inference import LearnerStateInferenceService
+from dibble.services.teacher_intervention_actions import TeacherInterventionActionService
 from dibble.services.telemetry import TelemetryService
 from dibble.services.within_session_adaptation import WithinSessionAdaptationService
 from dibble.services.within_session_controller_store import SQLiteWithinSessionControllerStore
@@ -110,8 +112,10 @@ class ApplicationServices:
     learning_trait_profile_recorder: LearningTraitProfileRecorder
     ordinary_mastery_profile_recorder: OrdinaryMasteryProfileRecorder
     learner_flow_service: LearnerFlowService
+    learner_history_service: LearnerHistoryService
     learner_summary_service: LearnerSummaryService
     learner_workspace_service: LearnerWorkspaceService
+    teacher_intervention_action_service: TeacherInterventionActionService
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_invalidator: PredictiveContentInvalidator
     predictive_warm_scheduler: PredictiveWarmScheduler
@@ -226,12 +230,21 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         remediation_session_store=remediation_session_store,
         within_session_controller_store=within_session_controller_store,
     )
+    learner_history_service = LearnerHistoryService(
+        generated_content_store=generated_content_store,
+        socratic_session_store=socratic_session_store,
+        remediation_session_store=remediation_session_store,
+    )
     learner_summary_service = LearnerSummaryService(
         profile_store=profile_store,
         audit_store=audit_store,
         strategy_signal_service=learner_strategy_signal_service,
         state_signal_service=learner_state_signal_service,
         trait_profile_signal_service=learner_trait_profile_signal_service,
+        learner_flow_service=learner_flow_service,
+    )
+    teacher_intervention_action_service = TeacherInterventionActionService(
+        audit_store=audit_store,
         learner_flow_service=learner_flow_service,
     )
     misconception_profile_recorder = LearningMisconceptionProfileRecorder(audit_store=audit_store)
@@ -312,8 +325,10 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         learning_trait_profile_recorder=learning_trait_profile_recorder,
         ordinary_mastery_profile_recorder=ordinary_mastery_profile_recorder,
         learner_flow_service=learner_flow_service,
+        learner_history_service=learner_history_service,
         learner_summary_service=learner_summary_service,
         learner_workspace_service=learner_workspace_service,
+        teacher_intervention_action_service=teacher_intervention_action_service,
         generation_mode_calibrator=generation_mode_calibrator,
         predictive_content_invalidator=predictive_content_invalidator,
         predictive_warm_scheduler=predictive_warm_scheduler,
