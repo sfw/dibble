@@ -1,13 +1,51 @@
 from uuid import uuid4
 
 from dibble.models.curriculum import KnowledgeComponentUpsert
+from dibble.models.observations import LearnerObservationCreate
 from dibble.models.profile import LearnerProfile, LearnerStrategySummary
 from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
 from dibble.services.misconception_detector import MisconceptionDetector
 from dibble.services.misconception_profiles import LearningMisconceptionProfileResolver
+from dibble.services.observation_store import SQLiteObservationStore
 from dibble.services.remediation_planner import RemediationPlanner
 from dibble.storage import ensure_database
 from tests.support import build_knowledge_component, build_profile
+
+
+def _append_observation(
+    observation_store: SQLiteObservationStore,
+    *,
+    student_id,
+    target_kc_id: str,
+    support_level: str,
+    hints_used: int,
+    error_count: int,
+    confidence: float,
+    response_time_ms: int = 26000,
+    expected_duration_ms: int = 15000,
+    pause_count: int = 1,
+    modality_switches: int = 0,
+) -> None:
+    observation_store.append(
+        student_id=str(student_id),
+        observation=LearnerObservationCreate.model_validate(
+            {
+                "response_time_ms": response_time_ms,
+                "hints_used": hints_used,
+                "error_count": error_count,
+                "pause_count": pause_count,
+                "modality_switches": modality_switches,
+                "completed": True,
+                "confidence": confidence,
+                "task_type": "practice",
+                "support_level": support_level,
+                "expected_duration_ms": expected_duration_ms,
+                "learning_session_id": f"session-{target_kc_id}",
+                "target_kc_ids": [target_kc_id],
+                "target_lo_ids": ["LO-1"],
+            }
+        ),
+    )
 
 
 def test_misconception_detector_prefers_low_mastery_prerequisites(tmp_path):
@@ -111,6 +149,141 @@ def test_misconception_detector_matches_alias_terms_for_catalogued_patterns(tmp_
 
     assert signals[0].misconception_id == "fraction-part-role-swap"
     assert set(signals[0].evidence_terms) >= {"top", "bottom", "swap"}
+
+
+def test_misconception_detector_uses_recent_behavioral_struggle_to_reinforce_prerequisite_gap(tmp_path):
+    database_path = str(tmp_path / "misconceptions-behavioral-prereq.db")
+    ensure_database(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(database_path)
+    observation_store = SQLiteObservationStore(database_path)
+    student_id = uuid4()
+    kc_store.upsert(KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1", name="Identify numerator and denominator")))
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component(
+                "KC-2",
+                prerequisite_kc_ids=["KC-1"],
+                name="Generate equivalent fractions",
+            )
+        )
+    )
+    _append_observation(
+        observation_store,
+        student_id=student_id,
+        target_kc_id="KC-1",
+        support_level="high",
+        hints_used=3,
+        error_count=2,
+        confidence=0.42,
+        response_time_ms=32000,
+        pause_count=2,
+    )
+    _append_observation(
+        observation_store,
+        student_id=student_id,
+        target_kc_id="KC-1",
+        support_level="high",
+        hints_used=2,
+        error_count=1,
+        confidence=0.48,
+        response_time_ms=28000,
+        modality_switches=1,
+    )
+    profile = LearnerProfile.model_validate(build_profile(student_id, kc_mastery={"KC-1": 0.62, "KC-2": 0.6}))
+    detector = MisconceptionDetector(kc_store, observation_store=observation_store)
+
+    signals = detector.detect(
+        profile,
+        target_kc_id="KC-2",
+        misconception_description="The learner is still confused about equivalent fractions.",
+        curriculum_context=["Equivalent fractions"],
+    )
+
+    prerequisite_signal = next(
+        signal for signal in signals if signal.kc_id == "KC-1" and signal.category == "prerequisite_gap"
+    )
+    target_signal = next(
+        signal for signal in signals if signal.kc_id == "KC-2" and signal.category == "target_concept_confusion"
+    )
+    assert prerequisite_signal.confidence > target_signal.confidence
+    assert "Recent observations on KC-1" in prerequisite_signal.rationale
+    assert "support-heavy attempts" in prerequisite_signal.rationale
+
+
+def test_misconception_detector_uses_repair_target_behavioral_evidence_for_catalog_match(tmp_path):
+    database_path = str(tmp_path / "misconceptions-behavioral-catalog.db")
+    ensure_database(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(database_path)
+    observation_store = SQLiteObservationStore(database_path)
+    student_id = uuid4()
+    kc_store.upsert(KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1", name="Compare whole fraction amounts")))
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component(
+                "KC-2",
+                name="Generate equivalent fractions",
+                common_misconceptions=[
+                    {
+                        "misconception_id": "fraction-whole-number-bias",
+                        "label": "Treats numerator and denominator like unrelated whole numbers",
+                        "description": "The learner compares fraction parts separately instead of the overall amount.",
+                        "trigger_terms": ["numerator", "denominator", "whole number", "separately"],
+                        "prerequisite_kc_ids": ["KC-1"],
+                        "remediation_hint": "Use one visual model to compare the whole amount before naming each part.",
+                    }
+                ],
+            )
+        )
+    )
+    _append_observation(
+        observation_store,
+        student_id=student_id,
+        target_kc_id="KC-1",
+        support_level="medium",
+        hints_used=2,
+        error_count=1,
+        confidence=0.5,
+        response_time_ms=26000,
+        pause_count=2,
+    )
+    _append_observation(
+        observation_store,
+        student_id=student_id,
+        target_kc_id="KC-1",
+        support_level="high",
+        hints_used=2,
+        error_count=2,
+        confidence=0.46,
+        response_time_ms=30000,
+        modality_switches=1,
+    )
+    profile = LearnerProfile.model_validate(build_profile(student_id, kc_mastery={"KC-2": 0.58}))
+    baseline_detector = MisconceptionDetector(kc_store)
+    behavioral_detector = MisconceptionDetector(kc_store, observation_store=observation_store)
+
+    baseline_signal = next(
+        signal
+        for signal in baseline_detector.detect(
+            profile,
+            target_kc_id="KC-2",
+            misconception_description="The learner compares the numerator and denominator separately like whole numbers.",
+            curriculum_context=["Equivalent fractions"],
+        )
+        if signal.misconception_id == "fraction-whole-number-bias"
+    )
+    behavioral_signal = next(
+        signal
+        for signal in behavioral_detector.detect(
+            profile,
+            target_kc_id="KC-2",
+            misconception_description="The learner compares the numerator and denominator separately like whole numbers.",
+            curriculum_context=["Equivalent fractions"],
+        )
+        if signal.misconception_id == "fraction-whole-number-bias"
+    )
+
+    assert behavioral_signal.confidence > baseline_signal.confidence
+    assert "Recent observations on KC-1" in behavioral_signal.rationale
 
 
 def test_remediation_planner_uses_misconception_signals_to_order_focus(tmp_path):

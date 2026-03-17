@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 
 from dibble.models.curriculum import KnowledgeComponent
 from dibble.models.generation import MisconceptionSignal
+from dibble.models.observations import LearnerObservation, ObservationSupportLevel, ObservationTaskType
 from dibble.models.profile import LearnerProfile
 from dibble.services.knowledge_component_graph import KnowledgeComponentGraph
 from dibble.services.misconception_disambiguation import MisconceptionDisambiguationService
 from dibble.services.misconception_profiles import LearningMisconceptionProfileResolver
-from dibble.services.protocols import AuditStore, KnowledgeComponentStore
+from dibble.services.protocols import AuditStore, KnowledgeComponentStore, ObservationStore
 
 
 _WORD_PATTERN = re.compile(r"[A-Za-z0-9']+")
@@ -43,6 +45,16 @@ _TERM_ALIASES = {
 }
 
 
+@dataclass(frozen=True, slots=True)
+class BehavioralEvidenceSummary:
+    kc_id: str
+    matched_observation_count: int = 0
+    struggle_count: int = 0
+    low_support_success_count: int = 0
+    confidence_adjustment: float = 0.0
+    rationale_fragment: str | None = None
+
+
 def _normalize_terms(value: str) -> set[str]:
     normalized = {
         word.lower()
@@ -60,11 +72,13 @@ class MisconceptionDetector:
         self,
         knowledge_component_store: KnowledgeComponentStore,
         *,
+        observation_store: ObservationStore | None = None,
         audit_store: AuditStore | None = None,
         misconception_profile_resolver: LearningMisconceptionProfileResolver | None = None,
         misconception_disambiguation_service: MisconceptionDisambiguationService | None = None,
     ) -> None:
         self.knowledge_component_store = knowledge_component_store
+        self.observation_store = observation_store
         self.audit_store = audit_store
         self.misconception_profile_resolver = misconception_profile_resolver
         self.misconception_disambiguation_service = (
@@ -89,6 +103,12 @@ class MisconceptionDetector:
         prerequisite_relations = graph.prerequisites_for(target_kc_id)
         prerequisite_components = [relation.component for relation in prerequisite_relations]
         prerequisite_relations_by_id = {relation.component.kc_id: relation for relation in prerequisite_relations}
+        behavioral_evidence_by_kc = self._behavioral_evidence_by_kc(
+            profile=profile,
+            target_kc_id=target_kc_id,
+            prerequisite_components=prerequisite_components,
+            related_components=[*prerequisite_components, target_component],
+        )
         signals: list[MisconceptionSignal] = []
 
         if self.audit_store is not None and self.misconception_profile_resolver is not None:
@@ -108,7 +128,14 @@ class MisconceptionDetector:
         for component in [*prerequisite_components, target_component]:
             if component is None:
                 continue
-            signals.extend(self._catalog_signals(component=component, profile=profile, evidence_terms=evidence_terms))
+            signals.extend(
+                self._catalog_signals(
+                    component=component,
+                    profile=profile,
+                    evidence_terms=evidence_terms,
+                    behavioral_evidence_by_kc=behavioral_evidence_by_kc,
+                )
+            )
 
         for component in prerequisite_components:
             mastery = profile.knowledge_state.kc_mastery.get(component.kc_id, 0.0)
@@ -120,14 +147,27 @@ class MisconceptionDetector:
             relation_bonus = 0.0
             if relation is not None:
                 relation_bonus = max(0.0, (relation.path_weight * 0.18) - ((relation.depth - 1) * 0.05))
+            behavioral_summary = behavioral_evidence_by_kc.get(component.kc_id)
 
-            confidence = min(0.95, 0.42 + (mastery_gap * 0.55) + (len(overlap_terms) * 0.08) + relation_bonus)
+            confidence = min(
+                0.95,
+                0.42
+                + (mastery_gap * 0.55)
+                + (len(overlap_terms) * 0.08)
+                + relation_bonus
+                + (behavioral_summary.confidence_adjustment if behavioral_summary is not None else 0.0),
+            )
             rationale = (
                 f"{component.name} looks like a prerequisite gap because mastery is {mastery:.2f}"
                 + (f" and the misconception language overlaps on {', '.join(overlap_terms)}." if overlap_terms else ".")
                 + (
                     f" It is a depth-{relation.depth} prerequisite with path weight {relation.path_weight:.2f}."
                     if relation is not None
+                    else ""
+                )
+                + (
+                    f" {behavioral_summary.rationale_fragment}"
+                    if behavioral_summary is not None and behavioral_summary.rationale_fragment is not None
                     else ""
                 )
             )
@@ -150,7 +190,18 @@ class MisconceptionDetector:
             evidence_terms,
         )
         if target_mastery < 0.85 or target_overlap:
-            confidence = min(0.9, 0.4 + max(0.85 - target_mastery, 0.0) * 0.5 + len(target_overlap) * 0.05)
+            target_behavioral_summary = behavioral_evidence_by_kc.get(target_kc_id)
+            confidence = min(
+                0.9,
+                0.4
+                + max(0.85 - target_mastery, 0.0) * 0.5
+                + len(target_overlap) * 0.05
+                + (
+                    target_behavioral_summary.confidence_adjustment
+                    if target_behavioral_summary is not None
+                    else 0.0
+                ),
+            )
             target_name = target_component.name if target_component is not None else target_kc_id
             signals.append(
                 MisconceptionSignal(
@@ -160,6 +211,12 @@ class MisconceptionDetector:
                     rationale=(
                         f"{target_name} still appears fragile with mastery {target_mastery:.2f}"
                         + (f" and overlap on {', '.join(target_overlap)}." if target_overlap else ".")
+                        + (
+                            f" {target_behavioral_summary.rationale_fragment}"
+                            if target_behavioral_summary is not None
+                            and target_behavioral_summary.rationale_fragment is not None
+                            else ""
+                        )
                     ),
                     source="heuristic",
                     recommended_kc_ids=[target_kc_id],
@@ -197,6 +254,7 @@ class MisconceptionDetector:
         component: KnowledgeComponent,
         profile: LearnerProfile,
         evidence_terms: set[str],
+        behavioral_evidence_by_kc: dict[str, BehavioralEvidenceSummary],
     ) -> list[MisconceptionSignal]:
         signals: list[MisconceptionSignal] = []
         mastery = profile.knowledge_state.kc_mastery.get(component.kc_id, 0.0)
@@ -217,13 +275,19 @@ class MisconceptionDetector:
             overlap_ratio = len(matched_terms) / max(1, len(trigger_terms))
             distinctive_ratio = len(distinctive_terms) / max(1, len(matched_terms))
             repair_target_bonus = 0.06 if misconception.prerequisite_kc_ids else 0.0
+            behavioral_summary = self._catalog_behavioral_summary(
+                component_kc_id=component.kc_id,
+                recommended_kc_ids=misconception.prerequisite_kc_ids,
+                behavioral_evidence_by_kc=behavioral_evidence_by_kc,
+            )
             confidence = min(
                 0.98,
                 0.5
                 + (overlap_ratio * 0.2)
                 + (distinctive_ratio * 0.12)
                 + (mastery_gap * 0.22)
-                + repair_target_bonus,
+                + repair_target_bonus
+                + (behavioral_summary.confidence_adjustment if behavioral_summary is not None else 0.0),
             )
             signals.append(
                 MisconceptionSignal(
@@ -233,6 +297,11 @@ class MisconceptionDetector:
                     rationale=(
                         f"{component.name} matches the misconception pattern '{misconception.label}'"
                         f" based on {', '.join(distinctive_terms or matched_terms)}."
+                        + (
+                            f" {behavioral_summary.rationale_fragment}"
+                            if behavioral_summary is not None and behavioral_summary.rationale_fragment is not None
+                            else ""
+                        )
                     ),
                     source="catalog",
                     misconception_id=misconception.misconception_id,
@@ -242,6 +311,180 @@ class MisconceptionDetector:
                 )
             )
         return signals
+
+    def _behavioral_evidence_by_kc(
+        self,
+        *,
+        profile: LearnerProfile,
+        target_kc_id: str,
+        prerequisite_components: list[KnowledgeComponent],
+        related_components: list[KnowledgeComponent | None],
+    ) -> dict[str, BehavioralEvidenceSummary]:
+        if self.observation_store is None:
+            return {}
+        relevant_kc_ids = [target_kc_id, *(component.kc_id for component in prerequisite_components)]
+        for component in related_components:
+            if component is None:
+                continue
+            for misconception in component.common_misconceptions:
+                relevant_kc_ids.extend(misconception.prerequisite_kc_ids)
+        observations = self.observation_store.list_recent(student_id=str(profile.student_id), limit=30)
+        summaries: dict[str, BehavioralEvidenceSummary] = {}
+        for kc_id in _unique_items(relevant_kc_ids):
+            matched_observations = [
+                observation
+                for observation in observations
+                if kc_id in observation.target_kc_ids
+                and observation.task_type
+                in {ObservationTaskType.practice, ObservationTaskType.remediation, ObservationTaskType.assessment}
+            ]
+            if not matched_observations:
+                continue
+            struggle_count = sum(1 for observation in matched_observations if self._is_behavioral_struggle(observation))
+            low_support_success_count = sum(
+                1 for observation in matched_observations if self._is_behavioral_low_support_success(observation)
+            )
+            confidence_adjustment = self._behavioral_confidence_adjustment(
+                struggle_count=struggle_count,
+                low_support_success_count=low_support_success_count,
+            )
+            summaries[kc_id] = BehavioralEvidenceSummary(
+                kc_id=kc_id,
+                matched_observation_count=len(matched_observations),
+                struggle_count=struggle_count,
+                low_support_success_count=low_support_success_count,
+                confidence_adjustment=confidence_adjustment,
+                rationale_fragment=self._behavioral_rationale_fragment(
+                    kc_id=kc_id,
+                    observations=matched_observations,
+                    struggle_count=struggle_count,
+                    low_support_success_count=low_support_success_count,
+                ),
+            )
+        return summaries
+
+    def _catalog_behavioral_summary(
+        self,
+        *,
+        component_kc_id: str,
+        recommended_kc_ids: list[str],
+        behavioral_evidence_by_kc: dict[str, BehavioralEvidenceSummary],
+    ) -> BehavioralEvidenceSummary | None:
+        direct_summary = behavioral_evidence_by_kc.get(component_kc_id)
+        if direct_summary is not None and direct_summary.confidence_adjustment != 0.0:
+            return direct_summary
+        candidate_summaries = [
+            behavioral_evidence_by_kc[kc_id]
+            for kc_id in recommended_kc_ids
+            if kc_id in behavioral_evidence_by_kc
+            and behavioral_evidence_by_kc[kc_id].confidence_adjustment != 0.0
+        ]
+        if not candidate_summaries:
+            return direct_summary
+        return max(
+            candidate_summaries,
+            key=lambda summary: (
+                abs(summary.confidence_adjustment),
+                summary.struggle_count,
+                summary.matched_observation_count,
+            ),
+        )
+
+    def _behavioral_confidence_adjustment(
+        self,
+        *,
+        struggle_count: int,
+        low_support_success_count: int,
+    ) -> float:
+        if struggle_count >= 2 and low_support_success_count == 0:
+            return 0.10
+        if struggle_count >= 1 and low_support_success_count == 0:
+            return 0.05
+        if low_support_success_count >= 2 and struggle_count == 0:
+            return -0.05
+        if low_support_success_count >= 1 and struggle_count == 0:
+            return -0.02
+        return 0.0
+
+    def _behavioral_rationale_fragment(
+        self,
+        *,
+        kc_id: str,
+        observations: list[LearnerObservation],
+        struggle_count: int,
+        low_support_success_count: int,
+    ) -> str | None:
+        if not observations:
+            return None
+        struggle_markers = self._behavioral_struggle_markers(observations)
+        if struggle_count > 0 and low_support_success_count == 0:
+            marker_fragment = ", ".join(struggle_markers) if struggle_markers else "support-heavy struggle"
+            return (
+                f"Recent observations on {kc_id} showed {marker_fragment} across {struggle_count} attempt"
+                f"{'s' if struggle_count != 1 else ''}, which reinforces this signal."
+            )
+        if low_support_success_count > 0 and struggle_count == 0:
+            return (
+                f"Recent observations on {kc_id} included {low_support_success_count} low-support success"
+                f"{'es' if low_support_success_count != 1 else ''}, so this signal stays more cautious."
+            )
+        return None
+
+    def _behavioral_struggle_markers(self, observations: list[LearnerObservation]) -> list[str]:
+        markers: list[str] = []
+        if any(observation.support_level == ObservationSupportLevel.high for observation in observations):
+            markers.append("support-heavy attempts")
+        if any(observation.error_count >= 1 for observation in observations):
+            markers.append("repeated errors")
+        if any(observation.hints_used >= 2 for observation in observations):
+            markers.append("high hint use")
+        if any(self._response_ratio(observation) >= 1.6 for observation in observations):
+            markers.append("prolonged response times")
+        if any(observation.pause_count >= 2 for observation in observations):
+            markers.append("pause-heavy attempts")
+        if any(observation.modality_switches >= 1 for observation in observations):
+            markers.append("modality switching")
+        return markers
+
+    def _is_behavioral_struggle(self, observation: LearnerObservation) -> bool:
+        score = 0.0
+        if observation.support_level == ObservationSupportLevel.high:
+            score += 1.0
+        elif observation.support_level == ObservationSupportLevel.medium:
+            score += 0.5
+        if observation.error_count >= 2:
+            score += 1.0
+        elif observation.error_count == 1:
+            score += 0.5
+        if observation.hints_used >= 2:
+            score += 1.0
+        elif observation.hints_used == 1:
+            score += 0.5
+        if observation.pause_count >= 2:
+            score += 0.5
+        if observation.modality_switches >= 1:
+            score += 0.5
+        if self._response_ratio(observation) >= 1.6:
+            score += 0.5
+        if not observation.completed:
+            score += 1.0
+        return score >= 2.0
+
+    def _is_behavioral_low_support_success(self, observation: LearnerObservation) -> bool:
+        return (
+            observation.completed
+            and observation.support_level == ObservationSupportLevel.low
+            and observation.error_count == 0
+            and observation.hints_used <= 1
+            and observation.pause_count <= 1
+            and self._response_ratio(observation) <= 1.4
+            and observation.confidence >= 0.6
+        )
+
+    def _response_ratio(self, observation: LearnerObservation) -> float:
+        if observation.expected_duration_ms is None or observation.expected_duration_ms <= 0:
+            return 1.0
+        return observation.response_time_ms / observation.expected_duration_ms
 
 
 def _deduplicate_signals(signals: list[MisconceptionSignal]) -> list[MisconceptionSignal]:

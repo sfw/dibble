@@ -176,6 +176,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         knowledge_component_store,
         MisconceptionDetector(
             knowledge_component_store,
+            observation_store=observation_store,
             audit_store=audit_store,
             misconception_profile_resolver=LearningMisconceptionProfileResolver(),
         ),
