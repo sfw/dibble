@@ -112,6 +112,10 @@ def test_generated_content_can_be_reloaded_by_generation_id(client, student_id):
     assert payload["request_context"]["progression"]["action"] == "hold_target"
     assert payload["workflow_summary"]["progression_action"] == "hold_target"
     assert payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
+    assert len(payload["response"]["artifacts"]) == len(payload["response"]["blocks"])
+    assert all(artifact["artifact_type"] == "text" for artifact in payload["response"]["artifacts"])
+    assert payload["response"]["artifacts"][0]["role"] == payload["response"]["blocks"][0]["kind"]
+    assert payload["response"]["artifacts"][0]["text"] == payload["response"]["blocks"][0]["body"]
 
 
 def test_generated_content_not_found_returns_machine_readable_error(client):
@@ -1247,6 +1251,8 @@ def test_stream_generation_endpoint_emits_sse_events_and_audits(client, student_
     assert events[-1]["data"]["workflow_summary"]["delivered_content_type"] == "remedial_micro_module"
     assert events[-1]["data"]["response"]["route"]["delivery_mode"] == "generated"
     assert events[-1]["data"]["response"]["grounding"][0]["resource_id"] == "CURR-1"
+    assert events[-1]["data"]["response"]["artifacts"][0]["artifact_type"] == "text"
+    assert events[-1]["data"]["response"]["artifacts"][0]["role"] == "summary"
 
     stream_audit = next(event for event in audit_response.json() if event["event_type"] == "content.generate.stream")
     assert stream_audit["payload"]["generated_block_count"] == 2

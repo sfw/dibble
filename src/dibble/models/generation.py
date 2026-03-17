@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
+from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from dibble.models.profile import LearnerContinueAction, LearnerFlowNextStep
 
@@ -196,6 +197,29 @@ class GeneratedBlockChunk(BaseModel):
     done: bool = False
 
 
+class GeneratedTextArtifact(BaseModel):
+    artifact_id: str
+    artifact_type: Literal["text"] = "text"
+    sequence_index: int = Field(default=0, ge=0)
+    role: str
+    title: str
+    mime_type: str = "text/plain"
+    text: str
+
+
+def build_text_artifacts(blocks: list["GeneratedBlock"]) -> list[GeneratedTextArtifact]:
+    return [
+        GeneratedTextArtifact(
+            artifact_id=f"text-{index}",
+            sequence_index=index,
+            role=block.kind,
+            title=block.title,
+            text=block.body,
+        )
+        for index, block in enumerate(blocks)
+    ]
+
+
 class MisconceptionSignal(BaseModel):
     kc_id: str
     category: str
@@ -290,12 +314,19 @@ class GenerationResponse(BaseModel):
     generated_at: datetime = Field(default_factory=utc_now)
     route: AdaptiveRouteDecision
     blocks: list[GeneratedBlock]
+    artifacts: list[GeneratedTextArtifact] = Field(default_factory=list)
     curriculum_context: list[str]
     grounding: list[GroundingReference] = Field(default_factory=list)
     safety_notes: list[str]
     validation_issues: list[str] = Field(default_factory=list)
     generation_id: str | None = None
     generation_metadata: GenerationMetadata | None = None
+
+    @model_validator(mode="after")
+    def populate_artifacts_from_blocks(self) -> "GenerationResponse":
+        if not self.artifacts:
+            self.artifacts = build_text_artifacts(self.blocks)
+        return self
 
 
 class GeneratedContent(BaseModel):

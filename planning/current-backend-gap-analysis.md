@@ -48,11 +48,10 @@ The backend now covers a meaningful slice of the revised Phase 1 and early Phase
 - The backend now also compacts recent learner observations plus durable state-profile context into `learning.cognitive_trait.profile` events, including trait-stability, challenge-tolerance, per-trait reliability, and challenge-evidence-strength signals, and live cognitive-trait inference can blend those cross-session trait targets back into processing-speed, working-memory, and spatial-reasoning updates more selectively instead of treating every durable trait dimension as equally trustworthy.
 - Live learner-state and cognitive-trait inference now also score the strength of current evidence more explicitly, and durable learner-state profiles now carry per-dimension affective-versus-load reliability signals, so rich contradictory current observations can push back harder on only the mismatching durable state/trait dimensions while sparse evidence still lets stable durable load, metacognitive, or trait signals help with backfill.
 
-The biggest remaining gaps are no longer basic plumbing. They are mostly contract-hardening and only then adaptive intelligence depth:
+The biggest remaining gaps are no longer frontend-blocking API seams. For the current frontend scope, there are no active `P0` backend blockers left. The main remaining work is now product-dependent future depth:
 
-- backend-owned contract stability across progression, continue, intervention, classroom, and error surfaces so the frontend can reuse one typed adapter instead of branching around drift
-- explicit finite vocabularies for teacher intervention and other workflow-facing enums that are currently carried as backend-owned strings but not yet treated as hardened contract sets
-- future multimodal artifact packaging so richer artifact types arrive through an explicit discriminated contract instead of stretching the current text-oriented shapes
+- a true course-level planner only if product needs exceed the current learner `curriculum_progression` read model and the classroom or learner views need stronger cross-unit sequencing authority
+- richer multimodal artifact variants beyond the new explicit discriminated `response.artifacts` contract, which now gives generated content a stable `text` artifact shape without breaking the existing `blocks` payload
 - compact explainability-oriented teacher analytics only if classroom views need more than the current learner cards, intervention summaries, and classroom-level counts
 
 - true learner-state inference rather than manually supplied profile fields
@@ -115,7 +114,7 @@ Legend:
 | `DATA-003` GeneratedContent entity with quality metadata | Implemented | Persisted generated content plus `generation_metadata` and `GeneratedContent` API envelope |
 | `DATA-004` Practice-driven knowledge updates | Partial | Socratic assessment can update KC and LO mastery and propagate that evidence through the KC graph, linked practice or remediation observations can now also write target mastery back through the same migration layer, repeated same-session target observations can now strengthen that writeback, strong target-scoped ordinary-work observations can still count without an explicit generation/session link when the evidence is specific enough, and a newer durable `learning.ordinary_mastery.profile` layer can now summarize repeated ordinary-work evidence into inspectable `durable_mastery`, `emerging_mastery`, `support_dependent`, or `fragile` signals that modestly shape later writeback trust; ordinary writeback now also gives repeated low-support success a clearer edge over support-heavy success when blending mastery, but the pipeline is still heuristic rather than a learned knowledge-tracing system |
 | `DATA-005` Learned knowledge tracing | Deferred | Replace the current inspectable heuristic writeback and durable ordinary mastery summaries with a learned or probabilistic knowledge-tracing layer only after the current backend-owned evidence loop has stabilized and proven where heuristics genuinely fall short |
-| `GEN-005` Discriminated multimodal artifact contract | Deferred | Introduce richer multimodal or interactive artifacts through an explicit discriminated backend contract rather than stretching the current text-block generation shape only after product scope truly needs those artifact types |
+| `GEN-005` Discriminated multimodal artifact contract | Partial | Generated content now also exposes a discriminated `response.artifacts` contract with a stable `text` artifact variant derived from the existing block payload, so future multimodal or interactive artifacts can extend a backend-owned envelope without breaking current `blocks` consumers |
 | `ORCH-001` Learner progression orchestration | Partial | The backend now carries mode-calibration, KC-sequencing, session-phase, remediation-session, predictive next-step metadata, a first remediation-local hold/advance decision that can reuse linked learner evidence, and a broader local progression-ownership layer that can redirect ordinary generation to prerequisite or bridge KCs before honoring the caller's requested target, explicitly name whether work is in a repair, bridge, target, or transfer stage, now evaluate progression evidence against the backend-applied repair or bridge target instead of only the originally requested KC, now also let durable ordinary mastery profiles veto premature ordinary transfer when same-session evidence is sparse, resume transfer on the deferred target when stronger same-session evidence earns that override, rewrite premature assessment probes back into practice on the appropriate stage target, and expose a backend-owned curriculum progression read model that summarizes current resource focus, next ready resource, and prerequisite blockers, but there is still no true course-level planner or sequencing subsystem |
 | `ORCH-004` Teacher-safe intervention action contract | Implemented | `GET /api/learners/{student_id}/intervention-action` now exposes a backend-owned proposal keyed to the current learner flow, explicit selectable backend-generated alternatives, allowed teacher decisions, and persisted latest-decision state |
 | `ORCH-002` Course-level progression planner | Deferred | Add a single backend-owned planner for cross-lesson, cross-unit, and course-level progression only if the current local stage ownership, learner-flow contract, and inspectable next-step rules prove insufficient for broader progression control |
@@ -126,11 +125,11 @@ Legend:
 
 Based on `planning/4 - revised-spec/implementation-roadmap.md`, `planning/5 - dev-handoff-revised-spec/requirements-traceability.csv`, the current code seams, and the frontend implementation note in `planning/from-front-to-back-needs.md`, the strongest next backend slices are now:
 
-1. keep classroom detail compact and summary-first; add explainability-oriented teacher analytics only if product needs exceed the current learner cards, intervention summaries, and classroom counts.
-2. keep multimodal artifacts behind an explicit discriminated contract (`GEN-005`) rather than stretching text-oriented payloads if richer artifact types arrive.
-3. keep scheduler autonomy, broader orchestration ideas, and a true course-level planner behind observed product pressure rather than treating them as default pre-frontend work.
-4. only broaden the now-explicit intervention vocabulary or continue-action kinds if product truly needs new backend-owned workflow actions, and treat that as a contract change rather than a casual string addition.
-5. prefer future frontend-readiness work that adds compact backend-owned summaries or discriminated contracts over any UI-side reconstruction of lower-level telemetry.
+1. treat the current frontend scope as unblocked and avoid inventing new backend work just because the platform can support it.
+2. revisit a true course-level planner only if product needs exceed the current learner `curriculum_progression` read model and local progression ownership.
+3. keep classroom detail compact and summary-first; add explainability-oriented teacher analytics only if product needs exceed the current learner cards, intervention summaries, and classroom counts.
+4. keep multimodal expansion behind the new explicit discriminated artifact contract (`GEN-005`) rather than stretching text-oriented payloads or forcing the frontend to infer future artifact types.
+5. keep scheduler autonomy, broader orchestration ideas, and other deeper intelligence work behind observed product pressure rather than treating them as default pre-frontend work.
 
 Most recent progress:
 
@@ -148,7 +147,8 @@ Most recent progress:
 12. progression parity is now regression-protected across `GET /api/learners/{student_id}/progression`, `summary.curriculum_progression`, and teacher classroom learner cards instead of being only an implicit implementation detail.
 13. `continue_action` and teacher intervention vocabulary are now explicit backend-owned contract sets with shared constructors, finite enums, and regression coverage across lesson, remediation, Socratic, history, workspace, and intervention surfaces.
 14. machine-readable error responses now also keep the same backend-owned code in both header and body while preserving the existing human-readable `detail` string, so frontend error handling no longer needs to choose between header scraping and brittle message matching.
-15. the next frontend-facing backend work is now mostly down to any future multimodal or analytics expansion, not basic workflow-contract drift.
+15. there are now no active `P0` backend blockers for the current frontend scope; the next backend work should come from product expansion rather than missing core frontend contracts.
+16. generated content now also exposes a discriminated `response.artifacts` contract with stable `text` artifacts derived from the existing block list, so future multimodal payloads have an explicit backend-owned extension seam without forcing immediate frontend churn.
 
 ### Pre-Frontend Priorities
 
@@ -240,7 +240,8 @@ Frontend implementation has now surfaced a smaller set of concrete backend asks 
 5. teacher workflow control now also has stable finite vocabularies for proposal status, allowed decisions, decision status, and linked continue-action kinds (`API-012`) so the frontend can treat them as explicit backend-owned enums.
 6. classroom or cohort aggregation is now covered by `GET /api/teachers/classrooms` and `GET /api/teachers/classrooms/{classroom_id}` (`API-009`), and future classroom detail should stay compact and summary-first rather than dumping lower-level telemetry into learner cards.
 7. machine-readable errors are now consistent in both header and body (`API-013`) across the main frontend-facing auth, learner, teacher, content, and assessment flows.
-8. multimodal artifact contracts and richer teacher analytics remain future needs, but multimodal should arrive through a discriminated backend contract (`GEN-005`) and analytics should only expand if product needs exceed the current classroom cards and counts.
+8. no active `P0` backend blockers remain for the current frontend scope.
+9. richer multimodal artifact variants and teacher analytics remain future needs, but multimodal now has a first backend-owned discriminated contract (`GEN-005`) and analytics should only expand if product needs exceed the current classroom cards and counts.
 
 Until those frontend-discovered gaps are addressed, the safest frontend stance remains:
 
@@ -248,6 +249,7 @@ Until those frontend-discovered gaps are addressed, the safest frontend stance r
 2. treat `current_flow`, `curriculum_progression`, session summaries, `workflow_summary`, `continue_action`, `intervention-action`, teacher classroom read models, and machine-readable error codes as the canonical backend-owned contracts rather than reconstructing policy or authority in the UI.
 3. assume progression, `continue_action`, and intervention vocabulary stability are backend responsibilities, not places for frontend adapters to paper over drift.
 4. keep richer analytics or multimodal dashboard behaviors out of the frontend until the backend ships explicit contracts for them.
+5. treat a true course-level planner as future backend work only if product scope actually outgrows the current curriculum progression contract.
 
 #### Lower priority before frontend
 
@@ -262,10 +264,10 @@ Those are better treated as parallel or later backend tracks once the frontend c
 
 ## Recommendation
 
-The curriculum-grounding and learner-flow follow-through are now in a good local state, and the next coherent implementation steps should come from the concrete frontend contract-stability gaps now surfaced rather than from another speculative architecture pass:
+The curriculum-grounding and learner-flow follow-through are now in a good local state, and the backend is effectively ready for the current frontend scope. The next coherent implementation steps should now come from product expansion rather than from speculative readiness work:
 
-- prefer future explicit multimodal/analytics contracts before adding more scheduler autonomy than the current inspectable claim-and-process model
-- prefer explicit frontend-discovered contract drift or teacher-workflow misses before broadening progression ownership into a larger planner
+- prefer future multimodal expansion through the new explicit artifact contract or compact teacher analytics before adding more scheduler autonomy than the current inspectable claim-and-process model
+- prefer explicit product pressure before broadening progression ownership into a larger planner
 - keep new work local and testable instead of turning the backend into a speculative job platform, planner, retrieval stack, or analytics platform
 
 That is now the highest-leverage stance because the backend has crossed thirteen important thresholds: it can ground generation in richer curriculum excerpts, it now also chooses more relevant local grounding passages inside a resource instead of trusting only broad whole-body excerpts, it can compact ordinary practice and remediation history into an inspectable durable mastery profile before the next writeback, it can write back stronger ordinary-work evidence and redirect some progression decisions toward prerequisite or bridge KCs, it can now also let stronger same-session evidence resume transfer on the real target when that is more trustworthy than a slower durable hold, it now distinguishes productive struggle from overload or support-heavy success more honestly before fading support, it now gives the generation layer richer learner-facing construction structure instead of only flat distractor or fade metadata, the moderation path is now clear enough that safety handling is no longer the primary limiting factor, the predictive warm queue can now do a bounded amount of autonomous inline catch-up, explicit background queue drainage, and auditable claim ownership without yet turning into a job platform, Socratic steering is now explicit enough that later services do not need to guess whether a diagnostic turn was an initial probe, a loop break, or a restate-and-apply recovery move, generation can now also use a compact cross-session Socratic conversation history when the current session is sparse, and ordinary generation now has a broader inspectable mastery gate that can rewrite premature assessment requests back into target, repair, or bridge practice. The next constraint should come from observed backend traces rather than from another speculative architectural wish list.
