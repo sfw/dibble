@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from uuid import UUID
 
 from dibble.models.generation import ContentIntent, GenerationRequest, RequestedContentType
+from dibble.models.profile import OrdinaryMasterySummary
 from dibble.services.kc_sequence_planner import KcSequencePlanner
 from dibble.services.observation_profile_update import ObservationProfileUpdater
 from dibble.services.protocols import AuditStore, KnowledgeComponentStore, ObservationStore
@@ -27,10 +28,22 @@ class ProgressionOwnershipDecision:
     evidence_confidence: float = 0.0
     average_observed_mastery: float | None = None
     average_assessment_mastery: float | None = None
+    ordinary_mastery_signal: str = "insufficient"
+    ordinary_mastery_source: str = "insufficient"
+    ordinary_mastery_confidence: float = 0.0
+    ordinary_mastery_average_observed_mastery: float | None = None
+    ordinary_mastery_rationale: str | None = None
     requested_content_type: str | None = None
     applied_content_type: str | None = None
     mastery_gate_applied: bool = False
     mastery_gate_reason: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class OrdinaryProgressionDecision:
+    decision: str = "monitor"
+    rationale: str | None = None
+    summary: OrdinaryMasterySummary = field(default_factory=OrdinaryMasterySummary)
 
 
 @dataclass(slots=True)
@@ -41,6 +54,7 @@ class ProgressionOwnershipService:
     observation_store: ObservationStore | None = None
     audit_store: AuditStore | None = None
     observation_profile_updater: ObservationProfileUpdater | None = None
+    ordinary_mastery_signal_service: object | None = None
     kc_sequence_planner: KcSequencePlanner | None = None
 
     def __post_init__(self) -> None:
@@ -120,6 +134,12 @@ class ProgressionOwnershipService:
             request=stage_request,
             session_summary=session,
         )
+        ordinary_mastery_decision = self._ordinary_mastery_decision(
+            student_id=student_id,
+            request=stage_request,
+            current_action=action,
+            target_stage=target_stage,
+        )
         if self._should_prefer_transfer(evidence_decision=evidence_decision):
             action = "attempt_transfer"
             source = "progression_evidence"
@@ -135,6 +155,11 @@ class ProgressionOwnershipService:
             source = "progression_evidence"
             target_stage = self._target_stage_for_action(action=action, fallback=target_stage)
             rationale = evidence_decision.rationale
+        elif ordinary_mastery_decision.decision != "monitor":
+            action = ordinary_mastery_decision.decision
+            source = "ordinary_mastery_profile"
+            target_stage = self._target_stage_for_action(action=action, fallback=target_stage)
+            rationale = ordinary_mastery_decision.rationale
 
         applied_request, mastery_gate_action, mastery_gate_reason = self._apply_mastery_gate(
             request=applied_request.model_copy(
@@ -175,6 +200,11 @@ class ProgressionOwnershipService:
                 evidence_confidence=evidence_decision.confidence,
                 average_observed_mastery=evidence_decision.average_observed_mastery,
                 average_assessment_mastery=evidence_decision.average_assessment_mastery,
+                ordinary_mastery_signal=ordinary_mastery_decision.summary.signal,
+                ordinary_mastery_source=ordinary_mastery_decision.summary.source,
+                ordinary_mastery_confidence=ordinary_mastery_decision.summary.confidence,
+                ordinary_mastery_average_observed_mastery=ordinary_mastery_decision.summary.average_observed_mastery,
+                ordinary_mastery_rationale=ordinary_mastery_decision.summary.rationale,
                 requested_content_type=requested_content_type,
                 applied_content_type=applied_content_type,
                 mastery_gate_applied=mastery_gate_applied,
@@ -210,6 +240,11 @@ class ProgressionOwnershipService:
             evidence_confidence=evidence_decision.confidence,
             average_observed_mastery=evidence_decision.average_observed_mastery,
             average_assessment_mastery=evidence_decision.average_assessment_mastery,
+            ordinary_mastery_signal=ordinary_mastery_decision.summary.signal,
+            ordinary_mastery_source=ordinary_mastery_decision.summary.source,
+            ordinary_mastery_confidence=ordinary_mastery_decision.summary.confidence,
+            ordinary_mastery_average_observed_mastery=ordinary_mastery_decision.summary.average_observed_mastery,
+            ordinary_mastery_rationale=ordinary_mastery_decision.summary.rationale,
             requested_content_type=requested_content_type,
             applied_content_type=applied_content_type,
             mastery_gate_applied=mastery_gate_applied,
@@ -260,6 +295,56 @@ class ProgressionOwnershipService:
             session_sequence_action=session_summary.sequence_action,
             session_rationale=session_summary.rationale,
         )
+
+    def _ordinary_mastery_decision(
+        self,
+        *,
+        student_id: UUID,
+        request: GenerationRequest,
+        current_action: str,
+        target_stage: str,
+    ) -> OrdinaryProgressionDecision:
+        if self.ordinary_mastery_signal_service is None:
+            return OrdinaryProgressionDecision()
+        if target_stage != "target":
+            return OrdinaryProgressionDecision()
+        if current_action not in {"stay_on_requested_target", "attempt_transfer"}:
+            return OrdinaryProgressionDecision()
+        if not request.target_kc_ids and not request.target_lo_ids:
+            return OrdinaryProgressionDecision()
+        summary = self.ordinary_mastery_signal_service.latest_for_student(
+            student_id=student_id,
+            target_kc_ids=request.target_kc_ids,
+            target_lo_ids=request.target_lo_ids,
+        )
+        if summary.signal == "support_dependent" and summary.confidence >= 0.55:
+            return OrdinaryProgressionDecision(
+                decision="hold_target",
+                rationale=(
+                    summary.rationale
+                    or "Cross-session ordinary practice still looks support-dependent, so the backend should keep the learner on target practice."
+                ),
+                summary=summary,
+            )
+        if summary.signal == "fragile" and summary.confidence >= 0.65:
+            return OrdinaryProgressionDecision(
+                decision="hold_target",
+                rationale=(
+                    summary.rationale
+                    or "Cross-session ordinary practice still looks fragile, so the backend should keep the learner on target practice."
+                ),
+                summary=summary,
+            )
+        if current_action == "attempt_transfer" and summary.signal == "emerging_mastery" and summary.confidence >= 0.7:
+            return OrdinaryProgressionDecision(
+                decision="hold_target",
+                rationale=(
+                    summary.rationale
+                    or "Cross-session ordinary practice is improving but not yet durable enough to skip target practice."
+                ),
+                summary=summary,
+            )
+        return OrdinaryProgressionDecision(summary=summary)
 
     def _apply_mastery_gate(
         self,

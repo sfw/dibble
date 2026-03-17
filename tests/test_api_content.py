@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from tests.api_support import parse_sse_events
 from dibble.app import create_app
 from dibble.config import Settings
+from dibble.services.audit_store import SQLiteAuditStore
 from tests.support import build_curriculum_resource, build_knowledge_component, build_profile
 
 
@@ -309,6 +310,54 @@ def test_generation_endpoint_holds_target_when_recent_same_session_evidence_is_s
         and event["payload"]["source_generation_id"] == payload["generation_id"]
     )
     assert predictive_event["payload"]["predicted_content_types"] == ["practice_problem"]
+
+
+def test_generation_endpoint_uses_durable_ordinary_mastery_to_hold_assessment_request(
+    client, student_id, app_settings
+):
+    audit_store = SQLiteAuditStore(app_settings.database_path)
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    audit_store.append(
+        event_type="learning.ordinary_mastery.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": ["LO-1"],
+            "profile_signal": "support_dependent",
+            "profile_confidence": 0.81,
+            "matched_observation_count": 5,
+            "matched_session_count": 3,
+            "average_observed_mastery": 0.6,
+            "low_support_success_rate": 0.2,
+            "high_support_dependency_rate": 0.8,
+            "ordinary_mastery_profile_rationale": "Ordinary practice is still too support-heavy for transfer.",
+        },
+    )
+
+    response = client.post(
+        "/api/content/generate",
+        json={
+            "student_id": str(student_id),
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": ["LO-1"],
+            "intent": "assessment",
+            "requested_content_type": "assessment_probe",
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["request_context"]["progression"]["action"] == "hold_target_before_assessment"
+    assert payload["request_context"]["progression"]["ordinary_mastery_signal"] == "support_dependent"
+    assert payload["request_context"]["progression"]["ordinary_mastery_confidence"] == 0.81
+    assert payload["request_context"]["progression"]["ordinary_mastery_rationale"] == (
+        "Ordinary practice is still too support-heavy for transfer."
+    )
+    assert payload["workflow_summary"]["progression_action"] == "hold_target_before_assessment"
+    assert payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
 
 
 def test_predictive_warm_process_endpoint_drains_pending_queue(tmp_path, student_id):

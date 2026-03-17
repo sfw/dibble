@@ -178,6 +178,13 @@ class ContentWorkflowService:
                 "progression_evidence_confidence": prepared.progression_decision.evidence_confidence,
                 "progression_average_observed_mastery": prepared.progression_decision.average_observed_mastery,
                 "progression_average_assessment_mastery": prepared.progression_decision.average_assessment_mastery,
+                "progression_ordinary_mastery_signal": prepared.progression_decision.ordinary_mastery_signal,
+                "progression_ordinary_mastery_source": prepared.progression_decision.ordinary_mastery_source,
+                "progression_ordinary_mastery_confidence": prepared.progression_decision.ordinary_mastery_confidence,
+                "progression_ordinary_mastery_average_observed_mastery": (
+                    prepared.progression_decision.ordinary_mastery_average_observed_mastery
+                ),
+                "progression_ordinary_mastery_rationale": prepared.progression_decision.ordinary_mastery_rationale,
                 "scaffolding_level": response.route.scaffolding_level,
                 "mode_calibration_signal": (
                     prepared.request.mode_calibration.signal if prepared.request.mode_calibration is not None else None
@@ -502,6 +509,11 @@ class ContentWorkflowService:
             "confidence": progression_decision.evidence_confidence,
             "average_observed_mastery": progression_decision.average_observed_mastery,
             "average_assessment_mastery": progression_decision.average_assessment_mastery,
+            "ordinary_mastery_signal": progression_decision.ordinary_mastery_signal,
+            "ordinary_mastery_source": progression_decision.ordinary_mastery_source,
+            "ordinary_mastery_confidence": progression_decision.ordinary_mastery_confidence,
+            "ordinary_mastery_average_observed_mastery": progression_decision.ordinary_mastery_average_observed_mastery,
+            "ordinary_mastery_rationale": progression_decision.ordinary_mastery_rationale,
         }
 
     def _apply_generation_workflow_summary(

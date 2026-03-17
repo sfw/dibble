@@ -5,7 +5,7 @@ from uuid import uuid4
 from dibble.models.curriculum import KnowledgeComponent
 from dibble.models.generation import GenerationRequest
 from dibble.models.observations import LearnerObservationCreate
-from dibble.models.profile import LearnerStrategySummary
+from dibble.models.profile import LearnerStrategySummary, OrdinaryMasterySummary
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.observation_profile_update import ObservationProfileUpdater
 from dibble.services.observation_store import SQLiteObservationStore
@@ -75,6 +75,14 @@ class StubWithinSessionAdaptationService:
         self.summary = summary
 
     def adaptation_for(self, *, student_id, request):
+        return self.summary
+
+
+class StubOrdinaryMasterySignalService:
+    def __init__(self, summary: OrdinaryMasterySummary) -> None:
+        self.summary = summary
+
+    def latest_for_student(self, *, student_id, target_kc_ids, target_lo_ids):
         return self.summary
 
 
@@ -532,4 +540,50 @@ def test_progression_ownership_gates_bridge_redirected_assessment_back_to_practi
     assert decision.target_stage == "bridge"
     assert decision.mastery_gate_applied is True
     assert decision.applied_target_kc_ids == ["KC-2"]
+    assert decision.request.requested_content_type == "practice_problem"
+
+
+def test_progression_ownership_uses_durable_ordinary_mastery_to_hold_target_before_transfer():
+    student_id = uuid4()
+    service = ProgressionOwnershipService(
+        knowledge_component_store=StubKnowledgeComponentStore(),
+        strategy_signal_service=StubStrategySignalService(
+            LearnerStrategySummary(
+                signal="independence_ready",
+                source="strategy_profile",
+                support_bias=1,
+                trajectory_state="accelerating",
+                recommended_next_action="check_transfer_readiness",
+                rationale="Recent cross-session strategy suggests checking transfer readiness.",
+            )
+        ),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
+            OrdinaryMasterySummary(
+                signal="support_dependent",
+                source="ordinary_mastery_profile",
+                confidence=0.78,
+                average_observed_mastery=0.61,
+                rationale="Ordinary practice is still too support-heavy for transfer.",
+            )
+        ),
+    )
+
+    decision = service.resolve_request(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            target_kc_ids=["KC-3"],
+            target_lo_ids=["LO-1"],
+            intent="assessment",
+            requested_content_type="assessment_probe",
+        ),
+    )
+
+    assert decision.action == "hold_target_before_assessment"
+    assert decision.source == "mastery_gate"
+    assert decision.target_stage == "target"
+    assert decision.ordinary_mastery_signal == "support_dependent"
+    assert decision.ordinary_mastery_source == "ordinary_mastery_profile"
+    assert decision.ordinary_mastery_confidence == 0.78
     assert decision.request.requested_content_type == "practice_problem"

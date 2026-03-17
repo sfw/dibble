@@ -191,6 +191,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         observation_store=observation_store,
         audit_store=audit_store,
         observation_profile_updater=observation_profile_updater,
+        ordinary_mastery_signal_service=ordinary_mastery_signal_service,
     )
     state_inference_service = LearnerStateInferenceService(
         state_profile_signal_service=learner_state_signal_service
