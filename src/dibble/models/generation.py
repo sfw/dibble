@@ -138,6 +138,13 @@ class GenerationModeCalibration(BaseModel):
     session_latest_next_action: str = "monitor"
     session_latest_evidence_strength: str = "insufficient"
     socratic_steering_action: str = "steady"
+    socratic_profile_signal: str = "insufficient"
+    socratic_profile_source: str = "insufficient"
+    socratic_profile_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    socratic_profile_dominant_action: str = "steady"
+    socratic_profile_transfer_readiness: float = Field(default=0.0, ge=0.0, le=1.0)
+    socratic_profile_loop_break_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    socratic_profile_rationale: str | None = None
     session_rationale: str | None = None
     rationale: str | None = None
 

@@ -39,6 +39,7 @@ This repository now includes a working MVP backend slice for the revised adaptiv
 - Knowledge Components can now also carry light taxonomy and locality metadata such as `concept_family`, `taxonomy_cluster_id`, and curated `nearby_kc_ids`, and the KC graph uses those relations to surface practical local bridge candidates beyond same-LO siblings during remediation sequencing
 - Recent Socratic assessment turns now also feed an explicit conversational steering layer, so the next generated step can react to recent `step_back`, `clarification`, or `transfer_check` outcomes by changing prompt family, guidance, and even the selected next content mode more directly, while the Socratic turn policy can now re-probe from a new angle when clarification or step-back turns start to stall
 - Socratic steering is now also explicit on assessment turns and responses, with policy-level actions such as `open_probe`, `probe_from_new_angle`, `repair_then_model`, `clarify_then_check`, `restate_then_apply`, and `verify_transfer`, so downstream generation no longer has to infer all conversational intent only from prompt style
+- Cross-session Socratic assessment history now also condenses into a lightweight conversational signal that can recognize durable tendencies such as needing model-then-release, clarify-then-check, vary-representation, or independent-check follow-through, and generation-mode calibration plus prompt steering can use that history when the current session is sparse
 - Practice generation now hydrates lightweight target-KC misconception hints from the live KC catalog, upgrades generic distractors into misconception-aware contrast when a live target misconception is known, and carries named distractor slots plus answer-check focus so prompt guidance and fallback content can build more purposeful wrong-answer structure
 - Practice generation now also names a distractor family, distractor support intensity, and distractor rationale, so misconception-aware problem construction can stay explicit when support is still needed and lighten more honestly when durable recovery signals support freer discrimination
 - Worked-example generation now carries named visible step roles, a hidden learner-owned step role, a transfer move, a step outline, and a learner-release plan, so fading can be expressed as a role-based release sequence rather than only a visible-step count
@@ -203,6 +204,6 @@ Knowledge Components are now first-class persisted entities with prerequisite li
 
 1. Replace or augment SQLite with production persistence such as Redis/PostgreSQL or Redis/Cassandra.
 2. Replace the SQLite embedding cache with a production vector store and background indexing pipeline while keeping the retriever plugin contract stable.
-3. Extend longer-run Socratic adaptation beyond the current turn-level steering and within-session heuristics.
-4. Strengthen ordinary-work evidence and durable mastery writeback beyond the current linked and strong-target-scoped heuristics.
-5. Deepen curriculum-grounding fidelity beyond the current excerpt packaging while keeping the retrieval path testable and inspectable.
+3. Strengthen ordinary-work evidence and durable mastery writeback beyond the current linked and strong-target-scoped heuristics.
+4. Deepen curriculum-grounding fidelity beyond the current excerpt packaging while keeping the retrieval path testable and inspectable.
+5. Keep extending predictive follow-up quality once the stronger mastery and grounding signals are in place.

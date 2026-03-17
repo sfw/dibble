@@ -7,6 +7,7 @@ from dibble.services.learning_state_profiles import LearnerStateSignalService
 from dibble.services.learning_trait_profiles import LearnerTraitProfileSignalService
 from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
 from dibble.services.router_calibration_signals import RouterCalibrationSignalService
+from dibble.services.socratic_conversation_signals import SocraticConversationSignalService
 from dibble.services.within_session_adaptation import WithinSessionAdaptationService
 from dibble.services.within_session_controller_store import SQLiteWithinSessionControllerStore
 from dibble.storage import ensure_database
@@ -685,3 +686,54 @@ def test_generation_mode_calibrator_carries_current_evidence_guardrail_from_sess
     assert calibrated_request.mode_calibration.current_evidence_signal == "support_dependence"
     assert calibrated_request.mode_calibration.current_evidence_confidence == 0.78
     assert calibrated_request.mode_calibration.support_bias == -1
+
+
+def test_generation_mode_calibrator_can_use_durable_socratic_history_when_session_is_sparse(tmp_path):
+    database_path = str(tmp_path / "generation-mode-durable-socratic.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = str(uuid4())
+    for session_id, steering_action in [
+        ("session-a", "verify_transfer"),
+        ("session-a", "restate_then_apply"),
+        ("session-b", "verify_transfer"),
+        ("session-b", "verify_transfer"),
+    ]:
+        audit_store.append(
+            event_type="assessment.socratic",
+            status="success",
+            student_id=student_id,
+            payload={
+                "learning_session_id": session_id,
+                "target_kc_ids": ["KC-7"],
+                "target_lo_ids": ["LO-7"],
+                "prompt_style": "transfer_check",
+                "steering_action": steering_action,
+                "evidence_strength": "demonstrated",
+            },
+        )
+
+    request = GenerationRequest.model_validate(
+        {
+            "student_id": student_id,
+            "target_kc_ids": ["KC-7"],
+            "target_lo_ids": ["LO-7"],
+            "intent": "practice",
+            "requested_content_type": "practice_problem",
+        }
+    )
+    calibrator = GenerationModeCalibrator(
+        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
+        socratic_conversation_signal_service=SocraticConversationSignalService(audit_store=audit_store),
+    )
+
+    calibrated_request = calibrator.calibrate_request(request=request)
+
+    assert calibrated_request.mode_calibration is not None
+    assert calibrated_request.mode_calibration.source == "socratic_assessment_history"
+    assert calibrated_request.mode_calibration.signal == "positive"
+    assert calibrated_request.mode_calibration.support_bias == 1
+    assert calibrated_request.mode_calibration.socratic_profile_signal == "independent_check"
+    assert calibrated_request.mode_calibration.socratic_profile_transfer_readiness >= 0.75

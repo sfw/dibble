@@ -533,6 +533,25 @@ def test_generation_prompt_selector_can_prefer_better_cross_generation_session_o
     )
 
 
+def test_generation_prompt_selector_can_use_durable_socratic_profile_signal(tmp_path):
+    database_path = str(tmp_path / "generation-selector-durable-socratic.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    selector = GenerationPromptSelector(audit_store=audit_store)
+
+    variant = selector.select_variant(
+        content_type=RequestedContentType.practice_problem,
+        fallback_variant="baseline",
+        mode_calibration=GenerationModeCalibration(
+            socratic_profile_source="socratic_assessment_history",
+            socratic_profile_confidence=0.72,
+            socratic_profile_signal="model_then_release",
+        ),
+    )
+
+    assert variant == "guided_reflection"
+
+
 def test_generation_prompt_selector_can_prefer_stronger_positive_run_signal(tmp_path):
     database_path = str(tmp_path / "generation-selector-run-signal.db")
     ensure_database(database_path)

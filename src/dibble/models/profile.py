@@ -193,6 +193,22 @@ class LearnerStrategySummary(BaseModel):
     updated_at: datetime | None = None
 
 
+class SocraticConversationSummary(BaseModel):
+    signal: str = "insufficient"
+    source: str = "insufficient"
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    matched_turn_count: int = Field(default=0, ge=0)
+    matched_session_count: int = Field(default=0, ge=0)
+    dominant_steering_action: str = "steady"
+    dominant_prompt_style: str | None = None
+    repair_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    clarification_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    transfer_readiness: float = Field(default=0.0, ge=0.0, le=1.0)
+    loop_break_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    rationale: str | None = None
+    updated_at: datetime | None = None
+
+
 class LearnerStateProfileSummary(BaseModel):
     signal: str = "insufficient"
     source: str = "insufficient"

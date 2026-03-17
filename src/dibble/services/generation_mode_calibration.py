@@ -3,12 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from dibble.models.generation import GenerationModeCalibration, GenerationRequest
-from dibble.models.profile import LearnerStateProfileSummary, LearnerTraitProfileSummary
+from dibble.models.profile import LearnerStateProfileSummary, LearnerTraitProfileSummary, SocraticConversationSummary
 from dibble.services.kc_sequence_planner import KcSequencePlanner
 from dibble.services.learning_state_profiles import LearnerStateSignalService
 from dibble.services.learning_trait_profiles import LearnerTraitProfileSignalService
 from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
 from dibble.services.router_calibration_signals import RouterCalibrationSignalService
+from dibble.services.socratic_conversation_signals import SocraticConversationSignalService
 from dibble.services.within_session_adaptation import WithinSessionAdaptationService
 
 
@@ -19,6 +20,7 @@ class GenerationModeCalibrator:
     within_session_adaptation_service: WithinSessionAdaptationService
     state_signal_service: LearnerStateSignalService | None = None
     trait_profile_signal_service: LearnerTraitProfileSignalService | None = None
+    socratic_conversation_signal_service: SocraticConversationSignalService | None = None
     kc_sequence_planner: KcSequencePlanner = KcSequencePlanner()
     minimum_confidence_for_bias: float = 0.65
     minimum_session_confidence_for_bias: float = 0.55
@@ -48,12 +50,18 @@ class GenerationModeCalibrator:
             if self.trait_profile_signal_service is not None
             else LearnerTraitProfileSummary()
         )
+        socratic_profile = (
+            self.socratic_conversation_signal_service.summary_for(student_id=request.student_id, request=request)
+            if self.socratic_conversation_signal_service is not None
+            else SocraticConversationSummary()
+        )
         support_bias = self._support_bias(
             signal=signal,
             strategy=strategy,
             session=session,
             state_profile=state_profile,
             trait_profile=trait_profile,
+            socratic_profile=socratic_profile,
         )
         if (
             signal.source == "insufficient"
@@ -61,6 +69,7 @@ class GenerationModeCalibrator:
             and session.source == "insufficient"
             and state_profile.source == "insufficient"
             and trait_profile.source == "insufficient"
+            and socratic_profile.source == "insufficient"
             and support_bias == 0
         ):
             return None
@@ -71,6 +80,7 @@ class GenerationModeCalibrator:
             session=session,
             state_profile=state_profile,
             trait_profile=trait_profile,
+            socratic_profile=socratic_profile,
             support_bias=support_bias,
         )
         calibration_signal = self._calibration_signal(
@@ -78,6 +88,7 @@ class GenerationModeCalibrator:
             strategy=strategy,
             session=session,
             state_profile=state_profile,
+            socratic_profile=socratic_profile,
             support_bias=support_bias,
         )
         confidence = self._confidence(
@@ -86,6 +97,7 @@ class GenerationModeCalibrator:
             session=session,
             state_profile=state_profile,
             trait_profile=trait_profile,
+            socratic_profile=socratic_profile,
         )
         average_run_outcome_score = (
             signal.average_run_outcome_score
@@ -110,6 +122,7 @@ class GenerationModeCalibrator:
             session=session,
             state_profile=state_profile,
             trait_profile=trait_profile,
+            socratic_profile=socratic_profile,
             support_bias=support_bias,
         )
         return GenerationModeCalibration(
@@ -183,11 +196,18 @@ class GenerationModeCalibrator:
             session_latest_next_action=session.latest_assessment_next_action,
             session_latest_evidence_strength=session.latest_assessment_evidence_strength,
             socratic_steering_action=session.socratic_steering_action,
+            socratic_profile_signal=socratic_profile.signal,
+            socratic_profile_source=socratic_profile.source,
+            socratic_profile_confidence=socratic_profile.confidence,
+            socratic_profile_dominant_action=socratic_profile.dominant_steering_action,
+            socratic_profile_transfer_readiness=socratic_profile.transfer_readiness,
+            socratic_profile_loop_break_rate=socratic_profile.loop_break_rate,
+            socratic_profile_rationale=socratic_profile.rationale,
             session_rationale=session.rationale,
             rationale=rationale,
         )
 
-    def _support_bias(self, *, signal, strategy, session, state_profile, trait_profile) -> int:
+    def _support_bias(self, *, signal, strategy, session, state_profile, trait_profile, socratic_profile) -> int:
         current_evidence_bias = self._current_evidence_support_bias(
             session=session,
             state_profile=state_profile,
@@ -197,6 +217,7 @@ class GenerationModeCalibrator:
             state_profile=state_profile,
             trait_profile=trait_profile,
         )
+        socratic_bias = self._socratic_profile_support_bias(socratic_profile=socratic_profile)
         if self._is_decisive_session(session):
             if current_evidence_bias < 0 and session.support_bias >= 0:
                 return current_evidence_bias
@@ -204,10 +225,14 @@ class GenerationModeCalibrator:
         if current_evidence_bias != 0:
             return current_evidence_bias
         if signal.confidence < self.minimum_confidence_for_bias:
+            if socratic_bias != 0:
+                return socratic_bias
             return strategy.support_bias if strategy.support_bias != 0 else durable_bias
         calibration_bias = self._calibration_support_bias(signal=signal)
         if calibration_bias != 0:
             return calibration_bias
+        if socratic_bias != 0:
+            return socratic_bias
         return strategy.support_bias if strategy.support_bias != 0 else durable_bias
 
     def _calibration_support_bias(self, *, signal) -> int:
@@ -243,11 +268,17 @@ class GenerationModeCalibrator:
             return -1
         return 0
 
-    def _calibration_signal(self, *, signal, strategy, session, state_profile, support_bias: int) -> str:
+    def _calibration_signal(self, *, signal, strategy, session, state_profile, socratic_profile, support_bias: int) -> str:
         if self._is_decisive_session(session):
             return session.signal
         if signal.source != "insufficient":
             return signal.signal
+        if socratic_profile.source != "insufficient":
+            if socratic_profile.signal == "independent_check":
+                return "positive"
+            if socratic_profile.signal == "model_then_release":
+                return "negative"
+            return "mixed"
         if state_profile.source != "insufficient" and state_profile.signal != "insufficient":
             if state_profile.signal == "independence_ready":
                 return "positive"
@@ -261,11 +292,13 @@ class GenerationModeCalibrator:
             return "mixed"
         return "insufficient"
 
-    def _source(self, *, signal, strategy, session, state_profile, trait_profile, support_bias: int) -> str:
+    def _source(self, *, signal, strategy, session, state_profile, trait_profile, socratic_profile, support_bias: int) -> str:
         if self._is_decisive_session(session):
             return session.source
         if signal.source != "insufficient":
             return signal.source
+        if socratic_profile.source != "insufficient":
+            return socratic_profile.source
         if strategy.source != "insufficient":
             return strategy.source
         if support_bias != 0 and state_profile.source != "insufficient":
@@ -278,11 +311,13 @@ class GenerationModeCalibrator:
             return trait_profile.source
         return strategy.source
 
-    def _confidence(self, *, signal, strategy, session, state_profile, trait_profile) -> float:
+    def _confidence(self, *, signal, strategy, session, state_profile, trait_profile, socratic_profile) -> float:
         if self._is_decisive_session(session):
             return session.confidence
         if signal.source != "insufficient":
             return signal.confidence
+        if socratic_profile.source != "insufficient":
+            return socratic_profile.confidence
         if strategy.source != "insufficient":
             return strategy.confidence
         if state_profile.source != "insufficient":
@@ -305,7 +340,7 @@ class GenerationModeCalibrator:
             }
         )
 
-    def _rationale(self, *, signal, strategy, session, state_profile, trait_profile, support_bias: int) -> str:
+    def _rationale(self, *, signal, strategy, session, state_profile, trait_profile, socratic_profile, support_bias: int) -> str:
         if self._is_decisive_session(session):
             if session.arc_action == "reprobe_new_angle":
                 return (
@@ -338,6 +373,23 @@ class GenerationModeCalibrator:
             return session.rationale or (
                 "Recent same-session evidence was strong enough to update support before relying on cross-session history."
             )
+        if socratic_profile.source != "insufficient":
+            if socratic_profile.signal == "vary_representation":
+                return socratic_profile.rationale or (
+                    "Recent Socratic traces across sessions kept needing a fresh angle, so the next generated step should vary representation instead of repeating the last framing."
+                )
+            if socratic_profile.signal == "model_then_release":
+                return socratic_profile.rationale or (
+                    "Recent Socratic traces across sessions still leaned on repair-first modeling, so the next generated step should model the correction before releasing more independence."
+                )
+            if socratic_profile.signal == "clarify_then_check":
+                return socratic_profile.rationale or (
+                    "Recent Socratic traces across sessions leaned on clarification, so the next generated step should tighten the wording and quickly re-check understanding."
+                )
+            if socratic_profile.signal == "independent_check":
+                return socratic_profile.rationale or (
+                    "Recent Socratic traces across sessions repeatedly supported transfer readiness, so the next generated step can shift toward independent application."
+                )
         if support_bias > 0 and signal.progress_signal == "improving":
             return (
                 "Recent matching runs have been improving across sessions, so the generation mode can allow slightly more independence."
@@ -485,6 +537,15 @@ class GenerationModeCalibrator:
             return -1
         if release_pressure >= 2 and support_pressure == 0:
             return 1
+        return 0
+
+    def _socratic_profile_support_bias(self, *, socratic_profile) -> int:
+        if socratic_profile.source == "insufficient" or socratic_profile.confidence < 0.58:
+            return 0
+        if socratic_profile.signal == "independent_check":
+            return 1
+        if socratic_profile.signal == "model_then_release":
+            return -1
         return 0
 
     def _trait_profile_confidence(self, *, trait_profile) -> float:

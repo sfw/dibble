@@ -63,6 +63,7 @@ from dibble.services.remediation_session_store import SQLiteRemediationSessionSt
 from dibble.services.remediation_workflows import RemediationWorkflowCoordinator
 from dibble.services.router_calibration_signals import RouterCalibrationSignalService
 from dibble.services.socratic_assessment import SocraticAssessmentService
+from dibble.services.socratic_conversation_signals import SocraticConversationSignalService
 from dibble.services.socratic_evidence import SocraticEvidenceScorer
 from dibble.services.socratic_policy import SocraticTurnPolicy
 from dibble.services.socratic_profile_update import SocraticProfileUpdater
@@ -190,12 +191,14 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
         state_signal_service=learner_state_signal_service,
     )
+    socratic_conversation_signal_service = SocraticConversationSignalService(audit_store=audit_store)
     generation_mode_calibrator = GenerationModeCalibrator(
         calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
         strategy_signal_service=learner_strategy_signal_service,
         within_session_adaptation_service=within_session_adaptation_service,
         state_signal_service=learner_state_signal_service,
         trait_profile_signal_service=learner_trait_profile_signal_service,
+        socratic_conversation_signal_service=socratic_conversation_signal_service,
     )
     learning_run_summary_recorder = LearningRunSummaryRecorder(audit_store=audit_store)
     learning_calibration_profile_recorder = LearningCalibrationProfileRecorder(audit_store=audit_store)

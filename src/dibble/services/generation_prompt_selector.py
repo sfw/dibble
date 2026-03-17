@@ -184,6 +184,14 @@ class GenerationPromptSelector:
         ):
             return "baseline"
         if (
+            mode_calibration.socratic_profile_source != "insufficient"
+            and mode_calibration.socratic_profile_confidence >= 0.56
+        ):
+            if mode_calibration.socratic_profile_signal in {"model_then_release", "clarify_then_check"}:
+                return "guided_reflection"
+            if mode_calibration.socratic_profile_signal in {"independent_check", "vary_representation"}:
+                return "baseline"
+        if (
             mode_calibration.session_source == "insufficient"
             or mode_calibration.session_confidence < 0.55
             or mode_calibration.session_assessment_count <= 0
