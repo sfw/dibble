@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from dibble.models.assessment import SocraticEvidenceStrength
+from dibble.models.generation import GenerationRequest
 from dibble.models.observations import LearnerObservation, ObservationSupportLevel, ObservationTaskType
 from dibble.models.profile import LearnerProfile
 from dibble.models.remediation import RemediationWorkflowSession, RemediationWorkflowStep
@@ -24,6 +25,10 @@ class ObservationProfileUpdateResult:
     applied: bool
     inferred_mastery: float | None = None
     evidence_strength: SocraticEvidenceStrength | None = None
+    linkage_source: str | None = None
+    matched_observation_count: int = 0
+    average_recent_observed_mastery: float | None = None
+    evidence_confidence: float = 0.0
     kc_mastery_updates: dict[str, float] | None = None
     lo_mastery_updates: dict[str, float] | None = None
     propagated_kc_mastery_updates: dict[str, float] | None = None
@@ -41,15 +46,38 @@ class RemediationProgressDecision:
     hold_step_index: int | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class ProgressionEvidenceDecision:
+    decision: str = "monitor"
+    rationale: str | None = None
+    matched_observation_count: int = 0
+    matched_assessment_count: int = 0
+    average_observed_mastery: float | None = None
+    average_assessment_mastery: float | None = None
+    confidence: float = 0.0
+    target_kc_ids: list[str] | None = None
+
+
 @dataclass(slots=True)
 class ObservationProfileUpdater:
     knowledge_state_migrator: KnowledgeStateMigrator | None = None
 
-    def apply(self, profile: LearnerProfile, observation: LearnerObservation) -> ObservationProfileUpdateResult:
-        if not self._eligible_for_writeback(observation):
+    def apply(
+        self,
+        profile: LearnerProfile,
+        observation: LearnerObservation,
+        *,
+        recent_observations: list[LearnerObservation] | None = None,
+    ) -> ObservationProfileUpdateResult:
+        linkage_source = self._writeback_linkage_source(observation)
+        if linkage_source is None:
             return ObservationProfileUpdateResult(
                 profile=profile,
                 applied=False,
+                linkage_source=None,
+                matched_observation_count=0,
+                average_recent_observed_mastery=None,
+                evidence_confidence=0.0,
                 kc_mastery_updates={},
                 lo_mastery_updates={},
                 propagated_kc_mastery_updates={},
@@ -59,10 +87,24 @@ class ObservationProfileUpdater:
 
         inferred_mastery = self._infer_observed_mastery(observation)
         evidence_strength = self._evidence_strength(observation=observation, inferred_mastery=inferred_mastery)
+        supporting_observations = self._supporting_observations(
+            observation=observation,
+            observations=recent_observations or [observation],
+        )
+        observation_scores = [self._infer_observed_mastery(item) for item in supporting_observations]
+        average_recent_mastery = (
+            round(sum(observation_scores) / len(observation_scores), 2)
+            if observation_scores
+            else None
+        )
         evidence_weight = self._evidence_weight(
             observation=observation,
             evidence_strength=evidence_strength,
             inferred_mastery=inferred_mastery,
+            linkage_source=linkage_source,
+            matched_observation_count=len(supporting_observations),
+            average_recent_mastery=average_recent_mastery,
+            repeated_high_support_success_count=self._repeated_high_support_success_count(supporting_observations),
         )
         new_kc_mastery = dict(profile.knowledge_state.kc_mastery)
         new_lo_mastery = dict(profile.knowledge_state.lo_mastery)
@@ -109,11 +151,136 @@ class ObservationProfileUpdater:
             applied=bool(kc_updates or lo_updates),
             inferred_mastery=inferred_mastery,
             evidence_strength=evidence_strength,
+            linkage_source=linkage_source,
+            matched_observation_count=len(supporting_observations),
+            average_recent_observed_mastery=average_recent_mastery,
+            evidence_confidence=self._evidence_confidence(
+                matched_observation_count=len(supporting_observations),
+                matched_assessment_count=0,
+            ),
             kc_mastery_updates=kc_updates,
             lo_mastery_updates=lo_updates,
             propagated_kc_mastery_updates=(migration_result.kc_mastery_updates if migration_result is not None else {}),
             propagated_lo_mastery_updates=(migration_result.lo_mastery_updates if migration_result is not None else {}),
-            rationale=self._writeback_rationale(observation=observation, inferred_mastery=inferred_mastery),
+            rationale=self._writeback_rationale(
+                observation=observation,
+                inferred_mastery=inferred_mastery,
+                matched_observation_count=len(supporting_observations),
+            ),
+        )
+
+    def evaluate_progression_evidence(
+        self,
+        *,
+        request: GenerationRequest,
+        observations: list[LearnerObservation],
+        assessment_payloads: list[dict[str, object]],
+        session_sequence_action: str = "monitor",
+        session_rationale: str | None = None,
+    ) -> ProgressionEvidenceDecision:
+        if request.learning_session_id is None or (not request.target_kc_ids and not request.target_lo_ids):
+            return ProgressionEvidenceDecision()
+
+        matched_observations = self._matching_progression_observations(
+            request=request,
+            observations=observations,
+        )
+        matched_assessments = self._matching_assessment_payloads(
+            request=request,
+            assessment_payloads=assessment_payloads,
+        )
+        if not matched_observations and not matched_assessments:
+            return ProgressionEvidenceDecision()
+
+        observation_scores = [self._infer_observed_mastery(item) for item in matched_observations]
+        average_observed_mastery = (
+            round(sum(observation_scores) / len(observation_scores), 2)
+            if observation_scores
+            else None
+        )
+        assessment_scores = [self._assessment_mastery_score(payload) for payload in matched_assessments]
+        average_assessment_mastery = (
+            round(sum(assessment_scores) / len(assessment_scores), 2)
+            if assessment_scores
+            else None
+        )
+        strong_assessment = any(
+            self._assessment_is_transfer_ready(payload, score=score)
+            for payload, score in zip(matched_assessments, assessment_scores)
+        )
+        low_support_success_count = sum(
+            1
+            for observation, score in zip(matched_observations, observation_scores)
+            if observation.completed
+            and observation.support_level == ObservationSupportLevel.low
+            and observation.error_count <= 1
+            and observation.hints_used <= 1
+            and score >= 0.62
+        )
+        repeated_high_support_success_count = self._repeated_high_support_success_count(matched_observations)
+        session_hold = session_sequence_action in {"hold_target", "hold_repair_target", "hold_bridge_target"}
+        session_transfer = session_sequence_action == "attempt_transfer"
+        confidence = self._evidence_confidence(
+            matched_observation_count=len(matched_observations),
+            matched_assessment_count=len(matched_assessments),
+        )
+
+        if strong_assessment or (
+            average_observed_mastery is not None
+            and average_observed_mastery >= 0.66
+            and low_support_success_count >= 2
+        ) or (
+            session_transfer
+            and average_observed_mastery is not None
+            and average_observed_mastery >= 0.62
+            and repeated_high_support_success_count == 0
+        ):
+            return ProgressionEvidenceDecision(
+                decision="attempt_transfer",
+                rationale=(
+                    f"Recent same-session evidence on {request.learning_session_id} suggests the learner is ready to test transfer "
+                    "before another support step."
+                ),
+                matched_observation_count=len(matched_observations),
+                matched_assessment_count=len(matched_assessments),
+                average_observed_mastery=average_observed_mastery,
+                average_assessment_mastery=average_assessment_mastery,
+                confidence=confidence,
+                target_kc_ids=request.target_kc_ids,
+            )
+
+        weak_observation_signal = average_observed_mastery is not None and average_observed_mastery < 0.58
+        weak_assessment_signal = bool(matched_assessments) and not strong_assessment
+        if session_hold or weak_observation_signal or weak_assessment_signal or repeated_high_support_success_count > 0:
+            rationale = (
+                session_rationale
+                or (
+                    f"Recent same-session evidence on {request.learning_session_id} still looks support-heavy or incomplete, "
+                    "so the backend should hold on the current target before transfer."
+                )
+            )
+            return ProgressionEvidenceDecision(
+                decision="hold_target",
+                rationale=rationale,
+                matched_observation_count=len(matched_observations),
+                matched_assessment_count=len(matched_assessments),
+                average_observed_mastery=average_observed_mastery,
+                average_assessment_mastery=average_assessment_mastery,
+                confidence=confidence,
+                target_kc_ids=request.target_kc_ids,
+            )
+
+        return ProgressionEvidenceDecision(
+            decision="monitor",
+            rationale=(
+                f"Recent same-session evidence on {request.learning_session_id} is mixed, so the backend should keep monitoring the current target."
+            ),
+            matched_observation_count=len(matched_observations),
+            matched_assessment_count=len(matched_assessments),
+            average_observed_mastery=average_observed_mastery,
+            average_assessment_mastery=average_assessment_mastery,
+            confidence=confidence,
+            target_kc_ids=request.target_kc_ids,
         )
 
     def evaluate_remediation_progress(
@@ -170,14 +337,24 @@ class ObservationProfileUpdater:
             target_kc_ids=prior_step.target_kc_ids,
         )
 
-    def _eligible_for_writeback(self, observation: LearnerObservation) -> bool:
+    def _writeback_linkage_source(self, observation: LearnerObservation) -> str | None:
         if observation.task_type not in {ObservationTaskType.practice, ObservationTaskType.remediation}:
-            return False
+            return None
         if not observation.target_kc_ids and not observation.target_lo_ids:
-            return False
-        if observation.learning_session_id is None and observation.generation_id is None:
-            return False
-        return True
+            return None
+        if observation.generation_id is not None:
+            return "generation_linked"
+        if observation.learning_session_id is not None:
+            return "session_linked"
+        if (
+            observation.observed_content_type in {"practice_problem", "remedial_micro_module"}
+            and observation.completed
+            and observation.support_level != ObservationSupportLevel.high
+            and observation.error_count <= 2
+            and observation.confidence >= 0.55
+        ):
+            return "target_scoped_strong_observation"
+        return None
 
     def _infer_observed_mastery(self, observation: LearnerObservation) -> float:
         completion_signal = 0.44 if observation.completed else 0.12
@@ -232,6 +409,10 @@ class ObservationProfileUpdater:
         observation: LearnerObservation,
         evidence_strength: SocraticEvidenceStrength,
         inferred_mastery: float,
+        linkage_source: str,
+        matched_observation_count: int,
+        average_recent_mastery: float | None,
+        repeated_high_support_success_count: int,
     ) -> float:
         base_weight = {
             SocraticEvidenceStrength.insufficient: 0.14,
@@ -243,10 +424,29 @@ class ObservationProfileUpdater:
             ObservationSupportLevel.medium: 0.9,
             ObservationSupportLevel.high: 0.78,
         }[observation.support_level]
+        linkage_factor = {
+            "generation_linked": 1.0,
+            "session_linked": 0.92,
+            "target_scoped_strong_observation": 0.8,
+        }.get(linkage_source, 0.75)
         completion_bonus = 0.04 if observation.completed else 0.0
         confidence_bonus = max(0.0, observation.confidence - 0.5) * 0.06
         mastery_bonus = max(0.0, inferred_mastery - 0.6) * 0.08
-        return min(0.42, (base_weight * support_factor) + completion_bonus + confidence_bonus + mastery_bonus)
+        consistency_bonus = 0.04 if (
+            matched_observation_count >= 2
+            and average_recent_mastery is not None
+            and average_recent_mastery >= 0.62
+        ) else 0.0
+        support_dependence_penalty = 0.04 if repeated_high_support_success_count >= 2 else 0.0
+        return min(
+            0.42,
+            (base_weight * support_factor * linkage_factor)
+            + completion_bonus
+            + confidence_bonus
+            + mastery_bonus
+            + consistency_bonus
+            - support_dependence_penalty,
+        )
 
     def _apply_mastery_updates(
         self,
@@ -296,6 +496,114 @@ class ObservationProfileUpdater:
                 matches.append(observation)
         return matches
 
+    def _supporting_observations(
+        self,
+        *,
+        observation: LearnerObservation,
+        observations: list[LearnerObservation],
+    ) -> list[LearnerObservation]:
+        matches = [
+            item
+            for item in observations
+            if item.task_type in {ObservationTaskType.practice, ObservationTaskType.remediation}
+            and self._targets_overlap(
+                target_kc_ids=observation.target_kc_ids,
+                observed_kc_ids=item.target_kc_ids,
+                target_lo_ids=observation.target_lo_ids,
+                observed_lo_ids=item.target_lo_ids,
+            )
+            and self._shares_link(anchor=observation, candidate=item)
+        ]
+        return matches[:3]
+
+    def _matching_progression_observations(
+        self,
+        *,
+        request: GenerationRequest,
+        observations: list[LearnerObservation],
+    ) -> list[LearnerObservation]:
+        matches = [
+            observation
+            for observation in observations
+            if observation.task_type in {ObservationTaskType.practice, ObservationTaskType.remediation}
+            and observation.learning_session_id == request.learning_session_id
+            and self._targets_overlap(
+                target_kc_ids=request.target_kc_ids,
+                observed_kc_ids=observation.target_kc_ids,
+                target_lo_ids=request.target_lo_ids,
+                observed_lo_ids=observation.target_lo_ids,
+            )
+        ]
+        return matches[:3]
+
+    def _matching_assessment_payloads(
+        self,
+        *,
+        request: GenerationRequest,
+        assessment_payloads: list[dict[str, object]],
+    ) -> list[dict[str, object]]:
+        matches = [
+            payload
+            for payload in assessment_payloads
+            if payload.get("learning_session_id") == request.learning_session_id
+            and self._targets_overlap(
+                target_kc_ids=request.target_kc_ids,
+                observed_kc_ids=self._string_list(payload.get("target_kc_ids")),
+                target_lo_ids=request.target_lo_ids,
+                observed_lo_ids=self._string_list(payload.get("target_lo_ids")),
+            )
+        ]
+        return matches[:2]
+
+    def _shares_link(self, *, anchor: LearnerObservation, candidate: LearnerObservation) -> bool:
+        if anchor.learning_session_id is not None and candidate.learning_session_id == anchor.learning_session_id:
+            return True
+        if anchor.generation_id is not None and candidate.generation_id == anchor.generation_id:
+            return True
+        return False
+
+    def _targets_overlap(
+        self,
+        *,
+        target_kc_ids: list[str],
+        observed_kc_ids: list[str],
+        target_lo_ids: list[str],
+        observed_lo_ids: list[str],
+    ) -> bool:
+        if set(target_kc_ids).intersection(observed_kc_ids):
+            return True
+        if set(target_lo_ids).intersection(observed_lo_ids):
+            return True
+        return False
+
+    def _repeated_high_support_success_count(self, observations: list[LearnerObservation]) -> int:
+        return sum(
+            1
+            for observation in observations
+            if observation.completed
+            and observation.support_level == ObservationSupportLevel.high
+            and observation.hints_used >= 2
+        )
+
+    def _assessment_mastery_score(self, payload: dict[str, object]) -> float:
+        inferred_mastery = payload.get("inferred_mastery")
+        if isinstance(inferred_mastery, (int, float)):
+            return round(_clamp(float(inferred_mastery)), 2)
+        evidence_score = payload.get("evidence_score")
+        if isinstance(evidence_score, (int, float)):
+            return round(_clamp(float(evidence_score)), 2)
+        return 0.0
+
+    def _assessment_is_transfer_ready(self, payload: dict[str, object], *, score: float) -> bool:
+        evidence_strength = str(payload.get("evidence_strength", "insufficient"))
+        return evidence_strength == "demonstrated" or score >= 0.72
+
+    def _evidence_confidence(self, *, matched_observation_count: int, matched_assessment_count: int) -> float:
+        return round(
+            min(0.9, 0.28 + (matched_observation_count * 0.14) + (matched_assessment_count * 0.2)),
+            2,
+        )
+
     def _evidence_rank(self, evidence_strength: SocraticEvidenceStrength) -> int:
         return {
             SocraticEvidenceStrength.insufficient: 0,
@@ -303,13 +611,35 @@ class ObservationProfileUpdater:
             SocraticEvidenceStrength.demonstrated: 2,
         }[evidence_strength]
 
-    def _writeback_rationale(self, *, observation: LearnerObservation, inferred_mastery: float) -> str:
+    def _writeback_rationale(
+        self,
+        *,
+        observation: LearnerObservation,
+        inferred_mastery: float,
+        matched_observation_count: int,
+    ) -> str:
+        linkage_source = self._writeback_linkage_source(observation)
+        linkage_fragment = {
+            "generation_linked": "linked generation evidence",
+            "session_linked": "same-session evidence",
+            "target_scoped_strong_observation": "strong target-scoped observation evidence",
+        }.get(linkage_source, "observation evidence")
+        evidence_window = (
+            f" across {matched_observation_count} recent linked observations"
+            if matched_observation_count > 1
+            else ""
+        )
         if observation.task_type == ObservationTaskType.remediation:
             return (
-                f"Linked remediation evidence suggested observed mastery around {inferred_mastery:.2f}, "
-                "so the repair target was blended back into KC and LO mastery."
+                f"{linkage_fragment.capitalize()} suggested observed mastery around {inferred_mastery:.2f}, "
+                f"so the repair target was blended back into KC and LO mastery{evidence_window}."
             )
         return (
-            f"Linked practice evidence suggested observed mastery around {inferred_mastery:.2f}, "
-            "so the active target was blended back into KC and LO mastery."
+            f"{linkage_fragment.capitalize()} suggested observed mastery around {inferred_mastery:.2f}, "
+            f"so the active target was blended back into KC and LO mastery{evidence_window}."
         )
+
+    def _string_list(self, value: object) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        return [str(item) for item in value if item is not None]

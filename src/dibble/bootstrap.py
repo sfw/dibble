@@ -46,6 +46,7 @@ from dibble.services.predictive_content_invalidator import PredictiveContentInva
 from dibble.services.predictive_content_warming import PredictiveContentWarmer
 from dibble.services.predictive_warm_queue_store import SQLitePredictiveWarmQueueStore
 from dibble.services.predictive_warm_scheduler import PredictiveWarmScheduler
+from dibble.services.progression_ownership import ProgressionOwnershipService
 from dibble.services.provider_health import SQLiteProviderHealthStore
 from dibble.services.profile_store import SQLiteProfileStore
 from dibble.services.protocols import (
@@ -171,6 +172,14 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     observation_profile_updater = ObservationProfileUpdater(
         knowledge_state_migrator=KnowledgeStateMigrator(knowledge_component_store=knowledge_component_store)
     )
+    progression_ownership_service = ProgressionOwnershipService(
+        knowledge_component_store=knowledge_component_store,
+        strategy_signal_service=learner_strategy_signal_service,
+        within_session_adaptation_service=within_session_adaptation_service,
+        observation_store=observation_store,
+        audit_store=audit_store,
+        observation_profile_updater=observation_profile_updater,
+    )
     state_inference_service = LearnerStateInferenceService(
         state_profile_signal_service=learner_state_signal_service
     )
@@ -236,6 +245,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         audit_store=audit_store,
         within_session_adaptation_service=within_session_adaptation_service,
         observation_profile_updater=observation_profile_updater,
+        progression_ownership_service=progression_ownership_service,
     )
 
     return ApplicationServices(

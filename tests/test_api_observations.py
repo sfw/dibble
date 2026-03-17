@@ -219,6 +219,42 @@ def test_observation_endpoint_invalidates_matching_predictive_cache_entries(clie
     assert invalidation_event["payload"]["expired_entries"] >= 1
 
 
+def test_observation_endpoint_writes_back_strong_target_scoped_practice_without_links(client, student_id):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+
+    observe_response = client.post(
+        f"/api/learners/{student_id}/observations",
+        json={
+            "response_time_ms": 15000,
+            "hints_used": 1,
+            "error_count": 0,
+            "pause_count": 0,
+            "modality_switches": 0,
+            "completed": True,
+            "confidence": 0.74,
+            "task_type": "practice",
+            "support_level": "low",
+            "expected_duration_ms": 18000,
+            "observed_content_type": "practice_problem",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": ["LO-1"],
+        },
+    )
+    profile_response = client.get(f"/api/learners/{student_id}/profile")
+    audit_response = client.get("/api/audit/events")
+
+    assert observe_response.status_code == 200
+    assert profile_response.status_code == 200
+    profile = profile_response.json()
+    learner_observe_event = next(
+        event for event in audit_response.json() if event["event_type"] == "learner.observe"
+    )
+
+    assert profile["knowledge_state"]["kc_mastery"]["KC-1"] > 0.2
+    assert learner_observe_event["payload"]["observation_mastery_applied"] is True
+    assert learner_observe_event["payload"]["observation_mastery_linkage_source"] == "target_scoped_strong_observation"
+
+
 def test_observation_endpoint_writes_back_linked_practice_mastery(client, student_id):
     client.put(
         f"/api/learners/{student_id}/profile",

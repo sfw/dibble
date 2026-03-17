@@ -89,6 +89,42 @@ def test_observation_profile_updater_updates_linked_practice_mastery():
     assert result.kc_mastery_updates["KC-2"] > 0.25
     assert result.propagated_kc_mastery_updates["KC-1"] >= 0.3
     assert result.profile.knowledge_state.lo_mastery["LO-1"] >= 0.3
+    assert result.linkage_source == "generation_linked"
+
+
+def test_observation_profile_updater_updates_strong_target_scoped_practice_without_links():
+    student_id = uuid4()
+    profile = build_profile(student_id, frustration="low", total_load=0.2, kc_mastery={"KC-1": 0.3, "KC-2": 0.25})
+    updater = ObservationProfileUpdater(
+        knowledge_state_migrator=KnowledgeStateMigrator(knowledge_component_store=StubKnowledgeComponentStore())
+    )
+
+    result = updater.apply(
+        profile=LearnerProfile.model_validate(profile),
+        observation=LearnerObservation.model_validate(
+            {
+                "observation_id": "obs-2",
+                "student_id": str(student_id),
+                "response_time_ms": 15000,
+                "hints_used": 1,
+                "error_count": 0,
+                "pause_count": 0,
+                "modality_switches": 0,
+                "completed": True,
+                "confidence": 0.72,
+                "task_type": "practice",
+                "support_level": "low",
+                "expected_duration_ms": 18000,
+                "observed_content_type": "practice_problem",
+                "target_kc_ids": ["KC-2"],
+                "target_lo_ids": ["LO-1"],
+            }
+        ),
+    )
+
+    assert result.applied is True
+    assert result.linkage_source == "target_scoped_strong_observation"
+    assert result.kc_mastery_updates["KC-2"] > 0.25
 
 
 def test_observation_profile_updater_holds_remediation_return_when_recent_evidence_is_weak():

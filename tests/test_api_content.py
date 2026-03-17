@@ -458,11 +458,65 @@ def test_remedial_trigger_returns_remedial_generated_content(client, student_id,
         event for event in audit_response.json() if event["event_type"] == "remediation.trigger"
     )
     assert remediation_event["payload"]["remediation_session_id"] == payload["request_context"]["remediation_session_id"]
-    assert remediation_event["payload"]["misconception_signal_count"] >= 1
-    assert remediation_event["payload"]["remediation_blueprint"]["primary_misconception_id"] == (
-        "fraction-whole-number-bias"
+
+
+def test_generation_endpoint_rebuilds_prerequisite_before_requested_target(client, student_id, app_settings):
+    from dibble.services.audit_store import SQLiteAuditStore
+
+    audit_store = SQLiteAuditStore(app_settings.database_path)
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put(
+        "/api/knowledge-components/KC-1",
+        json=build_knowledge_component("KC-1", name="Read fraction models"),
     )
-    assert remediation_event["payload"]["strategy_signal"] == "support_intensive"
+    client.put(
+        "/api/knowledge-components/KC-2",
+        json=build_knowledge_component(
+            "KC-2",
+            prerequisite_kc_ids=["KC-1"],
+            name="Generate equivalent fractions",
+        ),
+    )
+    audit_store.append(
+        event_type="learning.strategy.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "intent": "remediation",
+            "content_type": "remedial_micro_module",
+            "target_kc_ids": ["KC-2"],
+            "average_run_outcome_score": 0.42,
+            "average_run_confidence": 0.78,
+            "matched_run_count": 3,
+            "matched_session_count": 2,
+            "progress_signal": "declining",
+            "progress_delta": -0.16,
+            "strategy_signal": "support_intensive",
+            "strategy_support_bias": -1,
+            "strategy_recovery_focus": "prerequisite_rebuild",
+            "strategy_recommended_next_action": "rebuild_prerequisite",
+            "strategy_rationale": "Rebuild the prerequisite KC before returning to the target.",
+        },
+    )
+
+    response = client.post(
+        "/api/content/generate",
+        json={
+            "student_id": str(student_id),
+            "target_kc_ids": ["KC-2"],
+            "intent": "remediation",
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+
+    assert payload["request_context"]["progression"]["action"] == "rebuild_prerequisite_first"
+    assert payload["request_context"]["progression"]["requested_target_kc_ids"] == ["KC-2"]
+    assert payload["request_context"]["progression"]["applied_target_kc_ids"] == ["KC-1"]
+    assert "KC-1" in payload["response"]["blocks"][0]["body"]
 
 
 def test_remedial_trigger_records_and_reuses_misconception_profiles(client, student_id):

@@ -66,7 +66,11 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 "updated_at": inferred_state.last_observation_at or profile.updated_at,
             }
         )
-        observation_profile_update = services.observation_profile_updater.apply(updated_profile, persisted_observation)
+        observation_profile_update = services.observation_profile_updater.apply(
+            updated_profile,
+            persisted_observation,
+            recent_observations=recent_observations,
+        )
         updated_profile = observation_profile_update.profile
         services.profile_store.upsert(updated_profile)
         observation_audit_event = services.audit_store.append(
@@ -96,6 +100,10 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                     if observation_profile_update.evidence_strength is not None
                     else None
                 ),
+                "observation_mastery_linkage_source": observation_profile_update.linkage_source,
+                "observation_matched_observation_count": observation_profile_update.matched_observation_count,
+                "observation_average_recent_mastery": observation_profile_update.average_recent_observed_mastery,
+                "observation_evidence_confidence": observation_profile_update.evidence_confidence,
                 "updated_kc_mastery": observation_profile_update.kc_mastery_updates or {},
                 "updated_lo_mastery": observation_profile_update.lo_mastery_updates or {},
                 "propagated_kc_mastery": observation_profile_update.propagated_kc_mastery_updates or {},

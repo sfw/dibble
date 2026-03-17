@@ -55,6 +55,7 @@ This repository now includes a working MVP backend slice for the revised adaptiv
 - Knowledge Components can now carry catalogued misconception patterns, and the remedial trigger uses those patterns to produce richer misconception signals plus a structured remediation blueprint instead of only a generic step-back wrapper
 - Remediation is now session-backed, so `POST /api/remedial/trigger` starts a persisted multi-step workflow and later steps can be reloaded or advanced through dedicated remediation-session endpoints, those sessions now carry learner-strategy context so repeated struggle can keep prerequisite rebuild guidance explicit across steps, and recurring misconception profiles can now pull remediation back toward repeated repair targets instead of treating each attempt as isolated
 - The learner observation pipeline now also refreshes cognitive trait estimates such as processing speed, working memory, and spatial reasoning from recent observation patterns, so trait fields are no longer purely static seed data
+- Strong target-scoped practice or remediation observations can now still write mastery back even without an explicit generation or session link when the evidence is specific enough, and the ordinary generation path can now redirect a request toward a prerequisite or bridge KC when strategy or same-session sequencing evidence says the caller’s requested target is premature
 - Default validation now checks for missing grounding, missing instructional content, weak curriculum alignment, instruction-level grounding coverage, grade-band readability risk, accessibility density, unsafe language, and simple math errors
 - Adaptive decision and generation endpoints now write audit events and expose simple local observability metrics
 - Observability metrics now include durable provider-health telemetry for upstream failures and circuit-open state
@@ -198,8 +199,8 @@ Knowledge Components are now first-class persisted entities with prerequisite li
 
 1. Replace or augment SQLite with production persistence such as Redis/PostgreSQL or Redis/Cassandra.
 2. Replace the SQLite embedding cache with a production vector store and background indexing pipeline while keeping the retriever plugin contract stable.
-3. Extend the new remediation-local mastery gate into broader progression ownership so course advancement depends on demonstrated understanding, not only caller-supplied targets.
-4. Add a small current-evidence discriminator so productive struggle, overload, disengagement, and support dependence are handled differently before routing and generation-mode calibration fade or tighten support.
-5. Keep extending problem construction and worked-example transfer moves now that distractor families, fade roles, and richer curriculum grounding are in place.
+3. Add a small current-evidence discriminator so productive struggle, overload, disengagement, and support dependence are handled differently before routing, progression ownership, and generation-mode calibration fade or tighten support.
+4. Keep extending problem construction and worked-example transfer moves now that distractor families, fade roles, richer curriculum grounding, and backend-owned target redirection are in place.
+5. Deepen moderation coverage and stream-time handling if stricter real-time safety becomes a stronger product constraint.
 6. Replace more of the within-session controller's current heuristic support-budget and loop-risk logic with stronger outcome-backed policies once real session traces accumulate.
 7. Expand predictive warming beyond the current rule-based follow-up planner into a broader scheduler with stronger invalidation signals and background execution options.

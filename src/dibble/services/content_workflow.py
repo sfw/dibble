@@ -30,6 +30,7 @@ from dibble.services.misconception_profiles import LearningMisconceptionProfileR
 from dibble.services.observation_profile_update import ObservationProfileUpdater, RemediationProgressDecision
 from dibble.services.predictive_content_warming import PredictiveContentWarmer
 from dibble.services.predictive_warm_scheduler import PredictiveWarmScheduler
+from dibble.services.progression_ownership import ProgressionOwnershipDecision, ProgressionOwnershipService
 from dibble.services.protocols import AuditStore, KnowledgeComponentStore, ObservationStore, ProfileStore
 from dibble.services.remediation_planner import RemediationPlanner
 from dibble.services.remediation_workflows import (
@@ -63,6 +64,7 @@ class ContentWorkflowService:
     audit_store: AuditStore
     within_session_adaptation_service: WithinSessionAdaptationService
     observation_profile_updater: ObservationProfileUpdater | None = None
+    progression_ownership_service: ProgressionOwnershipService | None = None
 
     def decide_route(self, request: GenerationRequest) -> AdaptiveRouteDecision:
         profile = self._load_profile(request.student_id)
@@ -103,8 +105,10 @@ class ContentWorkflowService:
 
     def generate_content(self, request: GenerationRequest) -> GeneratedContent:
         profile = self._load_profile(request.student_id)
+        progression_decision = self._progression_ownership_decision(request=request)
+        resolved_request = progression_decision.request
         enriched_request = hydrate_target_kc_hints(
-            request=request,
+            request=resolved_request,
             knowledge_component_store=self.knowledge_component_store,
         )
         calibrated_request = self.generation_mode_calibrator.calibrate_request(request=enriched_request)
@@ -152,8 +156,15 @@ class ContentWorkflowService:
                 "moderation_audit_message": metadata.moderation.audit_message,
                 "cache_hit": metadata.cache_hit,
                 "quality_score": metadata.quality_score,
-                "target_kc_ids": request.target_kc_ids,
-                "target_lo_ids": request.target_lo_ids,
+                "requested_target_kc_ids": progression_decision.requested_target_kc_ids,
+                "applied_target_kc_ids": progression_decision.applied_target_kc_ids,
+                "target_kc_ids": calibrated_request.target_kc_ids,
+                "target_lo_ids": calibrated_request.target_lo_ids,
+                "progression_action": progression_decision.action,
+                "progression_source": progression_decision.source,
+                "progression_bridge_kc_ids": progression_decision.bridge_kc_ids,
+                "progression_deferred_target_kc_ids": progression_decision.deferred_target_kc_ids,
+                "progression_rationale": progression_decision.rationale,
                 "scaffolding_level": response.route.scaffolding_level,
                 "mode_calibration_signal": (
                     calibrated_request.mode_calibration.signal if calibrated_request.mode_calibration is not None else None
@@ -242,6 +253,10 @@ class ContentWorkflowService:
         self._apply_session_adaptation(
             generated_content=generated_content,
             session_summary=session_summary,
+        )
+        self._apply_progression_ownership(
+            generated_content=generated_content,
+            progression_decision=progression_decision,
         )
         predictive_plan = self.predictive_content_warmer.plan_follow_ups(generated_content)
         if predictive_plan.requests:
@@ -371,6 +386,35 @@ class ContentWorkflowService:
                     else mode_calibration.get("sequence_source", "insufficient"),
                 }
             )
+
+    def _apply_progression_ownership(
+        self,
+        *,
+        generated_content: GeneratedContent,
+        progression_decision: ProgressionOwnershipDecision,
+    ) -> None:
+        request_context = generated_content.request_context
+        request_context["progression"] = {
+            "action": progression_decision.action,
+            "source": progression_decision.source,
+            "requested_target_kc_ids": progression_decision.requested_target_kc_ids,
+            "applied_target_kc_ids": progression_decision.applied_target_kc_ids,
+            "deferred_target_kc_ids": progression_decision.deferred_target_kc_ids,
+            "bridge_kc_ids": progression_decision.bridge_kc_ids,
+            "rationale": progression_decision.rationale,
+        }
+
+    def _progression_ownership_decision(self, *, request: GenerationRequest) -> ProgressionOwnershipDecision:
+        if self.progression_ownership_service is None:
+            return ProgressionOwnershipDecision(
+                request=request,
+                requested_target_kc_ids=list(request.target_kc_ids),
+                applied_target_kc_ids=list(request.target_kc_ids),
+            )
+        return self.progression_ownership_service.resolve_request(
+            student_id=request.student_id,
+            request=request,
+        )
 
     def warm_content(self, request: ContentWarmRequest) -> ContentWarmResult:
         warmed = self.content_warmer.warm(request.requests)
