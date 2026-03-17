@@ -194,7 +194,11 @@ class TeacherInterventionActionService:
             options.append(
                 self._generation_option(
                     option_id="worked_example_support_reset",
-                    label="Worked Example Reset",
+                    label=self._label_for_content_type(
+                        content_type=RequestedContentType.worked_example.value,
+                        target_stage="target" if flow.target_stage == "transfer" else flow.target_stage,
+                        fallback="Worked Example",
+                    ),
                     rationale="Offer a more supported worked example on the active target before continuing.",
                     base_payload=lesson_payload,
                     learning_session_id=flow.learning_session_id,
@@ -208,7 +212,11 @@ class TeacherInterventionActionService:
             options.append(
                 self._generation_option(
                     option_id="practice_problem_same_target",
-                    label="Practice On Target",
+                    label=self._label_for_content_type(
+                        content_type=RequestedContentType.practice_problem.value,
+                        target_stage=flow.target_stage,
+                        fallback="Practice Problem",
+                    ),
                     rationale="Stay on the same target with another practice step before moving on.",
                     base_payload=lesson_payload,
                     learning_session_id=flow.learning_session_id,
@@ -222,7 +230,11 @@ class TeacherInterventionActionService:
             options.append(
                 self._generation_option(
                     option_id="assessment_probe_transfer_check",
-                    label="Assessment Probe Check",
+                    label=self._label_for_content_type(
+                        content_type=RequestedContentType.assessment_probe.value,
+                        target_stage="transfer",
+                        fallback="Assessment Probe",
+                    ),
                     rationale="Verify transfer explicitly before assigning more independent work.",
                     base_payload=lesson_payload,
                     learning_session_id=flow.learning_session_id,
@@ -307,17 +319,52 @@ class TeacherInterventionActionService:
 
     @staticmethod
     def _label_for_action(action: LearnerContinueAction, *, fallback: str) -> str:
-        labels = {
-            RequestedContentType.micro_explanation.value: "Micro Explanation",
-            RequestedContentType.worked_example.value: "Worked Example",
-            RequestedContentType.practice_problem.value: "Practice Problem",
-            RequestedContentType.assessment_probe.value: "Assessment Probe",
-        }
         if action.kind == ContinueActionKind.advance_remediation:
             return "Advance Remediation"
         if action.kind == ContinueActionKind.continue_socratic:
             return "Continue Socratic"
-        return labels.get(action.content_type or "", fallback)
+        return TeacherInterventionActionService._label_for_content_type(
+            content_type=action.content_type,
+            target_stage=action.target_stage,
+            fallback=fallback,
+        )
+
+    @staticmethod
+    def _label_for_content_type(
+        *,
+        content_type: str | None,
+        target_stage: str,
+        fallback: str,
+    ) -> str:
+        if content_type == RequestedContentType.micro_explanation.value:
+            if target_stage == "repair":
+                return "Repair Explanation"
+            if target_stage == "bridge":
+                return "Bridge Explanation"
+            if target_stage == "transfer":
+                return "Transfer Explanation"
+            return "Micro Explanation"
+        if content_type == RequestedContentType.worked_example.value:
+            if target_stage == "repair":
+                return "Repair Worked Example"
+            if target_stage == "bridge":
+                return "Bridge Worked Example"
+            if target_stage == "transfer":
+                return "Transfer Worked Example"
+            return "Worked Example"
+        if content_type == RequestedContentType.practice_problem.value:
+            if target_stage == "repair":
+                return "Repair Practice"
+            if target_stage == "bridge":
+                return "Bridge Practice"
+            if target_stage == "transfer":
+                return "Transfer Practice"
+            return "Practice Problem"
+        if content_type == RequestedContentType.assessment_probe.value:
+            if target_stage == "transfer":
+                return "Transfer Check"
+            return "Assessment Probe"
+        return fallback
 
     def _base_generation_payload(
         self,
