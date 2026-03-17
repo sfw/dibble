@@ -7,6 +7,7 @@ from dibble.services.generation_engine import GenerationEngine
 from dibble.services.generation_mode_calibration import GenerationModeCalibrator
 from dibble.services.generation_request_hydrator import hydrate_target_kc_hints
 from dibble.services.protocols import KnowledgeComponentStore, ProfileStore
+from dibble.services.progression_ownership import ProgressionOwnershipService
 
 
 @dataclass(slots=True)
@@ -15,6 +16,7 @@ class ContentWarmer:
     generation_engine: GenerationEngine
     knowledge_component_store: KnowledgeComponentStore | None = None
     generation_mode_calibrator: GenerationModeCalibrator | None = None
+    progression_ownership_service: ProgressionOwnershipService | None = None
 
     def warm(self, requests: list[GenerationRequest]) -> ContentWarmResult:
         generation_ids: list[str] = []
@@ -25,8 +27,16 @@ class ContentWarmer:
             profile = self.profile_store.get(request.student_id)
             if profile is None:
                 continue
+            resolved_request = (
+                self.progression_ownership_service.resolve_request(
+                    student_id=request.student_id,
+                    request=request,
+                ).request
+                if self.progression_ownership_service is not None
+                else request
+            )
             enriched_request = hydrate_target_kc_hints(
-                request=request,
+                request=resolved_request,
                 knowledge_component_store=self.knowledge_component_store,
             )
             calibrated_request = (

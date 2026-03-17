@@ -299,6 +299,63 @@ def test_predictive_warm_process_endpoint_drains_pending_queue(tmp_path, student
         assert problem_response.json()["quality"]["cache_hit"] is True
 
 
+def test_generation_mastery_gate_holds_assessment_request_on_practice_when_evidence_is_support_heavy(
+    client,
+    student_id,
+):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+
+    for confidence, hints_used, errors in [(0.62, 3, 0), (0.58, 2, 1)]:
+        observe_response = client.post(
+            f"/api/learners/{student_id}/observations",
+            json={
+                "response_time_ms": 17000,
+                "hints_used": hints_used,
+                "error_count": errors,
+                "pause_count": 1,
+                "modality_switches": 0,
+                "completed": True,
+                "confidence": confidence,
+                "task_type": "practice",
+                "support_level": "high",
+                "expected_duration_ms": 18000,
+                "learning_session_id": "session-mastery-gate",
+                "target_kc_ids": ["KC-1"],
+                "target_lo_ids": ["LO-1"],
+            },
+        )
+        assert observe_response.status_code == 200
+
+    response = client.post(
+        "/api/content/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "session-mastery-gate",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": ["LO-1"],
+            "intent": "assessment",
+            "requested_content_type": "assessment_probe",
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    audit_response = client.get("/api/audit/events")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["content_type"] == "practice_problem"
+    assert payload["request_context"]["progression"]["action"] == "hold_target_before_assessment"
+    assert payload["request_context"]["progression"]["mastery_gate_applied"] is True
+    assert payload["request_context"]["progression"]["requested_content_type"] == "assessment_probe"
+    assert payload["request_context"]["progression"]["applied_content_type"] == "practice_problem"
+
+    generation_event = next(event for event in audit_response.json() if event["event_type"] == "content.generate")
+    assert generation_event["payload"]["progression_action"] == "hold_target_before_assessment"
+    assert generation_event["payload"]["progression_mastery_gate_applied"] is True
+    assert generation_event["payload"]["progression_requested_content_type"] == "assessment_probe"
+    assert generation_event["payload"]["progression_applied_content_type"] == "practice_problem"
+
+
 def test_generation_uses_within_session_observation_adaptation(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())

@@ -288,3 +288,58 @@ def test_progression_ownership_attempts_transfer_when_assessment_confirms_readin
     assert decision.evidence_observation_count == 2
     assert decision.evidence_assessment_count == 1
     assert decision.evidence_confidence >= 0.7
+
+
+def test_progression_ownership_holds_assessment_request_on_target_practice_until_mastery_is_stronger(tmp_path):
+    database_path = str(tmp_path / "progression-mastery-gate.db")
+    ensure_database(database_path)
+    observation_store = SQLiteObservationStore(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = uuid4()
+    for observation in [
+        _build_observation(
+            session_id="session-mastery-gate",
+            support_level="high",
+            confidence=0.61,
+            hints=3,
+            errors=0,
+            target_kc_id="KC-1",
+        ),
+        _build_observation(
+            session_id="session-mastery-gate",
+            support_level="high",
+            confidence=0.58,
+            hints=2,
+            errors=1,
+            target_kc_id="KC-1",
+        ),
+    ]:
+        observation_store.append(student_id=str(student_id), observation=observation)
+    service = ProgressionOwnershipService(
+        knowledge_component_store=StubKnowledgeComponentStore(),
+        strategy_signal_service=StubStrategySignalService(LearnerStrategySummary()),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        observation_store=observation_store,
+        audit_store=audit_store,
+        observation_profile_updater=ObservationProfileUpdater(),
+    )
+
+    decision = service.resolve_request(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            learning_session_id="session-mastery-gate",
+            target_kc_ids=["KC-1"],
+            target_lo_ids=["LO-1"],
+            intent="assessment",
+            requested_content_type="assessment_probe",
+        ),
+    )
+
+    assert decision.action == "hold_target_before_assessment"
+    assert decision.source == "mastery_gate"
+    assert decision.mastery_gate_applied is True
+    assert decision.requested_content_type == "assessment_probe"
+    assert decision.applied_content_type == "practice_problem"
+    assert decision.request.intent.value == "practice"
+    assert decision.request.requested_content_type == "practice_problem"

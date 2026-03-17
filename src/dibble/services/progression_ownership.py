@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from uuid import UUID
 
-from dibble.models.generation import GenerationRequest
+from dibble.models.generation import ContentIntent, GenerationRequest, RequestedContentType
 from dibble.services.kc_sequence_planner import KcSequencePlanner
 from dibble.services.observation_profile_update import ObservationProfileUpdater
 from dibble.services.protocols import AuditStore, KnowledgeComponentStore, ObservationStore
@@ -24,6 +24,10 @@ class ProgressionOwnershipDecision:
     evidence_confidence: float = 0.0
     average_observed_mastery: float | None = None
     average_assessment_mastery: float | None = None
+    requested_content_type: str | None = None
+    applied_content_type: str | None = None
+    mastery_gate_applied: bool = False
+    mastery_gate_reason: str | None = None
 
 
 @dataclass(slots=True)
@@ -67,6 +71,12 @@ class ProgressionOwnershipService:
         source = "requested_target"
         applied_target_kc_ids = list(requested_target_kc_ids)
         rationale = None
+        requested_content_type = (
+            request.requested_content_type.value if request.requested_content_type is not None else None
+        )
+        applied_request = request
+        mastery_gate_applied = False
+        mastery_gate_reason = None
 
         if (
             session.phase == "bridge" or session.recovery_intent == "bridge_target"
@@ -100,9 +110,28 @@ class ProgressionOwnershipService:
             source = "progression_evidence"
             rationale = evidence_decision.rationale
 
+        applied_request, mastery_gate_action, mastery_gate_reason = self._apply_mastery_gate(
+            request=applied_request.model_copy(
+                update={
+                    "target_kc_ids": applied_target_kc_ids,
+                    "target_lo_ids": self._target_lo_ids(applied_target_kc_ids) or request.target_lo_ids,
+                }
+            ),
+            action=action,
+            rationale=rationale or sequence.rationale,
+        )
+        if mastery_gate_action is not None:
+            action = mastery_gate_action
+            source = "mastery_gate"
+            mastery_gate_applied = True
+
+        applied_content_type = (
+            applied_request.requested_content_type.value if applied_request.requested_content_type is not None else None
+        )
+
         if applied_target_kc_ids == requested_target_kc_ids:
             return ProgressionOwnershipDecision(
-                request=request,
+                request=applied_request,
                 action=action,
                 source=source,
                 requested_target_kc_ids=requested_target_kc_ids,
@@ -115,16 +144,21 @@ class ProgressionOwnershipService:
                 evidence_confidence=evidence_decision.confidence,
                 average_observed_mastery=evidence_decision.average_observed_mastery,
                 average_assessment_mastery=evidence_decision.average_assessment_mastery,
+                requested_content_type=requested_content_type,
+                applied_content_type=applied_content_type,
+                mastery_gate_applied=mastery_gate_applied,
+                mastery_gate_reason=mastery_gate_reason,
             )
 
-        updated_request = request.model_copy(
+        updated_request = applied_request.model_copy(
             update={
-                "target_kc_ids": applied_target_kc_ids,
-                "target_lo_ids": self._target_lo_ids(applied_target_kc_ids) or request.target_lo_ids,
                 "curriculum_context": [
-                    *request.curriculum_context,
+                    *applied_request.curriculum_context,
                     f"Progression ownership: {action}.",
-                    rationale or sequence.rationale or "Stay on the current repair path before advancing.",
+                    mastery_gate_reason
+                    or rationale
+                    or sequence.rationale
+                    or "Stay on the current repair path before advancing.",
                 ],
             }
         )
@@ -142,6 +176,10 @@ class ProgressionOwnershipService:
             evidence_confidence=evidence_decision.confidence,
             average_observed_mastery=evidence_decision.average_observed_mastery,
             average_assessment_mastery=evidence_decision.average_assessment_mastery,
+            requested_content_type=requested_content_type,
+            applied_content_type=applied_content_type,
+            mastery_gate_applied=mastery_gate_applied,
+            mastery_gate_reason=mastery_gate_reason,
         )
 
     def _prerequisite_kc_ids(self, target_kc_ids: list[str]) -> list[str]:
@@ -187,4 +225,36 @@ class ProgressionOwnershipService:
             assessment_payloads=assessment_payloads,
             session_sequence_action=session_summary.sequence_action,
             session_rationale=session_summary.rationale,
+        )
+
+    def _apply_mastery_gate(
+        self,
+        *,
+        request: GenerationRequest,
+        action: str,
+        rationale: str | None,
+    ) -> tuple[GenerationRequest, str | None, str | None]:
+        assessment_requested = request.intent.value == "assessment" or (
+            request.requested_content_type == RequestedContentType.assessment_probe
+        )
+        if not assessment_requested or action not in {"hold_target", "hold_repair_target"}:
+            return request, None, None
+        gate_reason = (
+            rationale
+            or "Recent same-session evidence still suggests the learner should stay on target practice before a transfer-style assessment."
+        )
+        return (
+            request.model_copy(
+                update={
+                    "intent": ContentIntent.practice,
+                    "requested_content_type": RequestedContentType.practice_problem,
+                    "curriculum_context": [
+                        *request.curriculum_context,
+                        "Mastery gate: hold target before transfer-style assessment.",
+                        gate_reason,
+                    ],
+                }
+            ),
+            "hold_target_before_assessment",
+            gate_reason,
         )

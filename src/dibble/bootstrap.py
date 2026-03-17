@@ -216,6 +216,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         generation_engine,
         knowledge_component_store=knowledge_component_store,
         generation_mode_calibrator=generation_mode_calibrator,
+        progression_ownership_service=progression_ownership_service,
     )
     predictive_content_warmer = PredictiveContentWarmer(content_warmer=content_warmer)
     predictive_warm_scheduler = PredictiveWarmScheduler(
