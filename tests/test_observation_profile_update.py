@@ -1,0 +1,171 @@
+from __future__ import annotations
+
+from uuid import uuid4
+
+from dibble.models.curriculum import KnowledgeComponent
+from dibble.models.observations import LearnerObservation
+from dibble.models.profile import LearnerProfile
+from dibble.models.remediation import RemediationWorkflowSession
+from dibble.services.knowledge_state_migration import KnowledgeStateMigrator
+from dibble.services.observation_profile_update import ObservationProfileUpdater
+from tests.support import build_profile
+
+
+class StubKnowledgeComponentStore:
+    def __init__(self) -> None:
+        self.components = {
+            "KC-1": KnowledgeComponent(
+                kc_id="KC-1",
+                name="KC-1",
+                parent_lo_id="LO-1",
+                grade_level="5",
+                subject="math",
+                prerequisite_kc_ids=[],
+                difficulty=0.4,
+                estimated_time_minutes=8,
+                tags=[],
+                common_misconceptions=[],
+            ),
+            "KC-2": KnowledgeComponent(
+                kc_id="KC-2",
+                name="KC-2",
+                parent_lo_id="LO-1",
+                grade_level="5",
+                subject="math",
+                prerequisite_kc_ids=["KC-1"],
+                difficulty=0.5,
+                estimated_time_minutes=8,
+                tags=[],
+                common_misconceptions=[],
+            ),
+        }
+
+    def list(self):
+        return list(self.components.values())
+
+    def get(self, kc_id):
+        return self.components.get(kc_id)
+
+    def list_prerequisites(self, kc_id):
+        if kc_id == "KC-2":
+            return [self.components["KC-1"]]
+        return []
+
+
+def test_observation_profile_updater_updates_linked_practice_mastery():
+    student_id = uuid4()
+    profile = build_profile(student_id, frustration="low", total_load=0.2, kc_mastery={"KC-1": 0.3, "KC-2": 0.25})
+    updater = ObservationProfileUpdater(
+        knowledge_state_migrator=KnowledgeStateMigrator(knowledge_component_store=StubKnowledgeComponentStore())
+    )
+
+    result = updater.apply(
+        profile=LearnerProfile.model_validate(profile),
+        observation=LearnerObservation.model_validate(
+            {
+                "observation_id": "obs-1",
+                "student_id": str(student_id),
+                "response_time_ms": 14000,
+                "hints_used": 0,
+                "error_count": 0,
+                "pause_count": 0,
+                "modality_switches": 0,
+                "completed": True,
+                "confidence": 0.76,
+                "task_type": "practice",
+                "support_level": "low",
+                "expected_duration_ms": 18000,
+                "learning_session_id": "session-practice",
+                "generation_id": "gen-practice",
+                "observed_content_type": "practice_problem",
+                "target_kc_ids": ["KC-2"],
+                "target_lo_ids": ["LO-1"],
+            }
+        ),
+    )
+
+    assert result.applied is True
+    assert result.inferred_mastery is not None
+    assert result.kc_mastery_updates["KC-2"] > 0.25
+    assert result.propagated_kc_mastery_updates["KC-1"] >= 0.3
+    assert result.profile.knowledge_state.lo_mastery["LO-1"] >= 0.3
+
+
+def test_observation_profile_updater_holds_remediation_return_when_recent_evidence_is_weak():
+    updater = ObservationProfileUpdater()
+    session = RemediationWorkflowSession.model_validate(
+        {
+            "session_id": "rem-session-1",
+            "student_id": str(uuid4()),
+            "target_kc_id": "KC-2",
+            "misconception_description": "Needs repair.",
+            "rationale": "Repair before return.",
+            "steps": [
+                {
+                    "phase": "step_back",
+                    "title": "Step back",
+                    "target_kc_ids": ["KC-1"],
+                    "support_level": "high",
+                    "objective": "Reconnect prerequisite.",
+                    "guidance": "Use one example.",
+                    "recommended_content_type": "remedial_micro_module",
+                    "status": "completed",
+                    "generated_content_id": "gen-step-back",
+                },
+                {
+                    "phase": "repair",
+                    "title": "Repair",
+                    "target_kc_ids": ["KC-1"],
+                    "support_level": "medium",
+                    "objective": "Repair the misconception.",
+                    "guidance": "Contrast correct reasoning.",
+                    "recommended_content_type": "remedial_micro_module",
+                    "status": "completed",
+                    "generated_content_id": "gen-repair",
+                },
+                {
+                    "phase": "return",
+                    "title": "Return",
+                    "target_kc_ids": ["KC-2"],
+                    "support_level": "low",
+                    "objective": "Return to the target.",
+                    "guidance": "Use one transfer check.",
+                    "recommended_content_type": "practice_problem",
+                    "status": "active",
+                },
+            ],
+            "current_step_index": 2,
+            "completed_generation_ids": ["gen-step-back", "gen-repair"],
+        }
+    )
+    observations = [
+        LearnerObservation.model_validate(
+            {
+                "observation_id": "obs-remediate-1",
+                "student_id": str(session.student_id),
+                "response_time_ms": 33000,
+                "hints_used": 4,
+                "error_count": 3,
+                "pause_count": 3,
+                "modality_switches": 1,
+                "completed": False,
+                "confidence": 0.18,
+                "task_type": "remediation",
+                "support_level": "high",
+                "expected_duration_ms": 18000,
+                "learning_session_id": session.session_id,
+                "generation_id": "gen-repair",
+                "observed_content_type": "remedial_micro_module",
+                "target_kc_ids": ["KC-1"],
+                "target_lo_ids": ["LO-1"],
+            }
+        )
+    ]
+
+    decision = updater.evaluate_remediation_progress(session=session, observations=observations)
+
+    assert decision.decision == "hold_repair_target"
+    assert decision.hold_step_index == 1
+    assert decision.matched_observation_count == 1
+    assert decision.average_observed_mastery is not None
+    assert decision.average_observed_mastery < 0.58

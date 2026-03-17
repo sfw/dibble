@@ -27,9 +27,10 @@ from dibble.services.generation_request_hydrator import hydrate_target_kc_hints
 from dibble.services.generation_modes import build_generation_mode_plan
 from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
 from dibble.services.misconception_profiles import LearningMisconceptionProfileRecorder
+from dibble.services.observation_profile_update import ObservationProfileUpdater, RemediationProgressDecision
 from dibble.services.predictive_content_warming import PredictiveContentWarmer
 from dibble.services.predictive_warm_scheduler import PredictiveWarmScheduler
-from dibble.services.protocols import AuditStore, KnowledgeComponentStore, ProfileStore
+from dibble.services.protocols import AuditStore, KnowledgeComponentStore, ObservationStore, ProfileStore
 from dibble.services.remediation_planner import RemediationPlanner
 from dibble.services.remediation_workflows import (
     RemediationWorkflowCoordinator,
@@ -47,6 +48,7 @@ class LearnerProfileNotFoundError(LookupError):
 @dataclass(slots=True)
 class ContentWorkflowService:
     profile_store: ProfileStore
+    observation_store: ObservationStore
     knowledge_component_store: KnowledgeComponentStore
     router: RouterPlugin
     generation_engine: GenerationEngine
@@ -60,6 +62,7 @@ class ContentWorkflowService:
     misconception_profile_recorder: LearningMisconceptionProfileRecorder
     audit_store: AuditStore
     within_session_adaptation_service: WithinSessionAdaptationService
+    observation_profile_updater: ObservationProfileUpdater | None = None
 
     def decide_route(self, request: GenerationRequest) -> AdaptiveRouteDecision:
         profile = self._load_profile(request.student_id)
@@ -489,11 +492,20 @@ class ContentWorkflowService:
         request: RemediationWorkflowAdvanceRequest,
     ) -> RemediationWorkflowAdvanceResponse:
         session = self.get_remediation_session(session_id)
-        executed_step, updated_session, generated_content = self._execute_remediation_session_step(
-            session_id=session_id,
-            learner_prompt=request.learner_prompt,
-            curriculum_context=request.curriculum_context,
-        )
+        progression_decision = self._remediation_progression_decision(session=session)
+        if progression_decision.decision == "advance":
+            executed_step, updated_session, generated_content = self._execute_remediation_session_step(
+                session_id=session_id,
+                learner_prompt=request.learner_prompt,
+                curriculum_context=request.curriculum_context,
+            )
+        else:
+            executed_step, updated_session, generated_content = self._execute_held_remediation_step(
+                session=session,
+                progression_decision=progression_decision,
+                learner_prompt=request.learner_prompt,
+                curriculum_context=request.curriculum_context,
+            )
         enriched_content = self._enrich_remediation_content(
             generated_content=generated_content,
             session=updated_session,
@@ -511,6 +523,9 @@ class ContentWorkflowService:
                 "next_phase": self._next_remediation_phase(updated_session),
                 "completed_step_count": len(updated_session.completed_generation_ids),
                 "step_count": len(updated_session.steps),
+                "progression_decision": updated_session.progression_decision,
+                "progression_rationale": updated_session.progression_rationale,
+                "progression_target_kc_ids": updated_session.progression_target_kc_ids,
             },
         )
         return RemediationWorkflowAdvanceResponse(
@@ -547,6 +562,45 @@ class ContentWorkflowService:
         )
         return current_step, updated_session, generated_content
 
+    def _execute_held_remediation_step(
+        self,
+        *,
+        session: RemediationWorkflowSession,
+        progression_decision: RemediationProgressDecision,
+        learner_prompt: str | None,
+        curriculum_context: list[str],
+    ) -> tuple[RemediationWorkflowStep, RemediationWorkflowSession, GeneratedContent]:
+        hold_step_index = progression_decision.hold_step_index
+        if hold_step_index is None:
+            raise RuntimeError("Remediation hold decision did not include a step index.")
+        _, hold_step, generation_request = self.remediation_workflow_coordinator.generation_request_for_step(
+            session_id=session.session_id,
+            step_index=hold_step_index,
+            learner_prompt=learner_prompt,
+            curriculum_context=[
+                *(curriculum_context or []),
+                f"Progression decision: {progression_decision.decision}.",
+                progression_decision.rationale or "Hold on the current repair target before advancing.",
+            ],
+        )
+        generated_content = self.generate_content(generation_request)
+        updated_session = self.remediation_workflow_coordinator.update_progression_decision(
+            session_id=session.session_id,
+            decision=progression_decision.decision,
+            rationale=progression_decision.rationale,
+            target_kc_ids=progression_decision.target_kc_ids or [],
+        )
+        return hold_step, updated_session, generated_content
+
+    def _remediation_progression_decision(self, *, session: RemediationWorkflowSession) -> RemediationProgressDecision:
+        if self.observation_profile_updater is None:
+            return RemediationProgressDecision()
+        observations = self.observation_store.list_recent(student_id=str(session.student_id))
+        return self.observation_profile_updater.evaluate_remediation_progress(
+            session=session,
+            observations=observations,
+        )
+
     def _enrich_remediation_content(
         self,
         *,
@@ -576,6 +630,9 @@ class ContentWorkflowService:
                 "next_step_target_kc_ids": next_step.target_kc_ids if next_step is not None else [],
                 "completed_step_count": len(session.completed_generation_ids),
                 "step_count": len(session.steps),
+                "progression_decision": session.progression_decision,
+                "progression_rationale": session.progression_rationale,
+                "progression_target_kc_ids": session.progression_target_kc_ids,
             },
         }
         if misconception_signals is not None:

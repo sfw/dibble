@@ -41,6 +41,7 @@ from dibble.services.misconception_profiles import (
     LearningMisconceptionProfileResolver,
 )
 from dibble.services.observation_store import SQLiteObservationStore
+from dibble.services.observation_profile_update import ObservationProfileUpdater
 from dibble.services.predictive_content_invalidator import PredictiveContentInvalidator
 from dibble.services.predictive_content_warming import PredictiveContentWarmer
 from dibble.services.predictive_warm_queue_store import SQLitePredictiveWarmQueueStore
@@ -88,6 +89,7 @@ class ApplicationServices:
     remediation_planner: RemediationPlanner
     socratic_assessment_service: SocraticAssessmentService
     socratic_profile_updater: SocraticProfileUpdater
+    observation_profile_updater: ObservationProfileUpdater
     socratic_session_store: SocraticSessionStore
     state_inference_service: LearnerStateInferenceService
     cognitive_trait_inference_service: CognitiveTraitInferenceService
@@ -166,6 +168,9 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     socratic_profile_updater = SocraticProfileUpdater(
         knowledge_state_migrator=KnowledgeStateMigrator(knowledge_component_store=knowledge_component_store)
     )
+    observation_profile_updater = ObservationProfileUpdater(
+        knowledge_state_migrator=KnowledgeStateMigrator(knowledge_component_store=knowledge_component_store)
+    )
     state_inference_service = LearnerStateInferenceService(
         state_profile_signal_service=learner_state_signal_service
     )
@@ -216,6 +221,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     )
     content_workflow_service = ContentWorkflowService(
         profile_store=profile_store,
+        observation_store=observation_store,
         knowledge_component_store=knowledge_component_store,
         router=router_plugin,
         generation_engine=generation_engine,
@@ -229,6 +235,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         misconception_profile_recorder=misconception_profile_recorder,
         audit_store=audit_store,
         within_session_adaptation_service=within_session_adaptation_service,
+        observation_profile_updater=observation_profile_updater,
     )
 
     return ApplicationServices(
@@ -251,6 +258,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         remediation_planner=remediation_planner,
         socratic_assessment_service=socratic_assessment_service,
         socratic_profile_updater=socratic_profile_updater,
+        observation_profile_updater=observation_profile_updater,
         socratic_session_store=socratic_session_store,
         state_inference_service=state_inference_service,
         cognitive_trait_inference_service=cognitive_trait_inference_service,

@@ -25,6 +25,7 @@ from dibble.services.learning_trait_profiles import LearningTraitProfileRecorder
 from dibble.services.learner_strategy_profiles import LearningStrategyProfileRecorder
 from dibble.services.learner_state_calibration import LearnerStateCalibrator
 from dibble.services.learner_summary_service import LearnerSummaryService
+from dibble.services.observation_profile_update import ObservationProfileUpdater
 from dibble.services.predictive_content_invalidator import PredictiveContentInvalidator
 from dibble.services.predictive_warm_scheduler import PredictiveWarmScheduler
 from dibble.services.protocols import (
@@ -58,6 +59,7 @@ class ApiServices(Protocol):
     remediation_planner: RemediationPlanner
     socratic_assessment_service: SocraticAssessmentService
     socratic_profile_updater: SocraticProfileUpdater
+    observation_profile_updater: ObservationProfileUpdater
     socratic_session_store: SocraticSessionStore
     state_inference_service: LearnerStateInferenceService
     cognitive_trait_inference_service: CognitiveTraitInferenceService

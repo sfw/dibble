@@ -43,7 +43,7 @@ def build_learner_router(context: ApiContext) -> APIRouter:
         if profile is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
 
-        services.observation_store.append(student_id=str(student_id), observation=observation)
+        persisted_observation = services.observation_store.append(student_id=str(student_id), observation=observation)
         recent_observations = services.observation_store.list_recent(student_id=str(student_id))
         inferred_state = services.state_inference_service.infer(student_id=student_id, observations=recent_observations)
         calibration = services.learner_state_calibrator.calibrate(
@@ -66,6 +66,8 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 "updated_at": inferred_state.last_observation_at or profile.updated_at,
             }
         )
+        observation_profile_update = services.observation_profile_updater.apply(updated_profile, persisted_observation)
+        updated_profile = observation_profile_update.profile
         services.profile_store.upsert(updated_profile)
         observation_audit_event = services.audit_store.append(
             event_type="learner.observe",
@@ -87,6 +89,18 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 "observed_content_type": observation.observed_content_type,
                 "target_kc_ids": observation.target_kc_ids,
                 "target_lo_ids": observation.target_lo_ids,
+                "observation_mastery_applied": observation_profile_update.applied,
+                "observation_inferred_mastery": observation_profile_update.inferred_mastery,
+                "observation_evidence_strength": (
+                    observation_profile_update.evidence_strength.value
+                    if observation_profile_update.evidence_strength is not None
+                    else None
+                ),
+                "updated_kc_mastery": observation_profile_update.kc_mastery_updates or {},
+                "updated_lo_mastery": observation_profile_update.lo_mastery_updates or {},
+                "propagated_kc_mastery": observation_profile_update.propagated_kc_mastery_updates or {},
+                "propagated_lo_mastery": observation_profile_update.propagated_lo_mastery_updates or {},
+                "observation_mastery_rationale": observation_profile_update.rationale,
                 "engagement": inferred_state.affective_state.engagement.value,
                 "frustration": inferred_state.affective_state.frustration.value,
                 "total_load": inferred_state.cognitive_load.total_load,

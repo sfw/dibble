@@ -71,7 +71,27 @@ class RemediationWorkflowCoordinator:
         session = self.session_store.get(session_id)
         if session is None:
             raise RemediationWorkflowNotFoundError(session_id)
-        current_step = self._current_step(session)
+        if session.current_step_index is None:
+            raise RemediationWorkflowCompleteError(session_id)
+        return self.generation_request_for_step(
+            session_id=session_id,
+            step_index=session.current_step_index,
+            learner_prompt=learner_prompt,
+            curriculum_context=curriculum_context,
+        )
+
+    def generation_request_for_step(
+        self,
+        *,
+        session_id: str,
+        step_index: int,
+        learner_prompt: str | None = None,
+        curriculum_context: list[str] | None = None,
+    ) -> tuple[RemediationWorkflowSession, RemediationWorkflowStep, GenerationRequest]:
+        session = self.session_store.get(session_id)
+        if session is None:
+            raise RemediationWorkflowNotFoundError(session_id)
+        current_step = self._step_at(session, step_index)
         if current_step is None:
             raise RemediationWorkflowCompleteError(session_id)
         request = GenerationRequest(
@@ -125,6 +145,30 @@ class RemediationWorkflowCoordinator:
                 "steps": steps,
                 "current_step_index": updated_index,
                 "completed_generation_ids": [*session.completed_generation_ids, generation_id],
+                "progression_decision": "advance",
+                "progression_rationale": None,
+                "progression_target_kc_ids": [],
+                "updated_at": datetime.now(timezone.utc),
+            }
+        )
+        return self.session_store.upsert(updated_session)
+
+    def update_progression_decision(
+        self,
+        *,
+        session_id: str,
+        decision: str,
+        rationale: str | None,
+        target_kc_ids: list[str],
+    ) -> RemediationWorkflowSession:
+        session = self.session_store.get(session_id)
+        if session is None:
+            raise RemediationWorkflowNotFoundError(session_id)
+        updated_session = session.model_copy(
+            update={
+                "progression_decision": decision,
+                "progression_rationale": rationale,
+                "progression_target_kc_ids": target_kc_ids,
                 "updated_at": datetime.now(timezone.utc),
             }
         )
@@ -153,9 +197,12 @@ class RemediationWorkflowCoordinator:
     def _current_step(self, session: RemediationWorkflowSession) -> RemediationWorkflowStep | None:
         if session.current_step_index is None:
             return None
-        if session.current_step_index >= len(session.steps):
+        return self._step_at(session, session.current_step_index)
+
+    def _step_at(self, session: RemediationWorkflowSession, step_index: int) -> RemediationWorkflowStep | None:
+        if step_index < 0 or step_index >= len(session.steps):
             return None
-        return session.steps[session.current_step_index]
+        return session.steps[step_index]
 
     def _content_type_for_phase(self, phase: str) -> RequestedContentType:
         if phase == "return":

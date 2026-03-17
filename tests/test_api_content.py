@@ -607,6 +607,90 @@ def test_remediation_session_endpoints_advance_multi_step_workflow(client, stude
     assert completed_response.status_code == 409
 
 
+def test_remediation_session_holds_return_when_recent_repair_evidence_is_weak(client, student_id):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put(
+        "/api/knowledge-components/KC-1",
+        json=build_knowledge_component("KC-1", name="Identify numerator and denominator"),
+    )
+    client.put(
+        "/api/knowledge-components/KC-2",
+        json=build_knowledge_component(
+            "KC-2",
+            prerequisite_kc_ids=["KC-1"],
+            name="Generate equivalent fractions",
+            common_misconceptions=[
+                {
+                    "misconception_id": "fraction-whole-number-bias",
+                    "label": "Treats fraction parts like unrelated whole numbers",
+                    "description": "The learner compares numerator and denominator separately instead of the whole amount.",
+                    "trigger_terms": ["numerator", "denominator", "whole number", "fraction"],
+                    "prerequisite_kc_ids": ["KC-1"],
+                    "remediation_hint": "Use one visual model to compare the total amount before naming the parts.",
+                }
+            ],
+        ),
+    )
+
+    trigger_response = client.post(
+        "/api/remedial/trigger",
+        json={
+            "student_id": str(student_id),
+            "target_kc_id": "KC-2",
+            "misconception_description": "The learner compares numerator and denominator like whole numbers.",
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    assert trigger_response.status_code == 200
+    remediation_session_id = trigger_response.json()["request_context"]["remediation_session_id"]
+
+    repair_response = client.post(
+        f"/api/remedial/sessions/{remediation_session_id}/advance",
+        json={},
+    )
+    assert repair_response.status_code == 200
+    repair_payload = repair_response.json()
+    assert repair_payload["executed_phase"] == "repair"
+    assert repair_payload["session"]["current_step_index"] == 2
+
+    observe_response = client.post(
+        f"/api/learners/{student_id}/observations",
+        json={
+            "response_time_ms": 32000,
+            "hints_used": 4,
+            "error_count": 3,
+            "pause_count": 3,
+            "modality_switches": 0,
+            "completed": False,
+            "confidence": 0.2,
+            "task_type": "remediation",
+            "support_level": "high",
+            "expected_duration_ms": 18000,
+            "learning_session_id": remediation_session_id,
+            "generation_id": repair_payload["content"]["generation_id"],
+            "observed_content_type": "remedial_micro_module",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": ["LO-1"],
+        },
+    )
+    assert observe_response.status_code == 200
+
+    held_response = client.post(
+        f"/api/remedial/sessions/{remediation_session_id}/advance",
+        json={},
+    )
+    assert held_response.status_code == 200
+    held_payload = held_response.json()
+
+    assert held_payload["executed_phase"] == "repair"
+    assert held_payload["content"]["content_type"] == "remedial_micro_module"
+    assert held_payload["session"]["current_step_index"] == 2
+    assert held_payload["session"]["progression_decision"] == "hold_repair_target"
+    assert held_payload["content"]["request_context"]["remediation_workflow"]["progression_decision"] == "hold_repair_target"
+    assert held_payload["content"]["request_context"]["remediation_workflow"]["next_phase"] == "return"
+
+
 def test_explanations_and_problems_endpoints_specialize_generation(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())

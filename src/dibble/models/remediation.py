@@ -50,6 +50,9 @@ class RemediationWorkflowSession(BaseModel):
     steps: list[RemediationWorkflowStep] = Field(default_factory=list)
     current_step_index: int | None = None
     completed_generation_ids: list[str] = Field(default_factory=list)
+    progression_decision: str = "advance"
+    progression_rationale: str | None = None
+    progression_target_kc_ids: list[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
 
