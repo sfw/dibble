@@ -99,6 +99,76 @@ def test_retriever_adds_deterministic_excerpt_from_matching_sentence(tmp_path):
     assert "equivalent fractions" in results[0].excerpt.lower()
 
 
+def test_retriever_prefers_semantically_relevant_passage_over_leading_noise(tmp_path):
+    database_path = str(tmp_path / "retrieval-passage-focus.db")
+    ensure_database(database_path)
+    store = SQLiteCurriculumStore(database_path)
+    store.upsert(
+        CurriculumResourceUpsert(
+            **{
+                **build_curriculum_resource("CURR-PASSAGE"),
+                "body": (
+                    "Warm up by naming different classroom manipulatives. "
+                    "Learners should compare equal partitions and justify that both shapes cover the same region. "
+                    "Then connect that area model to symbolic notation for equivalent fractions."
+                ),
+            }
+        )
+    )
+    retriever = RAGRetriever(store)
+    profile = LearnerProfile.model_validate(build_profile(uuid4(), frustration="low", total_load=0.2))
+    request = GenerationRequest(
+        student_id=profile.student_id,
+        target_kc_ids=["KC-1"],
+        curriculum_context=["Use area models and equal partitions to show fractions with the same value."],
+    )
+
+    results = retriever.retrieve(profile, request)
+
+    assert results[0].excerpt is not None
+    assert "same region" in results[0].excerpt.lower() or "area model" in results[0].excerpt.lower()
+    assert "warm up by naming different classroom manipulatives" not in results[0].excerpt.lower()
+
+
+def test_retriever_uses_passage_signal_to_prefer_more_grounded_resource(tmp_path):
+    database_path = str(tmp_path / "retrieval-passage-ranking.db")
+    ensure_database(database_path)
+    store = SQLiteCurriculumStore(database_path)
+    store.upsert(
+        CurriculumResourceUpsert(
+            **{
+                **build_curriculum_resource("CURR-NOISY"),
+                "body": (
+                    "This unit surveys fraction vocabulary, classroom routines, and several unrelated extensions. "
+                    "Much later, learners compare equal partitions to show why two shapes still cover the same region. "
+                    "The final note reconnects that area model to equivalent fractions."
+                ),
+            }
+        )
+    )
+    store.upsert(
+        CurriculumResourceUpsert(
+            **{
+                **build_curriculum_resource("CURR-GENERIC"),
+                "knowledge_component_ids": ["KC-9"],
+                "body": "Review fraction words and identify numerators and denominators in simple examples.",
+            }
+        )
+    )
+    retriever = RAGRetriever(store)
+    profile = LearnerProfile.model_validate(build_profile(uuid4(), frustration="low", total_load=0.2))
+    request = GenerationRequest(
+        student_id=profile.student_id,
+        curriculum_context=["Use equal partitions and area models to explain why fractions can name the same value."],
+    )
+
+    results = retriever.retrieve(profile, request)
+
+    assert results[0].resource_id == "CURR-NOISY"
+    assert results[0].excerpt is not None
+    assert "equal partitions" in results[0].excerpt.lower() or "same region" in results[0].excerpt.lower()
+
+
 def test_validator_reports_missing_grounding():
     issues = ContentValidator().validate(
         blocks=[GeneratedBlock(kind="instruction", title="Teach", body="Explain the concept.")],

@@ -5,6 +5,7 @@ from dibble.models.generation import GenerationRequest, GroundingReference
 from dibble.services.grounding_context import extract_grounding_excerpt
 from dibble.models.profile import LearnerProfile
 from dibble.services.protocols import CurriculumStore, EmbeddingStore
+from dibble.services.retrieval.grounding_passages import GroundingPassageSelector
 from dibble.services.retrieval.embedding_store import InMemoryEmbeddingStore
 from dibble.services.retrieval.embeddings import Embedder, LocalHashEmbedder, cosine_similarity
 from dibble.services.retrieval.scoring import HybridRetrievalScorer
@@ -18,11 +19,13 @@ class RAGRetriever:
         embedding_store: EmbeddingStore | None = None,
         embedder: Embedder | None = None,
         scorer: HybridRetrievalScorer | None = None,
+        passage_selector: GroundingPassageSelector | None = None,
     ) -> None:
         self.curriculum_store = curriculum_store
         self.embedding_store = embedding_store or InMemoryEmbeddingStore()
         self.embedder = embedder or LocalHashEmbedder()
         self.scorer = scorer or HybridRetrievalScorer()
+        self.passage_selector = passage_selector or GroundingPassageSelector()
 
     def retrieve(
         self,
@@ -31,8 +34,9 @@ class RAGRetriever:
         limit: int = 3,
     ) -> list[GroundingReference]:
         resources = self.curriculum_store.list()
-        query_embedding = self.embedder.embed(self.scorer.build_query_text(profile, request))
-        scored: list[tuple[float, CurriculumResource, list[str]]] = []
+        query_text = self.scorer.build_query_text(profile, request)
+        query_embedding = self.embedder.embed(query_text)
+        scored: list[tuple[float, CurriculumResource, list[str], str | None]] = []
 
         for resource in resources:
             retrieval_score = self.scorer.score(profile, request, resource)
@@ -44,8 +48,16 @@ class RAGRetriever:
 
             matched_terms = retrieval_score.matched_terms if retrieval_score is not None else []
             base_score = retrieval_score.score if retrieval_score is not None else 0.0
+            passage_match = self.passage_selector.select(
+                query_text=query_text,
+                resource=resource,
+                matched_terms=matched_terms,
+            )
             score = base_score + (embedding_similarity * 4.0)
-            scored.append((score, resource, matched_terms))
+            if passage_match is not None:
+                score += passage_match.score * 0.45
+                matched_terms = passage_match.matched_terms or matched_terms
+            scored.append((score, resource, matched_terms, passage_match.excerpt if passage_match is not None else None))
 
         scored.sort(key=lambda item: (-item[0], item[1].resource_id))
         return [
@@ -57,12 +69,12 @@ class RAGRetriever:
                 source_type=resource.source_type,
                 score=score,
                 matched_terms=matched_terms,
-                excerpt=extract_grounding_excerpt(
+                excerpt=excerpt or extract_grounding_excerpt(
                     resource.body,
                     matched_terms=matched_terms,
                 ),
             )
-            for score, resource, matched_terms in scored[:limit]
+            for score, resource, matched_terms, excerpt in scored[:limit]
         ]
 
     def _resource_embedding(self, resource: CurriculumResource) -> list[float]:
