@@ -104,6 +104,11 @@ class TelemetrySnapshot(BaseModel):
     pending_predictive_warm_tasks: int = 0
     deferred_predictive_warm_tasks: int = 0
     aged_routine_predictive_warm_tasks: int = 0
+    eligible_predictive_warm_tasks: int = 0
+    blocked_predictive_warm_tasks: int = 0
+    stale_processing_predictive_warm_tasks: int = 0
+    urgent_predictive_warm_tasks: int = 0
+    next_predictive_warm_task_eta_seconds: int | None = None
     completed_predictive_warm_tasks: int = 0
     failed_predictive_warm_tasks: int = 0
     canceled_predictive_warm_tasks: int = 0

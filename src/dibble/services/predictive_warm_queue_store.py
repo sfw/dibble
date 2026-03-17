@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
@@ -125,7 +126,15 @@ class SQLitePredictiveWarmQueueStore:
                 for task in tasks
                 if task.task_id not in stale_ids and (task.next_attempt_at is None or task.next_attempt_at <= now)
             ]
-            task_ids = [task.task_id for task in _select_task_batch(candidates, limit=limit)]
+            task_ids = [
+                task.task_id
+                for task in _select_task_batch(
+                    candidates,
+                    limit=limit,
+                    now=now,
+                    routine_starvation_minutes=self.routine_starvation_minutes,
+                )
+            ]
             if not task_ids:
                 connection.commit()
                 return []
@@ -186,18 +195,23 @@ class SQLitePredictiveWarmQueueStore:
                         ),
                     )
                     continue
-                next_attempt_at = now + timedelta(
-                    seconds=self.retry_backoff_seconds * (2 ** max(0, task.attempt_count - 1))
+                delay_seconds = self._retry_delay_seconds(
+                    priority_class=task.priority_class,
+                    attempt_count=task.attempt_count,
+                    stale_recovery=True,
                 )
+                recovery_status = "pending" if delay_seconds <= 0 else "deferred"
+                next_attempt_at = None if delay_seconds <= 0 else now + timedelta(seconds=delay_seconds)
                 connection.execute(
                     """
                     UPDATE predictive_warm_queue
-                    SET status = 'deferred', updated_at = ?, next_attempt_at = ?, last_error = ?
+                    SET status = ?, updated_at = ?, next_attempt_at = ?, last_error = ?
                     WHERE task_id = ?
                     """,
                     (
+                        recovery_status,
                         now.isoformat(),
-                        next_attempt_at.isoformat(),
+                        next_attempt_at.isoformat() if next_attempt_at is not None else None,
                         "Recovered stale processing task after processing timeout.",
                         task.task_id,
                     ),
@@ -270,8 +284,12 @@ class SQLitePredictiveWarmQueueStore:
             if task.attempt_count >= self._max_retry_attempts_for(task.priority_class):
                 self._update_status(task_id=task_id, status="failed", last_error=error, next_attempt_at=None)
                 return None
-            delay_seconds = self.retry_backoff_seconds * (2 ** max(0, task.attempt_count - 1))
-            next_attempt_at = datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)
+            updated_at = datetime.now(timezone.utc)
+            delay_seconds = self._retry_delay_seconds(
+                priority_class=task.priority_class,
+                attempt_count=task.attempt_count,
+            )
+            next_attempt_at = updated_at + timedelta(seconds=delay_seconds)
             connection.execute(
                 """
                 UPDATE predictive_warm_queue
@@ -279,7 +297,7 @@ class SQLitePredictiveWarmQueueStore:
                 WHERE task_id = ?
                 """,
                 (
-                    datetime.now(timezone.utc).isoformat(),
+                    updated_at.isoformat(),
                     next_attempt_at.isoformat(),
                     error,
                     task_id,
@@ -289,7 +307,7 @@ class SQLitePredictiveWarmQueueStore:
         return task.model_copy(
             update={
                 "status": "deferred",
-                "updated_at": datetime.now(timezone.utc),
+                "updated_at": updated_at,
                 "next_attempt_at": next_attempt_at,
                 "last_error": error,
             }
@@ -341,7 +359,7 @@ class SQLitePredictiveWarmQueueStore:
             connection.commit()
         return len(canceled_ids)
 
-    def stats(self) -> dict[str, int]:
+    def stats(self) -> dict[str, int | None]:
         counts = {
             "pending": 0,
             "processing": 0,
@@ -350,7 +368,15 @@ class SQLitePredictiveWarmQueueStore:
             "failed": 0,
             "canceled": 0,
             "aged_routine": 0,
+            "eligible_now": 0,
+            "blocked_deferred": 0,
+            "stale_processing": 0,
+            "urgent_active": 0,
+            "next_eligible_in_seconds": None,
         }
+        now = datetime.now(timezone.utc)
+        stale_threshold = now - timedelta(seconds=self.processing_timeout_seconds)
+        routine_cutoff = now - timedelta(minutes=self.routine_starvation_minutes)
         with sqlite3.connect(self.database_path) as connection:
             rows = connection.execute(
                 """
@@ -359,21 +385,43 @@ class SQLitePredictiveWarmQueueStore:
                 GROUP BY status
                 """
             ).fetchall()
-            aged_routine_row = connection.execute(
+            active_rows = connection.execute(
                 """
-                SELECT count(*)
+                SELECT status, priority_class, created_at, updated_at, next_attempt_at
                 FROM predictive_warm_queue
-                WHERE priority_class = 'routine'
-                  AND status IN ('pending', 'deferred')
-                  AND created_at <= ?
-                """,
-                (
-                    (datetime.now(timezone.utc) - timedelta(minutes=self.routine_starvation_minutes)).isoformat(),
-                ),
-            ).fetchone()
+                WHERE status IN ('pending', 'deferred', 'processing')
+                """
+            ).fetchall()
         for status, count in rows:
             counts[str(status)] = int(count)
-        counts["aged_routine"] = int(aged_routine_row[0]) if aged_routine_row is not None else 0
+        next_eta_seconds: int | None = None
+        for status, priority_class, created_at, updated_at, next_attempt_at in active_rows:
+            created = datetime.fromisoformat(created_at)
+            is_expired = created + timedelta(minutes=max(1, self.stale_after_minutes)) <= now
+            if priority_class == "urgent" and status in {"pending", "deferred", "processing"} and not is_expired:
+                counts["urgent_active"] += 1
+            if status == "processing":
+                if datetime.fromisoformat(updated_at) <= stale_threshold:
+                    counts["stale_processing"] += 1
+                continue
+            if priority_class == "routine" and created <= routine_cutoff and not is_expired:
+                counts["aged_routine"] += 1
+            if is_expired:
+                continue
+            if status == "pending" or next_attempt_at is None:
+                counts["eligible_now"] += 1
+                next_eta_seconds = 0 if next_eta_seconds is None else min(next_eta_seconds, 0)
+                continue
+            eligible_at = datetime.fromisoformat(next_attempt_at)
+            if eligible_at <= now:
+                counts["eligible_now"] += 1
+                next_eta_seconds = 0 if next_eta_seconds is None else min(next_eta_seconds, 0)
+                continue
+            counts["blocked_deferred"] += 1
+            candidate_eta = max(0, math.ceil((eligible_at - now).total_seconds()))
+            if next_eta_seconds is None or candidate_eta < next_eta_seconds:
+                next_eta_seconds = candidate_eta
+        counts["next_eligible_in_seconds"] = next_eta_seconds
         return counts
 
     def _update_status(
@@ -408,6 +456,24 @@ class SQLitePredictiveWarmQueueStore:
             "routine": max(1, self.max_retry_attempts - 1),
         }
         return class_caps.get(priority_class, self.max_retry_attempts)
+
+    def _retry_delay_seconds(self, *, priority_class: str, attempt_count: int, stale_recovery: bool = False) -> int:
+        attempt_multiplier = 2 ** max(0, attempt_count - 1)
+        if stale_recovery:
+            class_multiplier = {
+                "urgent": 0.0,
+                "high": 0.5,
+                "routine": 1.0,
+            }.get(priority_class, 1.0)
+            delay_seconds = int(self.retry_backoff_seconds * class_multiplier * attempt_multiplier)
+            return max(0, delay_seconds)
+        class_multiplier = {
+            "urgent": 0.5,
+            "high": 1.0,
+            "routine": 1.5,
+        }.get(priority_class, 1.0)
+        delay_seconds = int(self.retry_backoff_seconds * class_multiplier * attempt_multiplier)
+        return max(5, delay_seconds)
 
 
 def _mark_processing(connection: sqlite3.Connection, *, task_ids: list[str]) -> None:
@@ -534,10 +600,27 @@ def _priority_class_for_request(request: GenerationRequest, *, priority_score: f
     return "routine"
 
 
-def _select_task_batch(tasks: list[PredictiveWarmTask], *, limit: int) -> list[PredictiveWarmTask]:
+def _select_task_batch(
+    tasks: list[PredictiveWarmTask],
+    *,
+    limit: int,
+    now: datetime,
+    routine_starvation_minutes: int,
+) -> list[PredictiveWarmTask]:
     if limit <= 0 or not tasks:
         return []
-    ordered = sorted(tasks, key=lambda task: (-task.priority_score, task.created_at, task.task_id))
+    ordered = sorted(
+        tasks,
+        key=lambda task: (
+            -_effective_priority_score(
+                task,
+                now=now,
+                routine_starvation_minutes=routine_starvation_minutes,
+            ),
+            task.created_at,
+            task.task_id,
+        ),
+    )
     groups = {
         "urgent": [task for task in ordered if task.priority_class == "urgent"],
         "high": [task for task in ordered if task.priority_class == "high"],
@@ -558,3 +641,22 @@ def _select_task_batch(tasks: list[PredictiveWarmTask], *, limit: int) -> list[P
         if len(selected) >= limit:
             break
     return selected[:limit]
+
+
+def _effective_priority_score(
+    task: PredictiveWarmTask,
+    *,
+    now: datetime,
+    routine_starvation_minutes: int,
+) -> float:
+    wait_minutes = max(0.0, (now - task.created_at).total_seconds() / 60)
+    threshold = max(1, routine_starvation_minutes)
+    starvation_windows = int(wait_minutes // threshold)
+    age_bonus = 0.0
+    if starvation_windows > 0:
+        if task.priority_class == "routine":
+            age_bonus = min(0.28, 0.06 * starvation_windows)
+        elif task.priority_class == "high":
+            age_bonus = min(0.08, 0.02 * starvation_windows)
+    retry_bonus = min(0.04, 0.02 * max(0, task.attempt_count - 1))
+    return round(task.priority_score + age_bonus + retry_bonus, 3)

@@ -96,6 +96,49 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     assert deferred_task is not None
     assert claimed
     queue_store.defer_retry(task_id=claimed[0].task_id, error="provider timeout")
+    pending_urgent_task = queue_store.enqueue(
+        request=GenerationRequest(
+            student_id=uuid4(),
+            learning_session_id="session-telemetry",
+            target_kc_ids=["KC-2"],
+            intent="assessment",
+            requested_content_type="assessment_probe",
+            predictive_warm=True,
+            warm_reason="transfer check after bridge",
+            source_generation_id="gen-2",
+        )
+    )
+    stale_processing_task = queue_store.enqueue(
+        request=GenerationRequest(
+            student_id=uuid4(),
+            learning_session_id="session-telemetry",
+            target_kc_ids=["KC-3"],
+            intent="assessment",
+            requested_content_type="assessment_probe",
+            predictive_warm=True,
+            warm_reason="transfer check after bridge",
+            source_generation_id="gen-3",
+        )
+    )
+    assert pending_urgent_task is not None
+    assert stale_processing_task is not None
+    stale_claim = queue_store.claim_tasks(task_ids=[stale_processing_task.task_id])
+    assert stale_claim
+
+    from datetime import datetime, timedelta, timezone
+    import sqlite3
+
+    with sqlite3.connect(database_path) as connection:
+        stale_time = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
+        connection.execute(
+            """
+            UPDATE predictive_warm_queue
+            SET updated_at = ?
+            WHERE task_id = ?
+            """,
+            (stale_time, stale_processing_task.task_id),
+        )
+        connection.commit()
 
     audit_store.append(
         event_type="content.moderation",
@@ -166,9 +209,15 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     assert snapshot.learning_progress_profile_events == 2
     assert snapshot.improving_progress_signals == 1
     assert snapshot.declining_progress_signals == 1
-    assert snapshot.pending_predictive_warm_tasks == 0
+    assert snapshot.pending_predictive_warm_tasks == 1
     assert snapshot.deferred_predictive_warm_tasks == 1
     assert snapshot.aged_routine_predictive_warm_tasks == 0
+    assert snapshot.eligible_predictive_warm_tasks == 1
+    assert snapshot.blocked_predictive_warm_tasks == 1
+    assert snapshot.stale_processing_predictive_warm_tasks == 1
+    assert snapshot.urgent_predictive_warm_tasks == 2
+    assert snapshot.next_predictive_warm_task_eta_seconds is not None
+    assert snapshot.next_predictive_warm_task_eta_seconds == 0
     assert snapshot.retried_predictive_warm_tasks == 1
     assert snapshot.requeued_predictive_warm_tasks == 1
     assert snapshot.dropped_predictive_warm_tasks == 0

@@ -263,6 +263,73 @@ def test_predictive_warm_scheduler_reports_requeued_stale_processing_tasks(tmp_p
     assert result.pending_tasks == 1
 
 
+def test_predictive_warm_scheduler_recovers_stale_urgent_tasks_in_same_pass(tmp_path):
+    database_path = str(tmp_path / "predictive-warm-scheduler-stale-urgent.db")
+    ensure_database(database_path)
+    profile_store = SQLiteProfileStore(database_path)
+    curriculum_store = SQLiteCurriculumStore(database_path)
+    queue_store = SQLitePredictiveWarmQueueStore(database_path, processing_timeout_seconds=30)
+    student_id = uuid4()
+    profile_store.upsert(build_profile_model(student_id))
+    curriculum_store.upsert(CurriculumResourceUpsert.model_validate(build_curriculum_resource()))
+    generation_engine = GenerationEngine(
+        retriever=RAGRetriever(curriculum_store),
+        router=AdaptiveRouter(),
+        provider=MockLLMProvider(),
+        validator=ContentValidator(),
+    )
+    scheduler = PredictiveWarmScheduler(
+        queue_store=queue_store,
+        content_warmer=ContentWarmer(
+            profile_store=profile_store,
+            generation_engine=generation_engine,
+            generation_mode_calibrator=None,
+        ),
+        inline_process_limit=0,
+    )
+    task = queue_store.enqueue(
+        request=GenerationRequest.model_validate(
+            {
+                "student_id": str(student_id),
+                "learning_session_id": "session-stale-urgent",
+                "target_kc_ids": ["KC-1"],
+                "intent": "assessment",
+                "requested_content_type": "assessment_probe",
+                "curriculum_context": ["Equivalent fractions"],
+                "predictive_warm": True,
+                "warm_reason": "transfer check after bridge",
+                "source_generation_id": "gen-1",
+            }
+        )
+    )
+
+    assert task is not None
+    claimed = queue_store.claim_pending(limit=1)
+    assert claimed
+
+    from datetime import datetime, timedelta, timezone
+    import sqlite3
+
+    with sqlite3.connect(database_path) as connection:
+        stale_time = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
+        connection.execute(
+            """
+            UPDATE predictive_warm_queue
+            SET updated_at = ?
+            WHERE task_id = ?
+            """,
+            (stale_time, task.task_id),
+        )
+        connection.commit()
+
+    result = scheduler.process_pending(limit=1)
+
+    assert result.requeued_tasks == 1
+    assert result.attempted_tasks == 1
+    assert result.completed_tasks == 1
+    assert result.pending_tasks == 0
+
+
 def build_profile_model(student_id):
     from dibble.models.profile import LearnerProfile
 
