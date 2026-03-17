@@ -215,9 +215,7 @@ def build_generation_mode_plan(
             "Step back to prerequisite understanding, simplify language, and reconnect the learner to the target concept."
         )
     else:
-        prompt_guidance = (
-            "Focus on clear explanation, one grounded example, and a concise check-for-understanding next step."
-        )
+        prompt_guidance = _micro_explanation_guidance(request)
         prompt_guidance = _append_socratic_guidance(prompt_guidance, mode_calibration=mode_calibration)
 
     return GenerationModePlan(
@@ -684,6 +682,26 @@ def _append_socratic_guidance(
         )
     if mode_calibration.socratic_steering_action == "probe_from_new_angle":
         return f"{guidance} Use a fresh representation or comparison so the next step does not simply repeat the last Socratic wording."
+    return guidance
+
+
+def _micro_explanation_guidance(request: GenerationRequest) -> str:
+    guidance = "Focus on clear explanation, one grounded example, and a concise check-for-understanding next step."
+    hint = _primary_target_hint(request)
+    if hint is None:
+        return guidance
+    concept_anchor = hint.kc_name
+    guidance = f"{guidance} Center the explanation on {concept_anchor}."
+    if hint.misconception_labels:
+        guidance = (
+            f"{guidance} Name and correct the likely misconception '{hint.misconception_labels[0]}' without repeating the learner's exact wording."
+        )
+    if hint.remediation_hints:
+        guidance = f"{guidance} Anchor the correction in this move: {hint.remediation_hints[0]}."
+    if hint.nearby_kc_names:
+        guidance = (
+            f"{guidance} Use one nearby comparison such as {hint.nearby_kc_names[0]} to make the distinction visible."
+        )
     return guidance
 
 

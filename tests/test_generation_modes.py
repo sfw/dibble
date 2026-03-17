@@ -612,6 +612,46 @@ def test_generation_mode_plan_uses_target_kc_misconceptions_to_focus_distractors
     assert "Compare the total amount before comparing the parts." in plan.prompt_guidance
 
 
+def test_generation_mode_plan_uses_target_kc_hints_to_ground_micro_explanations():
+    profile = LearnerProfile.model_validate(
+        build_profile(
+            uuid4(),
+            frustration="low",
+            total_load=0.24,
+            kc_mastery={"KC-1": 0.58},
+            engagement="medium",
+        )
+    )
+    request = GenerationRequest(
+        student_id=profile.student_id,
+        target_kc_ids=["KC-1"],
+        intent="explanation",
+        target_kc_hints=[
+            TargetKcGenerationHint(
+                kc_id="KC-1",
+                kc_name="Generate equivalent fractions",
+                nearby_kc_names=["Compare equivalent fractions"],
+                misconception_labels=["Whole-number bias"],
+                remediation_hints=["Compare the total amount before comparing the parts."],
+            )
+        ],
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.reteach,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="medium",
+        reasons=["test"],
+    )
+
+    plan = build_generation_mode_plan(profile, request, route)
+
+    assert plan.content_type == RequestedContentType.micro_explanation
+    assert "Center the explanation on Generate equivalent fractions." in plan.prompt_guidance
+    assert "Whole-number bias" in plan.prompt_guidance
+    assert "Compare the total amount before comparing the parts." in plan.prompt_guidance
+    assert "Compare equivalent fractions" in plan.prompt_guidance
+
+
 def test_generation_mode_plan_uses_bridge_progression_for_worked_examples():
     profile = LearnerProfile.model_validate(
         build_profile(
