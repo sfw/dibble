@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from dibble.app import create_app
 from dibble.config import Settings
 
-from tests.support import build_profile
+from tests.support import assert_machine_readable_error, build_profile
 
 
 def test_auth_can_protect_api_endpoints(tmp_path, student_id):
@@ -25,8 +25,12 @@ def test_auth_can_protect_api_endpoints(tmp_path, student_id):
         audit_response = client.get("/api/audit/events", headers={"X-API-Key": "secret-key"})
 
     assert health_response.status_code == 200
-    assert unauthorized.status_code == 401
-    assert unauthorized.headers["x-dibble-error-code"] == "auth_invalid_credentials"
+    assert_machine_readable_error(
+        unauthorized,
+        status_code=401,
+        code="auth_invalid_credentials",
+        detail="A valid API key is required for this endpoint.",
+    )
     assert unauthorized.headers["www-authenticate"] == "Bearer"
     assert authorized.status_code == 200
     assert audit_response.status_code == 200
@@ -64,11 +68,19 @@ def test_auth_exposes_identity_and_rbac(tmp_path, student_id):
     assert me_response.status_code == 200
     assert me_response.json()["principal_id"] == "viewer-user"
     assert me_response.json()["role"] == "viewer"
-    assert forbidden_write.status_code == 403
-    assert forbidden_write.headers["x-dibble-error-code"] == "auth_insufficient_role"
+    assert_machine_readable_error(
+        forbidden_write,
+        status_code=403,
+        code="auth_insufficient_role",
+        detail="Your role does not allow access to this endpoint.",
+    )
     assert allowed_write.status_code == 200
-    assert forbidden_audit.status_code == 403
-    assert forbidden_audit.headers["x-dibble-error-code"] == "auth_insufficient_role"
+    assert_machine_readable_error(
+        forbidden_audit,
+        status_code=403,
+        code="auth_insufficient_role",
+        detail="Your role does not allow access to this endpoint.",
+    )
     assert allowed_audit.status_code == 200
 
 
@@ -121,8 +133,12 @@ def test_refresh_rotates_tokens_and_old_refresh_token_stops_working(tmp_path):
 
     assert refreshed.status_code == 200
     assert refreshed.json()["refresh_token"] != issued["refresh_token"]
-    assert stale_refresh.status_code == 401
-    assert stale_refresh.headers["x-dibble-error-code"] == "auth_refresh_failed"
+    assert_machine_readable_error(
+        stale_refresh,
+        status_code=401,
+        code="auth_refresh_failed",
+        detail="Refresh token is no longer active.",
+    )
     assert stale_refresh.headers["www-authenticate"] == "Bearer"
 
 
@@ -150,6 +166,10 @@ def test_revocation_invalidates_existing_bearer_session(tmp_path):
         )
 
     assert revoke.status_code == 200
-    assert me_response.status_code == 401
-    assert me_response.headers["x-dibble-error-code"] == "auth_invalid_credentials"
+    assert_machine_readable_error(
+        me_response,
+        status_code=401,
+        code="auth_invalid_credentials",
+        detail="Session has been revoked.",
+    )
     assert me_response.headers["www-authenticate"] == "Bearer"

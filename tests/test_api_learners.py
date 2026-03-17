@@ -4,7 +4,12 @@ from fastapi.testclient import TestClient
 
 from dibble.app import create_app
 
-from tests.support import build_curriculum_resource, build_knowledge_component, build_profile
+from tests.support import (
+    assert_machine_readable_error,
+    build_curriculum_resource,
+    build_knowledge_component,
+    build_profile,
+)
 
 
 EXPECTED_CONTINUE_ACTION_KEYS = {
@@ -80,15 +85,23 @@ def test_profile_round_trip_and_summary(client, student_id):
 def test_learner_workspace_returns_machine_readable_not_found_error(client, student_id):
     response = client.get(f"/api/learners/{student_id}/workspace")
 
-    assert response.status_code == 404
-    assert response.headers["x-dibble-error-code"] == "learner_profile_not_found"
+    assert_machine_readable_error(
+        response,
+        status_code=404,
+        code="learner_profile_not_found",
+        detail="Learner profile not found.",
+    )
 
 
 def test_learner_progression_returns_machine_readable_not_found_error(client, student_id):
     response = client.get(f"/api/learners/{student_id}/progression")
 
-    assert response.status_code == 404
-    assert response.headers["x-dibble-error-code"] == "learner_profile_not_found"
+    assert_machine_readable_error(
+        response,
+        status_code=404,
+        code="learner_profile_not_found",
+        detail="Learner profile not found.",
+    )
 
 
 def test_profile_summary_exposes_recent_calibration_and_activity(client, student_id, app_settings):
@@ -616,12 +629,24 @@ def test_learner_history_endpoints_return_machine_readable_not_found_error(clien
     socratic_history_response = client.get(f"/api/learners/{student_id}/history/socratic-sessions")
     remediation_history_response = client.get(f"/api/learners/{student_id}/history/remediation-sessions")
 
-    assert generations_response.status_code == 404
-    assert generations_response.headers["x-dibble-error-code"] == "learner_profile_not_found"
-    assert socratic_history_response.status_code == 404
-    assert socratic_history_response.headers["x-dibble-error-code"] == "learner_profile_not_found"
-    assert remediation_history_response.status_code == 404
-    assert remediation_history_response.headers["x-dibble-error-code"] == "learner_profile_not_found"
+    assert_machine_readable_error(
+        generations_response,
+        status_code=404,
+        code="learner_profile_not_found",
+        detail="Learner profile not found.",
+    )
+    assert_machine_readable_error(
+        socratic_history_response,
+        status_code=404,
+        code="learner_profile_not_found",
+        detail="Learner profile not found.",
+    )
+    assert_machine_readable_error(
+        remediation_history_response,
+        status_code=404,
+        code="learner_profile_not_found",
+        detail="Learner profile not found.",
+    )
 
 
 def test_teacher_intervention_action_contract_exposes_backend_owned_proposal_and_records_approval(client, student_id):
@@ -745,8 +770,12 @@ def test_teacher_intervention_action_contract_rejects_idle_or_invalid_teacher_de
     assert idle_contract_response.status_code == 200
     assert idle_contract_response.json()["proposal_status"] == "unavailable"
     assert idle_contract_response.json()["allowed_decisions"] == []
-    assert unavailable_response.status_code == 409
-    assert unavailable_response.headers["x-dibble-error-code"] == "teacher_intervention_unavailable"
+    assert_machine_readable_error(
+        unavailable_response,
+        status_code=409,
+        code="teacher_intervention_unavailable",
+        detail="No teacher-approvable intervention is available.",
+    )
 
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
     client.post(
@@ -771,12 +800,24 @@ def test_teacher_intervention_action_contract_rejects_idle_or_invalid_teacher_de
         json={"decision": "select_option", "option_id": "not-a-real-option"},
     )
 
-    assert invalid_response.status_code == 400
-    assert invalid_response.headers["x-dibble-error-code"] == "teacher_intervention_invalid_decision"
-    assert missing_option_response.status_code == 400
-    assert missing_option_response.headers["x-dibble-error-code"] == "teacher_intervention_invalid_decision"
-    assert unknown_option_response.status_code == 400
-    assert unknown_option_response.headers["x-dibble-error-code"] == "teacher_intervention_option_not_found"
+    assert_machine_readable_error(
+        invalid_response,
+        status_code=400,
+        code="teacher_intervention_invalid_decision",
+        detail="Unsupported teacher intervention decision.",
+    )
+    assert_machine_readable_error(
+        missing_option_response,
+        status_code=400,
+        code="teacher_intervention_invalid_decision",
+        detail="Selecting an intervention option requires option_id.",
+    )
+    assert_machine_readable_error(
+        unknown_option_response,
+        status_code=400,
+        code="teacher_intervention_option_not_found",
+        detail="Teacher intervention option is not available.",
+    )
 
 
 def test_learner_workspace_returns_active_generated_content(client, student_id):

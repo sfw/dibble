@@ -4,7 +4,12 @@ from tests.api_support import parse_sse_events
 from dibble.app import create_app
 from dibble.config import Settings
 from dibble.services.audit_store import SQLiteAuditStore
-from tests.support import build_curriculum_resource, build_knowledge_component, build_profile
+from tests.support import (
+    assert_machine_readable_error,
+    build_curriculum_resource,
+    build_knowledge_component,
+    build_profile,
+)
 
 
 def test_generation_uses_grounding_and_step_back_route(client, student_id):
@@ -112,8 +117,12 @@ def test_generated_content_can_be_reloaded_by_generation_id(client, student_id):
 def test_generated_content_not_found_returns_machine_readable_error(client):
     response = client.get("/api/content/missing-generation")
 
-    assert response.status_code == 404
-    assert response.headers["x-dibble-error-code"] == "generated_content_not_found"
+    assert_machine_readable_error(
+        response,
+        status_code=404,
+        code="generated_content_not_found",
+        detail="Generated content not found.",
+    )
 
 
 def test_generation_cache_ignores_learning_session_id(client, student_id):
@@ -915,8 +924,11 @@ def test_remediation_session_endpoints_advance_multi_step_workflow(client, stude
         f"/api/remedial/sessions/{remediation_session_id}/advance",
         json={},
     )
-    assert completed_response.status_code == 409
-    assert completed_response.headers["x-dibble-error-code"] == "remediation_session_complete"
+    assert_machine_readable_error(
+        completed_response,
+        status_code=409,
+        code="remediation_session_complete",
+    )
 
 
 def test_remediation_session_holds_return_when_recent_repair_evidence_is_weak(client, student_id):

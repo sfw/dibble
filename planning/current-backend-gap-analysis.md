@@ -109,7 +109,7 @@ Legend:
 | `API-010` Progression contract parity across summary and progression endpoint | Implemented | `GET /api/learners/{student_id}/progression`, `summary.curriculum_progression`, and teacher classroom learner-card progression now reuse the same backend summary model with regression coverage protecting parity |
 | `API-011` Cross-surface `continue_action` contract stability | Implemented | `continue_action` now uses explicit backend-owned `kind` and `method` vocabularies plus shared constructors, and regression tests protect stable lesson, workspace, history, remediation, Socratic, and intervention semantics |
 | `API-012` Teacher intervention vocabulary hardening | Implemented | Teacher intervention contracts now serialize `proposal_status`, `allowed_decisions`, `latest_decision.status`, classroom intervention summaries, and linked `continue_action.kind` values from explicit backend vocabularies rather than loosely coordinated strings |
-| `API-013` Machine-readable error body parity | Partial | `X-Dibble-Error-Code` headers are now normalized, but the frontend would be safer if the same machine-readable code were also guaranteed consistently in response bodies across learner, teacher, content, and auth flows |
+| `API-013` Machine-readable error body parity | Implemented | Frontend-facing `api_error(...)` responses now preserve the existing `detail` string while also returning the same machine-readable `code` in the JSON body and `X-Dibble-Error-Code` header across learner, teacher, content, assessment, and auth flows |
 | `DATA-001` KnowledgeComponent entity and prerequisite graph | Implemented | Persisted KC entity plus prerequisite traversal API and remediation-planner integration |
 | `DATA-002` Extended learner profile | Implemented | Current profile model includes cognitive, affective, load, and preference dimensions |
 | `DATA-003` GeneratedContent entity with quality metadata | Implemented | Persisted generated content plus `generation_metadata` and `GeneratedContent` API envelope |
@@ -126,11 +126,11 @@ Legend:
 
 Based on `planning/4 - revised-spec/implementation-roadmap.md`, `planning/5 - dev-handoff-revised-spec/requirements-traceability.csv`, the current code seams, and the frontend implementation note in `planning/from-front-to-back-needs.md`, the strongest next backend slices are now:
 
-1. keep machine-readable errors aligned in both header and body (`API-013`) so expanding learner and teacher flows do not reintroduce brittle UI error handling.
-2. keep classroom detail compact and summary-first; add explainability-oriented teacher analytics only if product needs exceed the current learner cards, intervention summaries, and classroom counts.
-3. keep multimodal artifacts behind an explicit discriminated contract (`GEN-005`) rather than stretching text-oriented payloads if richer artifact types arrive.
-4. keep scheduler autonomy, broader orchestration ideas, and a true course-level planner behind observed product pressure rather than treating them as default pre-frontend work.
-5. only broaden the now-explicit intervention vocabulary or continue-action kinds if product truly needs new backend-owned workflow actions, and treat that as a contract change rather than a casual string addition.
+1. keep classroom detail compact and summary-first; add explainability-oriented teacher analytics only if product needs exceed the current learner cards, intervention summaries, and classroom counts.
+2. keep multimodal artifacts behind an explicit discriminated contract (`GEN-005`) rather than stretching text-oriented payloads if richer artifact types arrive.
+3. keep scheduler autonomy, broader orchestration ideas, and a true course-level planner behind observed product pressure rather than treating them as default pre-frontend work.
+4. only broaden the now-explicit intervention vocabulary or continue-action kinds if product truly needs new backend-owned workflow actions, and treat that as a contract change rather than a casual string addition.
+5. prefer future frontend-readiness work that adds compact backend-owned summaries or discriminated contracts over any UI-side reconstruction of lower-level telemetry.
 
 Most recent progress:
 
@@ -147,7 +147,8 @@ Most recent progress:
 11. teacher workflows can now also aggregate beyond single-learner drill-in through a backend-owned classroom read model with learner cards, progression state, intervention availability, and attention counts.
 12. progression parity is now regression-protected across `GET /api/learners/{student_id}/progression`, `summary.curriculum_progression`, and teacher classroom learner cards instead of being only an implicit implementation detail.
 13. `continue_action` and teacher intervention vocabulary are now explicit backend-owned contract sets with shared constructors, finite enums, and regression coverage across lesson, remediation, Socratic, history, workspace, and intervention surfaces.
-14. the next frontend-facing backend work is now mostly down to error-body parity plus any future multimodal or analytics expansion, not basic workflow-contract drift.
+14. machine-readable error responses now also keep the same backend-owned code in both header and body while preserving the existing human-readable `detail` string, so frontend error handling no longer needs to choose between header scraping and brittle message matching.
+15. the next frontend-facing backend work is now mostly down to any future multimodal or analytics expansion, not basic workflow-contract drift.
 
 ### Pre-Frontend Priorities
 
@@ -238,8 +239,8 @@ Frontend implementation has now surfaced a smaller set of concrete backend asks 
 4. `continue_action` is now central across learner flow, workspace, history, generation, remediation, Socratic, and teacher intervention, and its `kind` plus `method` semantics are now explicit backend-owned vocabularies with regression coverage (`API-011`).
 5. teacher workflow control now also has stable finite vocabularies for proposal status, allowed decisions, decision status, and linked continue-action kinds (`API-012`) so the frontend can treat them as explicit backend-owned enums.
 6. classroom or cohort aggregation is now covered by `GET /api/teachers/classrooms` and `GET /api/teachers/classrooms/{classroom_id}` (`API-009`), and future classroom detail should stay compact and summary-first rather than dumping lower-level telemetry into learner cards.
-7. multimodal artifact contracts and richer teacher analytics remain future needs, but multimodal should arrive through a discriminated backend contract (`GEN-005`) and analytics should only expand if product needs exceed the current classroom cards and counts.
-8. machine-readable errors should stay consistent in both header and body as teacher and classroom flows expand (`API-013`).
+7. machine-readable errors are now consistent in both header and body (`API-013`) across the main frontend-facing auth, learner, teacher, content, and assessment flows.
+8. multimodal artifact contracts and richer teacher analytics remain future needs, but multimodal should arrive through a discriminated backend contract (`GEN-005`) and analytics should only expand if product needs exceed the current classroom cards and counts.
 
 Until those frontend-discovered gaps are addressed, the safest frontend stance remains:
 
@@ -263,7 +264,7 @@ Those are better treated as parallel or later backend tracks once the frontend c
 
 The curriculum-grounding and learner-flow follow-through are now in a good local state, and the next coherent implementation steps should come from the concrete frontend contract-stability gaps now surfaced rather than from another speculative architecture pass:
 
-- prefer machine-readable-error stability and any future explicit multimodal/analytics contracts before adding more scheduler autonomy than the current inspectable claim-and-process model
+- prefer future explicit multimodal/analytics contracts before adding more scheduler autonomy than the current inspectable claim-and-process model
 - prefer explicit frontend-discovered contract drift or teacher-workflow misses before broadening progression ownership into a larger planner
 - keep new work local and testable instead of turning the backend into a speculative job platform, planner, retrieval stack, or analytics platform
 

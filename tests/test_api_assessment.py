@@ -1,4 +1,4 @@
-from tests.support import build_curriculum_resource, build_profile
+from tests.support import assert_machine_readable_error, build_curriculum_resource, build_profile
 
 
 def test_socratic_assessment_starts_with_probe_when_no_learner_response(client, student_id):
@@ -39,8 +39,11 @@ def test_socratic_assessment_starts_with_probe_when_no_learner_response(client, 
 def test_socratic_assessment_session_not_found_returns_machine_readable_error(client):
     response = client.get("/api/assessments/socratic/missing-session")
 
-    assert response.status_code == 404
-    assert response.headers["x-dibble-error-code"] == "socratic_session_not_found"
+    assert_machine_readable_error(
+        response,
+        status_code=404,
+        code="socratic_session_not_found",
+    )
 
 
 def test_socratic_assessment_detects_grounded_reasoning_in_learner_response(client, student_id):

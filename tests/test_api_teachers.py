@@ -1,6 +1,12 @@
 from uuid import uuid4
 
-from tests.support import build_classroom, build_curriculum_resource, build_knowledge_component, build_profile
+from tests.support import (
+    assert_machine_readable_error,
+    build_classroom,
+    build_curriculum_resource,
+    build_knowledge_component,
+    build_profile,
+)
 
 
 def test_teacher_classroom_read_model_packages_learner_cards_and_counts(client):
@@ -122,5 +128,9 @@ def test_teacher_classroom_read_model_packages_learner_cards_and_counts(client):
 def test_teacher_classroom_not_found_returns_machine_readable_error(client):
     response = client.get("/api/teachers/classrooms/missing-classroom")
 
-    assert response.status_code == 404
-    assert response.headers["x-dibble-error-code"] == "classroom_not_found"
+    assert_machine_readable_error(
+        response,
+        status_code=404,
+        code="classroom_not_found",
+        detail="Classroom not found.",
+    )

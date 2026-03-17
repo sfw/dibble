@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from fastapi import Depends, Header, HTTPException, Request, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 
 from dibble.models.auth import AuthIdentity
 from dibble.plugins.contracts import RouterPlugin
@@ -68,6 +70,19 @@ def api_error(
         status_code=status_code,
         detail=detail,
         headers=response_headers,
+    )
+
+
+def build_api_error_response(exc: HTTPException) -> JSONResponse:
+    detail = exc.detail
+    error_code = exc.headers.get(ERROR_CODE_HEADER) if exc.headers is not None else None
+    payload: dict[str, object] = {"detail": detail}
+    if error_code:
+        payload["code"] = error_code
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=jsonable_encoder(payload),
+        headers=exc.headers,
     )
 
 
