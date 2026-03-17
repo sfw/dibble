@@ -587,3 +587,49 @@ def test_progression_ownership_uses_durable_ordinary_mastery_to_hold_target_befo
     assert decision.ordinary_mastery_source == "ordinary_mastery_profile"
     assert decision.ordinary_mastery_confidence == 0.78
     assert decision.request.requested_content_type == "practice_problem"
+
+
+def test_progression_ownership_uses_durable_ordinary_mastery_to_hold_repair_target_after_redirect():
+    student_id = uuid4()
+    service = ProgressionOwnershipService(
+        knowledge_component_store=StubKnowledgeComponentStore(),
+        strategy_signal_service=StubStrategySignalService(
+            LearnerStrategySummary(
+                signal="support_intensive",
+                source="strategy_profile",
+                recovery_focus="prerequisite_rebuild",
+                recommended_next_action="rebuild_prerequisite",
+                rationale="Rebuild the prerequisite before returning to the target.",
+            )
+        ),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
+            OrdinaryMasterySummary(
+                signal="support_dependent",
+                source="ordinary_mastery_profile",
+                confidence=0.79,
+                average_observed_mastery=0.59,
+                rationale="Recent ordinary practice on the prerequisite KC is still support-heavy.",
+            )
+        ),
+    )
+
+    decision = service.resolve_request(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            target_kc_ids=["KC-3"],
+            target_lo_ids=["LO-1"],
+            requested_content_type="practice_problem",
+        ),
+    )
+
+    assert decision.action == "hold_repair_target"
+    assert decision.source == "ordinary_mastery_profile"
+    assert decision.target_stage == "repair"
+    assert decision.applied_target_kc_ids == ["KC-1"]
+    assert decision.ordinary_mastery_signal == "support_dependent"
+    assert decision.rationale == (
+        "Recent ordinary practice on the prerequisite KC is still support-heavy. "
+        "Keep the learner on the repair target before returning to the target KC."
+    )

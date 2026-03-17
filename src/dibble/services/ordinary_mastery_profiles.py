@@ -320,11 +320,12 @@ class OrdinaryMasterySignalService:
         target_lo_ids: list[str],
     ) -> OrdinaryMasterySummary:
         events = self.audit_store.list(limit=self.max_events)
+        request_has_targets = bool(target_kc_ids or target_lo_ids)
         fallback_event: AuditEvent | None = None
         for event in events:
             if event.event_type != "learning.ordinary_mastery.profile" or event.student_id != student_id:
                 continue
-            if fallback_event is None:
+            if fallback_event is None and not request_has_targets:
                 fallback_event = event
             if self._targets_overlap(
                 target_kc_ids=target_kc_ids,

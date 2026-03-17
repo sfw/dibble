@@ -104,3 +104,37 @@ def test_ordinary_mastery_signal_service_prefers_target_matching_profile(tmp_pat
     assert summary.average_observed_mastery == 0.78
     assert summary.low_support_success_rate == 0.8
     assert summary.high_support_dependency_rate == 0.0
+
+
+def test_ordinary_mastery_signal_service_does_not_fallback_to_unrelated_profile(tmp_path):
+    database_path = str(tmp_path / "ordinary-mastery-unrelated.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = uuid4()
+    audit_store.append(
+        event_type="learning.ordinary_mastery.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": ["LO-1"],
+            "profile_signal": "support_dependent",
+            "profile_confidence": 0.74,
+            "matched_observation_count": 3,
+            "matched_session_count": 2,
+            "average_observed_mastery": 0.56,
+            "low_support_success_rate": 0.0,
+            "high_support_dependency_rate": 0.67,
+            "ordinary_mastery_profile_rationale": "Practice evidence stayed support-heavy.",
+        },
+    )
+
+    summary = OrdinaryMasterySignalService(audit_store=audit_store).latest_for_student(
+        student_id=student_id,
+        target_kc_ids=["KC-9"],
+        target_lo_ids=["LO-9"],
+    )
+
+    assert summary.signal == "insufficient"
+    assert summary.source == "insufficient"
+    assert summary.confidence == 0.0

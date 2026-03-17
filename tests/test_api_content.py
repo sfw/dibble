@@ -765,6 +765,85 @@ def test_generation_endpoint_rebuilds_prerequisite_before_requested_target(clien
     assert "KC-1" in payload["response"]["blocks"][0]["body"]
 
 
+def test_generation_endpoint_uses_repair_target_ordinary_mastery_to_hold_backend_redirect(client, student_id, app_settings):
+    from dibble.services.audit_store import SQLiteAuditStore
+
+    audit_store = SQLiteAuditStore(app_settings.database_path)
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put(
+        "/api/knowledge-components/KC-1",
+        json=build_knowledge_component("KC-1", name="Read fraction models"),
+    )
+    client.put(
+        "/api/knowledge-components/KC-2",
+        json=build_knowledge_component(
+            "KC-2",
+            prerequisite_kc_ids=["KC-1"],
+            name="Generate equivalent fractions",
+        ),
+    )
+    audit_store.append(
+        event_type="learning.strategy.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "intent": "remediation",
+            "content_type": "remedial_micro_module",
+            "target_kc_ids": ["KC-2"],
+            "average_run_outcome_score": 0.42,
+            "average_run_confidence": 0.78,
+            "matched_run_count": 3,
+            "matched_session_count": 2,
+            "progress_signal": "declining",
+            "progress_delta": -0.16,
+            "strategy_signal": "support_intensive",
+            "strategy_support_bias": -1,
+            "strategy_recovery_focus": "prerequisite_rebuild",
+            "strategy_recommended_next_action": "rebuild_prerequisite",
+            "strategy_rationale": "Rebuild the prerequisite KC before returning to the target.",
+        },
+    )
+    audit_store.append(
+        event_type="learning.ordinary_mastery.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": ["LO-1"],
+            "profile_signal": "support_dependent",
+            "profile_confidence": 0.84,
+            "matched_observation_count": 5,
+            "matched_session_count": 3,
+            "average_observed_mastery": 0.58,
+            "low_support_success_rate": 0.2,
+            "high_support_dependency_rate": 0.8,
+            "ordinary_mastery_profile_rationale": "Repair practice on the prerequisite KC is still too support-heavy.",
+        },
+    )
+
+    response = client.post(
+        "/api/content/generate",
+        json={
+            "student_id": str(student_id),
+            "target_kc_ids": ["KC-2"],
+            "intent": "remediation",
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+
+    assert payload["request_context"]["progression"]["action"] == "hold_repair_target"
+    assert payload["request_context"]["progression"]["source"] == "ordinary_mastery_profile"
+    assert payload["request_context"]["progression"]["applied_target_kc_ids"] == ["KC-1"]
+    assert payload["request_context"]["progression"]["ordinary_mastery_signal"] == "support_dependent"
+    assert payload["workflow_summary"]["progression_action"] == "hold_repair_target"
+    assert payload["workflow_summary"]["target_stage"] == "repair"
+    assert payload["workflow_summary"]["next_step"]["content_type"] == "remedial_micro_module"
+
+
 def test_remedial_trigger_records_and_reuses_misconception_profiles(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())

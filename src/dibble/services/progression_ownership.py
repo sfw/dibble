@@ -306,41 +306,67 @@ class ProgressionOwnershipService:
     ) -> OrdinaryProgressionDecision:
         if self.ordinary_mastery_signal_service is None:
             return OrdinaryProgressionDecision()
-        if target_stage != "target":
-            return OrdinaryProgressionDecision()
-        if current_action not in {"stay_on_requested_target", "attempt_transfer"}:
+        if target_stage not in {"target", "repair"}:
             return OrdinaryProgressionDecision()
         if not request.target_kc_ids and not request.target_lo_ids:
+            return OrdinaryProgressionDecision()
+        if current_action not in {
+            "stay_on_requested_target",
+            "attempt_transfer",
+            "rebuild_prerequisite_first",
+            "hold_repair_target",
+        }:
             return OrdinaryProgressionDecision()
         summary = self.ordinary_mastery_signal_service.latest_for_student(
             student_id=student_id,
             target_kc_ids=request.target_kc_ids,
             target_lo_ids=request.target_lo_ids,
         )
+        hold_action = self._ordinary_mastery_hold_action(target_stage=target_stage)
+        if hold_action is None:
+            return OrdinaryProgressionDecision(summary=summary)
         if summary.signal == "support_dependent" and summary.confidence >= 0.55:
             return OrdinaryProgressionDecision(
-                decision="hold_target",
-                rationale=(
-                    summary.rationale
-                    or "Cross-session ordinary practice still looks support-dependent, so the backend should keep the learner on target practice."
+                decision=hold_action,
+                rationale=self._ordinary_mastery_hold_rationale(
+                    target_stage=target_stage,
+                    signal=summary.signal,
+                    fallback=(
+                        "Cross-session ordinary practice still looks support-dependent, so the backend should keep the learner on target practice."
+                        if target_stage == "target"
+                        else "Cross-session ordinary practice on the repair target still looks support-dependent, so the backend should hold repair before returning to the target."
+                    ),
+                    summary=summary,
                 ),
                 summary=summary,
             )
         if summary.signal == "fragile" and summary.confidence >= 0.65:
             return OrdinaryProgressionDecision(
-                decision="hold_target",
-                rationale=(
-                    summary.rationale
-                    or "Cross-session ordinary practice still looks fragile, so the backend should keep the learner on target practice."
+                decision=hold_action,
+                rationale=self._ordinary_mastery_hold_rationale(
+                    target_stage=target_stage,
+                    signal=summary.signal,
+                    fallback=(
+                        "Cross-session ordinary practice still looks fragile, so the backend should keep the learner on target practice."
+                        if target_stage == "target"
+                        else "Cross-session ordinary practice on the repair target still looks fragile, so the backend should hold repair before returning to the target."
+                    ),
+                    summary=summary,
                 ),
                 summary=summary,
             )
         if current_action == "attempt_transfer" and summary.signal == "emerging_mastery" and summary.confidence >= 0.7:
             return OrdinaryProgressionDecision(
-                decision="hold_target",
-                rationale=(
-                    summary.rationale
-                    or "Cross-session ordinary practice is improving but not yet durable enough to skip target practice."
+                decision=hold_action,
+                rationale=self._ordinary_mastery_hold_rationale(
+                    target_stage=target_stage,
+                    signal=summary.signal,
+                    fallback=(
+                        "Cross-session ordinary practice is improving but not yet durable enough to skip target practice."
+                        if target_stage == "target"
+                        else "Cross-session ordinary practice on the repair target is improving but not yet durable enough to return to the target."
+                    ),
+                    summary=summary,
                 ),
                 summary=summary,
             )
@@ -429,4 +455,36 @@ class ProgressionOwnershipService:
             return "repair"
         if action in {"attempt_transfer"}:
             return "transfer"
+        return fallback
+
+    def _ordinary_mastery_hold_action(self, *, target_stage: str) -> str | None:
+        if target_stage == "target":
+            return "hold_target"
+        if target_stage == "repair":
+            return "hold_repair_target"
+        return None
+
+    def _ordinary_mastery_hold_rationale(
+        self,
+        *,
+        target_stage: str,
+        signal: str,
+        fallback: str,
+        summary: OrdinaryMasterySummary,
+    ) -> str:
+        if summary.rationale:
+            if target_stage == "repair":
+                if signal == "support_dependent":
+                    return (
+                        f"{summary.rationale} Keep the learner on the repair target before returning to the target KC."
+                    )
+                if signal == "fragile":
+                    return (
+                        f"{summary.rationale} Keep the learner on the repair target until the repair evidence is less fragile."
+                    )
+                if signal == "emerging_mastery":
+                    return (
+                        f"{summary.rationale} Keep the learner on the repair target until the progress looks more durable."
+                    )
+            return summary.rationale
         return fallback
