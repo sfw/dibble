@@ -11,7 +11,13 @@ from dibble.models.history import (
     LearnerSocraticSessionHistoryEntry,
 )
 from dibble.models.observations import InferredLearnerState, LearnerObservationCreate
-from dibble.models.profile import LearnerFlowSummary, LearnerProfile, LearnerProfileV2, ProfileSummary
+from dibble.models.profile import (
+    LearnerCurriculumProgressionSummary,
+    LearnerFlowSummary,
+    LearnerProfile,
+    LearnerProfileV2,
+    ProfileSummary,
+)
 from dibble.models.teacher_actions import TeacherInterventionActionContract, TeacherInterventionDecisionRequest
 from dibble.models.workspace import LearnerWorkspace
 from dibble.services.teacher_intervention_actions import (
@@ -236,6 +242,21 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 code="learner_profile_not_found",
             )
         return services.learner_flow_service.build_for_student(student_id=student_id)
+
+    @router.get(
+        "/learners/{student_id}/progression",
+        response_model=LearnerCurriculumProgressionSummary,
+        dependencies=context.deps("viewer"),
+    )
+    def get_learner_progression(student_id: UUID) -> LearnerCurriculumProgressionSummary:
+        progression = services.learner_progression_service.build_for_student(student_id=student_id)
+        if progression is None:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Learner profile not found.",
+                code="learner_profile_not_found",
+            )
+        return progression
 
     @router.get("/learners/{student_id}/workspace", response_model=LearnerWorkspace, dependencies=context.deps("viewer"))
     def get_learner_workspace(student_id: UUID) -> LearnerWorkspace:

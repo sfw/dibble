@@ -54,16 +54,24 @@ def build_profile(
     }
 
 
-def build_curriculum_resource(resource_id="CURR-1"):
+def build_curriculum_resource(
+    resource_id="CURR-1",
+    *,
+    title="Equivalent Fractions Foundations",
+    learning_objective_ids=None,
+    knowledge_component_ids=None,
+    tags=None,
+    body="Use visual fraction models to explain why equivalent fractions name the same amount.",
+):
     return {
         "resource_id": resource_id,
-        "title": "Equivalent Fractions Foundations",
+        "title": title,
         "grade_level": "5",
         "subject": "math",
-        "learning_objective_ids": ["LO-1"],
-        "knowledge_component_ids": ["KC-1"],
-        "tags": ["fractions", "equivalent fractions", "remediation"],
-        "body": "Use visual fraction models to explain why equivalent fractions name the same amount.",
+        "learning_objective_ids": learning_objective_ids or ["LO-1"],
+        "knowledge_component_ids": knowledge_component_ids or ["KC-1"],
+        "tags": tags or ["fractions", "equivalent fractions", "remediation"],
+        "body": body,
         "source_type": "curriculum_standard",
     }
 

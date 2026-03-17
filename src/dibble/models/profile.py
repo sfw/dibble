@@ -297,6 +297,40 @@ class LearnerContinueAction(BaseModel):
     rationale: str | None = None
 
 
+class CurriculumResourceProgressSummary(BaseModel):
+    resource_id: str
+    title: str
+    state: str = "unknown"
+    learning_objective_ids: list[str] = Field(default_factory=list)
+    knowledge_component_ids: list[str] = Field(default_factory=list)
+    blocked_prerequisite_kc_ids: list[str] = Field(default_factory=list)
+    mastery_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
+    current_flow_aligned: bool = False
+    target_stage: str = "target"
+    rationale: str | None = None
+
+
+class LearnerCurriculumProgressionSummary(BaseModel):
+    status: str = "no_curriculum_map"
+    source: str = "knowledge_state_and_flow"
+    flow_type: str = "idle"
+    current_stage: str = "idle"
+    progression_action: str = "monitor"
+    active_target_kc_ids: list[str] = Field(default_factory=list)
+    resource_count: int = Field(default=0, ge=0)
+    mastered_resource_count: int = Field(default=0, ge=0)
+    ready_resource_count: int = Field(default=0, ge=0)
+    blocked_resource_count: int = Field(default=0, ge=0)
+    active_resource_count: int = Field(default=0, ge=0)
+    mastered_resource_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
+    current_resource: CurriculumResourceProgressSummary | None = None
+    next_resource: CurriculumResourceProgressSummary | None = None
+    blocked_resources: list[CurriculumResourceProgressSummary] = Field(default_factory=list)
+    ready_resources: list[CurriculumResourceProgressSummary] = Field(default_factory=list)
+    rationale: str | None = None
+    updated_at: datetime | None = None
+
+
 class LearnerFlowSummary(BaseModel):
     status: str = "idle"
     flow_type: str = "idle"
@@ -340,6 +374,7 @@ class ProfileSummary(BaseModel):
     trait_profile: LearnerTraitProfileSummary = Field(default_factory=LearnerTraitProfileSummary)
     recent_activity: RecentLearnerActivity = Field(default_factory=RecentLearnerActivity)
     current_flow: LearnerFlowSummary = Field(default_factory=LearnerFlowSummary)
+    curriculum_progression: LearnerCurriculumProgressionSummary = Field(default_factory=LearnerCurriculumProgressionSummary)
     updated_at: datetime
 
     @classmethod
@@ -354,6 +389,7 @@ class ProfileSummary(BaseModel):
         trait_profile: LearnerTraitProfileSummary | None = None,
         recent_activity: RecentLearnerActivity | None = None,
         current_flow: LearnerFlowSummary | None = None,
+        curriculum_progression: LearnerCurriculumProgressionSummary | None = None,
     ) -> "ProfileSummary":
         return cls(
             student_id=profile.student_id,
@@ -373,5 +409,6 @@ class ProfileSummary(BaseModel):
             trait_profile=trait_profile or LearnerTraitProfileSummary(),
             recent_activity=recent_activity or RecentLearnerActivity(),
             current_flow=current_flow or LearnerFlowSummary(),
+            curriculum_progression=curriculum_progression or LearnerCurriculumProgressionSummary(),
             updated_at=profile.updated_at,
         )

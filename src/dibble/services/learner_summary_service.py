@@ -5,12 +5,14 @@ from uuid import UUID
 
 from dibble.models.profile import (
     LearnerCalibrationSummary,
+    LearnerCurriculumProgressionSummary,
     LearnerFlowSummary,
     LearnerProgressSummary,
     ProfileSummary,
     RecentLearnerActivity,
 )
 from dibble.services.learner_flow_service import LearnerFlowService
+from dibble.services.learner_progression_service import LearnerProgressionService
 from dibble.services.learning_state_profiles import LearnerStateSignalService
 from dibble.services.learning_trait_profiles import LearnerTraitProfileSignalService
 from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
@@ -25,6 +27,7 @@ class LearnerSummaryService:
     state_signal_service: LearnerStateSignalService
     trait_profile_signal_service: LearnerTraitProfileSignalService
     learner_flow_service: LearnerFlowService | None = None
+    learner_progression_service: LearnerProgressionService | None = None
     max_events: int = 200
 
     def build_for_student(self, *, student_id: UUID) -> ProfileSummary | None:
@@ -44,6 +47,11 @@ class LearnerSummaryService:
                 self.learner_flow_service.build_for_student(student_id=student_id)
                 if self.learner_flow_service is not None
                 else LearnerFlowSummary()
+            ),
+            curriculum_progression=(
+                self.learner_progression_service.build_for_student(student_id=student_id)
+                if self.learner_progression_service is not None
+                else LearnerCurriculumProgressionSummary()
             ),
         )
 

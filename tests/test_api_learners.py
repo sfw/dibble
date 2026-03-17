@@ -35,12 +35,20 @@ def test_profile_round_trip_and_summary(client, student_id):
     assert summary_response.json()["recent_activity"]["generation_count"] == 0
     assert summary_response.json()["current_flow"]["status"] == "idle"
     assert summary_response.json()["current_flow"]["flow_type"] == "idle"
+    assert summary_response.json()["curriculum_progression"]["status"] == "no_curriculum_map"
     assert profile_response.json()["profile_metadata"]["student_id"] == str(student_id)
     assert str(student_id) in list_response.json()
 
 
 def test_learner_workspace_returns_machine_readable_not_found_error(client, student_id):
     response = client.get(f"/api/learners/{student_id}/workspace")
+
+    assert response.status_code == 404
+    assert response.headers["x-dibble-error-code"] == "learner_profile_not_found"
+
+
+def test_learner_progression_returns_machine_readable_not_found_error(client, student_id):
+    response = client.get(f"/api/learners/{student_id}/progression")
 
     assert response.status_code == 404
     assert response.headers["x-dibble-error-code"] == "learner_profile_not_found"
@@ -242,6 +250,103 @@ def test_learner_flow_endpoint_exposes_backend_owned_next_step(client, student_i
     assert summary_payload["current_flow"]["next_step_source"] == "workflow_summary"
     assert summary_payload["current_flow"]["next_step"]["content_type"] == "practice_problem"
     assert summary_payload["current_flow"]["continue_action"]["kind"] == "generate_follow_up"
+
+
+def test_learner_progression_endpoint_exposes_backend_owned_curriculum_focus(client, student_id):
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(
+            student_id,
+            frustration="low",
+            total_load=0.2,
+            kc_mastery={"KC-1": 0.86, "KC-2": 0.42, "KC-3": 0.15},
+        ),
+    )
+    client.put(
+        "/api/curriculum/resources/CURR-1",
+        json=build_curriculum_resource(
+            resource_id="CURR-1",
+            title="Fraction Visual Foundations",
+            knowledge_component_ids=["KC-1"],
+        ),
+    )
+    client.put(
+        "/api/curriculum/resources/CURR-2",
+        json=build_curriculum_resource(
+            resource_id="CURR-2",
+            title="Equivalent Fraction Practice",
+            knowledge_component_ids=["KC-2"],
+        ),
+    )
+    client.put(
+        "/api/curriculum/resources/CURR-3",
+        json=build_curriculum_resource(
+            resource_id="CURR-3",
+            title="Compare Fraction Families",
+            knowledge_component_ids=["KC-3"],
+            learning_objective_ids=["LO-2"],
+        ),
+    )
+    client.put(
+        "/api/knowledge-components/KC-1",
+        json=build_knowledge_component("KC-1", name="Identify fraction equivalence"),
+    )
+    client.put(
+        "/api/knowledge-components/KC-2",
+        json=build_knowledge_component(
+            "KC-2",
+            prerequisite_kc_ids=["KC-1"],
+            parent_lo_id="LO-1",
+            name="Generate equivalent fractions",
+        ),
+    )
+    client.put(
+        "/api/knowledge-components/KC-3",
+        json=build_knowledge_component(
+            "KC-3",
+            prerequisite_kc_ids=["KC-2"],
+            parent_lo_id="LO-2",
+            name="Compare fraction families",
+        ),
+    )
+
+    generate_response = client.post(
+        "/api/problems/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "progression-session-1",
+            "target_kc_ids": ["KC-2"],
+            "target_lo_ids": ["LO-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    progression_response = client.get(f"/api/learners/{student_id}/progression")
+    summary_response = client.get(f"/api/learners/{student_id}/summary")
+
+    assert generate_response.status_code == 200
+    assert progression_response.status_code == 200
+    assert summary_response.status_code == 200
+
+    progression_payload = progression_response.json()
+    summary_payload = summary_response.json()
+    assert progression_payload["status"] == "active_curriculum_focus"
+    assert progression_payload["flow_type"] == "lesson"
+    assert progression_payload["current_stage"] == "repair"
+    assert progression_payload["progression_action"] == "rebuild_prerequisite_first"
+    assert progression_payload["active_target_kc_ids"] == ["KC-1"]
+    assert progression_payload["resource_count"] == 3
+    assert progression_payload["mastered_resource_count"] == 0
+    assert progression_payload["active_resource_count"] == 1
+    assert progression_payload["blocked_resource_count"] == 1
+    assert progression_payload["current_resource"]["resource_id"] == "CURR-1"
+    assert progression_payload["current_resource"]["state"] == "active"
+    assert progression_payload["current_resource"]["current_flow_aligned"] is True
+    assert progression_payload["next_resource"]["resource_id"] == "CURR-2"
+    assert progression_payload["next_resource"]["state"] == "ready"
+    assert progression_payload["blocked_resources"][0]["resource_id"] == "CURR-3"
+    assert progression_payload["blocked_resources"][0]["blocked_prerequisite_kc_ids"] == ["KC-2"]
+    assert summary_payload["curriculum_progression"]["status"] == "active_curriculum_focus"
+    assert summary_payload["curriculum_progression"]["current_resource"]["resource_id"] == "CURR-1"
 
 
 def test_learner_flow_endpoint_prefers_active_remediation_workflow(client, student_id):

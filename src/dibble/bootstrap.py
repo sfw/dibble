@@ -36,6 +36,7 @@ from dibble.services.learner_strategy_profiles import (
 from dibble.services.learner_state_calibration import LearnerStateCalibrator
 from dibble.services.learner_flow_service import LearnerFlowService
 from dibble.services.learner_history_service import LearnerHistoryService
+from dibble.services.learner_progression_service import LearnerProgressionService
 from dibble.services.learner_summary_service import LearnerSummaryService
 from dibble.services.learner_workspace_service import LearnerWorkspaceService
 from dibble.services.misconception_detector import MisconceptionDetector
@@ -113,6 +114,7 @@ class ApplicationServices:
     ordinary_mastery_profile_recorder: OrdinaryMasteryProfileRecorder
     learner_flow_service: LearnerFlowService
     learner_history_service: LearnerHistoryService
+    learner_progression_service: LearnerProgressionService
     learner_summary_service: LearnerSummaryService
     learner_workspace_service: LearnerWorkspaceService
     teacher_intervention_action_service: TeacherInterventionActionService
@@ -235,6 +237,12 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         socratic_session_store=socratic_session_store,
         remediation_session_store=remediation_session_store,
     )
+    learner_progression_service = LearnerProgressionService(
+        profile_store=profile_store,
+        curriculum_store=curriculum_store,
+        knowledge_component_store=knowledge_component_store,
+        learner_flow_service=learner_flow_service,
+    )
     learner_summary_service = LearnerSummaryService(
         profile_store=profile_store,
         audit_store=audit_store,
@@ -242,6 +250,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         state_signal_service=learner_state_signal_service,
         trait_profile_signal_service=learner_trait_profile_signal_service,
         learner_flow_service=learner_flow_service,
+        learner_progression_service=learner_progression_service,
     )
     teacher_intervention_action_service = TeacherInterventionActionService(
         audit_store=audit_store,
@@ -326,6 +335,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         ordinary_mastery_profile_recorder=ordinary_mastery_profile_recorder,
         learner_flow_service=learner_flow_service,
         learner_history_service=learner_history_service,
+        learner_progression_service=learner_progression_service,
         learner_summary_service=learner_summary_service,
         learner_workspace_service=learner_workspace_service,
         teacher_intervention_action_service=teacher_intervention_action_service,

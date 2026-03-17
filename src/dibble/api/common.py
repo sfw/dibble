@@ -26,6 +26,7 @@ from dibble.services.learner_strategy_profiles import LearningStrategyProfileRec
 from dibble.services.learner_state_calibration import LearnerStateCalibrator
 from dibble.services.learner_flow_service import LearnerFlowService
 from dibble.services.learner_history_service import LearnerHistoryService
+from dibble.services.learner_progression_service import LearnerProgressionService
 from dibble.services.learner_summary_service import LearnerSummaryService
 from dibble.services.learner_workspace_service import LearnerWorkspaceService
 from dibble.services.observation_profile_update import ObservationProfileUpdater
@@ -97,6 +98,7 @@ class ApiServices(Protocol):
     ordinary_mastery_profile_recorder: OrdinaryMasteryProfileRecorder
     learner_flow_service: LearnerFlowService
     learner_history_service: LearnerHistoryService
+    learner_progression_service: LearnerProgressionService
     learner_summary_service: LearnerSummaryService
     learner_workspace_service: LearnerWorkspaceService
     teacher_intervention_action_service: TeacherInterventionActionService

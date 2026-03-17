@@ -62,6 +62,7 @@ This repository now includes a working MVP backend slice for the revised adaptiv
 - The backend now also compacts recent learner observations plus durable state-profile context into `learning.cognitive_trait.profile` events, including trait-stability, challenge-tolerance, per-trait reliability, and challenge-evidence-strength signals, and live cognitive-trait inference can use those signals to trust strong durable working-memory or processing-speed evidence without over-trusting weaker durable trait dimensions
 - `GET /api/learners/{student_id}/summary` now exposes a frontend-ready learner overview with engagement, metacognitive snapshot, latest calibration summary, latest progress trend summary, latest learner-strategy summary, recent activity counts, and a backend-owned `current_flow` summary so the UI does not need to read audit logs directly
 - `GET /api/learners/{student_id}/flow` exposes the same learner-flow contract directly, including current phase, progression action, active targets, and next-step metadata for ordinary generation, remediation, and Socratic workflows
+- `GET /api/learners/{student_id}/progression` now exposes a backend-owned curriculum progression read model with current resource focus, next ready resource, prerequisite blockers, and compact resource-state counts, and learner summary now embeds that same `curriculum_progression` contract so the frontend can render broader progression without inventing course logic
 - `GET /api/learners/{student_id}/workspace` now also includes a top-level backend-owned `continue_action`, so reload and continue buttons can reuse one server contract across lesson, remediation, and Socratic states
 - Learner-scoped history endpoints now expose compact backend-owned lists for prior generated content, Socratic sessions, and remediation sessions, so the frontend can build history views without replaying audit events or guessing which payloads matter
 - `GET` and `POST /api/learners/{student_id}/intervention-action` now expose a teacher-safe intervention contract derived from `current_flow`, including backend-generated alternative options plus `select_option`, so a teacher can approve the current move, choose a safer backend-owned alternative, defer, or escalate without the frontend inventing its own workflow authority
@@ -115,6 +116,7 @@ env UV_CACHE_DIR=.uv-cache uv run pytest
 - `GET /api/learners/{student_id}/state`
 - `GET /api/learners/{student_id}/summary`
 - `GET /api/learners/{student_id}/flow`
+- `GET /api/learners/{student_id}/progression`
 - `GET /api/learners/{student_id}/workspace`
 - `GET /api/learners/{student_id}/history/generations`
 - `GET /api/learners/{student_id}/history/socratic-sessions`
