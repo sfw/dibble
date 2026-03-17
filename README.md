@@ -68,6 +68,7 @@ This repository now includes a working MVP backend slice for the revised adaptiv
 - Observability metrics now include durable provider-health telemetry for upstream failures and circuit-open state
 - Streaming generation is available over server-sent events for incremental `start`, `delta`, and `complete` delivery, and can consume real upstream OpenAI-compatible chat streams when configured
 - Generated content is now persisted with quality/provenance metadata and reused through a lightweight SQLite-backed generation cache
+- Generated content responses now also include a compact `workflow_summary` contract so clients can read delivered phase, progression action, active targets, and next-step metadata without unpacking the raw `request_context` tree
 - Optional principal-based API key auth with `viewer`/`editor`/`admin` roles can protect every endpoint except `GET /health`
 - Signed bearer tokens can be minted, refreshed, and revoked for request-scoped sessions
 - Dynamic plugin loading for router, retriever, provider, and validator factories

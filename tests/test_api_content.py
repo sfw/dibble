@@ -248,6 +248,11 @@ def test_generation_endpoint_holds_target_when_recent_same_session_evidence_is_s
     payload = problem_response.json()
     assert payload["request_context"]["progression"]["action"] == "hold_target"
     assert payload["request_context"]["progression"]["observation_count"] >= 2
+    assert payload["workflow_summary"]["flow_type"] == "lesson"
+    assert payload["workflow_summary"]["progression_action"] == "hold_target"
+    assert payload["workflow_summary"]["target_stage"] == "target"
+    assert payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
+    assert payload["workflow_summary"]["next_step"]["target_kc_ids"] == ["KC-1"]
 
     predictive_event = next(
         event
@@ -351,6 +356,8 @@ def test_generation_mastery_gate_holds_assessment_request_on_practice_when_evide
     assert payload["request_context"]["progression"]["mastery_gate_applied"] is True
     assert payload["request_context"]["progression"]["requested_content_type"] == "assessment_probe"
     assert payload["request_context"]["progression"]["applied_content_type"] == "practice_problem"
+    assert payload["workflow_summary"]["progression_action"] == "hold_target_before_assessment"
+    assert payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
 
     generation_event = next(event for event in audit_response.json() if event["event_type"] == "content.generate")
     assert generation_event["payload"]["progression_action"] == "hold_target_before_assessment"
@@ -566,6 +573,10 @@ def test_remedial_trigger_returns_remedial_generated_content(client, student_id,
     assert payload["request_context"]["remediation_workflow"]["completed_step_count"] == 1
     assert payload["request_context"]["learner_strategy"]["signal"] == "support_intensive"
     assert payload["request_context"]["learner_strategy"]["recovery_focus"] == "prerequisite_rebuild"
+    assert payload["workflow_summary"]["flow_type"] == "remediation"
+    assert payload["workflow_summary"]["delivered_phase"] == "step_back"
+    assert payload["workflow_summary"]["next_step"]["action"] == "repair"
+    assert payload["workflow_summary"]["next_step"]["content_type"] == "remedial_micro_module"
 
     audit_response = client.get("/api/audit/events")
     assert audit_response.status_code == 200
@@ -759,6 +770,9 @@ def test_remediation_session_endpoints_advance_multi_step_workflow(client, stude
     assert repair_payload["session"]["summary"]["current_phase"] == "return"
     assert repair_payload["session"]["summary"]["next_step"]["content_type"] == "practice_problem"
     assert repair_payload["session"]["summary"]["next_step"]["target_stage"] == "transfer"
+    assert repair_payload["content"]["workflow_summary"]["flow_type"] == "remediation"
+    assert repair_payload["content"]["workflow_summary"]["delivered_phase"] == "repair"
+    assert repair_payload["content"]["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
 
     return_response = client.post(
         f"/api/remedial/sessions/{remediation_session_id}/advance",
@@ -779,6 +793,9 @@ def test_remediation_session_endpoints_advance_multi_step_workflow(client, stude
     assert return_payload["session"]["summary"]["status"] == "complete"
     assert return_payload["session"]["summary"]["next_step"]["action"] == "complete"
     assert return_payload["session"]["summary"]["next_step"]["content_type"] is None
+    assert return_payload["content"]["workflow_summary"]["flow_type"] == "remediation"
+    assert return_payload["content"]["workflow_summary"]["delivered_phase"] == "return"
+    assert return_payload["content"]["workflow_summary"]["next_step"]["action"] == "complete"
 
     completed_response = client.post(
         f"/api/remedial/sessions/{remediation_session_id}/advance",
@@ -873,6 +890,9 @@ def test_remediation_session_holds_return_when_recent_repair_evidence_is_weak(cl
     assert held_payload["session"]["summary"]["progression_decision"] == "hold_repair_target"
     assert held_payload["session"]["summary"]["next_step"]["action"] == "hold_repair_target"
     assert held_payload["session"]["summary"]["next_step"]["content_type"] == "remedial_micro_module"
+    assert held_payload["content"]["workflow_summary"]["flow_type"] == "remediation"
+    assert held_payload["content"]["workflow_summary"]["next_step"]["action"] == "hold_repair_target"
+    assert held_payload["content"]["workflow_summary"]["next_step"]["content_type"] == "remedial_micro_module"
 
 
 def test_explanations_and_problems_endpoints_specialize_generation(client, student_id):

@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from dibble.models.profile import LearnerFlowNextStep
+
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -269,6 +271,19 @@ class GenerationMetadata(BaseModel):
     moderation: ModerationResult = Field(default_factory=ModerationResult)
 
 
+class GenerationWorkflowSummary(BaseModel):
+    status: str = "delivered"
+    flow_type: str = "lesson"
+    learning_session_id: str | None = None
+    delivered_phase: str = "target"
+    delivered_content_type: str | None = None
+    progression_action: str = "stay_on_requested_target"
+    target_stage: str = "target"
+    active_target_kc_ids: list[str] = Field(default_factory=list)
+    rationale: str | None = None
+    next_step: LearnerFlowNextStep = Field(default_factory=LearnerFlowNextStep)
+
+
 class GenerationResponse(BaseModel):
     student_id: UUID
     generated_at: datetime = Field(default_factory=utc_now)
@@ -287,6 +302,7 @@ class GeneratedContent(BaseModel):
     student_id: UUID
     content_type: str
     request_context: dict[str, object] = Field(default_factory=dict)
+    workflow_summary: GenerationWorkflowSummary | None = None
     response: GenerationResponse
     quality: GenerationMetadata
     created_at: datetime = Field(default_factory=utc_now)

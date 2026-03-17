@@ -8,11 +8,13 @@ from dibble.models.generation import (
     ContentWarmRequest,
     ContentWarmResult,
     GeneratedContent,
+    GenerationWorkflowSummary,
     GenerationRequest,
     PredictiveWarmProcessResult,
     RemedialTriggerRequest,
+    RequestedContentType,
 )
-from dibble.models.profile import LearnerProfile
+from dibble.models.profile import LearnerFlowNextStep, LearnerProfile
 from dibble.models.remediation import (
     RemediationWorkflowAdvanceRequest,
     RemediationWorkflowAdvanceResponse,
@@ -28,7 +30,7 @@ from dibble.services.generation_modes import build_generation_mode_plan
 from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
 from dibble.services.misconception_profiles import LearningMisconceptionProfileRecorder
 from dibble.services.observation_profile_update import ObservationProfileUpdater, RemediationProgressDecision
-from dibble.services.predictive_content_warming import PredictiveContentWarmer
+from dibble.services.predictive_content_warming import PredictiveContentWarmer, PredictiveWarmPlan
 from dibble.services.predictive_warm_scheduler import PredictiveWarmScheduler
 from dibble.services.progression_ownership import ProgressionOwnershipDecision, ProgressionOwnershipService
 from dibble.services.protocols import AuditStore, KnowledgeComponentStore, ObservationStore, ProfileStore
@@ -318,7 +320,10 @@ class ContentWorkflowService:
                     "claim_details": [detail.model_dump(mode="json") for detail in inline_process_result.claim_details],
                 },
             )
-        return generated_content
+        return self._apply_generation_workflow_summary(
+            generated_content=generated_content,
+            predictive_plan=predictive_plan,
+        )
 
     def _record_moderation_event(
         self,
@@ -459,6 +464,203 @@ class ContentWorkflowService:
             "average_observed_mastery": progression_decision.average_observed_mastery,
             "average_assessment_mastery": progression_decision.average_assessment_mastery,
         }
+
+    def _apply_generation_workflow_summary(
+        self,
+        *,
+        generated_content: GeneratedContent,
+        predictive_plan: PredictiveWarmPlan | None = None,
+    ) -> GeneratedContent:
+        request_context = generated_content.request_context
+        progression = request_context.get("progression")
+        progression_data = progression if isinstance(progression, dict) else {}
+        remediation_workflow = request_context.get("remediation_workflow")
+        remediation_data = remediation_workflow if isinstance(remediation_workflow, dict) else {}
+
+        if remediation_data:
+            executed_phase = str(remediation_data.get("executed_phase", "repair"))
+            next_phase = remediation_data.get("next_phase")
+            next_target_kc_ids = self._string_list(remediation_data.get("next_step_target_kc_ids"))
+            next_step = LearnerFlowNextStep(
+                action=(
+                    str(remediation_data.get("progression_decision"))
+                    if str(remediation_data.get("progression_decision", "advance")).startswith("hold_")
+                    else str(next_phase or "complete")
+                ),
+                content_type=self._content_type_for_remediation_phase(
+                    phase=next_phase,
+                    progression_decision=str(remediation_data.get("progression_decision", "advance")),
+                ),
+                target_stage=self._target_stage_for_phase(next_phase or executed_phase),
+                target_kc_ids=next_target_kc_ids,
+                rationale=self._first_text(
+                    remediation_data.get("progression_rationale"),
+                    progression_data.get("mastery_gate_reason"),
+                    progression_data.get("rationale"),
+                    request_context.get("remediation_rationale"),
+                ),
+            )
+            return generated_content.model_copy(
+                update={
+                    "workflow_summary": GenerationWorkflowSummary(
+                        status="delivered",
+                        flow_type="remediation",
+                        learning_session_id=self._maybe_str(request_context.get("learning_session_id")),
+                        delivered_phase=executed_phase,
+                        delivered_content_type=generated_content.content_type,
+                        progression_action=str(remediation_data.get("progression_decision", "advance")),
+                        target_stage=self._target_stage_for_phase(executed_phase),
+                        active_target_kc_ids=self._string_list(
+                            progression_data.get("applied_target_kc_ids") or request_context.get("target_kc_ids")
+                        ),
+                        rationale=self._first_text(
+                            progression_data.get("mastery_gate_reason"),
+                            progression_data.get("rationale"),
+                            remediation_data.get("progression_rationale"),
+                            request_context.get("remediation_rationale"),
+                        ),
+                        next_step=next_step,
+                    )
+                }
+            )
+
+        next_step = self._predictive_next_step(
+            generated_content=generated_content,
+            predictive_plan=predictive_plan,
+        )
+        return generated_content.model_copy(
+            update={
+                "workflow_summary": GenerationWorkflowSummary(
+                    status="delivered",
+                    flow_type="lesson",
+                    learning_session_id=self._maybe_str(request_context.get("learning_session_id")),
+                    delivered_phase=str(
+                        progression_data.get("target_stage")
+                        or self._dict_value(request_context.get("session_adaptation")).get("phase")
+                        or "target"
+                    ),
+                    delivered_content_type=generated_content.content_type,
+                    progression_action=str(progression_data.get("action", "stay_on_requested_target")),
+                    target_stage=str(progression_data.get("target_stage", "target")),
+                    active_target_kc_ids=self._string_list(
+                        progression_data.get("applied_target_kc_ids") or request_context.get("target_kc_ids")
+                    ),
+                    rationale=self._first_text(
+                        progression_data.get("mastery_gate_reason"),
+                        progression_data.get("rationale"),
+                        self._dict_value(request_context.get("session_adaptation")).get("rationale"),
+                    ),
+                    next_step=next_step,
+                )
+            }
+        )
+
+    def _predictive_next_step(
+        self,
+        *,
+        generated_content: GeneratedContent,
+        predictive_plan: PredictiveWarmPlan | None,
+    ) -> LearnerFlowNextStep:
+        request_context = generated_content.request_context
+        progression = self._dict_value(request_context.get("progression"))
+        forced_content_type = self._forced_next_step_content_type(progression)
+        if forced_content_type is not None:
+            return LearnerFlowNextStep(
+                action=str(progression.get("action", "stay_on_requested_target")),
+                content_type=forced_content_type,
+                target_stage=str(progression.get("target_stage", "target")),
+                target_kc_ids=self._string_list(
+                    progression.get("applied_target_kc_ids") or request_context.get("target_kc_ids")
+                ),
+                rationale=self._first_text(
+                    progression.get("mastery_gate_reason"),
+                    progression.get("rationale"),
+                ),
+            )
+        if predictive_plan is None or not predictive_plan.content_types:
+            return LearnerFlowNextStep(
+                action=str(progression.get("action", "stay_on_requested_target")),
+                content_type=None,
+                target_stage=str(progression.get("target_stage", "target")),
+                target_kc_ids=self._string_list(
+                    progression.get("applied_target_kc_ids") or request_context.get("target_kc_ids")
+                ),
+                rationale=self._first_text(
+                    progression.get("mastery_gate_reason"),
+                    progression.get("rationale"),
+                ),
+            )
+        next_content_type = predictive_plan.content_types[0]
+        next_reason = predictive_plan.reasons[0] if predictive_plan.reasons else None
+        target_kc_ids = self._string_list(progression.get("applied_target_kc_ids"))
+        if next_content_type == RequestedContentType.assessment_probe.value:
+            target_kc_ids = self._string_list(progression.get("transfer_target_kc_ids")) or target_kc_ids
+        return LearnerFlowNextStep(
+            action=str(progression.get("action", "stay_on_requested_target")),
+            content_type=next_content_type,
+            target_stage=str(progression.get("target_stage", "target")),
+            target_kc_ids=target_kc_ids or self._string_list(request_context.get("target_kc_ids")),
+            rationale=self._first_text(
+                next_reason,
+                progression.get("mastery_gate_reason"),
+                progression.get("rationale"),
+            ),
+        )
+
+    def _content_type_for_remediation_phase(
+        self,
+        *,
+        phase: object,
+        progression_decision: str,
+    ) -> str | None:
+        if progression_decision == "hold_bridge_target":
+            return RequestedContentType.practice_problem.value
+        if progression_decision.startswith("hold_"):
+            return RequestedContentType.remedial_micro_module.value
+        if phase is None:
+            return None
+        if str(phase) == "return":
+            return RequestedContentType.practice_problem.value
+        return RequestedContentType.remedial_micro_module.value
+
+    def _forced_next_step_content_type(self, progression: dict[str, object]) -> str | None:
+        action = str(progression.get("action", ""))
+        if action in {"hold_target", "hold_target_before_assessment"}:
+            return RequestedContentType.practice_problem.value
+        if action in {
+            "rebuild_prerequisite_first",
+            "rebuild_prerequisite_before_assessment",
+            "hold_repair_target",
+            "hold_repair_target_before_assessment",
+        }:
+            return RequestedContentType.remedial_micro_module.value
+        if action == "bridge_before_assessment":
+            return RequestedContentType.practice_problem.value
+        return None
+
+    def _target_stage_for_phase(self, phase: str) -> str:
+        if phase == "bridge":
+            return "bridge"
+        if phase == "return":
+            return "transfer"
+        return "repair"
+
+    def _dict_value(self, value: object) -> dict[str, object]:
+        return value if isinstance(value, dict) else {}
+
+    def _string_list(self, value: object) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        return [str(item) for item in value if item is not None]
+
+    def _maybe_str(self, value: object) -> str | None:
+        return str(value) if value is not None else None
+
+    def _first_text(self, *values: object) -> str | None:
+        for value in values:
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return None
 
     def _progression_ownership_decision(self, *, request: GenerationRequest) -> ProgressionOwnershipDecision:
         if self.progression_ownership_service is None:
@@ -748,7 +950,8 @@ class ContentWorkflowService:
         }
         if misconception_signals is not None:
             enriched_request_context["misconception_signals"] = misconception_signals
-        return generated_content.model_copy(update={"request_context": enriched_request_context})
+        enriched_content = generated_content.model_copy(update={"request_context": enriched_request_context})
+        return self._apply_generation_workflow_summary(generated_content=enriched_content)
 
     def _current_remediation_step(self, session: RemediationWorkflowSession) -> RemediationWorkflowStep | None:
         current_index = session.current_step_index
