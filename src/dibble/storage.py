@@ -134,7 +134,12 @@ CREATE TABLE IF NOT EXISTS predictive_warm_queue (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     next_attempt_at TEXT,
-    last_error TEXT
+    last_error TEXT,
+    claim_owner TEXT,
+    claim_mode TEXT,
+    claim_reason TEXT,
+    claimed_at TEXT,
+    stale_recovered INTEGER NOT NULL DEFAULT 0
 );
 """
 
@@ -165,6 +170,11 @@ def ensure_database(database_path: str) -> None:
                 "priority_class": "TEXT NOT NULL DEFAULT 'routine'",
                 "attempt_count": "INTEGER NOT NULL DEFAULT 0",
                 "next_attempt_at": "TEXT",
+                "claim_owner": "TEXT",
+                "claim_mode": "TEXT",
+                "claim_reason": "TEXT",
+                "claimed_at": "TEXT",
+                "stale_recovered": "INTEGER NOT NULL DEFAULT 0",
             },
         )
         connection.commit()

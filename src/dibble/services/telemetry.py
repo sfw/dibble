@@ -184,8 +184,25 @@ class TelemetryService:
                 int(event.payload.get("expired_tasks", 0))
                 for event in warm_events + predictive_warm_process_events
             ),
+            targeted_predictive_warm_tasks=sum(
+                int(event.payload.get("targeted_tasks", 0))
+                for event in predictive_warm_events + predictive_warm_process_events
+            ),
+            autonomous_predictive_warm_tasks=sum(
+                int(event.payload.get("autonomous_tasks", 0))
+                for event in predictive_warm_events + predictive_warm_process_events
+            ),
             supplemental_inline_predictive_warm_tasks=sum(
                 int(event.payload.get("supplemental_tasks", 0)) for event in predictive_warm_events
+            ),
+            background_predictive_warm_tasks=sum(
+                int(event.payload.get("claimed_tasks", 0))
+                for event in predictive_warm_process_events
+                if event.payload.get("execution_mode") == "background"
+            ),
+            stale_recovered_predictive_warm_tasks=sum(
+                int(event.payload.get("stale_recovered_tasks", 0))
+                for event in predictive_warm_events + predictive_warm_process_events
             ),
             pending_predictive_warm_tasks=queue_stats["pending"],
             deferred_predictive_warm_tasks=queue_stats.get("deferred", 0),

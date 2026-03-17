@@ -124,6 +124,43 @@ def test_predictive_warm_queue_store_claims_higher_priority_tasks_first(tmp_path
     assert claimed[0].priority_score > practice_task.priority_score
 
 
+def test_predictive_warm_queue_store_records_claim_metadata(tmp_path):
+    database_path = str(tmp_path / "predictive-warm-queue-claim-metadata.db")
+    ensure_database(database_path)
+    store = SQLitePredictiveWarmQueueStore(database_path)
+    task = store.enqueue(
+        request=GenerationRequest.model_validate(
+            {
+                "student_id": str(uuid4()),
+                "learning_session_id": "session-claim",
+                "target_kc_ids": ["KC-1"],
+                "intent": "assessment",
+                "requested_content_type": "assessment_probe",
+                "predictive_warm": True,
+                "warm_reason": "transfer check after bridge",
+                "source_generation_id": "gen-1",
+            }
+        )
+    )
+
+    assert task is not None
+
+    claimed = store.claim_tasks(
+        task_ids=[task.task_id],
+        claim_owner="inline_scheduler",
+        claim_mode="inline_targeted",
+        claim_reason="fresh predictive follow-up from the current generation request",
+        stale_recovered_task_ids=[task.task_id],
+    )
+
+    assert len(claimed) == 1
+    assert claimed[0].claim_owner == "inline_scheduler"
+    assert claimed[0].claim_mode == "inline_targeted"
+    assert claimed[0].claim_reason == "fresh predictive follow-up from the current generation request"
+    assert claimed[0].claimed_at is not None
+    assert claimed[0].stale_recovered is True
+
+
 def test_predictive_warm_queue_store_ages_routine_tasks_into_claim_rotation(tmp_path):
     database_path = str(tmp_path / "predictive-warm-queue-aged-routine.db")
     ensure_database(database_path)

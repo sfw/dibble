@@ -193,7 +193,16 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     audit_store.append(
         event_type="content.warm.predictive",
         status="success",
-        payload={"predicted_request_count": 3, "cache_hits": 2, "cache_misses": 1, "supplemental_tasks": 1},
+        payload={
+            "predicted_request_count": 3,
+            "cache_hits": 2,
+            "cache_misses": 1,
+            "targeted_tasks": 1,
+            "autonomous_tasks": 1,
+            "supplemental_tasks": 1,
+            "stale_recovered_tasks": 0,
+            "execution_mode": "inline",
+        },
     )
     audit_store.append(
         event_type="content.cache.invalidate",
@@ -206,11 +215,15 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
         payload={
             "attempted_tasks": 1,
             "claimed_tasks": 1,
+            "targeted_tasks": 0,
+            "autonomous_tasks": 1,
             "completed_tasks": 1,
             "retried_tasks": 1,
             "requeued_tasks": 1,
             "expired_tasks": 2,
+            "stale_recovered_tasks": 1,
             "dropped_tasks": 0,
+            "execution_mode": "background",
         },
     )
     audit_store.append(
@@ -241,7 +254,11 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     assert snapshot.predictive_warm_process_events == 1
     assert snapshot.predictive_cache_invalidations == 2
     assert snapshot.expired_predictive_warm_tasks == 2
+    assert snapshot.targeted_predictive_warm_tasks == 1
+    assert snapshot.autonomous_predictive_warm_tasks == 2
     assert snapshot.supplemental_inline_predictive_warm_tasks == 1
+    assert snapshot.background_predictive_warm_tasks == 1
+    assert snapshot.stale_recovered_predictive_warm_tasks == 1
     assert snapshot.learning_progress_profile_events == 2
     assert snapshot.improving_progress_signals == 1
     assert snapshot.declining_progress_signals == 1

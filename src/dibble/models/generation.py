@@ -331,6 +331,11 @@ class PredictiveWarmTask(BaseModel):
     expires_at: datetime | None = None
     next_attempt_at: datetime | None = None
     last_error: str | None = None
+    claim_owner: str | None = None
+    claim_mode: str | None = None
+    claim_reason: str | None = None
+    claimed_at: datetime | None = None
+    stale_recovered: bool = False
 
 
 class PredictiveWarmProcessRequest(BaseModel):
@@ -341,6 +346,11 @@ class PredictiveWarmProcessResult(BaseModel):
     attempted_tasks: int = Field(default=0, ge=0)
     claimed_tasks: int = Field(default=0, ge=0)
     supplemental_tasks: int = Field(default=0, ge=0)
+    worker_id: str | None = None
+    execution_mode: str = "idle"
+    targeted_tasks: int = Field(default=0, ge=0)
+    autonomous_tasks: int = Field(default=0, ge=0)
+    stale_recovered_tasks: int = Field(default=0, ge=0)
     completed_tasks: int = Field(default=0, ge=0)
     failed_tasks: int = Field(default=0, ge=0)
     retried_tasks: int = Field(default=0, ge=0)
@@ -350,12 +360,31 @@ class PredictiveWarmProcessResult(BaseModel):
     dropped_tasks: int = Field(default=0, ge=0)
     skipped_tasks: int = Field(default=0, ge=0)
     pending_tasks: int = Field(default=0, ge=0)
+    eligible_tasks: int = Field(default=0, ge=0)
+    blocked_tasks: int = Field(default=0, ge=0)
     cache_hits: int = Field(default=0, ge=0)
     cache_misses: int = Field(default=0, ge=0)
     generation_ids: list[str] = Field(default_factory=list)
+    claim_details: list["PredictiveWarmClaimDetail"] = Field(default_factory=list)
     processed_at: datetime = Field(default_factory=utc_now)
 
 
 class PredictiveWarmSweepResult(BaseModel):
     requeued_tasks: int = Field(default=0, ge=0)
     expired_tasks: int = Field(default=0, ge=0)
+    requeued_task_ids: list[str] = Field(default_factory=list)
+
+
+class PredictiveWarmClaimDetail(BaseModel):
+    task_id: str
+    requested_content_type: str | None = None
+    priority_class: str = "routine"
+    claim_owner: str | None = None
+    claim_mode: str | None = None
+    claim_reason: str | None = None
+    source_generation_id: str | None = None
+    stale_recovered: bool = False
+    wait_seconds: int = Field(default=0, ge=0)
+
+
+PredictiveWarmProcessResult.model_rebuild()

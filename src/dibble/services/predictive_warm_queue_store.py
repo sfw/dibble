@@ -80,9 +80,14 @@ class SQLitePredictiveWarmQueueStore:
                     created_at,
                     updated_at,
                     next_attempt_at,
-                    last_error
+                    last_error,
+                    claim_owner,
+                    claim_mode,
+                    claim_reason,
+                    claimed_at,
+                    stale_recovered
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     task.task_id,
@@ -96,18 +101,33 @@ class SQLitePredictiveWarmQueueStore:
                     task.updated_at.isoformat(),
                     None,
                     task.last_error,
+                    None,
+                    None,
+                    None,
+                    None,
+                    0,
                 ),
             )
             connection.commit()
         return task
 
-    def claim_pending(self, *, limit: int = 10) -> list[PredictiveWarmTask]:
+    def claim_pending(
+        self,
+        *,
+        limit: int = 10,
+        claim_owner: str = "scheduler",
+        claim_mode: str = "pending_drain",
+        claim_reason: str = "eligible queue backlog",
+        stale_recovered_task_ids: list[str] | None = None,
+    ) -> list[PredictiveWarmTask]:
         now = datetime.now(timezone.utc)
+        stale_recovered_task_ids = stale_recovered_task_ids or []
         with sqlite3.connect(self.database_path) as connection:
             rows = connection.execute(
                 """
                 SELECT task_id, student_id, request_payload, request_fingerprint, status, priority_class, attempt_count,
-                       created_at, updated_at, next_attempt_at, last_error
+                       created_at, updated_at, next_attempt_at, last_error, claim_owner, claim_mode,
+                       claim_reason, claimed_at, stale_recovered
                 FROM predictive_warm_queue
                 WHERE status IN ('pending', 'deferred')
                 ORDER BY created_at ASC, task_id ASC
@@ -138,7 +158,14 @@ class SQLitePredictiveWarmQueueStore:
             if not task_ids:
                 connection.commit()
                 return []
-            _mark_processing(connection, task_ids=task_ids)
+            _mark_processing(
+                connection,
+                task_ids=task_ids,
+                claim_owner=claim_owner,
+                claim_mode=claim_mode,
+                claim_reason=claim_reason,
+                stale_recovered_task_ids=stale_recovered_task_ids,
+            )
             connection.commit()
         task_by_id = {task.task_id: task for task in candidates}
         return [
@@ -148,6 +175,11 @@ class SQLitePredictiveWarmQueueStore:
                     "updated_at": now,
                     "attempt_count": task_by_id[task_id].attempt_count + 1,
                     "next_attempt_at": None,
+                    "claim_owner": claim_owner,
+                    "claim_mode": claim_mode,
+                    "claim_reason": claim_reason,
+                    "claimed_at": now,
+                    "stale_recovered": task_id in stale_recovered_task_ids,
                 }
             )
             for task_id in task_ids
@@ -160,7 +192,8 @@ class SQLitePredictiveWarmQueueStore:
             rows = connection.execute(
                 """
                 SELECT task_id, student_id, request_payload, request_fingerprint, status, priority_class, attempt_count,
-                       created_at, updated_at, next_attempt_at, last_error
+                       created_at, updated_at, next_attempt_at, last_error, claim_owner, claim_mode,
+                       claim_reason, claimed_at, stale_recovered
                 FROM predictive_warm_queue
                 WHERE status IN ('pending', 'deferred', 'processing')
                 ORDER BY updated_at ASC, task_id ASC
@@ -175,7 +208,7 @@ class SQLitePredictiveWarmQueueStore:
             if expired_ids:
                 _mark_canceled(connection, task_ids=expired_ids, last_error="Predictive warm task expired before processing.")
 
-            requeued = 0
+            requeued_ids: list[str] = []
             for task in tasks:
                 if task.task_id in expired_ids:
                     continue
@@ -205,7 +238,8 @@ class SQLitePredictiveWarmQueueStore:
                 connection.execute(
                     """
                     UPDATE predictive_warm_queue
-                    SET status = ?, updated_at = ?, next_attempt_at = ?, last_error = ?
+                    SET status = ?, updated_at = ?, next_attempt_at = ?, last_error = ?, claim_owner = NULL,
+                        claim_mode = NULL, claim_reason = NULL, claimed_at = NULL, stale_recovered = 0
                     WHERE task_id = ?
                     """,
                     (
@@ -216,19 +250,33 @@ class SQLitePredictiveWarmQueueStore:
                         task.task_id,
                     ),
                 )
-                requeued += 1
+                requeued_ids.append(task.task_id)
             connection.commit()
-        return PredictiveWarmSweepResult(requeued_tasks=requeued, expired_tasks=len(expired_ids))
+        return PredictiveWarmSweepResult(
+            requeued_tasks=len(requeued_ids),
+            expired_tasks=len(expired_ids),
+            requeued_task_ids=requeued_ids,
+        )
 
-    def claim_tasks(self, *, task_ids: list[str]) -> list[PredictiveWarmTask]:
+    def claim_tasks(
+        self,
+        *,
+        task_ids: list[str],
+        claim_owner: str = "scheduler",
+        claim_mode: str = "targeted",
+        claim_reason: str = "targeted queue claim",
+        stale_recovered_task_ids: list[str] | None = None,
+    ) -> list[PredictiveWarmTask]:
         if not task_ids:
             return []
+        stale_recovered_task_ids = stale_recovered_task_ids or []
         placeholders = ", ".join("?" for _ in task_ids)
         with sqlite3.connect(self.database_path) as connection:
             rows = connection.execute(
                 f"""
                 SELECT task_id, student_id, request_payload, request_fingerprint, status, priority_class, attempt_count,
-                       created_at, updated_at, next_attempt_at, last_error
+                       created_at, updated_at, next_attempt_at, last_error, claim_owner, claim_mode,
+                       claim_reason, claimed_at, stale_recovered
                 FROM predictive_warm_queue
                 WHERE task_id IN ({placeholders}) AND status = 'pending'
                 ORDER BY created_at ASC, task_id ASC
@@ -238,8 +286,16 @@ class SQLitePredictiveWarmQueueStore:
             if not rows:
                 return []
             claimed_ids = [str(row[0]) for row in rows]
-            _mark_processing(connection, task_ids=claimed_ids)
+            _mark_processing(
+                connection,
+                task_ids=claimed_ids,
+                claim_owner=claim_owner,
+                claim_mode=claim_mode,
+                claim_reason=claim_reason,
+                stale_recovered_task_ids=stale_recovered_task_ids,
+            )
             connection.commit()
+        claimed_at = datetime.now(timezone.utc)
         return [
             _task_from_row(
                 (
@@ -251,9 +307,14 @@ class SQLitePredictiveWarmQueueStore:
                     row[5],
                     int(row[6]) + 1,
                     row[7],
-                    datetime.now(timezone.utc).isoformat(),
+                    claimed_at.isoformat(),
                     None,
                     row[10],
+                    claim_owner,
+                    claim_mode,
+                    claim_reason,
+                    claimed_at.isoformat(),
+                    1 if str(row[0]) in stale_recovered_task_ids else 0,
                 ),
                 stale_after_minutes=self.stale_after_minutes,
             )
@@ -271,7 +332,8 @@ class SQLitePredictiveWarmQueueStore:
             row = connection.execute(
                 """
                 SELECT task_id, student_id, request_payload, request_fingerprint, status, priority_class, attempt_count,
-                       created_at, updated_at, next_attempt_at, last_error
+                       created_at, updated_at, next_attempt_at, last_error, claim_owner, claim_mode,
+                       claim_reason, claimed_at, stale_recovered
                 FROM predictive_warm_queue
                 WHERE task_id = ?
                 LIMIT 1
@@ -476,15 +538,48 @@ class SQLitePredictiveWarmQueueStore:
         return max(5, delay_seconds)
 
 
-def _mark_processing(connection: sqlite3.Connection, *, task_ids: list[str]) -> None:
+def _mark_processing(
+    connection: sqlite3.Connection,
+    *,
+    task_ids: list[str],
+    claim_owner: str,
+    claim_mode: str,
+    claim_reason: str,
+    stale_recovered_task_ids: list[str] | None = None,
+) -> None:
+    stale_recovered_task_ids = stale_recovered_task_ids or []
     placeholders = ", ".join("?" for _ in task_ids)
+    claimed_at = datetime.now(timezone.utc).isoformat()
+    stale_recovered_ids = list(dict.fromkeys(stale_recovered_task_ids))
+    stale_recovered_case = (
+        "CASE task_id " + " ".join("WHEN ? THEN 1" for _ in stale_recovered_ids) + " ELSE 0 END"
+        if stale_recovered_ids
+        else "0"
+    )
     connection.execute(
         f"""
         UPDATE predictive_warm_queue
-        SET status = 'processing', updated_at = ?, next_attempt_at = NULL, last_error = NULL, attempt_count = attempt_count + 1
+        SET status = 'processing',
+            updated_at = ?,
+            next_attempt_at = NULL,
+            last_error = NULL,
+            attempt_count = attempt_count + 1,
+            claim_owner = ?,
+            claim_mode = ?,
+            claim_reason = ?,
+            claimed_at = ?,
+            stale_recovered = {stale_recovered_case}
         WHERE task_id IN ({placeholders})
         """,
-        (datetime.now(timezone.utc).isoformat(), *task_ids),
+        (
+            claimed_at,
+            claim_owner,
+            claim_mode,
+            claim_reason,
+            claimed_at,
+            *stale_recovered_ids,
+            *task_ids,
+        ),
     )
 
 
@@ -513,6 +608,11 @@ def _task_from_row(row, *, stale_after_minutes: int) -> PredictiveWarmTask:
         updated_at,
         next_attempt_at,
         last_error,
+        claim_owner,
+        claim_mode,
+        claim_reason,
+        claimed_at,
+        stale_recovered,
     ) = row
     request = GenerationRequest.model_validate(json.loads(request_payload))
     created = datetime.fromisoformat(created_at)
@@ -531,6 +631,11 @@ def _task_from_row(row, *, stale_after_minutes: int) -> PredictiveWarmTask:
         expires_at=created + timedelta(minutes=max(1, stale_after_minutes)),
         next_attempt_at=datetime.fromisoformat(next_attempt_at) if next_attempt_at is not None else None,
         last_error=str(last_error) if last_error is not None else None,
+        claim_owner=str(claim_owner) if claim_owner is not None else None,
+        claim_mode=str(claim_mode) if claim_mode is not None else None,
+        claim_reason=str(claim_reason) if claim_reason is not None else None,
+        claimed_at=datetime.fromisoformat(claimed_at) if claimed_at is not None else None,
+        stale_recovered=bool(stale_recovered),
     )
 
 

@@ -80,7 +80,13 @@ def test_predictive_warm_scheduler_processes_enqueued_tasks(tmp_path):
     assert enqueue_result.enqueued_count == 1
     assert process_result.completed_tasks == 1
     assert process_result.claimed_tasks == 1
+    assert process_result.worker_id == "inline_scheduler"
+    assert process_result.execution_mode == "inline"
+    assert process_result.targeted_tasks == 1
+    assert process_result.autonomous_tasks == 0
     assert process_result.supplemental_tasks == 0
+    assert process_result.claim_details[0].claim_mode == "inline_targeted"
+    assert process_result.claim_details[0].claim_owner == "inline_scheduler"
     assert process_result.cache_misses == 1
     assert process_result.pending_tasks == 0
     assert queue_store.stats()["completed"] == 1
@@ -264,6 +270,8 @@ def test_predictive_warm_scheduler_reports_requeued_stale_processing_tasks(tmp_p
     assert result.attempted_tasks == 0
     assert result.expired_tasks == 0
     assert result.pending_tasks == 1
+    assert result.worker_id == "queue_processor"
+    assert result.execution_mode == "background"
 
 
 def test_predictive_warm_scheduler_recovers_stale_urgent_tasks_in_same_pass(tmp_path):
@@ -331,6 +339,9 @@ def test_predictive_warm_scheduler_recovers_stale_urgent_tasks_in_same_pass(tmp_
     assert result.attempted_tasks == 1
     assert result.completed_tasks == 1
     assert result.pending_tasks == 0
+    assert result.stale_recovered_tasks == 1
+    assert result.claim_details[0].stale_recovered is True
+    assert result.claim_details[0].claim_mode == "background_drain"
 
 
 def test_predictive_warm_scheduler_uses_spare_inline_capacity_for_pending_backlog(tmp_path):
@@ -394,6 +405,8 @@ def test_predictive_warm_scheduler_uses_spare_inline_capacity_for_pending_backlo
     result = scheduler.process_inline(task_ids=[fresh_task.task_id])
 
     assert result.claimed_tasks == 2
+    assert result.targeted_tasks == 1
+    assert result.autonomous_tasks == 1
     assert result.supplemental_tasks == 1
     assert result.completed_tasks == 2
     assert result.pending_tasks == 0
@@ -445,9 +458,12 @@ def test_predictive_warm_scheduler_can_autonomously_process_pending_work_inline(
     result = scheduler.process_inline(task_ids=[])
 
     assert result.claimed_tasks == 1
+    assert result.targeted_tasks == 0
+    assert result.autonomous_tasks == 1
     assert result.supplemental_tasks == 1
     assert result.completed_tasks == 1
     assert result.pending_tasks == 0
+    assert result.claim_details[0].claim_mode == "inline_autonomous"
 
 
 def build_profile_model(student_id):
