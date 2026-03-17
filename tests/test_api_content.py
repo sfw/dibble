@@ -380,6 +380,11 @@ def test_generation_endpoint_uses_durable_ordinary_mastery_to_hold_assessment_re
         "Ordinary practice is still too support-heavy for transfer."
     )
     assert payload["workflow_summary"]["progression_action"] == "hold_target_before_assessment"
+    assert payload["workflow_summary"]["rationale"] == (
+        "Ordinary practice is still too support-heavy for transfer. "
+        "Ordinary mastery signal support_dependent at 0.81 confidence; "
+        "average observed mastery 0.60; 5 matched observation(s)."
+    )
     assert payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
 
 
@@ -841,6 +846,12 @@ def test_generation_endpoint_uses_repair_target_ordinary_mastery_to_hold_backend
     assert payload["request_context"]["progression"]["ordinary_mastery_signal"] == "support_dependent"
     assert payload["workflow_summary"]["progression_action"] == "hold_repair_target"
     assert payload["workflow_summary"]["target_stage"] == "repair"
+    assert payload["workflow_summary"]["rationale"] == (
+        "Repair practice on the prerequisite KC is still too support-heavy. "
+        "Keep the learner on the repair target before returning to the target KC. "
+        "Ordinary mastery signal support_dependent at 0.84 confidence; "
+        "average observed mastery 0.58; 5 matched observation(s)."
+    )
     assert payload["workflow_summary"]["next_step"]["content_type"] == "remedial_micro_module"
 
 

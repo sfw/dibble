@@ -475,16 +475,38 @@ class ProgressionOwnershipService:
         if summary.rationale:
             if target_stage == "repair":
                 if signal == "support_dependent":
-                    return (
-                        f"{summary.rationale} Keep the learner on the repair target before returning to the target KC."
+                    return self._append_ordinary_mastery_snapshot(
+                        (
+                            f"{summary.rationale} Keep the learner on the repair target before returning to the target KC."
+                        ),
+                        summary=summary,
                     )
                 if signal == "fragile":
-                    return (
-                        f"{summary.rationale} Keep the learner on the repair target until the repair evidence is less fragile."
+                    return self._append_ordinary_mastery_snapshot(
+                        (
+                            f"{summary.rationale} Keep the learner on the repair target until the repair evidence is less fragile."
+                        ),
+                        summary=summary,
                     )
                 if signal == "emerging_mastery":
-                    return (
-                        f"{summary.rationale} Keep the learner on the repair target until the progress looks more durable."
+                    return self._append_ordinary_mastery_snapshot(
+                        (
+                            f"{summary.rationale} Keep the learner on the repair target until the progress looks more durable."
+                        ),
+                        summary=summary,
                     )
-            return summary.rationale
-        return fallback
+            return self._append_ordinary_mastery_snapshot(summary.rationale, summary=summary)
+        return self._append_ordinary_mastery_snapshot(fallback, summary=summary)
+
+    def _append_ordinary_mastery_snapshot(
+        self,
+        rationale: str,
+        *,
+        summary: OrdinaryMasterySummary,
+    ) -> str:
+        fragments = [f"Ordinary mastery signal {summary.signal} at {summary.confidence:.2f} confidence"]
+        if summary.average_observed_mastery is not None:
+            fragments.append(f"average observed mastery {summary.average_observed_mastery:.2f}")
+        if summary.matched_observation_count > 0:
+            fragments.append(f"{summary.matched_observation_count} matched observation(s)")
+        return f"{rationale} {'; '.join(fragments)}."
