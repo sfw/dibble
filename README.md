@@ -107,6 +107,14 @@ Run tests:
 env UV_CACHE_DIR=.uv-cache uv run pytest
 ```
 
+Install the local git hooks:
+
+```bash
+pre-commit install
+```
+
+The repository includes a `pre-commit` hook that scans staged diffs with `trufflehog` before each commit.
+
 ## Current Endpoints
 
 - `GET /health`

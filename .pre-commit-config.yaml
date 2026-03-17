@@ -1,0 +1,11 @@
+repos:
+  - repo: local
+    hooks:
+      - id: trufflehog
+        name: TruffleHog
+        description: Scan staged changes for verified secrets with TruffleHog.
+        entry: bash -c 'git diff --cached --binary --no-color --unified=0 --diff-filter=ACMR | trufflehog stdin --results=verified --fail --no-update --force-skip-binaries --force-skip-archives'
+        language: system
+        pass_filenames: false
+        always_run: true
+        require_serial: true
