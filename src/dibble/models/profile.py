@@ -275,6 +275,36 @@ class RecentLearnerActivity(BaseModel):
     last_event_at: datetime | None = None
 
 
+class LearnerFlowNextStep(BaseModel):
+    action: str = "monitor"
+    content_type: str | None = None
+    target_stage: str = "target"
+    target_kc_ids: list[str] = Field(default_factory=list)
+    rationale: str | None = None
+
+
+class LearnerFlowSummary(BaseModel):
+    status: str = "idle"
+    flow_type: str = "idle"
+    learning_session_id: str | None = None
+    remediation_session_id: str | None = None
+    socratic_session_id: str | None = None
+    current_phase: str = "idle"
+    current_content_type: str | None = None
+    last_generation_id: str | None = None
+    progression_action: str = "monitor"
+    target_stage: str = "target"
+    active_target_kc_ids: list[str] = Field(default_factory=list)
+    deferred_target_kc_ids: list[str] = Field(default_factory=list)
+    transfer_target_kc_ids: list[str] = Field(default_factory=list)
+    session_phase: str = "monitor"
+    session_arc_action: str = "steady"
+    session_stuck_loop_risk: str = "low"
+    rationale: str | None = None
+    next_step: LearnerFlowNextStep = Field(default_factory=LearnerFlowNextStep)
+    updated_at: datetime | None = None
+
+
 class ProfileSummary(BaseModel):
     student_id: UUID
     grade_level: str
@@ -292,6 +322,7 @@ class ProfileSummary(BaseModel):
     state_profile: LearnerStateProfileSummary = Field(default_factory=LearnerStateProfileSummary)
     trait_profile: LearnerTraitProfileSummary = Field(default_factory=LearnerTraitProfileSummary)
     recent_activity: RecentLearnerActivity = Field(default_factory=RecentLearnerActivity)
+    current_flow: LearnerFlowSummary = Field(default_factory=LearnerFlowSummary)
     updated_at: datetime
 
     @classmethod
@@ -305,6 +336,7 @@ class ProfileSummary(BaseModel):
         state_profile: LearnerStateProfileSummary | None = None,
         trait_profile: LearnerTraitProfileSummary | None = None,
         recent_activity: RecentLearnerActivity | None = None,
+        current_flow: LearnerFlowSummary | None = None,
     ) -> "ProfileSummary":
         return cls(
             student_id=profile.student_id,
@@ -323,5 +355,6 @@ class ProfileSummary(BaseModel):
             state_profile=state_profile or LearnerStateProfileSummary(),
             trait_profile=trait_profile or LearnerTraitProfileSummary(),
             recent_activity=recent_activity or RecentLearnerActivity(),
+            current_flow=current_flow or LearnerFlowSummary(),
             updated_at=profile.updated_at,
         )

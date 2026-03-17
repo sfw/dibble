@@ -54,7 +54,8 @@ This repository now includes a working MVP backend slice for the revised adaptiv
 - Live learner-state and cognitive-trait inference now score the strength of current evidence more explicitly, so strong current low-support observations can push back on overly optimistic durable profiles while sparse evidence can still benefit from stable cross-session state/trait backfill
 - Durable learner-state profiles now also carry per-dimension reliability signals for affective versus load versus metacognitive targets, and both live state inference and observation-time state calibration now blend those dimensions selectively instead of moving the whole durable profile as one block
 - The backend now also compacts recent learner observations plus durable state-profile context into `learning.cognitive_trait.profile` events, including trait-stability, challenge-tolerance, per-trait reliability, and challenge-evidence-strength signals, and live cognitive-trait inference can use those signals to trust strong durable working-memory or processing-speed evidence without over-trusting weaker durable trait dimensions
-- `GET /api/learners/{student_id}/summary` now exposes a frontend-ready learner overview with engagement, metacognitive snapshot, latest calibration summary, latest progress trend summary, latest learner-strategy summary, and recent activity counts so the UI does not need to read audit logs directly
+- `GET /api/learners/{student_id}/summary` now exposes a frontend-ready learner overview with engagement, metacognitive snapshot, latest calibration summary, latest progress trend summary, latest learner-strategy summary, recent activity counts, and a backend-owned `current_flow` summary so the UI does not need to read audit logs directly
+- `GET /api/learners/{student_id}/flow` exposes the same learner-flow contract directly, including current phase, progression action, active targets, and next-step metadata for ordinary generation, remediation, and Socratic workflows
 - Predictive warming now also has a durable SQLite-backed queue plus an explicit processor path, so anticipated follow-up requests can be scheduled, canceled when new evidence arrives, prioritized by likely next-step urgency, expired when they go stale, and processed outside the original generation request when needed
 - The predictive follow-up planner is now calibration-aware, so declining practice can warm a worked example instead of a transfer check, stronger remediation progress can warm a transfer probe sooner, long-horizon learner-strategy signals can now escalate relapse toward prerequisite repair or break a plateau with varied modeled support, and newer within-session controller phases can now keep a session in consolidate or bridge before warming transfer
 - Knowledge Components can now carry catalogued misconception patterns, and the remedial trigger uses those patterns to produce richer misconception signals plus a structured remediation blueprint instead of only a generic step-back wrapper
@@ -100,6 +101,7 @@ env UV_CACHE_DIR=.uv-cache uv run pytest
 - `POST /api/learners/{student_id}/observations`
 - `GET /api/learners/{student_id}/state`
 - `GET /api/learners/{student_id}/summary`
+- `GET /api/learners/{student_id}/flow`
 - `PUT /api/curriculum/resources/{resource_id}`
 - `GET /api/curriculum/resources`
 - `PUT /api/knowledge-components/{kc_id}`

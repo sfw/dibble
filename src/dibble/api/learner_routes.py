@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, status
 
 from dibble.api.common import ApiContext
 from dibble.models.observations import InferredLearnerState, LearnerObservationCreate
-from dibble.models.profile import LearnerProfile, LearnerProfileV2, ProfileSummary
+from dibble.models.profile import LearnerFlowSummary, LearnerProfile, LearnerProfileV2, ProfileSummary
 
 
 def build_learner_router(context: ApiContext) -> APIRouter:
@@ -197,5 +197,12 @@ def build_learner_router(context: ApiContext) -> APIRouter:
         if summary is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
         return summary
+
+    @router.get("/learners/{student_id}/flow", response_model=LearnerFlowSummary, dependencies=context.deps("viewer"))
+    def get_learner_flow(student_id: UUID) -> LearnerFlowSummary:
+        profile = services.profile_store.get(student_id)
+        if profile is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Learner profile not found.")
+        return services.learner_flow_service.build_for_student(student_id=student_id)
 
     return router

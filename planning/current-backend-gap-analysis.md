@@ -14,6 +14,7 @@ The backend now covers a meaningful slice of the revised Phase 1 and early Phase
 - The API surface now includes a single current route set that implements the revised generation/profile contract without carrying `v1` and `v2` path namespaces side by side.
 - Generated content now has a persisted entity with quality and provenance metadata plus a cache-backed reuse path that supports explicit warming, calibration-aware predictive follow-up warming, a durable predictive warm queue with explicit processing, and overlap-based invalidation when learner evidence changes.
 - The learner summary endpoint now packages recent calibration, durable progress-trend, durable learner-strategy, and activity context into a frontend-ready overview instead of requiring direct audit-log reads, and those same progress and strategy profiles now feed live router, generation-mode calibration, and predictive follow-up warming.
+- The backend now also exposes a compact learner-flow read model through `GET /api/learners/{student_id}/flow`, and learner summary now includes the same `current_flow` contract so frontend work can read current phase, progression action, active targets, and next-step metadata without reconstructing state from audit logs or raw generation traces.
 - Remediation is now session-backed: the remedial trigger persists a workflow session, generates the current workflow phase, exposes dedicated session retrieval and advancement endpoints for step-back, repair, and return progression, and now carries matched learner-strategy guidance through the session so cross-session struggle or regained independence influences later remediation steps directly.
 - The backend now also has the beginnings of a learner-flow spine: generated responses carry richer mode-calibration, KC-sequencing, and session-phase metadata, predictive follow-up planning can warm likely next support moves, and remediation workflows can now keep a learner inside a multi-step repair arc instead of collapsing every struggle into a single response.
 - The backend now compacts recent run summaries plus progress snapshots into durable `learning.strategy.profile` events that expose honest heuristic long-horizon recovery, plateau, relapse, and volatility signals for similar future requests.
@@ -101,6 +102,73 @@ Based on `planning/4 - revised-spec/implementation-roadmap.md`, `planning/5 - de
 3. keep Socratic adaptation local and inspectable unless real traces later justify a richer discourse planner.
 4. avoid broad retrieval-platform expansion unless future curriculum packages actually demand chunk storage beyond the current passage-aware resource grounding.
 5. prefer auditability and honest heuristics over speculative architecture across all three remaining seams.
+
+### Pre-Frontend Priorities
+
+Before serious frontend work begins, the backend does **not** need to be "finished," but a few seams should be stabilized first so the UI is not forced to own workflow rules that belong on the server.
+
+#### Priority 1: Backend-owned learner flow and next-step ownership
+
+The highest pre-frontend priority is stronger backend ownership of learner progression and next-step selection:
+
+1. tighten `ORCH-001` learner progression orchestration so the backend can answer "what should this learner do next?" with a stable, inspectable contract.
+2. keep target stage, redirect state, transfer target, and requested-versus-applied content type explicit and trustworthy in generation/session metadata.
+3. avoid pushing curriculum-to-course progression logic into the frontend just because the current local orchestration layer is still incomplete.
+
+This is the biggest frontend dependency because the UI can render learner flow, but it should not have to decide prerequisite rebuild versus bridge versus target practice itself.
+
+Progress now:
+
+1. a dedicated learner-flow read model now packages current phase, progression action, target stage, active target KCs, and next-step metadata behind one stable server contract.
+2. the flow contract prefers learner-visible generation and workflow decisions over lower-level controller traces, so the frontend sees the same backend-owned next step the API already warmed or audited.
+3. learner summary now embeds that same `current_flow` shape so dashboard or home surfaces do not need a separate audit-log reconstruction path.
+
+#### Priority 2: Stronger mastery-loop enforcement
+
+The next priority is finishing enough of `ADAPT-006` that the backend owns hold/advance/transfer decisions with more authority across ordinary generation and remediation:
+
+1. strengthen the current local mastery gates so repair, bridge, target, and transfer transitions are stable enough for frontend state rendering.
+2. make sure practice, remediation, and assessment evidence can hold a learner on concept when needed without relying on UI conventions or hidden assumptions.
+3. keep those decisions inspectable in metadata and audits so frontend state remains explainable.
+
+This matters before frontend because otherwise screen structure will keep changing around ambiguous "ready/not ready" backend behavior.
+
+#### Priority 3: Stabilize session-backed learner workflows
+
+The current backend already has a promising learner-flow spine, remediation sessions, within-session controller state, and richer generation metadata. Before frontend, those workflow contracts should be made intentionally stable:
+
+1. confirm the canonical session states, next actions, and phase transitions the frontend should render.
+2. make sure remediation and ordinary learning flows expose enough summary metadata that the UI does not need to reconstruct state from audit events.
+3. prefer compact read models and session detail payloads over asking the frontend to interpret low-level adaptive traces.
+
+This is mostly contract-hardening work, not a call for major new adaptive intelligence.
+
+#### Priority 4: Frontend-ready read models and API packaging
+
+Before frontend starts in earnest, the backend should provide clean API surfaces for the first UI:
+
+1. learner summary and session views should be complete enough that the frontend can render dashboard, current-step, and recent-activity surfaces without replaying backend internals.
+2. generation, remediation, and Socratic endpoints should return stable, UI-friendly metadata for status, rationale, and next-step display.
+3. any missing aggregate or summary endpoints should be prioritized above deeper adaptive heuristics.
+
+This is the highest-leverage "finish before frontend" work after progression and mastery ownership because it directly reduces UI complexity and churn.
+
+Progress now:
+
+1. `GET /api/learners/{student_id}/flow` is available as a compact read-model endpoint for first-pass frontend work.
+2. `GET /api/learners/{student_id}/summary` now includes `current_flow`, so overview surfaces can render recent activity and current next-step state from one response.
+3. remediation and Socratic session endpoints still need a similar contract-hardening pass so the UI can rely on canonical session summaries rather than raw session payloads alone.
+
+#### Lower priority before frontend
+
+The following gaps are still real, but they should not block a first frontend unless the product direction changes:
+
+1. richer predictive scheduler autonomy beyond the current inspectable queue ownership model
+2. broader retrieval-platform expansion beyond the current passage-aware resource grounding
+3. richer long-horizon Socratic discourse modeling
+4. multi-modal synthesis such as diagrams, simulations, or interactive generation
+
+Those are better treated as parallel or later backend tracks once the frontend can already rely on stable learner-flow and summary contracts.
 
 ## Recommendation
 

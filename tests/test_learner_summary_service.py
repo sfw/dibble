@@ -182,6 +182,7 @@ def test_learner_summary_service_prefers_calibration_profile_and_recent_activity
     assert summary.recent_activity.socratic_assessment_count == 1
     assert summary.recent_activity.last_generation_id == "gen-summary-1"
     assert summary.recent_activity.last_learning_session_id == "summary-session-1"
+    assert summary.current_flow.status == "idle"
 
 
 def test_learner_summary_service_falls_back_to_run_summary_when_profile_missing(tmp_path):
@@ -226,3 +227,4 @@ def test_learner_summary_service_falls_back_to_run_summary_when_profile_missing(
     assert summary.state_profile.source == "insufficient"
     assert summary.trait_profile.source == "insufficient"
     assert summary.recent_activity.last_generation_id == "fallback-gen"
+    assert summary.current_flow.status == "idle"

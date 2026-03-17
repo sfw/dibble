@@ -24,6 +24,7 @@ from dibble.services.learning_state_profiles import LearningStateProfileRecorder
 from dibble.services.learning_trait_profiles import LearningTraitProfileRecorder
 from dibble.services.learner_strategy_profiles import LearningStrategyProfileRecorder
 from dibble.services.learner_state_calibration import LearnerStateCalibrator
+from dibble.services.learner_flow_service import LearnerFlowService
 from dibble.services.learner_summary_service import LearnerSummaryService
 from dibble.services.observation_profile_update import ObservationProfileUpdater
 from dibble.services.ordinary_mastery_profiles import OrdinaryMasteryProfileRecorder
@@ -72,6 +73,7 @@ class ApiServices(Protocol):
     learning_state_profile_recorder: LearningStateProfileRecorder
     learning_trait_profile_recorder: LearningTraitProfileRecorder
     ordinary_mastery_profile_recorder: OrdinaryMasteryProfileRecorder
+    learner_flow_service: LearnerFlowService
     learner_summary_service: LearnerSummaryService
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_invalidator: PredictiveContentInvalidator
