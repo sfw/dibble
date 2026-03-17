@@ -482,6 +482,9 @@ def test_generation_mastery_gate_holds_assessment_request_on_practice_when_evide
     assert payload["request_context"]["progression"]["requested_content_type"] == "assessment_probe"
     assert payload["request_context"]["progression"]["applied_content_type"] == "practice_problem"
     assert payload["workflow_summary"]["progression_action"] == "hold_target_before_assessment"
+    assert "Same-session evidence confidence 0.56" in payload["workflow_summary"]["rationale"]
+    assert "2 observation(s)" in payload["workflow_summary"]["rationale"]
+    assert "average observed mastery 0.64" in payload["workflow_summary"]["rationale"]
     assert payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
 
     generation_event = next(event for event in audit_response.json() if event["event_type"] == "content.generate")

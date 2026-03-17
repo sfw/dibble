@@ -374,6 +374,9 @@ def test_progression_ownership_attempts_transfer_when_assessment_confirms_readin
     assert decision.evidence_observation_count == 2
     assert decision.evidence_assessment_count == 1
     assert decision.evidence_confidence >= 0.7
+    assert "Same-session evidence confidence 0.76" in decision.rationale
+    assert "2 observation(s)" in decision.rationale
+    assert "1 assessment(s)" in decision.rationale
 
 
 def test_progression_ownership_holds_assessment_request_on_target_practice_until_mastery_is_stronger(tmp_path):
@@ -428,6 +431,8 @@ def test_progression_ownership_holds_assessment_request_on_target_practice_until
     assert decision.mastery_gate_applied is True
     assert decision.requested_content_type == "assessment_probe"
     assert decision.applied_content_type == "practice_problem"
+    assert "Same-session evidence confidence 0.56" in decision.rationale
+    assert "2 observation(s)" in decision.rationale
     assert decision.request.intent.value == "practice"
     assert decision.request.requested_content_type == "practice_problem"
 

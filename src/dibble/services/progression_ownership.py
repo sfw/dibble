@@ -154,7 +154,11 @@ class ProgressionOwnershipService:
             action = evidence_decision.decision
             source = "progression_evidence"
             target_stage = self._target_stage_for_action(action=action, fallback=target_stage)
-            rationale = evidence_decision.rationale
+            rationale = self._append_progression_evidence_snapshot(
+                evidence_decision.rationale
+                or "Recent same-session progression evidence suggests holding the current stage target.",
+                evidence_decision=evidence_decision,
+            )
         elif ordinary_mastery_decision.decision != "monitor":
             action = ordinary_mastery_decision.decision
             source = "ordinary_mastery_profile"
@@ -417,9 +421,10 @@ class ProgressionOwnershipService:
         evidence_decision,
     ) -> str:
         target_fragment = ", ".join(transfer_target_kc_ids) if transfer_target_kc_ids else "the target KC"
-        return (
+        return self._append_progression_evidence_snapshot(
             evidence_decision.rationale
-            or f"Recent same-session evidence on {request.learning_session_id} was strong enough to resume transfer on {target_fragment}."
+            or f"Recent same-session evidence on {request.learning_session_id} was strong enough to resume transfer on {target_fragment}.",
+            evidence_decision=evidence_decision,
         )
 
     def _should_gate_assessment(self, *, action: str, target_stage: str) -> bool:
@@ -509,4 +514,21 @@ class ProgressionOwnershipService:
             fragments.append(f"average observed mastery {summary.average_observed_mastery:.2f}")
         if summary.matched_observation_count > 0:
             fragments.append(f"{summary.matched_observation_count} matched observation(s)")
+        return f"{rationale} {'; '.join(fragments)}."
+
+    def _append_progression_evidence_snapshot(
+        self,
+        rationale: str,
+        *,
+        evidence_decision,
+    ) -> str:
+        fragments = [f"Same-session evidence confidence {evidence_decision.confidence:.2f}"]
+        if evidence_decision.matched_observation_count > 0:
+            fragments.append(f"{evidence_decision.matched_observation_count} observation(s)")
+        if evidence_decision.matched_assessment_count > 0:
+            fragments.append(f"{evidence_decision.matched_assessment_count} assessment(s)")
+        if evidence_decision.average_observed_mastery is not None:
+            fragments.append(f"average observed mastery {evidence_decision.average_observed_mastery:.2f}")
+        if evidence_decision.average_assessment_mastery is not None:
+            fragments.append(f"average assessment mastery {evidence_decision.average_assessment_mastery:.2f}")
         return f"{rationale} {'; '.join(fragments)}."
