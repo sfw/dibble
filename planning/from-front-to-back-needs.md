@@ -44,12 +44,12 @@ What the frontend is building against:
 ### Resolved: Product-level authentication flow (was P0)
 
 **Backend now provides:** `learner` and `teacher` RBAC roles with entity bindings (`learner_id`, `teacher_id`, `display_name`, `classroom_ids`) that persist through API keys, bearer tokens, token refresh, and `/api/auth/me`. Principal config format: `api_key:principal_id:learner:student-uuid:Display Name` and `api_key:principal_id:teacher:teacher-uuid:Name:classroom-1,classroom-2`.
-**Frontend still needs:** login screen, role-aware redirect, session persistence using the new auth contracts.
+**Frontend now provides:** login screen (`/login`), role-aware redirect on login, bearer token session persistence via `useAuth` hook, `AuthGuard` component gating `/learn` and `/teacher` routes, logout from shell headers, and `AuthContext` for app-wide auth state. The `RoleSwitcher` auto-redirects authenticated users to their role-appropriate shell.
 
 ### Resolved: History pagination (was P1)
 
 **Backend now provides:** all three history endpoints return `{ items, offset, limit, has_more }` paginated responses with offset-based pagination, limit clamped to 1–100.
-**Frontend still needs:** load-more or infinite scroll UI using the `offset` and `has_more` fields.
+**Frontend now provides:** `useLearnerContracts` hook tracks `hasMoreHistory` state across all three history types and exposes a `loadMoreHistory` function. The History view shows a "Load more" button when more entries are available.
 
 ## Resolved P1 Backend Asks
 

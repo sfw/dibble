@@ -1,7 +1,8 @@
 import { useOutletContext } from 'react-router'
-import { BookOpen, Clock, MessageCircle, Wrench } from 'lucide-react'
+import { BookOpen, Clock, Loader2, MessageCircle, Wrench } from 'lucide-react'
 import type { LearnerContext } from '../../shells/LearnerShell'
 import { PageContainer } from '../../components/shell/PageContainer'
+import { Button } from '../../components/ui/button'
 import { formatTimestamp } from '../../lib/formatters'
 import { learnerContentType, learnerStage } from '../../lib/copy'
 import type {
@@ -70,7 +71,14 @@ const typeConfig = {
 } as const
 
 export function History() {
-  const { generationHistory, socraticHistory, remediationHistory } = useOutletContext<LearnerContext>()
+  const {
+    generationHistory,
+    socraticHistory,
+    remediationHistory,
+    hasMoreHistory,
+    loadingMore,
+    loadMoreHistory,
+  } = useOutletContext<LearnerContext>()
 
   const timeline = buildTimeline(generationHistory, socraticHistory, remediationHistory)
 
@@ -111,6 +119,26 @@ export function History() {
               </article>
             )
           })}
+
+          {hasMoreHistory && (
+            <div className="flex justify-center pt-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void loadMoreHistory()}
+                disabled={loadingMore}
+              >
+                {loadingMore ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  'Load more'
+                )}
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </PageContainer>

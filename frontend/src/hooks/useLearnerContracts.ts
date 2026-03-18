@@ -40,9 +40,13 @@ export function useLearnerContracts({
     useState<LearnerSocraticSessionHistoryEntry[]>(demoSocraticHistory)
   const [remediationHistory, setRemediationHistory] =
     useState<LearnerRemediationSessionHistoryEntry[]>(demoRemediationHistory)
+  const [hasMoreGenerations, setHasMoreGenerations] = useState(false)
+  const [hasMoreSocratic, setHasMoreSocratic] = useState(false)
+  const [hasMoreRemediation, setHasMoreRemediation] = useState(false)
   const [intervention, setIntervention] =
     useState<TeacherInterventionActionContract>(demoTeacherInterventionAction)
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState('')
   const [submittingIntervention, setSubmittingIntervention] = useState(false)
   const [interventionError, setInterventionError] = useState('')
@@ -74,8 +78,11 @@ export function useLearnerContracts({
         ])
 
       setGenerationHistory(generationPage.items)
+      setHasMoreGenerations(generationPage.has_more)
       setSocraticHistory(socraticPage.items)
+      setHasMoreSocratic(socraticPage.has_more)
       setRemediationHistory(remediationPage.items)
+      setHasMoreRemediation(remediationPage.has_more)
       setIntervention(nextIntervention)
       onDataSourceChange('live')
     } catch (caughtError) {
@@ -89,6 +96,46 @@ export function useLearnerContracts({
       setLoading(false)
     }
   }, [applyDemoFallback, config, learnerId, onDataSourceChange])
+
+  const loadMoreHistory = useCallback(async () => {
+    setLoadingMore(true)
+    try {
+      const fetches: Promise<void>[] = []
+
+      if (hasMoreGenerations) {
+        fetches.push(
+          getGenerationHistory(config, learnerId, 20, generationHistory.length).then((page) => {
+            setGenerationHistory((prev) => [...prev, ...page.items])
+            setHasMoreGenerations(page.has_more)
+          }),
+        )
+      }
+      if (hasMoreSocratic) {
+        fetches.push(
+          getSocraticHistory(config, learnerId, 20, socraticHistory.length).then((page) => {
+            setSocraticHistory((prev) => [...prev, ...page.items])
+            setHasMoreSocratic(page.has_more)
+          }),
+        )
+      }
+      if (hasMoreRemediation) {
+        fetches.push(
+          getRemediationHistory(config, learnerId, 20, remediationHistory.length).then((page) => {
+            setRemediationHistory((prev) => [...prev, ...page.items])
+            setHasMoreRemediation(page.has_more)
+          }),
+        )
+      }
+
+      await Promise.all(fetches)
+    } catch (caughtError) {
+      setError(asMessage(caughtError))
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [config, learnerId, generationHistory.length, socraticHistory.length, remediationHistory.length, hasMoreGenerations, hasMoreSocratic, hasMoreRemediation])
+
+  const hasMoreHistory = hasMoreGenerations || hasMoreSocratic || hasMoreRemediation
 
   const submitTeacherDecision = useCallback(
     async (payload: TeacherInterventionDecisionRequest) => {
@@ -165,6 +212,9 @@ export function useLearnerContracts({
     intervention,
     loading,
     error,
+    hasMoreHistory,
+    loadingMore,
+    loadMoreHistory,
     submittingIntervention,
     interventionError,
     loadContracts,

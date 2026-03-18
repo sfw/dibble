@@ -218,7 +218,7 @@ The key product guardrail remains: the frontend renders backend-owned workflow d
 
 The frontend ask has shifted from "no new contracts" to "three concrete product-level needs plus continued quality work":
 
-1. **P0: authentication flow** — the backend auth contract exists but needs to clearly support learner and teacher login, role-to-identity mapping, and session persistence. This is the single biggest product gap.
+1. ~~**P0: authentication flow**~~ — **DONE end-to-end**. Backend auth contract exists with `learner` and `teacher` roles. Frontend now has login screen, `useAuth` hook, `AuthGuard` route protection, bearer token persistence, role-aware redirect, and logout.
 2. **P1: assignment model** — neither frontend nor backend owns assignments yet. The backend should decide whether this is a thin wrapper around workspace/progression or a first-class entity.
 3. **P1: history pagination** — small contract extension for cursor or offset support on history endpoints.
 4. the backend should continue preserving and hardening existing stable contracts.
@@ -330,7 +330,7 @@ The backend adaptive learning engine is mature and the frontend has evolved from
 
 2. **Assignment model** (P1): Core LMS functionality. Teachers need to assign work; learners need to see what's assigned. The backend should own this concept.
 
-3. **History pagination** (P1): Small contract extension that becomes necessary once real learners generate more than 20 history entries.
+3. ~~**History pagination** (P1)~~: **DONE end-to-end**. Backend provides offset-based pagination. Frontend now has load-more UI.
 
 4. **Continued backend decision quality** (P1): The four ongoing quality tracks (`ORCH-001`, `ADAPT-006`, `DATA-004`, `ADAPT-003`) remain valuable and should continue in parallel with product-completeness work. The adaptive learning engine is the core differentiator.
 

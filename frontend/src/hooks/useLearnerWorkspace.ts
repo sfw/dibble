@@ -8,13 +8,15 @@ import type { FrontendConfig, LearnerFlowSummary, LearnerProfileV2, LearnerWorks
 
 export function useLearnerWorkspace({
   config,
+  initialLearnerId,
   onDataSourceChange,
 }: {
   config: FrontendConfig
+  initialLearnerId?: string
   onDataSourceChange: (source: DataSource) => void
 }) {
   const hasBootstrapped = useRef(false)
-  const [learnerId, setLearnerId] = useState(SAMPLE_STUDENT_ID)
+  const [learnerId, setLearnerId] = useState(initialLearnerId ?? SAMPLE_STUDENT_ID)
   const [learnerIds, setLearnerIds] = useState<string[]>([SAMPLE_STUDENT_ID])
   const [summary, setSummary] = useState<ProfileSummary>(demoProfileSummary)
   const [profile, setProfile] = useState<LearnerProfileV2>(demoProfile)

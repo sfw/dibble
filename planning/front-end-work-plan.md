@@ -82,10 +82,10 @@ Contract-hardening in use:
 
 | Priority | Gap | Impact on frontend |
 |---|---|---|
-| ~~P0~~ | ~~No product-level authentication or user identity~~ | **RESOLVED** — backend now supports `learner` and `teacher` roles with entity bindings (`learner_id`, `teacher_id`, `display_name`, `classroom_ids`) through API keys, bearer tokens, and `/api/auth/me`. Frontend auth types and API functions added. Frontend still needs login screen and role-aware redirect. |
+| ~~P0~~ | ~~No product-level authentication or user identity~~ | **RESOLVED** — backend supports `learner` and `teacher` roles with entity bindings. Frontend now has login screen (`/login`), `useAuth` hook with bearer token persistence and refresh, `AuthGuard` gating `/learn` and `/teacher` routes, role-aware redirect, logout from shell headers, and `AuthContext` for app-wide auth state. |
 | P1 | No assignment model or lifecycle | Cannot frame learning work as teacher-assigned tasks; learner and teacher views lack an assignment container |
 | P1 | Teacher reporting is a placeholder | `/teacher/reports` shows "Coming soon"; no class-level progress, trend, or standards mastery views |
-| ~~P1~~ | ~~No pagination on history endpoints~~ | **RESOLVED** — backend returns `{ items, offset, limit, has_more }` paginated responses. Frontend types, API functions, hook, and test mocks updated. Frontend still needs load-more / infinite scroll UI. |
+| ~~P1~~ | ~~No pagination on history endpoints~~ | **RESOLVED** — backend returns `{ items, offset, limit, has_more }` paginated responses. Frontend `useLearnerContracts` hook now tracks pagination state and exposes `loadMoreHistory`. History view shows a "Load more" button when more entries are available. |
 | P2 | Course-level progression planning is lighter than a true course planner | UI should trust learner `curriculum_progression` and avoid inventing cross-unit sequencing logic |
 | P2 | No multimodal artifact payload contract | Content cards should stay extensible without assuming diagrams or interactives yet |
 | P2 | No learner-to-learner or teacher-to-learner messaging | No in-app communication channel |
@@ -182,19 +182,27 @@ Contract-hardening in use:
 
 ### In progress
 
-- backend auth contract now supports learner/teacher roles with entity bindings; frontend needs login screen, role-aware redirect, and session persistence
-- backend history pagination is live; frontend needs load-more / infinite scroll UI
+- hide orchestration inputs from the learner shell so Continue Learning feels like a real learning flow
+- design the assignment model with backend coordination
 
 ### Next up
 
-1. build a login screen using the new `POST /api/auth/token`, `GET /api/auth/me`, and `POST /api/auth/token/refresh` contracts
-2. add role-aware redirect: learner principals go to `/learn`, teacher principals go to `/teacher`
-3. persist bearer token and identity in browser storage for session continuity
-4. add load-more or infinite scroll to history views using the new `offset`/`has_more` pagination contract
-5. hide orchestration inputs from the learner shell so Continue Learning feels like a real learning flow
-6. build real teacher reporting to replace the placeholder
-7. design the assignment model with backend coordination
-8. keep this work plan and `from-front-to-back-needs.md` updated together
+1. hide orchestration inputs from the learner shell so Continue Learning feels like a real learning flow
+2. build real teacher reporting to replace the placeholder
+3. design the assignment model with backend coordination
+4. keep this work plan and `from-front-to-back-needs.md` updated together
+
+### Recently completed
+
+- login screen at `/login` with API key authentication, bearer token issuance, and role-aware redirect
+- `useAuth` hook managing auth state, bearer token persistence in localStorage, token refresh, and logout
+- `AuthContext` provider wrapping the app for global auth state access
+- `AuthGuard` component gating `/learn` and `/teacher` routes behind authentication with role checks
+- `RoleSwitcher` auto-redirects authenticated users to their role-appropriate shell
+- learner and teacher shells now use bearer tokens from auth state instead of API key config
+- shell headers show display name and logout button for authenticated users
+- history view now shows "Load more" button when the backend reports more entries available
+- `useLearnerContracts` hook tracks `hasMoreHistory` / `loadingMore` and exposes `loadMoreHistory`
 
 ## LMS Interface Progress
 
@@ -216,7 +224,6 @@ Built:
 
 Remaining:
 - hide orchestration inputs from learner forms
-- pagination on history
 - polish transitions and loading states
 - learner-safe error recovery
 
@@ -264,6 +271,18 @@ Remaining:
 - added tests for triage logic and vocabulary translation
 - replaced frontend pedagogical shims with backend-owned `triage_section`, `affective_support`, and `display_label` fields
 - documented backend need for generation quality metadata on history entries
+
+### Authentication and history pagination
+
+- added login screen with API key input, role-aware redirect, and advanced server URL setting
+- added `useAuth` hook with bearer token lifecycle: login, logout, token persistence, and token refresh
+- added `AuthContext` and `AuthGuard` for app-wide auth state and route protection
+- updated `RoleSwitcher` to auto-redirect authenticated users to their role shell
+- updated `LearnerShell` and `TeacherShell` to use bearer tokens from auth context with display name and logout
+- added load-more pagination to history view via `useLearnerContracts` hook pagination tracking
+- added `Root` component wrapping `RouterProvider` with `AuthContext.Provider`
+- added tests for `useAuth` hook and `Login` page
+- updated `RoleSwitcher` tests for auth context
 
 ### Contract integration and workbench phase (earlier PRs, merged to main)
 
