@@ -98,6 +98,40 @@ def test_predictive_next_step_planner_adds_assessment_after_improving_remediatio
     assert [content_type.value for content_type, _ in plan] == ["practice_problem", "assessment_probe"]
 
 
+def test_predictive_next_step_planner_describes_bridge_hold_after_remediation():
+    generated_content = _build_generated_content(
+        content_type="remedial_micro_module",
+        request_context={
+            "learning_session_id": "session-bridge",
+            "target_kc_ids": ["KC-2"],
+            "curriculum_context": ["Equivalent fractions"],
+            "selected_content_type": "remedial_micro_module",
+            "mode_calibration": {
+                "session_phase": "bridge",
+                "sequence_action": "hold_bridge_target",
+            },
+        },
+        route_calibration=RouteCalibrationSummary(
+            signal="mixed",
+            source="session_controller",
+            confidence=0.77,
+            average_run_outcome_score=0.67,
+            matched_run_count=3,
+            progress_signal="stable",
+            progress_delta=0.01,
+        ),
+    )
+
+    plan = PredictiveNextStepPlanner().plan(generated_content)
+
+    assert plan == [
+        (
+            RequestedContentType.practice_problem,
+            "Within-session recovery is bridging back to the target, so warm a guided target problem next.",
+        )
+    ]
+
+
 def test_predictive_next_step_planner_uses_remediation_after_relapsing_practice():
     generated_content = _build_generated_content(
         content_type="practice_problem",
@@ -266,7 +300,7 @@ def test_predictive_next_step_planner_treats_bridge_hold_like_guided_reentry():
     assert plan == [
         (
             RequestedContentType.practice_problem,
-            "Per-KC sequencing suggests staying on the repair target before moving back into transfer.",
+            "Per-KC sequencing suggests one more guided bridge problem before releasing transfer.",
         )
     ]
 

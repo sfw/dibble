@@ -4,6 +4,8 @@ from tests.api_support import parse_sse_events
 from dibble.app import create_app
 from dibble.config import Settings
 from dibble.services.audit_store import SQLiteAuditStore
+from dibble.services.within_session_adaptation import WithinSessionAdaptationService
+from dibble.services.within_session_controller_store import SQLiteWithinSessionControllerStore
 from tests.support import (
     assert_machine_readable_error,
     build_curriculum_resource,
@@ -165,6 +167,97 @@ def test_generation_endpoint_preserves_strategy_hold_target_as_workflow_action(c
         "The backend is holding the current target instead of assigning transfer yet."
     )
     assert payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
+
+
+def test_generation_endpoint_preserves_bridge_hold_as_workflow_action(client, student_id, app_settings):
+    audit_store = SQLiteAuditStore(app_settings.database_path)
+    controller_store = SQLiteWithinSessionControllerStore(app_settings.database_path)
+    adaptation_service = WithinSessionAdaptationService(
+        audit_store=audit_store,
+        controller_store=controller_store,
+    )
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put("/api/knowledge-components/KC-1", json=build_knowledge_component("KC-1"))
+    client.put(
+        "/api/knowledge-components/KC-2",
+        json=build_knowledge_component(
+            "KC-2",
+            prerequisite_kc_ids=["KC-1"],
+            name="Bridge equivalent fractions",
+        ),
+    )
+    client.put(
+        "/api/knowledge-components/KC-3",
+        json=build_knowledge_component(
+            "KC-3",
+            prerequisite_kc_ids=["KC-1"],
+            name="Target equivalent fractions",
+        ),
+    )
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+
+    negative_observation = {
+        "learning_session_id": "session-bridge-flow",
+        "target_kc_ids": ["KC-3"],
+        "target_lo_ids": ["LO-1"],
+        "error_count": 3,
+        "hints_used": 2,
+        "support_level": "low",
+        "frustration": "high",
+        "total_load": 0.82,
+        "confidence_calibration": 0.22,
+        "help_seeking": "high",
+    }
+    audit_store.append(
+        event_type="learner.observe",
+        status="success",
+        student_id=str(student_id),
+        payload=negative_observation,
+    )
+    adaptation_service.record_observation_event(student_id=student_id, event_payload=negative_observation)
+
+    recovery_payload = {
+        "learning_session_id": "session-bridge-flow",
+        "target_kc_ids": ["KC-3"],
+        "target_lo_ids": ["LO-1"],
+        "evidence_strength": "demonstrated",
+        "evidence_score": 0.88,
+        "next_action": "advance",
+    }
+    for _ in range(2):
+        audit_store.append(
+            event_type="assessment.socratic",
+            status="success",
+            student_id=str(student_id),
+            payload=recovery_payload,
+        )
+        adaptation_service.record_assessment_event(student_id=student_id, event_payload=recovery_payload)
+
+    response = client.post(
+        "/api/problems/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "session-bridge-flow",
+            "target_kc_ids": ["KC-3"],
+            "target_lo_ids": ["LO-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["request_context"]["session_adaptation"]["phase"] == "bridge"
+    assert payload["request_context"]["session_adaptation"]["sequence_action"] == "hold_bridge_target"
+    assert payload["request_context"]["progression"]["action"] == "hold_bridge_target"
+    assert payload["request_context"]["progression"]["target_stage"] == "bridge"
+    assert payload["request_context"]["progression"]["applied_target_kc_ids"] == ["KC-2"]
+    assert payload["workflow_summary"]["progression_action"] == "hold_bridge_target"
+    assert payload["workflow_summary"]["target_stage"] == "bridge"
+    assert payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
+    assert payload["workflow_summary"]["next_step"]["target_stage"] == "bridge"
+    assert payload["workflow_summary"]["next_step"]["target_kc_ids"] == ["KC-2"]
+    assert payload["workflow_summary"]["continue_action"]["target_stage"] == "bridge"
+    assert payload["workflow_summary"]["continue_action"]["target_kc_ids"] == ["KC-2"]
 
 
 def test_generated_content_not_found_returns_machine_readable_error(client):

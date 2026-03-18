@@ -96,13 +96,11 @@ class ProgressionOwnershipService:
         if (
             session.phase == "bridge" or session.recovery_intent == "bridge_target"
         ) and sequence.bridge_kc_ids:
-            action = "bridge_to_related_kc"
+            action = "hold_bridge_target" if session.sequence_action == "hold_bridge_target" else "bridge_to_related_kc"
             source = session.source
             target_stage = "bridge"
             applied_target_kc_ids = [sequence.bridge_kc_ids[0]]
-            rationale = session.rationale or (
-                "Recent same-session recovery suggests bridging through a nearby KC before returning fully to the target."
-            )
+            rationale = session.rationale or sequence.rationale
         elif (
             session.sequence_action == "hold_repair_target"
             and sequence.primary_kc_id is not None
@@ -146,7 +144,8 @@ class ProgressionOwnershipService:
             current_action=action,
             target_stage=target_stage,
         )
-        if self._should_prefer_transfer(evidence_decision=evidence_decision):
+        bridge_hold_active = action == "hold_bridge_target"
+        if self._should_prefer_transfer(evidence_decision=evidence_decision) and not bridge_hold_active:
             action = "attempt_transfer"
             source = "progression_evidence"
             target_stage = "transfer"
@@ -156,7 +155,9 @@ class ProgressionOwnershipService:
                 transfer_target_kc_ids=applied_target_kc_ids,
                 evidence_decision=evidence_decision,
             )
-        elif evidence_decision.decision != "monitor":
+        elif evidence_decision.decision != "monitor" and not (
+            bridge_hold_active and evidence_decision.decision == "attempt_transfer"
+        ):
             action = evidence_decision.decision
             source = "progression_evidence"
             target_stage = self._target_stage_for_action(action=action, fallback=target_stage)

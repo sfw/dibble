@@ -730,6 +730,8 @@ class ContentWorkflowService:
         action = str(progression.get("action", ""))
         if action in {"hold_target", "hold_target_before_assessment"}:
             return RequestedContentType.practice_problem.value
+        if action == "hold_bridge_target":
+            return RequestedContentType.practice_problem.value
         if action in {
             "rebuild_prerequisite_first",
             "rebuild_prerequisite_before_assessment",
