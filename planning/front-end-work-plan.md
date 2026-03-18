@@ -9,7 +9,7 @@ This document tracks the frontend implementation stream against the authoritativ
 - `planning/4 - revised-spec/*`
 - `planning/5 - dev-handoff-revised-spec/*`
 - `planning/back-end-work-plan.md`
-- `planning/lms-interface-plan.md`
+- `planning/lms-interface-plan.md` (historical context)
 
 It is a living work log for:
 
@@ -27,7 +27,7 @@ Dibble is building the world's most adaptable and functional AI-powered educatio
 2. **Teacher experience** — a classroom workflow for monitoring, intervening, reviewing learner reasoning, and handling exceptions
 3. **Staff / operator experience** — an internal workspace for QA, contract inspection, fallback debugging, and workflow validation
 
-See `planning/lms-interface-plan.md` for the full product vision and information architecture.
+See `planning/lms-interface-plan.md` for historical product vision and information architecture context.
 
 Guardrail: the frontend renders backend-owned workflow decisions. It does not invent progression logic, mastery gating, or intervention policy locally.
 
@@ -183,7 +183,7 @@ Contract-hardening in use:
 - Keep view modules focused by screen.
 - Keep shared UI primitives small and reusable.
 - Keep formatting, payload building, and API access out of top-level view components.
-- All major logic belongs in the backend; save frontend requirements for the backend in `from-front-to-back-needs.md`.
+- All major logic belongs in the backend; keep frontend-informed backend requirements aligned in this document and `planning/back-end-work-plan.md`.
 
 ## Current Work
 
@@ -193,7 +193,7 @@ Contract-hardening in use:
 
 ### Next up
 
-1. keep this work plan and `from-front-to-back-needs.md` updated together with explicit leadership anchors
+1. keep this work plan and `planning/back-end-work-plan.md` aligned with explicit leadership anchors
 2. reduce remaining frontend-owned rationale selection where the backend can supply a canonical display field
 3. keep parity and artifact-extensibility regression coverage strong as backend quality work continues
 
@@ -389,4 +389,4 @@ When work changes, update:
 - avoid cleverness that obscures intent
 - prefer explicit, boring, trustworthy logic over fragile abstraction
 - leave touched code better than you found it
-- all major logic should be in the backend, save frontend requirements for the backend in from-front-to-back-needs.md
+- all major logic should be in the backend, and frontend-informed backend requirements should stay aligned between this document and `planning/back-end-work-plan.md`

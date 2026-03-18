@@ -1,10 +1,14 @@
 # LMS Interface Plan
 
-Last updated: 2026-03-17
+Status: historical initial build plan, not an active working document.
+
+Last updated: 2026-03-18
 
 ## Purpose
 
-This document reframes the current frontend direction from a backend contract workbench into a comprehensive learning management system interface that can sit on top of the existing Dibble backend.
+This document captures the initial plan that reframed the frontend from a backend contract workbench into a comprehensive learning management system interface around the Dibble backend.
+
+It remains useful as historical product context, but the active planning documents are `planning/front-end-work-plan.md` and `planning/back-end-work-plan.md`.
 
 Use it to answer:
 
@@ -638,6 +642,6 @@ Potential work:
 
 ## Relationship To Existing Planning Docs
 
-- `planning/front-end-work-plan.md` remains the implementation work log for the current frontend codebase.
-- `planning/from-front-to-back-needs.md` remains the frontend-informed backend marching-orders note.
-- This document defines the broader product direction for the LMS interface that should wrap the current backend and gradually replace the current frontend’s role as the main product shell.
+- `planning/front-end-work-plan.md` is the active implementation work log for the current frontend codebase.
+- `planning/back-end-work-plan.md` is the active backend planning and prioritization document.
+- This document is retained as historical context for the original LMS shell direction and should not be treated as the current marching-order plan.

@@ -126,7 +126,7 @@ Legend:
 
 ## Highest-Value Next Gaps
 
-Based on `planning/4 - revised-spec/implementation-roadmap.md`, `planning/5 - dev-handoff-revised-spec/requirements-traceability.csv`, the current code seams, `planning/front-end-work-plan.md`, `planning/from-front-to-back-needs.md`, and `planning/lms-interface-plan.md`, the strongest next backend slices are now:
+Based on `planning/4 - revised-spec/implementation-roadmap.md`, `planning/5 - dev-handoff-revised-spec/requirements-traceability.csv`, the current code seams, `planning/front-end-work-plan.md`, and historical context from `planning/lms-interface-plan.md`, the strongest next backend slices are now:
 
 1. protect the current adaptive differentiators by keeping backend-owned next-step decisions, rationale parity, and teacher-control semantics stable across summary, flow, workspace, history, intervention, and classroom surfaces
 2. deepen the mastery loop where it most improves trust in backend-owned progression decisions, with a bias toward `ORCH-001`, `ADAPT-006`, `DATA-004`, and `ADAPT-003`
@@ -221,7 +221,7 @@ Most recent progress:
 
 ### Frontend Alignment Update
 
-The frontend has moved from a contract integration workbench to a three-layer LMS interface (see `planning/lms-interface-plan.md`). PR #3 merged the LMS shell implementation onto `main`.
+The frontend has moved from a contract integration workbench to a three-layer LMS interface (building on the earlier direction in historical `planning/lms-interface-plan.md`). PR #3 merged the LMS shell implementation onto `main`.
 
 **What the frontend now has:**
 
@@ -247,7 +247,7 @@ The frontend has moved from a contract integration workbench to a three-layer LM
 2. no contract shape changes to existing stable seams
 3. no frontend-specific policy workarounds
 
-The key product guardrail remains: the frontend renders backend-owned workflow decisions, not invents progression logic locally. `planning/from-front-to-back-needs.md` remains the dedicated place for frontend-originated backend asks.
+The key product guardrail remains: the frontend renders backend-owned workflow decisions, not invents progression logic locally. `planning/front-end-work-plan.md` now carries the active frontend-originated backend asks.
 
 #### Current Frontend Ask
 
@@ -294,7 +294,7 @@ Even with the narrower frontend ask list, the backend still owns a few stability
 
 1. keep `current_flow`, `curriculum_progression`, session summaries, `workflow_summary`, `continue_action`, and teacher intervention vocabularies stable and regression-protected.
 2. keep repair, bridge, target, and transfer decisions inspectable through explicit rationale and stage metadata rather than allowing logic to drift into UI-only heuristics.
-3. keep new frontend-discovered backend needs centralized in `planning/from-front-to-back-needs.md` rather than scattering them across chat or code comments.
+3. keep new frontend-discovered backend needs centralized in `planning/front-end-work-plan.md` rather than scattering them across chat or code comments.
 4. keep cross-surface parity strong so `current_flow`, workspace, history, session summaries, `workflow_summary`, and classroom drill-in continue to agree on stage, action, rationale, and next-step semantics.
 5. do not rename, reshape, or casually reopen already-stable frontend-facing contract seams unless there is a concrete bug or parity regression.
 6. keep auth transport-neutral too: API-key and bearer-token callers should hit the same machine-readable RBAC error contract, and forbidden-request audit trails should preserve the authenticated principal without re-parsing credentials through a weaker path.
