@@ -7,9 +7,11 @@ from dibble.models.curriculum import CurriculumResource, KnowledgeComponent
 from dibble.models.profile import (
     CurriculumResourceProgressSummary,
     LearnerCurriculumProgressionSummary,
+    LearnerFlowSummary,
 )
 from dibble.services.learner_flow_service import LearnerFlowService
 from dibble.services.protocols import CurriculumStore, KnowledgeComponentStore, ProfileStore
+from dibble.services.workflow_rationale import combine_rationales
 
 MASTERY_THRESHOLD = 0.8
 PREREQUISITE_READY_THRESHOLD = 0.65
@@ -49,6 +51,7 @@ class LearnerProgressionService:
                 components=components,
                 kc_mastery=profile.knowledge_state.kc_mastery,
                 lo_mastery=profile.knowledge_state.lo_mastery,
+                flow=flow,
                 active_target_kc_ids=active_target_kc_ids,
                 current_stage=flow.target_stage,
             )
@@ -106,6 +109,7 @@ class LearnerProgressionService:
         components: dict[str, KnowledgeComponent],
         kc_mastery: dict[str, float],
         lo_mastery: dict[str, float],
+        flow: LearnerFlowSummary,
         active_target_kc_ids: list[str],
         current_stage: str,
     ) -> CurriculumResourceProgressSummary:
@@ -124,16 +128,30 @@ class LearnerProgressionService:
         current_flow_aligned = bool(set(required_kc_ids) & set(active_target_kc_ids))
         if current_flow_aligned:
             state = "active"
-            rationale = "The current learner flow is focused on this curriculum resource."
+            rationale = flow.rationale or "The current learner flow is focused on this curriculum resource."
         elif self._is_mastered(kc_ids=required_kc_ids, lo_ids=resource.learning_objective_ids, kc_mastery=kc_mastery, lo_mastery=lo_mastery):
             state = "mastered"
             rationale = "Mastery across this resource's mapped targets is strong enough to treat it as complete."
         elif blocked_prerequisites:
             state = "blocked"
-            rationale = "Prerequisite KCs are not yet strong enough for this curriculum resource."
+            blocked_labels = ", ".join(
+                component.name if (component := components.get(kc_id)) is not None else kc_id
+                for kc_id in blocked_prerequisites
+            )
+            rationale = (
+                f"Prerequisite KCs {blocked_labels} are not yet strong enough, so this resource stays blocked "
+                "instead of becoming the next curriculum focus."
+            )
         else:
             state = "ready"
-            rationale = "Prerequisites are met, so this resource is available as the next curriculum focus."
+            rationale = combine_rationales(
+                "Prerequisites are met, so this resource is available as the next curriculum focus.",
+                (
+                    "The backend can move here as soon as the current learner flow releases the active target."
+                    if flow.status != "idle"
+                    else None
+                ),
+            ) or "Prerequisites are met, so this resource is available as the next curriculum focus."
 
         return CurriculumResourceProgressSummary(
             resource_id=resource.resource_id,

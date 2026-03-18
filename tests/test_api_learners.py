@@ -391,10 +391,16 @@ def test_learner_progression_endpoint_exposes_backend_owned_curriculum_focus(cli
     assert progression_payload["current_resource"]["resource_id"] == "CURR-1"
     assert progression_payload["current_resource"]["state"] == "active"
     assert progression_payload["current_resource"]["current_flow_aligned"] is True
+    assert progression_payload["rationale"] == summary_payload["current_flow"]["rationale"]
+    assert progression_payload["current_resource"]["rationale"] == summary_payload["current_flow"]["rationale"]
     assert progression_payload["next_resource"]["resource_id"] == "CURR-2"
     assert progression_payload["next_resource"]["state"] == "ready"
+    assert "current learner flow releases the active target" in progression_payload["next_resource"]["rationale"]
     assert progression_payload["blocked_resources"][0]["resource_id"] == "CURR-3"
     assert progression_payload["blocked_resources"][0]["blocked_prerequisite_kc_ids"] == ["KC-2"]
+    assert "stays blocked instead of becoming the next curriculum focus" in progression_payload["blocked_resources"][0][
+        "rationale"
+    ]
     assert summary_payload["curriculum_progression"] == progression_payload
 
 

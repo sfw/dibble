@@ -8,6 +8,7 @@ from dibble.models.profile import OrdinaryMasterySummary
 from dibble.services.kc_sequence_planner import KcSequencePlanner
 from dibble.services.observation_profile_update import ObservationProfileUpdater
 from dibble.services.protocols import AuditStore, KnowledgeComponentStore, ObservationStore
+from dibble.services.workflow_rationale import append_evidence_snapshot
 
 
 @dataclass(frozen=True, slots=True)
@@ -540,7 +541,7 @@ class ProgressionOwnershipService:
             fragments.append(f"high-support dependency rate {summary.high_support_dependency_rate:.2f}")
         if summary.matched_observation_count > 0:
             fragments.append(f"{summary.matched_observation_count} matched observation(s)")
-        return f"{rationale} {'; '.join(fragments)}."
+        return append_evidence_snapshot(rationale, fragments=fragments) or rationale
 
     def _append_progression_evidence_snapshot(
         self,
@@ -557,4 +558,4 @@ class ProgressionOwnershipService:
             fragments.append(f"average observed mastery {evidence_decision.average_observed_mastery:.2f}")
         if evidence_decision.average_assessment_mastery is not None:
             fragments.append(f"average assessment mastery {evidence_decision.average_assessment_mastery:.2f}")
-        return f"{rationale} {'; '.join(fragments)}."
+        return append_evidence_snapshot(rationale, fragments=fragments) or rationale

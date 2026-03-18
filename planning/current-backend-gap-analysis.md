@@ -166,6 +166,8 @@ Most recent progress:
 28. remediation planning rationale now names the primary misconception path, evidence terms, recurrence posture, and selected repair target directly in the existing remediation rationale field, so existing product surfaces can explain why that remediation path was chosen without requiring a new contract seam.
 29. active remediation summaries and delivered remediation workflow payloads now also carry remediation-path rationale plus current-step framing instead of falling back to bare execution guidance, so product surfaces can explain why the learner is in that remediation step now instead of only what the step asks them to do.
 30. teacher intervention alternative options now also inherit the current backend posture in their rationale, so intervention lists read like explicit deviations from one backend judgment instead of generic detached suggestions.
+31. curriculum progression and classroom learner cards now also reuse the exact learner-flow rationale whenever they are talking about the same active curriculum focus, so overview, progression, workspace, and classroom drill-in stop sounding shallower than the canonical backend flow decision.
+32. remediation planning rationale now also carries the winning misconception disambiguation plus KC-sequencing context when available, so existing remediation and intervention surfaces can explain why this path beat adjacent misconception or prerequisite-only alternatives without adding a new schema field.
 
 ### Frontend Alignment Update
 
@@ -223,11 +225,11 @@ Even with the narrower frontend ask list, the backend still owns a few stability
 The next backend agent should treat the current frontend-facing contract set as stable and work from this implementation plan:
 
 1. start by checking for parity drift across learner summary, `current_flow`, workspace, learner history, session summaries, `workflow_summary`, intervention-action, progression, and classroom read models before adding any new behavior.
-2. if a concrete parity, vocabulary, or inspectability bug is found, fix the smallest cross-surface backend-owned slice first and add regression coverage that proves the surfaces stay aligned.
-3. if no contract bug is found, choose the smallest justified decision-quality slice from `ORCH-001`, `ADAPT-006`, `DATA-004`, or `ADAPT-003`, with a bias toward improvements that strengthen backend-owned next-step consistency, mastery-loop trust, ordinary-work evidence use, or misconception precision without changing contract shape.
+2. if a concrete parity, vocabulary, or inspectability bug is found, fix it at the backend-owned source of truth and add regression coverage that proves the affected surfaces stay aligned; when several surfaces are drifting for the same semantic reason, a broader cohesive pass is preferable to a stack of tiny local patches.
+3. if no contract bug is found, choose the most justified decision-quality pass from `ORCH-001`, `ADAPT-006`, `DATA-004`, or `ADAPT-003`, with a bias toward improvements that strengthen backend-owned next-step consistency, mastery-loop trust, ordinary-work evidence use, or misconception precision without changing contract shape.
 4. avoid frontend-only sequencing policy, avoid reopening stable contract seams without a concrete bug, avoid dashboard-style teacher analytics unless current classroom summaries prove insufficient, and avoid overloading text fields for future multimodal work when `response.artifacts` is the intended seam.
-5. for each justified slice: add focused tests, update `README.md`, update this document, run `uv run ruff check .`, run `uv run pytest`, and make one focused commit.
-6. stop rather than forcing more work if the honest result is that no additional small slice is justified beyond preserving parity and improving current backend judgment.
+5. for each justified pass: add focused tests, update `README.md`, update this document, run `uv run ruff check .`, run `uv run pytest`, and make a coherent focused commit.
+6. stop rather than forcing more work if the honest result is that no additional contract-preserving backend judgment improvement is justified right now.
 
 #### Lower-Priority Backend Futures
 

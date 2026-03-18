@@ -9,6 +9,7 @@ from dibble.services.kc_sequence_planner import KcSequencePlanner
 from dibble.services.misconception_detector import MisconceptionDetector
 from dibble.services.protocols import KnowledgeComponentStore
 from dibble.services.remediation_module_blueprints import RemediationModuleBlueprintBuilder
+from dibble.services.workflow_rationale import combine_rationales
 
 
 @dataclass(slots=True)
@@ -89,17 +90,37 @@ class RemediationPlanner:
 
         matched_misconceptions = primary_misconception_signals
         if recurring_profile_signals:
+            selected_signal = recurring_profile_signals[0]
             rationale = self._misconception_path_rationale(
                 target_kc_id=target_kc_id,
-                primary_signal=recurring_profile_signals[0],
+                primary_signal=selected_signal,
                 prerequisite_gaps=prerequisite_gaps,
             )
+            rationale = combine_rationales(
+                rationale,
+                self._misconception_selection_rationale(
+                    target_kc_id=target_kc_id,
+                    primary_signal=selected_signal,
+                    competing_signals=matched_misconceptions,
+                    prerequisite_gaps=prerequisite_gaps,
+                ),
+            ) or rationale
         elif matched_misconceptions:
+            selected_signal = matched_misconceptions[0]
             rationale = self._misconception_path_rationale(
                 target_kc_id=target_kc_id,
-                primary_signal=matched_misconceptions[0],
+                primary_signal=selected_signal,
                 prerequisite_gaps=prerequisite_gaps,
             )
+            rationale = combine_rationales(
+                rationale,
+                self._misconception_selection_rationale(
+                    target_kc_id=target_kc_id,
+                    primary_signal=selected_signal,
+                    competing_signals=matched_misconceptions,
+                    prerequisite_gaps=prerequisite_gaps,
+                ),
+            ) or rationale
         elif prerequisite_gaps:
             prerequisite_names = [
                 self.knowledge_component_store.get(kc_id).name
@@ -118,10 +139,14 @@ class RemediationPlanner:
         else:
             rationale = "Misconception signals did not reveal a stronger prerequisite target, so remediation should reinforce the requested component."
         if kc_sequence.action != "monitor":
-            rationale = (
-                f"{rationale} Sequence the next KC focus as {kc_sequence.action.replace('_', ' ')}"
-                + (f" on {kc_sequence.primary_kc_id}." if kc_sequence.primary_kc_id is not None else ".")
-            )
+            rationale = combine_rationales(
+                rationale,
+                (
+                    f"Sequence the next KC focus as {kc_sequence.action.replace('_', ' ')}"
+                    + (f" on {kc_sequence.primary_kc_id}." if kc_sequence.primary_kc_id is not None else ".")
+                ),
+                kc_sequence.rationale,
+            ) or rationale
 
         return RemediationPlan(
             focus_kc_ids=focus_kc_ids,
@@ -173,6 +198,29 @@ class RemediationPlanner:
                 else f" directly on {target_label} rather than stepping back to a different prerequisite."
             )
         )
+
+    def _misconception_selection_rationale(
+        self,
+        *,
+        target_kc_id: str,
+        primary_signal: MisconceptionSignal,
+        competing_signals: list[MisconceptionSignal],
+        prerequisite_gaps: list[str],
+    ) -> str | None:
+        if primary_signal.disambiguation_rationale:
+            return primary_signal.disambiguation_rationale
+        competing_count = sum(1 for signal in competing_signals if signal is not primary_signal)
+        if competing_count > 0:
+            return (
+                f"This misconception path outranked {competing_count} adjacent candidate(s) for {self._kc_label(target_kc_id)}, "
+                "so the backend is keeping the remediation path inspectable instead of spreading effort across multiple weak hypotheses."
+            )
+        if prerequisite_gaps:
+            return (
+                "The backend is prioritizing the stronger misconception path before a prerequisite-only step-back because "
+                "the misconception evidence is more specific than the broader prerequisite gap."
+            )
+        return None
 
     def _kc_label(self, kc_id: str) -> str:
         component = self.knowledge_component_store.get(kc_id)

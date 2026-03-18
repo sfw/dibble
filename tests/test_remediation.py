@@ -718,5 +718,8 @@ def test_remediation_planner_prioritizes_recurring_profile_patterns(tmp_path):
     assert "fraction-whole-number-bias" in plan.rationale
     assert "relapsing" in plan.rationale
     assert "Identify numerator and denominator" in plan.rationale
+    assert "Selected as the primary misconception for KC-2" in plan.rationale
+    assert "Sequence the next KC focus as rebuild prerequisite first on KC-1." in plan.rationale
+    assert plan.kc_sequence.rationale in plan.rationale
     assert plan.module_blueprint["primary_misconception_source"] == "profile"
     assert plan.module_blueprint["primary_recurrence_signal"] == "relapsing"

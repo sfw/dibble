@@ -111,11 +111,15 @@ def test_teacher_classroom_read_model_packages_learner_cards_and_counts(client):
     assert active_card["attention_level"] == "medium"
     assert "teacher_intervention_available" in active_card["attention_reasons"]
     assert active_card["current_flow"] == active_summary_payload["current_flow"]
+    assert "current learner flow releases the active target" in active_card["curriculum_progression"]["rationale"]
     assert active_card["curriculum_progression"] == active_summary_payload["curriculum_progression"]
 
     assert blocked_card["current_flow"]["status"] == "idle"
     assert blocked_card["curriculum_progression"]["status"] == "blocked_on_prerequisites"
     assert blocked_card["curriculum_progression"]["blocked_resources"][0]["resource_id"] == "CURR-2"
+    assert "stays blocked instead of becoming the next curriculum focus" in blocked_card["curriculum_progression"][
+        "blocked_resources"
+    ][0]["rationale"]
     assert blocked_card["attention_level"] == "medium"
     assert "blocked_on_prerequisites" in blocked_card["attention_reasons"]
     assert blocked_card["current_flow"] == blocked_summary_payload["current_flow"]
@@ -125,6 +129,66 @@ def test_teacher_classroom_read_model_packages_learner_cards_and_counts(client):
     assert list_payload[0]["learner_count"] == 2
     assert list_payload[0]["missing_learner_count"] == 1
     assert list_payload[0]["intervention_available_count"] == 1
+
+
+def test_teacher_classroom_keeps_active_curriculum_rationale_aligned_with_current_flow(client):
+    student_id = uuid4()
+
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, frustration="low", total_load=0.2, kc_mastery={"KC-1": 0.32}),
+    )
+    client.put(
+        "/api/knowledge-components/KC-1",
+        json=build_knowledge_component("KC-1", name="Identify equivalent fractions"),
+    )
+    client.put(
+        "/api/curriculum/resources/CURR-1",
+        json=build_curriculum_resource(
+            resource_id="CURR-1",
+            title="Equivalent Fraction Foundations",
+            knowledge_component_ids=["KC-1"],
+            learning_objective_ids=["LO-1"],
+        ),
+    )
+
+    generate_response = client.post(
+        "/api/problems/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "teacher-classroom-aligned-session",
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": ["LO-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    client.put(
+        "/api/teachers/classrooms/CLASS-ALIGNED",
+        json=build_classroom(
+            classroom_id="CLASS-ALIGNED",
+            title="Aligned Flow Classroom",
+            teacher_label="Ms. Rivera",
+            student_ids=[str(student_id)],
+        ),
+    )
+
+    classroom_response = client.get("/api/teachers/classrooms/CLASS-ALIGNED")
+    summary_response = client.get(f"/api/learners/{student_id}/summary")
+
+    assert generate_response.status_code == 200
+    assert classroom_response.status_code == 200
+    assert summary_response.status_code == 200
+
+    learner_card = classroom_response.json()["learners"][0]
+    summary_payload = summary_response.json()
+
+    assert learner_card["curriculum_progression"]["status"] == "active_curriculum_focus"
+    assert learner_card["curriculum_progression"]["rationale"] == learner_card["current_flow"]["rationale"]
+    assert learner_card["curriculum_progression"]["current_resource"]["rationale"] == learner_card["current_flow"][
+        "rationale"
+    ]
+    assert learner_card["curriculum_progression"] == summary_payload["curriculum_progression"]
+    assert learner_card["current_flow"] == summary_payload["current_flow"]
 
 
 def test_teacher_classroom_not_found_returns_machine_readable_error(client):
