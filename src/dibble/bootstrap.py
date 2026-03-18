@@ -38,6 +38,12 @@ from dibble.services.learner_strategy_profiles import (
     LearningStrategyProfileRecorder,
 )
 from dibble.services.learner_state_calibration import LearnerStateCalibrator
+from dibble.services.mastery_quality_gate_outcomes import (
+    MasteryQualityGateOutcomeTracker,
+)
+from dibble.services.mastery_quality_gate_signals import (
+    MasteryQualityGateSignalService,
+)
 from dibble.services.mastery_snapshot_service import MasterySnapshotService
 from dibble.services.mastery_snapshot_store import SQLiteMasterySnapshotStore
 from dibble.services.learner_flow_service import LearnerFlowService
@@ -68,6 +74,7 @@ from dibble.services.predictive_warm_queue_store import SQLitePredictiveWarmQueu
 from dibble.services.predictive_warm_scheduler import PredictiveWarmScheduler
 from dibble.services.progression_outcome_signals import ProgressionOutcomeSignalService
 from dibble.services.progression_outcome_tracker import ProgressionOutcomeTracker
+from dibble.services.resource_state_transitions import ResourceStateTransitionTracker
 from dibble.services.progression_ownership import ProgressionOwnershipService
 from dibble.services.provider_health import SQLiteProviderHealthStore
 from dibble.services.profile_store import SQLiteProfileStore
@@ -150,6 +157,8 @@ class ApplicationServices:
     mastery_snapshot_service: MasterySnapshotService
     progression_outcome_tracker: ProgressionOutcomeTracker
     misconception_remediation_outcome_tracker: MisconceptionRemediationOutcomeTracker
+    resource_state_transition_tracker: ResourceStateTransitionTracker
+    mastery_quality_gate_outcome_tracker: MasteryQualityGateOutcomeTracker
     within_session_adaptation_service: WithinSessionAdaptationService
     router_plugin: RouterPlugin
 
@@ -188,6 +197,9 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         audit_store=audit_store
     )
     progression_outcome_signal_service = ProgressionOutcomeSignalService(
+        audit_store=audit_store
+    )
+    mastery_quality_gate_signal_service = MasteryQualityGateSignalService(
         audit_store=audit_store
     )
     within_session_adaptation_service = WithinSessionAdaptationService(
@@ -319,6 +331,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         knowledge_component_store=knowledge_component_store,
         learner_flow_service=learner_flow_service,
         ordinary_mastery_signal_service=ordinary_mastery_signal_service,
+        quality_gate_signal_service=mastery_quality_gate_signal_service,
     )
     learner_summary_service = LearnerSummaryService(
         profile_store=profile_store,
@@ -341,6 +354,12 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         audit_store=audit_store
     )
     progression_outcome_tracker = ProgressionOutcomeTracker(audit_store=audit_store)
+    resource_state_transition_tracker = ResourceStateTransitionTracker(
+        audit_store=audit_store
+    )
+    mastery_quality_gate_outcome_tracker = MasteryQualityGateOutcomeTracker(
+        audit_store=audit_store
+    )
     misconception_remediation_outcome_tracker = MisconceptionRemediationOutcomeTracker(
         audit_store=audit_store,
         remediation_session_store=remediation_session_store,
@@ -435,6 +454,8 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         predictive_warm_scheduler=predictive_warm_scheduler,
         mastery_snapshot_service=mastery_snapshot_service,
         progression_outcome_tracker=progression_outcome_tracker,
+        resource_state_transition_tracker=resource_state_transition_tracker,
+        mastery_quality_gate_outcome_tracker=mastery_quality_gate_outcome_tracker,
         misconception_remediation_outcome_tracker=misconception_remediation_outcome_tracker,
         within_session_adaptation_service=within_session_adaptation_service,
         router_plugin=router_plugin,
