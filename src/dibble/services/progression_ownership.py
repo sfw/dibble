@@ -123,6 +123,11 @@ class ProgressionOwnershipService:
             target_stage = "repair"
             applied_target_kc_ids = [sequence.primary_kc_id]
             rationale = sequence.rationale
+        elif sequence.action == "hold_target" and strategy.source != "insufficient":
+            action = "hold_target"
+            source = "strategy_profile"
+            target_stage = "target"
+            rationale = sequence.rationale
 
         stage_request = request.model_copy(
             update={
@@ -317,6 +322,7 @@ class ProgressionOwnershipService:
             return OrdinaryProgressionDecision()
         if current_action not in {
             "stay_on_requested_target",
+            "hold_target",
             "attempt_transfer",
             "rebuild_prerequisite_first",
             "hold_repair_target",

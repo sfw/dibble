@@ -118,6 +118,55 @@ def test_generated_content_can_be_reloaded_by_generation_id(client, student_id):
     assert payload["response"]["artifacts"][0]["text"] == payload["response"]["blocks"][0]["body"]
 
 
+def test_generation_endpoint_preserves_strategy_hold_target_as_workflow_action(client, student_id, app_settings):
+    audit_store = SQLiteAuditStore(app_settings.database_path)
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    audit_store.append(
+        event_type="learning.strategy.profile",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "intent": "practice",
+            "content_type": "practice_problem",
+            "target_kc_ids": ["KC-1"],
+            "average_run_outcome_score": 0.46,
+            "average_run_confidence": 0.72,
+            "matched_run_count": 4,
+            "matched_session_count": 2,
+            "progress_signal": "plateaued",
+            "progress_delta": -0.02,
+            "strategy_signal": "support_intensive",
+            "strategy_support_bias": -1,
+            "strategy_recovery_focus": "guided_practice",
+            "strategy_trajectory_state": "plateaued",
+            "strategy_recommended_next_action": "introduce_varied_support",
+            "strategy_rationale": "Recent strategy signals suggest staying on the target KC until the learner stabilizes.",
+        },
+    )
+
+    response = client.post(
+        "/api/problems/generate",
+        json={
+            "student_id": str(student_id),
+            "target_kc_ids": ["KC-1"],
+            "target_lo_ids": ["LO-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["request_context"]["progression"]["action"] == "hold_target"
+    assert payload["request_context"]["progression"]["source"] == "strategy_profile"
+    assert payload["workflow_summary"]["progression_action"] == "hold_target"
+    assert payload["workflow_summary"]["rationale"] == (
+        "Recent strategy signals suggest staying on the target KC until the learner stabilizes. "
+        "The backend is holding the current target instead of assigning transfer yet."
+    )
+    assert payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
+
+
 def test_generated_content_not_found_returns_machine_readable_error(client):
     response = client.get("/api/content/missing-generation")
 

@@ -151,6 +151,41 @@ def test_progression_ownership_rebuilds_prerequisite_before_requested_target():
     assert decision.request.curriculum_context[-2] == "Progression ownership: rebuild_prerequisite_first."
 
 
+def test_progression_ownership_preserves_strategy_hold_target_as_explicit_action():
+    student_id = uuid4()
+    service = ProgressionOwnershipService(
+        knowledge_component_store=StubKnowledgeComponentStore(),
+        strategy_signal_service=StubStrategySignalService(
+            LearnerStrategySummary(
+                signal="support_intensive",
+                source="strategy_profile",
+                support_bias=-1,
+                recovery_focus="guided_practice",
+                trajectory_state="plateaued",
+                recommended_next_action="introduce_varied_support",
+                rationale="Recent strategy signals suggest staying on the target KC until the learner stabilizes.",
+            )
+        ),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+    )
+
+    decision = service.resolve_request(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            target_kc_ids=["KC-1"],
+            target_lo_ids=["LO-1"],
+            requested_content_type="practice_problem",
+        ),
+    )
+
+    assert decision.action == "hold_target"
+    assert decision.source == "strategy_profile"
+    assert decision.target_stage == "target"
+    assert decision.applied_target_kc_ids == ["KC-1"]
+    assert decision.rationale == "Recent strategy signals suggest staying on the target KC until the learner stabilizes."
+
+
 def test_progression_ownership_bridges_through_related_kc_during_bridge_phase():
     student_id = uuid4()
     service = ProgressionOwnershipService(
