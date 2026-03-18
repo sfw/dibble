@@ -128,6 +128,8 @@ This repository now includes a working MVP backend slice for the revised adaptiv
 - Mastery writeback now applies diminishing returns when prior KC mastery is above 0.85 and the observation is upward, so high mastery stabilises near the ceiling instead of oscillating
 - Ordinary mastery hold thresholds now adapt to the learner's actual independence signals: high low-support success rate relaxes the hold, very high support-dependency rate tightens it
 - Ordinary mastery hold rationale now surfaces session count context and an explicit "extended hold — consider teacher review" signal when a learner has been held across many observations and sessions without improving
+- Ordinary mastery profiles now detect mastery trend direction (improving, stable, declining) by comparing recent versus older recency-weighted observation scores, and the signal classification can rescue an improving borderline-fragile learner to emerging or downgrade a declining borderline-durable to emerging
+- Misconception behavioral evidence now applies recency weighting so recent struggles and low-support successes contribute more than stale observations at the tail of the evidence window
 - Dynamic plugin loading for router, retriever, provider, and validator factories
 - API tests covering routing, persistence, retrieval, generation, and fallback behavior
 
