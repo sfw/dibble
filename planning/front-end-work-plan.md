@@ -8,7 +8,8 @@ This document tracks the frontend implementation stream against the authoritativ
 
 - `planning/4 - revised-spec/*`
 - `planning/5 - dev-handoff-revised-spec/*`
-- `planning/current-backend-gap-analysis.md`
+- `planning/back-end-work-plan.md`
+- `planning/lms-interface-plan.md`
 
 It is a living work log for:
 
@@ -18,23 +19,33 @@ It is a living work log for:
 - implementation decisions
 - completed work
 
-## Frontend Scope From Revised Spec
+## Product Direction
 
-Primary surfaces to implement first:
+Dibble is building the world's most adaptable and functional AI-powered educational LMS. The frontend is a three-layer LMS interface around the Dibble backend:
 
-1. learner summary and `current_flow`
-2. generated content workflow summaries
-3. Socratic session summaries
-4. remediation session summaries
-5. teacher-facing explainability and intervention surfaces
+1. **Learner experience** — a focused, student-safe learning environment for daily work, adaptive lessons, Socratic checks, remediation, review, and progress
+2. **Teacher experience** — a classroom workflow for monitoring, intervening, reviewing learner reasoning, and handling exceptions
+3. **Staff / operator experience** — an internal workspace for QA, contract inspection, fallback debugging, and workflow validation
 
-Guardrail:
+See `planning/lms-interface-plan.md` for the full product vision and information architecture.
 
-- the frontend should render backend-owned workflow decisions, not invent progression logic locally
+Guardrail: the frontend renders backend-owned workflow decisions. It does not invent progression logic, mastery gating, or intervention policy locally.
 
-## Backend Contract Discoveries
+## Current Architecture
 
-Stable frontend-facing read models already available:
+The frontend is a React 19 + Vite + TypeScript app with:
+
+- **Role-based routing** via React Router with three shell layouts (`/learn`, `/teacher`, `/staff`)
+- **Tailwind CSS** + shadcn-style repo-owned primitives for all styling
+- **Typed API adapters** mirroring backend contracts
+- **Custom hooks** for data fetching and workflow state (`useLearnerWorkspace`, `useLearnerContracts`, `useGenerationWorkspace`, `useSocraticWorkspace`, `useRemediationWorkspace`, `useTeacherClassroom`)
+- **Copy/vocabulary translation layer** (`lib/copy.ts`) preferring backend-provided `display_label` fields with local fallbacks
+- **Demo fallback** for offline development (staff mode only by default)
+- **16 test files** with Vitest + React Testing Library
+
+## Backend Contracts In Use
+
+Stable frontend-facing read models already integrated:
 
 - `GET /api/learners/{student_id}/summary`
 - `GET /api/learners/{student_id}/flow`
@@ -56,56 +67,73 @@ Stable frontend-facing read models already available:
 - `GET /api/remedial/sessions/{session_id}`
 - `POST /api/remedial/sessions/{session_id}/advance`
 
-Recent contract-hardening additions:
+Contract-hardening in use:
 
-- machine-readable backend error codes are now available in both the response body `code` field and the `X-Dibble-Error-Code` header
-- learner progression parity is now protected across `/progression`, `summary.curriculum_progression`, and teacher classroom learner cards
-- `continue_action` and teacher intervention vocabularies are now explicit backend-owned sets rather than loose cross-surface strings
+- machine-readable backend error codes via response body `code` and `X-Dibble-Error-Code` header
+- learner progression parity across `/progression`, `summary.curriculum_progression`, and teacher classroom learner cards
+- `continue_action` and teacher intervention vocabularies as explicit backend-owned sets
+- `triage_section` on `TeacherLearnerCard` for backend-owned classroom grouping
+- `affective_support` on `LearnerWorkspace` for backend-owned pedagogical messaging
+- `display_label` / `stage_display_label` on `LearnerContinueAction` / `LearnerCurriculumProgressionSummary`
 
 ## Missing Or Incomplete Items
 
-These are the highest-signal frontend gaps discovered so far:
+### Product-level gaps
 
 | Priority | Gap | Impact on frontend |
 |---|---|---|
-| P1 | Course-level progression planning is still intentionally lighter than a true course planner | UI should trust learner `curriculum_progression` and avoid inventing cross-unit sequencing logic |
-| P2 | No multimodal artifact payload contract | UI should keep content cards extensible without assuming diagrams or interactives yet |
-| P2 | Teacher-safe analytics are classroom-card oriented, not dashboard-grade | Teacher views should build on classroom summaries and learner cards rather than admin telemetry |
+| P0 | No product-level authentication or user identity | Learners and teachers cannot log in; role is selected manually; no session persistence across browser reloads |
+| P1 | No assignment model or lifecycle | Cannot frame learning work as teacher-assigned tasks; learner and teacher views lack an assignment container |
+| P1 | Teacher reporting is a placeholder | `/teacher/reports` shows "Coming soon"; no class-level progress, trend, or standards mastery views |
+| P1 | No pagination on history endpoints | History views hardcoded to `limit=20` with no load-more or infinite scroll |
+| P2 | Course-level progression planning is lighter than a true course planner | UI should trust learner `curriculum_progression` and avoid inventing cross-unit sequencing logic |
+| P2 | No multimodal artifact payload contract | Content cards should stay extensible without assuming diagrams or interactives yet |
+| P2 | No learner-to-learner or teacher-to-learner messaging | No in-app communication channel |
+| P2 | No notification / inbox concept | No push or pull notification surface for learners or teachers |
+
+### Residual frontend code gaps
+
+- `lib/copy.ts` still has "TEMPORARY SHIM" comments for `display_rationale` on `TeacherLearnerCard`
+- `TeacherView` imports `teacherContractGaps` from sample-data and shows a hardcoded gap list instead of real gap detection
+- Affective support component exists but only renders when `workspace.affective_support` is populated
+- Some forms expose orchestration inputs (target KCs, LOs, session IDs) that should be hidden in learner mode
 
 ## Execution Priorities
 
-### P0: tighten the frontend foundation
+### P0: product-level authentication
 
-- Replace remaining raw form controls in generation, Socratic, and remediation views with shared UI primitives.
-- Reduce dependence on the legacy app-shell CSS where it is still carrying screen-level styling.
-- Keep workflow state and side effects in feature-specific hooks rather than letting them drift back into `frontend/src/App.tsx`.
+- Integrate with the existing backend auth contract (`POST /api/auth/token`, bearer tokens, RBAC roles)
+- Add a login screen and role-aware redirect
+- Persist auth state across browser sessions
+- Gate learner/teacher routes behind authenticated identity
+- Keep staff mode available for API-key-based access
 
-### P1: grow behavioral coverage
+### P1: learner experience polish
 
-- Add tests for learner overview rendering.
-- Add tests for generation interactions and stream fallback behavior.
-- Add tests for Socratic run/load flows.
-- Add tests for remediation trigger/reload/advance flows.
+- Hide orchestration inputs (target KCs, LOs, intent selectors) from the learner shell
+- Make the Continue Learning flow seamless: learner taps resume, sees content, responds, gets next step — no raw workflow vocabulary
+- Add real pagination or infinite scroll to history views
+- Polish the Socratic check and remediation session UX for student safety and clarity
+- Add loading states, transitions, and error recovery that feel product-grade
 
-### P1: formalize backend asks from the frontend stream
+### P1: teacher experience depth
 
-- Keep a dedicated `planning/from-front-to-back-needs.md` document updated with frontend-discovered contract needs.
-- Keep that document opinionated and current enough to serve as backend marching orders, not just as a historical notes dump.
-- Record remaining multimodal, analytics, and longer-horizon progression gaps there rather than letting them drift across chat and code comments.
+- Build a real teacher reporting surface with class-level progress, mastery trends, and per-learner evidence timelines
+- Improve classroom detail density so teachers can scan 30 learners efficiently
+- Add teacher-to-learner drill-in for artifact review (see the actual generated content, Socratic turns, remediation steps a learner worked through)
 
-### P1: implement newly available backend-owned contracts
+### P1: assignment layer (frontend + backend coordination)
 
-- Add learner workspace resume and continue flows using `GET /api/learners/{student_id}/workspace`.
-- Add learner-scoped generation, Socratic-session, and remediation-session history surfaces.
-- Replace advisory-only teacher intervention messaging with the real intervention-action contract and write path.
-- Add learner curriculum progression surfaces using `GET /api/learners/{student_id}/progression` and `summary.curriculum_progression`.
-- Add teacher classroom surfaces using `GET /api/teachers/classrooms` and `GET /api/teachers/classrooms/{classroom_id}`.
+- Design a lightweight assignment model that can wrap backend-owned learning sessions
+- Record what the frontend needs from the backend in `planning/from-front-to-back-needs.md`
+- Start with a presentation layer around learner workspace and progression before adding teacher-launched assignment creation
 
-### P2: polish higher-level product surfaces
+### P2: polish and expansion
 
-- Improve teacher-facing intervention language now that backend-owned teacher decisions and selectable options exist.
-- Replace raw JSON-first payload inspection with more curated explainability summaries where possible.
-- Continue making the UI resilient to richer artifact types without assuming they already exist.
+- Continue improving explainability summaries so fewer surfaces depend on raw contract inspection
+- Continue making the UI resilient to richer artifact types via `response.artifacts`
+- Add offline / connectivity resilience for learner sessions
+- Extend test coverage as new surfaces land
 
 ## Key Decisions
 
@@ -113,35 +141,34 @@ These are the highest-signal frontend gaps discovered so far:
 
 - Treat `current_flow` and workflow/session summaries as the source of truth for UI state.
 - Treat `curriculum_progression` as the source of truth for broader learner resource posture.
-- Do not reconstruct learner state from audit logs or internal request context unless there is no alternative.
+- Do not reconstruct learner state from audit logs or internal request context.
 - Keep teacher-facing decisions explainable with explicit rationale, confidence, and next-step metadata.
 - Prefer backend-owned `continue_action`, learner workspace, learner history, learner progression, intervention-action, and classroom contracts over frontend-inferred resume, sequencing, or aggregation flows.
+- The frontend prefers backend-provided `display_label` fields; local lookup tables are backwards-compatible fallbacks only.
 
 ### Frontend Architecture
 
-- Use React + Vite + TypeScript as the frontend workspace.
-- Standardize future frontend work on Tailwind CSS + shadcn/ui-style repo-owned primitives.
-- Treat the frontend workspace as an ES module app and keep new tooling/config compatible with native `import` / `export`.
-- Maintain a Vitest + React Testing Library test suite and grow it as frontend behavior expands.
-- Favor small modules and explicit props over heavy abstraction.
-- Use typed API adapters and typed read models that mirror the backend contracts.
-- Avoid additional UI/state libraries unless they clearly reduce complexity.
-- Keep a demo fallback path so UI development can continue when the backend is unavailable, while keeping live API integration first-class.
+- React 19 + Vite + TypeScript with ES modules throughout.
+- Role-aware React Router shell: `/learn`, `/teacher`, `/staff`.
+- Tailwind CSS + shadcn/ui-style repo-owned primitives.
+- Vitest + React Testing Library test suite.
+- Typed API adapters mirroring backend contracts.
+- Custom hooks for data fetching and workflow state.
+- Demo fallback available in staff mode; learner and teacher modes are live-first.
+- No additional UI/state libraries unless they clearly reduce complexity.
 
 ### Component / Styling Standard
 
-- Use Tailwind utilities for layout, spacing, theming, and state styling.
-- Use shadcn-style primitives in `frontend/src/components/ui/*` as the shared component foundation.
-- Keep domain views and workflow components separate from UI primitives.
-- Prefer CSS variables and Tailwind theme tokens over ad hoc colors in component files.
-- Avoid introducing parallel styling systems for new work unless there is a strong reason.
+- Tailwind utilities for layout, spacing, theming, and state styling.
+- shadcn-style primitives in `frontend/src/components/ui/*`.
+- Domain views and workflow components separate from UI primitives.
+- CSS variables and Tailwind theme tokens over ad hoc colors.
+- No parallel styling systems.
 
 ### Tooling / Runtime Standard
 
-- Pin the frontend to Node 22 for local development and verification.
-- Provide Node version pins in repo files that work across multiple version managers and local environments.
-- Record runtime expectations in repo files so module-format failures are easier to diagnose.
-- Prefer fixing environment/tooling mismatches before rewriting working ESM code to accommodate an older runtime.
+- Node 22 pinned via `.nvmrc`, `.node-version`, and Volta metadata.
+- GitHub Actions CI runs `test:run`, `lint`, and `build`.
 
 ### Code Quality
 
@@ -149,123 +176,113 @@ These are the highest-signal frontend gaps discovered so far:
 - Keep view modules focused by screen.
 - Keep shared UI primitives small and reusable.
 - Keep formatting, payload building, and API access out of top-level view components.
+- All major logic belongs in the backend; save frontend requirements for the backend in `from-front-to-back-needs.md`.
 
 ## Current Work
 
 ### In progress
 
-- keep frontend-originated backend needs captured in a dedicated planning document
-- continue reducing legacy app-shell CSS where layout patterns are still duplicated
-- continue tightening workflow view integration now that generation, Socratic, and remediation screens can hydrate from backend-owned workspace context
-- keep evolving the new learner progression and classroom surfaces toward more curated teacher workflows, especially around teacher triage and learner handoff continuity
-- keep reviewing new backend progression changes against the frontend contract stance so the UI continues trusting backend-owned repair, target, bridge, and transfer decisions
-- keep reviewing new backend semantic-hardening changes against the frontend contract stance so frontend feedback stays focused on parity drift and rationale trust rather than new schema asks
-- keep replacing enum-shaped or debug-shaped frontend copy with more curated explainability summaries built from existing backend contracts
-- keep making live-vs-demo fallback posture explicit in the shell so contract connectivity changes are visible without opening debug panels or being overwritten by unrelated live refreshes
-- keep consolidating shell and screen layout CSS onto shared primitives where it clearly removes one-off legacy classes instead of adding another styling layer
-- keep `App.css` focused on visual primitives and view-specific card treatment instead of generic page composition helpers
-- keep tightening teacher intervention continuity and routing coverage so backend-selected options, resume actions, and classroom drill-in behavior stay trustworthy as the product surface grows
+- reviewing all planning documents and updating work plans to reflect current codebase reality
+- identifying the next highest-value product work across frontend and backend
 
 ### Next up
 
-1. finish the remaining merge-readiness pass for bringing `frontend/` onto `main`, with special focus on final PR scoping and deciding whether any last repo-level cleanup should land before merge
-2. extend fallback/error-path coverage into no-demo-fallback branches plus generation, Socratic, and remediation action failures after a live-connected boot
-3. curate more explainability-first summaries so fewer product surfaces depend on raw debug payload inspection
-4. keep extending teacher and classroom flows without inventing frontend-owned sequencing or intervention policy
-5. keep this work plan and `from-front-to-back-needs.md` updated together
+1. product-level authentication integration so learners and teachers can log in
+2. hide orchestration inputs from the learner shell so Continue Learning feels like a real learning flow
+3. build real teacher reporting to replace the placeholder
+4. design the assignment model with backend coordination
+5. add history pagination
+6. keep this work plan and `from-front-to-back-needs.md` updated together
 
-## Merge Readiness
+## LMS Interface Progress
 
-Current read: the frontend branch is close to mergeable as product code, and the main remaining work is merge execution discipline rather than missing frontend implementation.
+### Phase 0: reposition current frontend as staff workspace — DONE
 
-Highest-value merge-prep tasks:
+- current tabbed workbench lives under `/staff`
+- debug panels, demo toggles, and raw contract inspection are staff-only
+- role switcher landing page routes to learner, teacher, or staff shells
 
-1. keep the merge PR scoped to the frontend workspace plus intentionally synced planning/docs work; do not drag unrelated planning experiments into the merge
-2. decide whether any last repo-level cleanup should land before merge, now that CI, root docs, rebase, and live smoke coverage have been completed
+### Phase 1: learner shell — DONE (core structure)
 
-Merge-prep work completed:
+Built:
+- `LearnerHome` with resume CTA, current lesson card, focus areas, progress bar
+- `ContinueLearning` dispatching to generation, Socratic, and remediation flows
+- `SocraticCheck` with prompt/response/evaluation UI
+- `RemediationSession` with step progression
+- `Progress` with mastery tracking and resource state
+- `History` with generation, Socratic, and remediation tabs
 
-1. repo-level CI now runs the frontend `test:run`, `lint`, and `build` checks alongside the backend job
-2. the top-level README now points contributors at the `frontend/` workspace and documents local frontend run/verification commands
-3. the branch has been rebased onto the latest `origin/main` and rerun through the frontend verification suite from a clean code state
-4. a live smoke pass against the latest backend-owned learner workspace, summary/flow, progression, history, intervention, and classroom surfaces succeeded after seeding one local learner/classroom scenario
+Remaining:
+- hide orchestration inputs from learner forms
+- pagination on history
+- polish transitions and loading states
+- learner-safe error recovery
+
+### Phase 2: teacher shell — DONE (core structure)
+
+Built:
+- `Dashboard` with classroom overview cards and attention/blocked/intervention counts
+- `ClassroomDetail` with learner cards grouped by backend-owned `triage_section`
+- `LearnerDetail` with affective state, progression, intervention proposal
+- `InterventionWorkspace` with approve/defer/escalate/select-option controls
+- Classroom-to-learner drill-in and return navigation
+
+Remaining:
+- teacher reporting surface
+- artifact review (see actual generated content a learner received)
+- assignment management layer
+- richer class-level progress and trend views
+
+### Phase 3: assignments, reporting, and operational completeness — NOT STARTED
+
+- assignment framing layer (frontend + backend coordination needed)
+- teacher reporting with trends and standards mastery
+- class-level progress review
+- role-aware navigation polish
+
+### Phase 4: product depth expansion — FUTURE
+
+- richer artifacts when backend ships multimodal support
+- course maps and unit navigation
+- messaging and notifications
+- family portal
+- standards mastery views
 
 ## Completed
 
-- reviewed the authoritative planning packages before frontend implementation
-- compared revised frontend needs to the current backend implementation
-- identified the main contract gaps for teacher and workflow surfaces
-- created a new React + Vite frontend workspace under `frontend/`
-- installed the initial frontend toolchain dependencies
-- aligned the frontend toolchain onto a Tailwind-compatible Vite version
+### LMS interface implementation (PR #3, merged to main)
+
+- built role-based React Router skeleton with three shell layouts and role switcher
+- built complete learner shell with home, continue-learning, Socratic, remediation, progress, and history views
+- built complete teacher shell with dashboard, classroom detail, learner detail, and intervention workspace
+- added vocabulary translation layer (`lib/copy.ts`) and shell layout primitives
+- added content block registry, affective support, and streaming content components
+- integrated shared content components into learner and teacher views
+- added component tests for content blocks, affective support, streaming, and role switcher
+- added tests for triage logic and vocabulary translation
+- replaced frontend pedagogical shims with backend-owned `triage_section`, `affective_support`, and `display_label` fields
+- documented backend need for generation quality metadata on history entries
+
+### Contract integration and workbench phase (earlier PRs, merged to main)
+
+- created React + Vite frontend workspace under `frontend/`
 - added Tailwind CSS, shadcn-style config, UI dependencies, theme tokens, aliases, and shared UI primitives
-- added typed API models and demo data scaffolding for current contracts
+- added typed API models and demo data scaffolding for all current contracts
 - refactored the app into typed API helpers, domain views, formatters, and shared primitives
-- verified the frontend passes lint and production build with Node 22
-- documented the frontend runtime and ES module standard in the workspace
-- added repo-level Node version pins for testing and local development across `.nvmrc`, `.node-version`, and Volta metadata
-- confirmed the current frontend codebase is already ES module-based; remaining module errors are more likely runtime/tooling mismatches than app source format problems
-- added a baseline frontend test stack with Vitest, jsdom, and React Testing Library
-- added initial coverage for form helpers, API contract helpers, SSE stream parsing, and the teacher explainability surface
-- identified that `frontend/src/App.tsx` and the remaining raw form views are the main maintainability hotspots in the current frontend codebase
-- identified that the backend-needs planning note referenced by the frontend plan did not yet exist and should be maintained explicitly
+- added baseline test stack with Vitest, jsdom, and React Testing Library
 - extracted persistent config, learner workspace, generation, Socratic, and remediation logic into dedicated hooks
-- reduced `frontend/src/App.tsx` to a smaller composition shell with app-level components for workspace settings and learner selection
-- added shared frontend form primitives plus repo-owned `Label` and `Select` UI components for screen-level workflow forms
-- migrated generation, Socratic, and remediation views away from raw HTML controls and button-specific CSS classes
-- removed unused legacy form/button CSS now that workflow screens rely on shared UI primitives
-- expanded the screen test suite to cover overview, generation, Socratic, and remediation views
-- verified the frontend still passes tests, lint, and production build after the workflow-form refactor
-- gated raw contract payload panels behind an explicit debug setting instead of presenting them as always-on product UI
-- replaced the remaining raw workspace toggle with a shared `Switch` primitive
-- removed unused frontend assets and dead tab-era styling leftovers
-- rebased the frontend branch onto a newer `main` that now includes learner workspace, learner history, continue-action, normalized API error, and teacher intervention contracts
-- extended the frontend read models and API adapters to support learner workspace, learner history, normalized intervention contracts, and teacher intervention writes
-- refactored learner loading to use the backend-owned workspace payload as the source for summary and current-flow state
-- added a dedicated learner-contracts hook for generation history, Socratic history, remediation history, and teacher intervention state
-- upgraded the overview screen to show backend-owned workspace resume state plus learner history across generated, Socratic, and remediation workflows
-- replaced the advisory-only teacher surface with a real intervention contract view that supports backend decision recording
-- expanded tests to cover the new workspace/intervention API adapters and the upgraded overview and teacher screens
-- verified the frontend passes tests, lint, and production build after integrating the newer backend contracts
-- rebased again onto a newer `main` that now also includes learner curriculum progression and teacher classroom read models
-- rebased onto a newer `main` that also hardens machine-readable error bodies, progression parity, and workflow-facing contract vocabularies
-- extended the frontend contract layer with typed learner progression and teacher classroom adapters plus demo data coverage
-- surfaced learner curriculum progression in the overview and teacher detail screens
-- added an initial classroom workspace backed by the teacher classroom overview/detail contracts
-- expanded tests to cover learner progression adapters, teacher classroom adapters, and the new classroom screen
-- verified the frontend still passes tests, lint, and production build after the progression/classroom integration pass
-- aligned frontend types, demo data, error handling, and teacher/continue-action behavior with the hardened backend workflow vocabularies
-- added regression coverage for machine-readable backend error codes and idle-workspace resume routing
-- fixed classroom-to-learner drill-in so learner contract loading can target the selected learner explicitly
-- verified the frontend still passes tests, lint, and production build after the contract-alignment pass
-- hydrated generation, Socratic, and remediation workspace forms from the backend-owned learner workspace contract
-- reused workspace-owned generated content and session state so the workflow tabs reopen with learner-specific context instead of static defaults
-- expanded form-helper tests to cover workspace-driven hydration
-- verified the frontend still passes tests, lint, and production build after the workspace-hydration pass
-- rebased the frontend worktree onto the latest `origin/main` before starting the next substantial slice
-- refined the classroom workspace into a triage-oriented queue that separates teacher-action-ready, blocked, and resume-ready learners using backend-owned classroom signals
-- added direct classroom handoff into backend-owned learner continue actions instead of forcing every learner follow-up through the same screen
-- added classroom-to-teacher drill-in context so the teacher explainability screen can return cleanly to the originating classroom queue
-- expanded classroom and teacher view tests to cover the new triage and handoff behavior
-- rebased again onto `origin/main` and reviewed backend commit `93954f9` against the frontend-to-backend plan; it strengthens backend-owned repair-stage progression without creating a new frontend contract gap
-- rewrote `planning/from-front-to-back-needs.md` into a sharper backend marching-orders document that separates active asks, conditional future work, resolved seams, and frontend guardrails
-- added shared frontend formatting and panel-state helpers so backend-owned statuses, actions, and content types render in more product-facing language across overview, classroom, teacher, generation, Socratic, and remediation views
-- expanded view coverage for curated labels plus overview/classroom/teacher loading, error, and empty-history states
-- added a shell-level workspace status surface that makes live connectivity and demo fallback posture visible from the main app chrome
-- added app-level regression coverage for classroom-to-teacher handoff continuity, return-to-classroom flow, learner continue-action routing, and live contract connectivity state
-- changed shell connectivity tracking from a single last-write-wins source flag to per-surface aggregation so one fallbacking contract family cannot be masked by another live refresh
-- added app-level regression coverage for teacher-decision fallback notices and classroom refresh fallback after a live-connected boot
-- rebased onto the latest `origin/main` again and reviewed the March 17, 2026 backend semantic-hardening stack; it strengthens rationale parity, stage-aware intervention language, misconception-path grounding, and held-remediation consistency without creating a new frontend contract gap
-- added repo-level GitHub Actions coverage for the frontend workspace so merge readiness no longer depends only on local verification
-- added a root README pointer for `frontend/` plus local frontend run and verification commands
-- completed a local live-contract smoke pass against learner summary/flow, progression, workspace, generation history, intervention, and classroom surfaces on the rebased backend stack; the seeded learner/classroom scenario stayed coherent across those contracts
-- curated the remaining overview-screen status, progression, strategy, and accommodation labels so fewer learner surfaces leak backend enum shapes directly
-- completed a frontend CSS cleanup pass that replaced the last legacy overview pills, route-reason badges, and learner chip styles with shared `Pill` and `Button` primitives
-- removed dead app-shell selectors that no longer affected layout after the shared primitive migration
-- finished the remaining frontend layout-CSS sweep by migrating shell and view composition helpers onto explicit Tailwind utility classes across the app shell, workspace controls, and learner/teacher views
-- reduced `frontend/src/App.css` to a smaller set of visual and card-level selectors instead of using it as a generic layout framework
-- aligned the teacher intervention screen with backend-recorded latest decision state so the default selected option reflects the latest backend choice instead of always snapping back to the recommended option
-- expanded behavioral coverage around teacher option submission, learner overview resume/history routing, and classroom selection plus teacher-first blocked-learner posture
+- reduced `App.tsx` to a composition shell
+- migrated all workflow views to shared UI primitives
+- gated raw contract payload panels behind an explicit debug setting
+- extended frontend to support learner workspace, learner history, intervention contracts, classroom, and progression
+- added triage-oriented classroom queue with backend-owned section grouping
+- added classroom-to-teacher drill-in and return navigation
+- added shared formatting and panel-state helpers for product-facing language
+- added shell-level workspace status surface for connectivity posture
+- completed CSS cleanup onto Tailwind utilities
+- aligned teacher intervention with backend-recorded latest decision state
+- added repo-level GitHub Actions CI for frontend workspace
+- completed live-contract smoke pass against backend stack
 
 ## Notes For Future Updates
 
@@ -275,6 +292,7 @@ When work changes, update:
 2. `Missing Or Incomplete Items`
 3. `Key Decisions`
 4. `Completed`
+5. `LMS Interface Progress`
 
 # Coding quality bar:
 - write code like this backend will be lived in for a long time

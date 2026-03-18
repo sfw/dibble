@@ -126,13 +126,16 @@ Legend:
 
 ## Highest-Value Next Gaps
 
-Based on `planning/4 - revised-spec/implementation-roadmap.md`, `planning/5 - dev-handoff-revised-spec/requirements-traceability.csv`, the current code seams, `planning/front-end-work-plan.md`, and `planning/from-front-to-back-needs.md`, the strongest next backend slices are now:
+Based on `planning/4 - revised-spec/implementation-roadmap.md`, `planning/5 - dev-handoff-revised-spec/requirements-traceability.csv`, the current code seams, `planning/front-end-work-plan.md`, `planning/from-front-to-back-needs.md`, and `planning/lms-interface-plan.md`, the strongest next backend slices are now:
 
-1. treat the current frontend scope as unblocked and avoid inventing new backend work just because the platform can support it.
-2. revisit a true course-level planner only if product needs exceed the current learner `curriculum_progression` read model and local progression ownership.
-3. keep multimodal expansion behind the explicit `response.artifacts` envelope and only add richer artifact variants if product needs exceed the current text-oriented contract.
-4. keep classroom detail compact and summary-first; add more dashboard-grade teacher analytics only if product needs exceed the current learner cards, intervention summaries, and classroom counts.
-5. keep scheduler autonomy, broader orchestration ideas, and other deeper intelligence work behind observed product pressure rather than treating them as default frontend-adjacent work.
+1. **product-level authentication clarity**: the frontend is building a real LMS with learner login, teacher login, and role-aware routing; the backend auth contract exists (`POST /api/auth/token`, RBAC roles, bearer tokens) but needs to clearly support learner and teacher identity flows, not just API-key access for integration testing.
+2. **assignment model ownership**: the LMS plan calls for teacher-assigned learning tasks; neither frontend nor backend currently owns an assignment concept; the backend should decide whether assignments are a thin wrapper around existing learner workspace / progression state or a first-class entity with lifecycle, status, and continue-action metadata.
+3. **history pagination**: history endpoints currently return up to 20 entries with no cursor or offset; the frontend needs pagination for learners and teachers with longer histories.
+4. keep strengthening backend decision quality (`ORCH-001`, `ADAPT-006`, `DATA-004`, `ADAPT-003`) without changing contract shape.
+5. revisit a true course-level planner only if product needs exceed the current learner `curriculum_progression` read model and local progression ownership.
+6. keep multimodal expansion behind the explicit `response.artifacts` envelope.
+7. keep classroom detail compact and summary-first.
+8. keep scheduler autonomy and deeper intelligence work behind observed product pressure.
 
 Most recent progress:
 
@@ -183,22 +186,41 @@ Most recent progress:
 
 ### Frontend Alignment Update
 
-The frontend work plan now shows a materially different posture than the older backend-readiness framing:
+The frontend has moved from a contract integration workbench to a three-layer LMS interface (see `planning/lms-interface-plan.md`). PR #3 merged the LMS shell implementation onto `main`.
 
-1. the frontend is already building against backend-owned learner summary, `current_flow`, workspace, history, progression, `workflow_summary`, intervention, remediation, Socratic, classroom, `continue_action`, and machine-readable error-code contracts.
-2. the main frontend work is now implementation depth, UI quality, and test coverage, not waiting on new backend endpoint families.
-3. the key product guardrail remains the same: the frontend should render backend-owned workflow decisions, not invent progression logic locally.
-4. `planning/from-front-to-back-needs.md` should remain the dedicated place for any newly discovered backend asks from the frontend stream.
+**What the frontend now has:**
 
-That means the backend gap list should stay narrow and product-driven rather than reverting to a broad "finish backend before frontend" stance.
+1. a role-based React Router app with learner (`/learn`), teacher (`/teacher`), and staff (`/staff`) shells
+2. learner shell: home, continue-learning, Socratic check, remediation session, progress, history views
+3. teacher shell: dashboard, classroom detail, learner detail, intervention workspace
+4. staff shell: the original workbench, repositioned as internal tooling
+5. content rendering components (ContentBlock, StreamingContent, AffectiveSupport)
+6. vocabulary translation layer preferring backend-provided `display_label` fields
+7. all backend-owned contracts integrated: summary, flow, workspace, history, progression, workflow_summary, intervention, remediation, Socratic, classroom, continue_action, triage_section, affective_support, display_label, machine-readable error codes
+
+**What the frontend is now asking for:**
+
+1. **P0**: product-level authentication flow so learners and teachers can log in (the backend auth contract exists but the frontend needs role-to-identity mapping clarity)
+2. **P1**: assignment model ownership so teachers can assign and learners can see assigned work
+3. **P1**: history pagination (cursor or offset support on history endpoints)
+
+**What the frontend is NOT asking for:**
+
+1. no new endpoint families for the existing product surface
+2. no contract shape changes to existing stable seams
+3. no frontend-specific policy workarounds
+
+The key product guardrail remains: the frontend renders backend-owned workflow decisions, not invents progression logic locally. `planning/from-front-to-back-needs.md` remains the dedicated place for frontend-originated backend asks.
 
 #### Current Frontend Ask
 
-The newest frontend handoff note is narrower still:
+The frontend ask has shifted from "no new contracts" to "three concrete product-level needs plus continued quality work":
 
-1. the frontend is not asking for a new endpoint family, new contract shape, or frontend-specific policy workaround for the current product stream.
-2. the backend should preserve and harden the current frontend-facing contract set rather than reopening already-stable seams.
-3. backend effort should go toward better judgment, better parity, and better inspectability instead of contract churn done "for the frontend."
+1. **P0: authentication flow** — the backend auth contract exists but needs to clearly support learner and teacher login, role-to-identity mapping, and session persistence. This is the single biggest product gap.
+2. **P1: assignment model** — neither frontend nor backend owns assignments yet. The backend should decide whether this is a thin wrapper around workspace/progression or a first-class entity.
+3. **P1: history pagination** — small contract extension for cursor or offset support on history endpoints.
+4. the backend should continue preserving and hardening existing stable contracts.
+5. backend quality work on progression orchestration, mastery-loop enforcement, ordinary-work evidence, and misconception precision remains valuable.
 
 #### Stable Frontend Contracts In Use
 
@@ -210,17 +232,27 @@ The frontend plan now explicitly treats these backend surfaces as stable enough 
 
 #### Remaining Frontend-Originated Backend Needs
 
-The frontend plan now narrows the remaining backend asks to three conditional product-expansion seams:
+The frontend plan now surfaces both active asks and conditional product-expansion seams:
 
+**Active asks:**
 
-| Priority | Gap                                                                                         | Backend implication                                                                                                                          |
-| -------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| P1       | Course-level progression planning is still intentionally lighter than a true course planner | Keep `curriculum_progression` as the source of truth for current UI; only add `ORCH-002` if product needs exceed that contract               |
-| P2       | Richer multimodal artifact payloads are still absent in practice                            | Extend `response.artifacts` through explicit discriminated variants when product needs more than the current `text` artifact contract        |
-| P2       | Teacher-safe analytics are classroom-card oriented, not dashboard-grade                     | Add compact backend-owned teacher summaries only if product needs exceed current learner cards, intervention summaries, and classroom counts |
+| Priority | Gap | Backend implication |
+| -------- | --- | ------------------- |
+| P0 | Product-level authentication flow | Clarify how learner and teacher identities map to the existing RBAC model; ensure `/api/auth/me` or equivalent returns role and associated entity IDs |
+| P1 | Assignment model and lifecycle | Decide whether assignments are a thin wrapper around workspace/progression or a first-class entity with lifecycle, status, and continue-action metadata |
+| P1 | History pagination | Add cursor-based or offset-based pagination to `/history/generations`, `/history/socratic-sessions`, `/history/remediation-sessions` |
 
+**Conditional future seams:**
 
-Everything else the frontend plan highlights as "next" is now mostly frontend execution work: UI primitives, behavioral tests, workspace/history/resume polish, teacher workflow curation, and better explainability presentation on top of existing backend contracts.
+| Priority | Gap | Backend implication |
+| -------- | --- | ------------------- |
+| P2 | Course-level progression planning is still lighter than a true course planner | Keep `curriculum_progression` as the source of truth; only add `ORCH-002` if product needs exceed that contract |
+| P2 | Richer multimodal artifact payloads are still absent in practice | Extend `response.artifacts` through explicit discriminated variants when product needs more than `text` artifacts |
+| P2 | Teacher-safe analytics are classroom-card oriented, not dashboard-grade | Add compact backend-owned teacher summaries only if product needs exceed current learner cards and classroom counts |
+| P2 | Teacher-to-learner messaging / comments | Only when the product needs an in-app communication channel |
+| P2 | Notifications / inbox | Only when push or pull notification surfaces are product-justified |
+
+Everything else the frontend plan highlights as "next" is frontend execution work: learner experience polish, teacher reporting, test coverage, and explainability curation on top of existing backend contracts.
 
 #### Backend Responsibilities That Remain Important
 
@@ -235,14 +267,15 @@ Even with the narrower frontend ask list, the backend still owns a few stability
 
 #### New Agent Plan
 
-The next backend agent should treat the current frontend-facing contract set as stable and work from this implementation plan:
+The next backend agent should work from this priority order:
 
-1. start by checking for parity drift across learner summary, `current_flow`, workspace, learner history, session summaries, `workflow_summary`, intervention-action, progression, and classroom read models before adding any new behavior.
-2. if a concrete parity, vocabulary, or inspectability bug is found, fix it at the backend-owned source of truth and add regression coverage that proves the affected surfaces stay aligned; when several surfaces are drifting for the same semantic reason, a broader cohesive pass is preferable to a stack of tiny local patches.
-3. if no contract bug is found, choose the most justified decision-quality pass from `ORCH-001`, `ADAPT-006`, `DATA-004`, or `ADAPT-003`, with a bias toward improvements that strengthen backend-owned next-step consistency, mastery-loop trust, ordinary-work evidence use, or misconception precision without changing contract shape.
-4. avoid frontend-only sequencing policy, avoid reopening stable contract seams without a concrete bug, avoid dashboard-style teacher analytics unless current classroom summaries prove insufficient, and avoid overloading text fields for future multimodal work when `response.artifacts` is the intended seam.
-5. for each justified pass: add focused tests, update `README.md`, update this document, run `uv run ruff check .`, run `uv run pytest`, and make a coherent focused commit.
-6. stop rather than forcing more work if the honest result is that no additional contract-preserving backend judgment improvement is justified right now.
+1. **P0: authentication clarity** — ensure the existing auth contract cleanly supports learner and teacher login flows. Verify that `/api/auth/me` returns role and associated learner/teacher entity IDs. If learner-to-classroom membership is not yet queryable from the auth identity, add that seam. Add test coverage for role-based auth scenarios.
+2. **P1: history pagination** — add cursor-based or offset-based pagination to the three history endpoints. This is a small, well-scoped contract extension.
+3. **P1: assignment model decision** — decide whether assignments should be a thin read-model wrapper around existing workspace/progression state or a first-class entity. If the latter, design the entity and API surface. Document the decision in this file and in `from-front-to-back-needs.md`.
+4. **Quality work** — if P0-P1 items are done, choose the most justified decision-quality pass from `ORCH-001`, `ADAPT-006`, `DATA-004`, or `ADAPT-003`, with a bias toward improvements that strengthen backend-owned next-step consistency, mastery-loop trust, ordinary-work evidence use, or misconception precision without changing contract shape.
+5. avoid frontend-only sequencing policy, avoid reopening stable contract seams without a concrete bug, avoid dashboard-style teacher analytics unless current classroom summaries prove insufficient.
+6. for each justified pass: add focused tests, update `README.md`, update this document, run `uv run ruff check .`, run `uv run pytest`, and make a coherent focused commit.
+7. stop rather than forcing more work if the honest result is that no additional improvement is justified right now.
 
 #### Lower-Priority Backend Futures
 
@@ -287,10 +320,23 @@ These gaps are not current frontend blockers, but they are the main reasons the 
 
 ## Recommendation
 
-The curriculum-grounding and learner-flow follow-through are now in a good local state, and the backend is effectively ready for the current frontend scope. The next coherent implementation steps should now come from product expansion rather than from speculative readiness work:
+The backend adaptive learning engine is mature and the frontend has evolved from a contract workbench into a real three-layer LMS. The platform is at an inflection point: the next highest-leverage work is **product completeness**, not deeper backend intelligence or more contract hardening.
 
-- prefer future multimodal expansion through the new explicit artifact contract or compact teacher analytics before adding more scheduler autonomy than the current inspectable claim-and-process model
-- prefer explicit product pressure before broadening progression ownership into a larger planner
-- keep new work local and testable instead of turning the backend into a speculative job platform, planner, retrieval stack, or analytics platform
+**Priority order for the next phase:**
 
-That is now the highest-leverage stance because the backend has crossed thirteen important thresholds: it can ground generation in richer curriculum excerpts, it now also chooses more relevant local grounding passages inside a resource instead of trusting only broad whole-body excerpts, it can compact ordinary practice and remediation history into an inspectable durable mastery profile before the next writeback, it can write back stronger ordinary-work evidence and redirect some progression decisions toward prerequisite or bridge KCs, it can now also let stronger same-session evidence resume transfer on the real target when that is more trustworthy than a slower durable hold, it now distinguishes productive struggle from overload or support-heavy success more honestly before fading support, it now gives the generation layer richer learner-facing construction structure instead of only flat distractor or fade metadata, the moderation path is now clear enough that safety handling is no longer the primary limiting factor, the predictive warm queue can now do a bounded amount of autonomous inline catch-up, explicit background queue drainage, and auditable claim ownership without yet turning into a job platform, Socratic steering is now explicit enough that later services do not need to guess whether a diagnostic turn was an initial probe, a loop break, or a restate-and-apply recovery move, generation can now also use a compact cross-session Socratic conversation history when the current session is sparse, and ordinary generation now has a broader inspectable mastery gate that can rewrite premature assessment requests back into target, repair, or bridge practice. The next constraint should come from observed backend traces rather than from another speculative architectural wish list.
+1. **Authentication** (P0): An LMS without login is a demo. The backend auth contract exists but needs to clearly support learner/teacher login flows with role-to-identity mapping. This unblocks the frontend from shipping a real product.
+
+2. **Assignment model** (P1): Core LMS functionality. Teachers need to assign work; learners need to see what's assigned. The backend should own this concept.
+
+3. **History pagination** (P1): Small contract extension that becomes necessary once real learners generate more than 20 history entries.
+
+4. **Continued backend decision quality** (P1): The four ongoing quality tracks (`ORCH-001`, `ADAPT-006`, `DATA-004`, `ADAPT-003`) remain valuable and should continue in parallel with product-completeness work. The adaptive learning engine is the core differentiator.
+
+5. **Product expansion when justified** (P2+): course-level planner, multimodal artifacts, teacher analytics, messaging, notifications. These should wait for product pressure.
+
+**What to avoid:**
+
+- speculative backend work that does not serve a concrete product need
+- reopening stable frontend-facing contracts without a concrete bug
+- building assignment, messaging, or notification contracts speculatively
+- turning the backend into a job platform, planner, or analytics system before the core LMS product loop is complete
