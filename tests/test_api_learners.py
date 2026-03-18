@@ -463,6 +463,133 @@ def test_continue_action_contract_stays_consistent_across_lesson_surfaces(client
     assert intervention_payload["allowed_decisions"] == ["approve", "select_option", "defer", "escalate_human"]
 
 
+def test_learner_progression_prefers_deferred_target_resource_over_unrelated_ready_resource(client, student_id):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
+    client.put(
+        "/api/curriculum/resources/CURR-0",
+        json=build_curriculum_resource(
+            resource_id="CURR-0",
+            title="Unrelated Fraction Extension",
+            knowledge_component_ids=["KC-9"],
+            learning_objective_ids=["LO-9"],
+        ),
+    )
+    client.put(
+        "/api/curriculum/resources/CURR-1",
+        json=build_curriculum_resource(
+            resource_id="CURR-1",
+            title="Equivalent Fraction Foundations",
+            knowledge_component_ids=["KC-1"],
+        ),
+    )
+    client.put(
+        "/api/curriculum/resources/CURR-2",
+        json=build_curriculum_resource(
+            resource_id="CURR-2",
+            title="Equivalent Fraction Practice",
+            knowledge_component_ids=["KC-2"],
+        ),
+    )
+    client.put(
+        "/api/knowledge-components/KC-1",
+        json=build_knowledge_component("KC-1", name="Identify fraction equivalence"),
+    )
+    client.put(
+        "/api/knowledge-components/KC-2",
+        json=build_knowledge_component(
+            "KC-2",
+            prerequisite_kc_ids=["KC-1"],
+            parent_lo_id="LO-1",
+            name="Generate equivalent fractions",
+        ),
+    )
+    client.put(
+        "/api/knowledge-components/KC-9",
+        json=build_knowledge_component(
+            "KC-9",
+            parent_lo_id="LO-9",
+            name="Recognize unrelated fraction patterns",
+        ),
+    )
+
+    generate_response = client.post(
+        "/api/problems/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "progression-deferred-target-session",
+            "target_kc_ids": ["KC-2"],
+            "target_lo_ids": ["LO-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    flow_response = client.get(f"/api/learners/{student_id}/flow")
+    summary_response = client.get(f"/api/learners/{student_id}/summary")
+    progression_response = client.get(f"/api/learners/{student_id}/progression")
+
+    assert generate_response.status_code == 200
+    assert flow_response.status_code == 200
+    assert summary_response.status_code == 200
+    assert progression_response.status_code == 200
+
+    flow_payload = flow_response.json()
+    summary_payload = summary_response.json()
+    progression_payload = progression_response.json()
+    assert flow_payload["deferred_target_kc_ids"] == ["KC-2"]
+    assert flow_payload["transfer_target_kc_ids"] == ["KC-2"]
+    assert summary_payload["current_flow"]["deferred_target_kc_ids"] == ["KC-2"]
+    assert progression_payload["status"] == "active_curriculum_focus"
+    assert progression_payload["current_resource"]["resource_id"] == "CURR-1"
+    assert progression_payload["next_resource"]["resource_id"] == "CURR-2"
+    assert progression_payload["ready_resources"][0]["resource_id"] == "CURR-2"
+    assert progression_payload["ready_resources"][1]["resource_id"] == "CURR-0"
+    assert "deferred return target" in progression_payload["next_resource"]["rationale"]
+    assert "releases the active target" in progression_payload["next_resource"]["rationale"]
+
+
+def test_learner_progression_blocked_rationale_names_prerequisite_scores_and_blocking_resource(client, student_id):
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, kc_mastery={"KC-1": 0.2, "KC-2": 0.12}),
+    )
+    client.put(
+        "/api/curriculum/resources/CURR-1",
+        json=build_curriculum_resource(
+            resource_id="CURR-1",
+            title="Equivalent Fraction Foundations",
+            knowledge_component_ids=["KC-1"],
+        ),
+    )
+    client.put(
+        "/api/curriculum/resources/CURR-2",
+        json=build_curriculum_resource(
+            resource_id="CURR-2",
+            title="Equivalent Fraction Practice",
+            knowledge_component_ids=["KC-2"],
+        ),
+    )
+    client.put(
+        "/api/knowledge-components/KC-1",
+        json=build_knowledge_component("KC-1", name="Recognize equivalent fractions"),
+    )
+    client.put(
+        "/api/knowledge-components/KC-2",
+        json=build_knowledge_component(
+            "KC-2",
+            prerequisite_kc_ids=["KC-1"],
+            parent_lo_id="LO-1",
+            name="Generate equivalent fractions",
+        ),
+    )
+
+    progression_response = client.get(f"/api/learners/{student_id}/progression")
+
+    assert progression_response.status_code == 200
+    blocked_resource = progression_response.json()["blocked_resources"][0]
+    assert blocked_resource["resource_id"] == "CURR-2"
+    assert "Recognize equivalent fractions (0.20/0.65)" in blocked_resource["rationale"]
+    assert "Equivalent Fraction Foundations" in blocked_resource["rationale"]
+
+
 def test_learner_flow_endpoint_prefers_active_remediation_workflow(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())

@@ -191,6 +191,96 @@ def test_teacher_classroom_keeps_active_curriculum_rationale_aligned_with_curren
     assert learner_card["current_flow"] == summary_payload["current_flow"]
 
 
+def test_teacher_classroom_preserves_deferred_target_next_resource_priority(client):
+    student_id = uuid4()
+
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id),
+    )
+    client.put(
+        "/api/knowledge-components/KC-1",
+        json=build_knowledge_component("KC-1", name="Identify fraction equivalence"),
+    )
+    client.put(
+        "/api/knowledge-components/KC-2",
+        json=build_knowledge_component(
+            "KC-2",
+            prerequisite_kc_ids=["KC-1"],
+            name="Generate equivalent fractions",
+        ),
+    )
+    client.put(
+        "/api/knowledge-components/KC-9",
+        json=build_knowledge_component(
+            "KC-9",
+            parent_lo_id="LO-9",
+            name="Recognize unrelated fraction patterns",
+        ),
+    )
+    client.put(
+        "/api/curriculum/resources/CURR-0",
+        json=build_curriculum_resource(
+            resource_id="CURR-0",
+            title="Unrelated Fraction Extension",
+            knowledge_component_ids=["KC-9"],
+            learning_objective_ids=["LO-9"],
+        ),
+    )
+    client.put(
+        "/api/curriculum/resources/CURR-1",
+        json=build_curriculum_resource(
+            resource_id="CURR-1",
+            title="Equivalent Fraction Foundations",
+            knowledge_component_ids=["KC-1"],
+        ),
+    )
+    client.put(
+        "/api/curriculum/resources/CURR-2",
+        json=build_curriculum_resource(
+            resource_id="CURR-2",
+            title="Equivalent Fraction Practice",
+            knowledge_component_ids=["KC-2"],
+        ),
+    )
+
+    generate_response = client.post(
+        "/api/problems/generate",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "teacher-classroom-deferred-target-session",
+            "target_kc_ids": ["KC-2"],
+            "target_lo_ids": ["LO-1"],
+            "curriculum_context": ["Equivalent fractions"],
+        },
+    )
+    client.put(
+        "/api/teachers/classrooms/CLASS-DEFERRED",
+        json=build_classroom(
+            classroom_id="CLASS-DEFERRED",
+            title="Deferred Target Classroom",
+            teacher_label="Ms. Rivera",
+            student_ids=[str(student_id)],
+        ),
+    )
+
+    classroom_response = client.get("/api/teachers/classrooms/CLASS-DEFERRED")
+    summary_response = client.get(f"/api/learners/{student_id}/summary")
+
+    assert generate_response.status_code == 200
+    assert classroom_response.status_code == 200
+    assert summary_response.status_code == 200
+
+    learner_card = classroom_response.json()["learners"][0]
+    summary_payload = summary_response.json()
+
+    assert learner_card["curriculum_progression"]["current_resource"]["resource_id"] == "CURR-1"
+    assert learner_card["curriculum_progression"]["next_resource"]["resource_id"] == "CURR-2"
+    assert learner_card["curriculum_progression"]["ready_resources"][0]["resource_id"] == "CURR-2"
+    assert learner_card["curriculum_progression"]["ready_resources"][1]["resource_id"] == "CURR-0"
+    assert learner_card["curriculum_progression"] == summary_payload["curriculum_progression"]
+
+
 def test_teacher_classroom_not_found_returns_machine_readable_error(client):
     response = client.get("/api/teachers/classrooms/missing-classroom")
 

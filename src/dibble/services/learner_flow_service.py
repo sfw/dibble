@@ -88,11 +88,19 @@ class LearnerFlowService:
         if controller is None and generation_event is not None:
             controller = self._controller_for_session(self._maybe_str(generation_event.payload.get("learning_session_id")))
 
-        progression = self._progression_from_workflow_summary(workflow_summary)
-        progression_source = "workflow_summary" if progression else "insufficient"
-        if not progression:
-            progression = self._progression_from_generation_event(generation_event)
-            progression_source = "generation_audit" if progression else "insufficient"
+        audit_progression = self._progression_from_generation_event(generation_event)
+        workflow_progression = self._progression_from_workflow_summary(workflow_summary)
+        progression = self._merge_progression(
+            primary=workflow_progression,
+            fallback=audit_progression,
+        )
+        progression_source = (
+            "workflow_summary"
+            if workflow_progression
+            else "generation_audit"
+            if audit_progression
+            else "insufficient"
+        )
         session_adaptation = (
             self._session_adaptation_from_controller(controller)
             if controller is not None
@@ -364,6 +372,30 @@ class LearnerFlowService:
                 else []
             ),
         }
+
+    def _merge_progression(
+        self,
+        *,
+        primary: dict[str, object],
+        fallback: dict[str, object],
+    ) -> dict[str, object]:
+        if not primary:
+            return dict(fallback)
+        merged = dict(fallback)
+        for key, value in primary.items():
+            if self._has_progression_value(value):
+                merged[key] = value
+        return merged
+
+    @staticmethod
+    def _has_progression_value(value: object) -> bool:
+        if value is None:
+            return False
+        if isinstance(value, str):
+            return bool(value.strip())
+        if isinstance(value, list):
+            return bool(value)
+        return True
 
     def _current_remediation_step(self, session: RemediationWorkflowSession):
         if session.current_step_index is None or session.current_step_index >= len(session.steps):
