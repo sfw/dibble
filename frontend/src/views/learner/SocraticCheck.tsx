@@ -152,11 +152,14 @@ export function SocraticCheck() {
 
       {/* Confidence picker */}
       <div className="animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-        <p className="mb-2 text-sm font-medium">How confident are you?</p>
-        <div className="grid grid-cols-4 gap-2">
+        <p className="mb-2 text-sm font-medium" id="confidence-label">How confident are you?</p>
+        <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-labelledby="confidence-label">
           {confidenceLevels.map((level) => (
             <button
               key={level.value}
+              role="radio"
+              aria-checked={confidence === level.value}
+              aria-label={level.label}
               onClick={() => setConfidence(level.value)}
               className={`flex flex-col items-center gap-1 rounded-lg border px-3 py-2.5 text-sm transition-all duration-150 ${
                 confidence === level.value
@@ -190,7 +193,19 @@ export function SocraticCheck() {
         </Button>
       </div>
 
-      <ErrorBanner message={socratic.error} />
+      {socratic.error && (
+        <div className="flex flex-col gap-2">
+          <ErrorBanner message={socratic.error} />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void socratic.handleReload()}
+            className="self-start"
+          >
+            Try again
+          </Button>
+        </div>
+      )}
     </PageContainer>
   )
 }

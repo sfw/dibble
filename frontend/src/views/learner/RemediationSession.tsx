@@ -83,6 +83,13 @@ export function RemediationSession() {
         </div>
       </header>
 
+      {/* Empty state — no steps yet */}
+      {totalSteps === 0 && !remediation.loading && (
+        <div className="rounded-xl border bg-white p-8 text-center text-muted-foreground animate-scale-in">
+          <p>Your practice session is being prepared. Check back in a moment.</p>
+        </div>
+      )}
+
       {/* Phase label */}
       {currentStep && (
         <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 animate-scale-in">
@@ -128,7 +135,7 @@ export function RemediationSession() {
       {/* Continue CTA */}
       <Button
         onClick={handleAdvance}
-        disabled={remediation.loading}
+        disabled={remediation.loading || !remediation.advancePrompt.trim()}
         className="w-full transition-all"
         size="lg"
       >
@@ -136,7 +143,19 @@ export function RemediationSession() {
         <ArrowRight className="ml-2 h-4 w-4" />
       </Button>
 
-      <ErrorBanner message={remediation.error} />
+      {remediation.error && (
+        <div className="flex flex-col gap-2">
+          <ErrorBanner message={remediation.error} />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void remediation.handleReload()}
+            className="self-start"
+          >
+            Try again
+          </Button>
+        </div>
+      )}
 
       {/* "Why this lesson" disclosure */}
       {session.rationale && (
@@ -168,10 +187,11 @@ function StepIndicator({
   const isLast = index === totalSteps - 1
 
   return (
-    <div className="flex items-center flex-1 group">
+    <div className="flex items-center flex-1 group" aria-label={`Step ${index + 1}: ${label}`}>
       {/* Step circle */}
       <div className="relative">
         <div
+          aria-current={isCurrent ? 'step' : undefined}
           className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium transition-all duration-300 ${
             isComplete
               ? 'bg-amber-500 text-white shadow-sm'

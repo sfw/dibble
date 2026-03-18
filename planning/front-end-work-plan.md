@@ -41,7 +41,7 @@ The frontend is a React 19 + Vite + TypeScript app with:
 - **Custom hooks** for data fetching and workflow state (`useLearnerWorkspace`, `useLearnerContracts`, `useGenerationWorkspace`, `useSocraticWorkspace`, `useRemediationWorkspace`, `useTeacherClassroom`)
 - **Copy/vocabulary translation layer** (`lib/copy.ts`) preferring backend-provided `display_label` fields with local fallbacks
 - **Demo fallback** for offline development (staff mode only by default)
-- **16 test files** with Vitest + React Testing Library
+- **30 test files** with Vitest + React Testing Library
 
 ## Backend Contracts In Use
 
@@ -111,17 +111,20 @@ Contract-hardening in use:
 
 ### P1: learner experience polish
 
-- Hide orchestration inputs (target KCs, LOs, intent selectors) from the learner shell
+- ~~Hide orchestration inputs from the learner shell~~ — **DONE**: already internal-only
 - Make the Continue Learning flow seamless: learner taps resume, sees content, responds, gets next step — no raw workflow vocabulary
-- Add real pagination or infinite scroll to history views
-- Polish the Socratic check and remediation session UX for student safety and clarity
-- Add loading states, transitions, and error recovery that feel product-grade
+- ~~Add real pagination or infinite scroll to history views~~ — **DONE**: load-more pagination
+- ~~Add type filtering to history views~~ — **DONE**: All/Lessons/Checks/Practice filter tabs with counts
+- ~~Enrich Progress view with resource breakdown~~ — **DONE**: all resources grouped by state with mastery bars and blocker rationale
+- ~~Polish the Socratic check and remediation session UX for student safety and clarity~~ — **DONE**: accessibility improvements (aria radiogroup, aria-current on steps), form validation (empty response prevention), error retry buttons, empty state handling
+- ~~Add loading states, transitions, and error recovery that feel product-grade~~ — **DONE**: retry buttons on all three learner interaction views (SocraticCheck, RemediationSession, ContinueLearning)
 
 ### P1: teacher experience depth
 
-- Build a real teacher reporting surface with class-level progress, mastery trends, and per-learner evidence timelines
+- ~~Build a real teacher reporting surface with class-level progress, mastery trends, and per-learner evidence timelines~~ — **DONE**: `/teacher/reports` with cross-classroom summaries, per-classroom analytics, per-learner mastery heatmap, and learner drill-down table
 - Improve classroom detail density so teachers can scan 30 learners efficiently
 - ~~Add teacher-to-learner drill-in for artifact review~~ — **DONE**: `LearnerDetail` evidence timeline with expandable entries and artifact review panel
+- Add trend lines to reports when backend exposes historical snapshots
 
 ### P1: assignment layer (frontend + backend coordination) — DONE
 
@@ -184,17 +187,28 @@ Contract-hardening in use:
 
 ### In progress
 
-- learner experience polish: continued micro-interaction refinement
-- teacher reporting depth: trend lines
+- teacher reporting depth: trend lines (blocked on backend historical snapshots)
 
 ### Next up
 
-1. continue refining learner flow micro-interactions and transitions
+1. improve classroom detail density for scanning 30+ learners
 2. add trend lines to teacher reports when backend exposes historical snapshots
 3. keep this work plan and `from-front-to-back-needs.md` updated together
 
 ### Recently completed
 
+- learner SocraticCheck: added accessibility (aria radiogroup on confidence picker, aria-checked/aria-label on each option), form validation (submit disabled when empty), error retry button
+- learner RemediationSession: added form validation (continue disabled when response empty), empty state for sessions with no steps, error retry button, accessibility (aria-current on active step, aria-label on step indicators)
+- learner ContinueLearning: added error retry button
+- `SocraticCheck.test.tsx` test suite (12 tests) covering heading, conversation history, confidence picker radiogroup, submit validation, loading state, error retry, affective support, hints disclosure
+- `RemediationSession.test.tsx` test suite (14 tests) covering heading, step progress, phase label, content blocks, response validation, loading, error retry, empty state, affective support, rationale disclosure
+- `ContinueLearning.test.tsx` test suite (11 tests) covering heading, content type, content blocks, progress rail, continue CTA, empty state, loading, error retry, streaming disabled state
+- learner Progress: "All resources" section grouping curriculum resources by state (mastered count summary, current focus highlighted, ready to start, blocked with lock icon and rationale tooltip), with mastery bars and stage badges per resource
+- learner History: type filter tabs (All/Lessons/Checks/Practice) with count badges, type-consistent color coding (blue/violet/amber), and filtered empty states
+- teacher Reports: per-learner mastery heatmap strip between mastery banner and analytics grid — color-coded cells sorted low-to-high, hover tooltips with student ID and mastery %, click-through to learner detail, and color legend
+- `Progress.test.tsx` test suite (11 tests) covering resource groups, mastered count, blocked rationale, loading, and error states
+- `History.test.tsx` test suite (10 tests) covering filter tabs, counts, type filtering, filtered empty states, and load more
+- Reports tests expanded to cover mastery heatmap strip (4 new tests, 23 total)
 - teacher `LearnerDetail` evidence timeline: unified chronological view interleaving generation, Socratic, and remediation history entries with expandable detail rows showing flow type, status, phase, progression, steering, evidence strength, and rationale; load-more pagination via existing `useLearnerContracts` hook
 - teacher `LearnerDetail` artifact review panel: click any generation in the timeline to load and display the actual content blocks via `GET /api/content/{generation_id}`, with quality metadata, safety notes, and all block types rendered through the existing `ContentBlock` component
 - `getGeneratedContent` API function for fetching individual generations by ID
@@ -258,13 +272,13 @@ Built:
 - `ContinueLearning` dispatching to generation, Socratic, and remediation flows
 - `SocraticCheck` with prompt/response/evaluation UI
 - `RemediationSession` with step progression
-- `Progress` with mastery tracking and resource state
-- `History` with generation, Socratic, and remediation tabs
+- `Progress` with mastery tracking, resource state, and full resource breakdown by state (mastered, current, ready, blocked)
+- `History` with generation, Socratic, and remediation timeline plus type filter tabs with counts
 
 Remaining:
 - ~~hide orchestration inputs from learner forms~~ — **DONE**: all orchestration inputs already internal-only
-- polish transitions and loading states
-- learner-safe error recovery
+- ~~polish transitions and loading states~~ — **DONE**: staggered animations, streaming indicators, progress bars
+- ~~learner-safe error recovery~~ — **DONE**: retry buttons on SocraticCheck, RemediationSession, ContinueLearning; form validation preventing empty submissions; empty state handling
 
 ### Phase 2: teacher shell — DONE (core structure)
 
@@ -276,18 +290,20 @@ Built:
 - Classroom-to-learner drill-in and return navigation
 
 Remaining:
-- ~~teacher reporting surface~~ — **DONE**: `/teacher/reports` with cross-classroom and per-classroom reporting
+- ~~teacher reporting surface~~ — **DONE**: `/teacher/reports` with cross-classroom and per-classroom reporting plus per-learner mastery heatmap
 - ~~artifact review~~ — **DONE**: `LearnerDetail` now has a unified evidence timeline with expandable detail and click-to-review generated content via `GET /api/content/{generation_id}`
 - ~~assignment management layer~~ — **DONE**: teacher and learner assignment views
-- richer class-level progress and trend views
+- trend lines when backend exposes historical snapshots
 
 ### Phase 3: assignments, reporting, and operational completeness — IN PROGRESS
 
 - ~~assignment framing layer~~ — **DONE**: learner and teacher assignment views with create, start, cancel, and pagination
 - ~~teacher reporting placeholder~~ — **DONE**: `/teacher/reports` now shows class-level progress, learner distribution, engagement/frustration, activity totals, and attention levels across classrooms
 - ~~hide orchestration inputs from learner shell~~ — **DONE**: confirmed all orchestration inputs are already internal-only; no UI exposure
-- teacher reporting depth: trends and standards mastery
-- class-level progress review with trend lines
+- ~~teacher reporting: per-learner mastery heatmap~~ — **DONE**: color-coded mastery strip with hover tooltips and click-through
+- ~~learner progress: resource breakdown~~ — **DONE**: all resources grouped by state with mastery bars and blocker rationale
+- ~~learner history: type filtering~~ — **DONE**: All/Lessons/Checks/Practice tabs with counts
+- teacher reporting depth: trend lines (blocked on backend historical snapshots)
 - role-aware navigation polish
 
 ### Phase 4: product depth expansion — FUTURE
