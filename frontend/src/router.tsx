@@ -3,12 +3,20 @@ import { RoleSwitcher } from './shells/RoleSwitcher'
 import { LearnerShell } from './shells/LearnerShell'
 import { TeacherShell } from './shells/TeacherShell'
 import { StaffShell } from './shells/StaffShell'
+
+// Learner views
 import { LearnerHome } from './views/learner/LearnerHome'
 import { ContinueLearning } from './views/learner/ContinueLearning'
 import { SocraticCheck } from './views/learner/SocraticCheck'
 import { RemediationSession } from './views/learner/RemediationSession'
 import { Progress } from './views/learner/Progress'
 import { History } from './views/learner/History'
+
+// Teacher views
+import { Dashboard } from './views/teacher/Dashboard'
+import { ClassroomDetail } from './views/teacher/ClassroomDetail'
+import { LearnerDetail } from './views/teacher/LearnerDetail'
+import { InterventionWorkspace } from './views/teacher/InterventionWorkspace'
 
 function Placeholder({ label }: { label: string }) {
   return (
@@ -44,11 +52,11 @@ export const router = createBrowserRouter([
     path: '/teacher',
     element: <TeacherShell />,
     children: [
-      { index: true, element: <Placeholder label="Teacher Dashboard" /> },
-      { path: 'classrooms', element: <Placeholder label="Classrooms" /> },
-      { path: 'classrooms/:classroomId', element: <Placeholder label="Classroom Detail" /> },
-      { path: 'learners/:studentId', element: <Placeholder label="Learner Detail" /> },
-      { path: 'learners/:studentId/intervention', element: <Placeholder label="Intervention Workspace" /> },
+      { index: true, element: <Dashboard /> },
+      { path: 'classrooms', element: <Dashboard /> },
+      { path: 'classrooms/:classroomId', element: <ClassroomDetail /> },
+      { path: 'learners/:studentId', element: <LearnerDetail /> },
+      { path: 'learners/:studentId/intervention', element: <InterventionWorkspace /> },
       { path: 'reports', element: <Placeholder label="Reports" /> },
     ],
   },
