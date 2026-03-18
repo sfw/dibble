@@ -725,6 +725,11 @@ export const demoLearnerWorkspace: LearnerWorkspace = {
     rationale: 'The generated content artifact is the latest learner-facing asset in the active lesson flow.',
   },
   continue_action: practiceContinueAction,
+  affective_support: {
+    kind: 'encouragement',
+    title: "You're on a roll!",
+    detail: 'Keep going — your focus is paying off.',
+  },
   generated_content: demoGeneration,
   remediation_session: demoRemediationSession,
   socratic_session: demoSocraticSession,
@@ -1040,6 +1045,7 @@ const blockedLearnerCard: TeacherLearnerCard = {
     latest_decision_status: null,
   },
   attention_level: 'medium',
+  triage_section: 'needs_attention',
   attention_reasons: ['blocked_on_prerequisites'],
 }
 
@@ -1074,6 +1080,7 @@ export const demoTeacherClassroom: TeacherClassroomReadModel = {
         latest_decision_status: demoTeacherInterventionAction.latest_decision?.status ?? null,
       },
       attention_level: 'medium',
+      triage_section: 'teacher_action',
       attention_reasons: ['teacher_intervention_available'],
     },
     blockedLearnerCard,

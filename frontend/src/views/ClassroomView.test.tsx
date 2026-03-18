@@ -28,7 +28,7 @@ describe('ClassroomView', () => {
     expect(screen.getAllByText('Grade 5 Fractions').length).toBeGreaterThan(0)
     expect(screen.getByText('Move from classroom posture to learner action handoff')).toBeInTheDocument()
     expect(screen.getByText('Needs teacher action now')).toBeInTheDocument()
-    expect(screen.getByText('Blocked until prerequisites shift')).toBeInTheDocument()
+    expect(screen.getByText('Needs attention')).toBeInTheDocument()
     expect(screen.getByText('Teacher intervention ready')).toBeInTheDocument()
     expect(screen.getByText('missing-student-id')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Continue generated content' })).toBeInTheDocument()

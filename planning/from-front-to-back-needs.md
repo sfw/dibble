@@ -12,22 +12,39 @@ Use it to answer:
 
 ## Current Frontend Reality
 
-- There are no active `P0` or `P1` backend blockers for the current frontend scope.
+- The three P1 backend asks (triage section ownership, affective support messages, display labels) are now resolved. The backend provides `triage_section` on `TeacherLearnerCard`, `affective_support` on `LearnerWorkspace`, and `display_label`/`stage_display_label` on `LearnerContinueAction`/`LearnerCurriculumProgressionSummary`. The frontend shims have been removed and replaced with direct rendering of backend-provided fields.
 - The frontend is already building on backend-owned learner summary, `current_flow`, learner workspace, learner history, generation `workflow_summary`, Socratic session summaries, remediation session summaries, learner progression, teacher intervention, classroom, `continue_action`, and machine-readable error contracts.
 - The main frontend work right now is implementation depth, workflow polish, explainability curation, and behavioral test coverage on top of those existing backend contracts.
 - The backend should keep owning progression, mastery, intervention, and resume decisions. The frontend should render those decisions, not reconstruct or soften them locally.
+- The frontend no longer interprets raw signals or machine-readable keys to make pedagogical decisions. The `copy.ts` lookup tables remain as backwards-compatible fallbacks but prefer backend-provided labels when available.
 
-## What The Frontend Needs From The Backend Right Now
+## Resolved P1 Backend Asks
 
-Nothing new is required for the current frontend implementation stream.
+All three P1 frontend-to-backend asks are now complete:
 
-The backend marching order for the current frontend scope is:
+### Resolved: Backend-owned triage sections on TeacherLearnerCard
+
+**Backend provides:** `triage_section` field on `TeacherLearnerCard` with values `teacher_action`, `needs_attention`, `on_track`.
+
+**Frontend integration:** `lib/triage.ts:buildTriageSections()` now groups by `triage_section` directly — no signal interpretation.
+
+### Resolved: Backend-owned affective support messages
+
+**Backend provides:** `affective_support` field on `LearnerWorkspace` with `{ kind, title, detail }` or `null`.
+
+**Frontend integration:** `components/content/AffectiveSupport.tsx` renders the backend-provided message directly — no frustration/engagement threshold logic.
+
+### Resolved: Backend-owned display labels alongside machine-readable keys
+
+**Backend provides:** `display_label` on `LearnerContinueAction`, `stage_display_label` on `LearnerCurriculumProgressionSummary`.
+
+**Frontend integration:** `lib/copy.ts` functions accept and prefer `backendLabel` parameter. Local lookup tables remain as backwards-compatible fallbacks only.
+
+### Ongoing backend marching order
 
 1. preserve the existing frontend-facing contract set
 2. keep cross-surface parity and vocabulary stability strong
 3. continue improving backend decision quality without pushing policy back into the UI
-
-That means the frontend is not currently asking for a new endpoint family, new contract shape, or frontend-specific policy workaround.
 
 ## Preserve And Harden
 
@@ -75,6 +92,7 @@ These are valid backend directions, but they are not current frontend blockers a
 | P2 | `ORCH-002` course-level planner | Only if product scope outgrows the current learner `curriculum_progression` contract and the product genuinely needs backend-owned cross-unit / course sequencing authority. | Keep trusting learner `curriculum_progression`; do not invent cross-unit sequencing in the UI. |
 | P2 | `GEN-005` richer multimodal artifacts | Only when actual non-text artifacts are ready to ship as product, not just as a speculative schema exercise. | Keep the UI extensible, but route future artifacts through `response.artifacts` rather than stretching text-only block payloads. |
 | P2 | teacher-safe analytics expansion | Only if teacher workflows need more than classroom counts, learner cards, intervention summaries, and current rationale fields. | Keep teacher surfaces summary-first; do not pull admin-style telemetry into the frontend. |
+| P2 | generation quality metadata on history entries | The teacher learner-detail view would benefit from showing generation quality (quality_score, validation_passed, moderation decision, latency) for recent content. Currently `LearnerGenerationHistoryEntry` doesn't carry `GenerationMetadata`. Adding an optional `metadata` field on history entries would let the teacher view surface quality without a separate API call per generation. | Not blocking; teacher view works without it. Add when teacher quality-inspection workflows become a product priority. |
 
 ## Backend Review Notes
 
