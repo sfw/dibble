@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { NavLink, Outlet } from 'react-router'
-import { ClipboardList, GraduationCap, LayoutDashboard, LogOut, School } from 'lucide-react'
+import { BarChart3, ClipboardList, GraduationCap, LayoutDashboard, LogOut, School } from 'lucide-react'
 import { useTeacherClassroom } from '../hooks/useTeacherClassroom'
 import { useAuthContext } from '../contexts/AuthContext'
 import type { DataSource } from '../app/workspace'
@@ -25,6 +25,7 @@ const navItems = [
   { to: '/teacher', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/teacher/classrooms', icon: School, label: 'Classrooms' },
   { to: '/teacher/assignments', icon: ClipboardList, label: 'Assignments' },
+  { to: '/teacher/reports', icon: BarChart3, label: 'Reports' },
 ]
 
 export function TeacherShell() {

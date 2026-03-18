@@ -21,6 +21,7 @@ import { ClassroomDetail } from './views/teacher/ClassroomDetail'
 import { LearnerDetail } from './views/teacher/LearnerDetail'
 import { InterventionWorkspace } from './views/teacher/InterventionWorkspace'
 import { TeacherAssignments } from './views/teacher/Assignments'
+import { Reports } from './views/teacher/Reports'
 
 export const router = createBrowserRouter([
   {
@@ -67,15 +68,7 @@ export const router = createBrowserRouter([
       { path: 'learners/:studentId', element: <LearnerDetail /> },
       { path: 'learners/:studentId/intervention', element: <InterventionWorkspace /> },
       { path: 'assignments', element: <TeacherAssignments /> },
-      {
-        path: 'reports',
-        element: (
-          <div className="flex flex-col items-center justify-center gap-2 py-24 text-center text-muted-foreground">
-            <p className="text-lg font-medium">Reports</p>
-            <p className="text-sm">Coming soon.</p>
-          </div>
-        ),
-      },
+      { path: 'reports', element: <Reports /> },
     ],
   },
 
