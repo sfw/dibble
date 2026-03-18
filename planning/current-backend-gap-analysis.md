@@ -168,12 +168,13 @@ Most recent progress:
 30. teacher intervention alternative options now also inherit the current backend posture in their rationale, so intervention lists read like explicit deviations from one backend judgment instead of generic detached suggestions.
 31. curriculum progression and classroom learner cards now also reuse the exact learner-flow rationale whenever they are talking about the same active curriculum focus, so overview, progression, workspace, and classroom drill-in stop sounding shallower than the canonical backend flow decision.
 32. remediation planning rationale now also carries the winning misconception disambiguation plus KC-sequencing context when available, so existing remediation and intervention surfaces can explain why this path beat adjacent misconception or prerequisite-only alternatives without adding a new schema field.
-33. within-session bridge control now preserves an explicit `hold_bridge_target` decision instead of leaking `hold_repair_target`, so bridge-stage semantics stay distinct across ordinary generation, workspace resume, and predictive follow-up routing.
-34. Socratic summary rationale now reuses the exact next-step rationale across summary, flow, workspace, history, and intervention surfaces, so Socratic repair, assessment, and transfer decisions read like the same backend-owned judgment everywhere they appear.
-35. delivered lesson and remediation `workflow_summary` payloads now treat the canonical next-step rationale as their source of truth instead of layering extra fallback prose on top, so generation history and session summaries stay byte-aligned when they are describing the same backend decision.
-36. lesson `current_flow` now preserves deferred and transfer target KC ids even when a persisted `workflow_summary` is the primary read-model source, so progression, summary, and classroom surfaces do not lose the backend-owned return target during repair or bridge holds.
-37. curriculum progression now uses a dependency-aware frontier ranking instead of a thin unlocked-resource sort, so a deferred return target can stay ahead of unrelated ready resources while the backend is actively repairing its prerequisites.
-38. blocked curriculum-resource rationale now includes prerequisite mastery snapshots plus the titles of blocking resources, so teacher and learner progression surfaces can explain exactly why a resource is still blocked without inventing extra frontend policy.
+33. remediation planning rationale now also names the strongest alternative path it beat when the comparison matters, so misconception-driven repair does not read like an arbitrary detour from a prerequisite-only step-back.
+34. within-session bridge control now preserves an explicit `hold_bridge_target` decision instead of leaking `hold_repair_target`, so bridge-stage semantics stay distinct across ordinary generation, workspace resume, and predictive follow-up routing.
+35. Socratic summary rationale now reuses the exact next-step rationale across summary, flow, workspace, history, and intervention surfaces, so Socratic repair, assessment, and transfer decisions read like the same backend-owned judgment everywhere they appear.
+36. delivered lesson and remediation `workflow_summary` payloads now treat the canonical next-step rationale as their source of truth instead of layering extra fallback prose on top, so generation history and session summaries stay byte-aligned when they are describing the same backend decision.
+37. lesson `current_flow` now preserves deferred and transfer target KC ids even when a persisted `workflow_summary` is the primary read-model source, so progression, summary, and classroom surfaces do not lose the backend-owned return target during repair or bridge holds.
+38. curriculum progression now uses a dependency-aware frontier ranking instead of a thin unlocked-resource sort, so a deferred return target can stay ahead of unrelated ready resources while the backend is actively repairing its prerequisites.
+39. blocked curriculum-resource rationale now includes prerequisite mastery snapshots plus the titles of blocking resources, so teacher and learner progression surfaces can explain exactly why a resource is still blocked without inventing extra frontend policy.
 
 ### Frontend Alignment Update
 
@@ -225,6 +226,7 @@ Even with the narrower frontend ask list, the backend still owns a few stability
 3. keep new frontend-discovered backend needs centralized in `planning/from-front-to-back-needs.md` rather than scattering them across chat or code comments.
 4. keep cross-surface parity strong so `current_flow`, workspace, history, session summaries, `workflow_summary`, and classroom drill-in continue to agree on stage, action, rationale, and next-step semantics.
 5. do not rename, reshape, or casually reopen already-stable frontend-facing contract seams unless there is a concrete bug or parity regression.
+6. keep auth transport-neutral too: API-key and bearer-token callers should hit the same machine-readable RBAC error contract, and forbidden-request audit trails should preserve the authenticated principal without re-parsing credentials through a weaker path.
 
 #### New Agent Plan
 

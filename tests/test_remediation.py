@@ -410,6 +410,8 @@ def test_remediation_planner_builds_structured_blueprint_for_known_misconception
     assert "numerator" in plan.rationale
     assert "Identify numerator and denominator" in plan.rationale
     assert "Generate equivalent fractions" in plan.rationale
+    assert "broader prerequisite-gap signal on Identify numerator and denominator" in plan.rationale
+    assert "instead of defaulting to a generic step-back" in plan.rationale
 
 
 def test_remediation_planner_can_hold_target_before_prerequisite_step_back(tmp_path):

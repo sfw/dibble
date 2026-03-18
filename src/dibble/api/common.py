@@ -167,7 +167,7 @@ class ApiContext:
                     headers={"WWW-Authenticate": "Bearer"},
                 ) from exc
             except AuthorizationError as exc:
-                identity = self.services.auth_service.authenticate(api_key)
+                identity = exc.identity
                 self.services.audit_store.append(
                     event_type="auth.request",
                     status="forbidden",
@@ -175,8 +175,8 @@ class ApiContext:
                         "path": request.url.path,
                         "method": request.method,
                         "header_name": self.services.auth_service.header_name,
-                        "principal_id": identity.principal_id,
-                        "role": identity.role,
+                        "principal_id": identity.principal_id if identity is not None else None,
+                        "role": identity.role if identity is not None else None,
                         "required_roles": list(allowed_roles or ("viewer",)),
                     },
                 )

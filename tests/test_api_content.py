@@ -691,6 +691,9 @@ def test_remedial_trigger_returns_remedial_generated_content(client, student_id,
     assert "fraction-whole-number-bias" in payload["request_context"]["remediation_rationale"]
     assert "Identify numerator and denominator" in payload["request_context"]["remediation_rationale"]
     assert "Generate equivalent fractions" in payload["request_context"]["remediation_rationale"]
+    assert "broader prerequisite-gap signal on Identify numerator and denominator" in payload["request_context"][
+        "remediation_rationale"
+    ]
     assert payload["request_context"]["remediation_blueprint"]["trigger"] == "misconception_detected"
     assert payload["request_context"]["remediation_blueprint"]["primary_misconception_id"] == "fraction-whole-number-bias"
     assert payload["request_context"]["sequencing"]["action"] == "rebuild_prerequisite_first"

@@ -22,6 +22,10 @@ class AuthenticationError(RuntimeError):
 class AuthorizationError(RuntimeError):
     """Raised when an authenticated principal lacks a required role."""
 
+    def __init__(self, message: str, *, identity: AuthIdentity | None = None) -> None:
+        super().__init__(message)
+        self.identity = identity
+
 
 class TokenConfigurationError(RuntimeError):
     """Raised when bearer token features are requested without configuration."""
@@ -92,7 +96,7 @@ class AuthService:
         session = self.authenticate_request(provided_key=provided_key, bearer_token=bearer_token)
         identity = session.identity
         if not allows_role(identity.role, allowed_roles):
-            raise AuthorizationError("Your role does not allow access to this endpoint.")
+            raise AuthorizationError("Your role does not allow access to this endpoint.", identity=identity)
         return session
 
     def issue_token(self, identity: AuthIdentity) -> AuthToken:

@@ -101,7 +101,7 @@ class RemediationPlanner:
                 self._misconception_selection_rationale(
                     target_kc_id=target_kc_id,
                     primary_signal=selected_signal,
-                    competing_signals=matched_misconceptions,
+                    signals=signals,
                     prerequisite_gaps=prerequisite_gaps,
                 ),
             ) or rationale
@@ -117,7 +117,7 @@ class RemediationPlanner:
                 self._misconception_selection_rationale(
                     target_kc_id=target_kc_id,
                     primary_signal=selected_signal,
-                    competing_signals=matched_misconceptions,
+                    signals=signals,
                     prerequisite_gaps=prerequisite_gaps,
                 ),
             ) or rationale
@@ -204,23 +204,110 @@ class RemediationPlanner:
         *,
         target_kc_id: str,
         primary_signal: MisconceptionSignal,
-        competing_signals: list[MisconceptionSignal],
+        signals: list[MisconceptionSignal],
         prerequisite_gaps: list[str],
     ) -> str | None:
-        if primary_signal.disambiguation_rationale:
-            return primary_signal.disambiguation_rationale
-        competing_count = sum(1 for signal in competing_signals if signal is not primary_signal)
-        if competing_count > 0:
+        rationale = primary_signal.disambiguation_rationale
+        alternative_signal = self._strongest_alternative_signal(
+            primary_signal=primary_signal,
+            signals=signals,
+        )
+        alternative_rationale = self._alternative_path_rationale(
+            target_kc_id=target_kc_id,
+            primary_signal=primary_signal,
+            alternative_signal=alternative_signal,
+            prerequisite_gaps=prerequisite_gaps,
+        )
+        if rationale is None:
+            competing_count = sum(1 for signal in signals if signal is not primary_signal)
+            if competing_count > 0:
+                rationale = (
+                    f"This misconception path outranked {competing_count} adjacent candidate(s) for {self._kc_label(target_kc_id)}, "
+                    "so the backend is keeping the remediation path inspectable instead of spreading effort across multiple weak hypotheses."
+                )
+            elif prerequisite_gaps:
+                rationale = (
+                    "The backend is prioritizing the stronger misconception path before a prerequisite-only step-back because "
+                    "the misconception evidence is more specific than the broader prerequisite gap."
+                )
+        return combine_rationales(rationale, alternative_rationale)
+
+    def _strongest_alternative_signal(
+        self,
+        *,
+        primary_signal: MisconceptionSignal,
+        signals: list[MisconceptionSignal],
+    ) -> MisconceptionSignal | None:
+        alternatives = [signal for signal in signals if signal is not primary_signal]
+        if not alternatives:
+            return None
+        category_priority = {
+            "known_misconception": 0,
+            "prerequisite_gap": 1,
+            "target_concept_confusion": 2,
+        }
+        return max(
+            alternatives,
+            key=lambda signal: (
+                signal.confidence,
+                signal.recurrence_session_count,
+                signal.recurrence_count,
+                -category_priority.get(signal.category, 3),
+                len(signal.evidence_terms),
+            ),
+        )
+
+    def _alternative_path_rationale(
+        self,
+        *,
+        target_kc_id: str,
+        primary_signal: MisconceptionSignal,
+        alternative_signal: MisconceptionSignal | None,
+        prerequisite_gaps: list[str],
+    ) -> str | None:
+        if alternative_signal is None:
+            if prerequisite_gaps:
+                return (
+                    "The backend is prioritizing the stronger misconception path before a prerequisite-only step-back because "
+                    "the misconception evidence is more specific than the broader prerequisite gap."
+                )
+            return None
+
+        alternative_focus = self._signal_focus_label(alternative_signal)
+        if alternative_signal.category == "prerequisite_gap":
             return (
-                f"This misconception path outranked {competing_count} adjacent candidate(s) for {self._kc_label(target_kc_id)}, "
-                "so the backend is keeping the remediation path inspectable instead of spreading effort across multiple weak hypotheses."
+                f"This path beat the broader prerequisite-gap signal on {alternative_focus} "
+                f"({alternative_signal.confidence:.2f} confidence), so the backend is repairing the more specific misconception "
+                "instead of defaulting to a generic step-back."
+            )
+        if alternative_signal.category == "target_concept_confusion":
+            return (
+                f"This path beat the broader target-fragility signal on {alternative_focus} "
+                f"({alternative_signal.confidence:.2f} confidence), so remediation stays centered on the more specific misconception "
+                "rather than a generic target confusion read."
+            )
+        if alternative_signal.category == "known_misconception":
+            alternative_label = alternative_signal.misconception_id or alternative_signal.category.replace("_", " ")
+            return (
+                f"This path beat the adjacent misconception path {alternative_label} on {alternative_focus} "
+                f"({alternative_signal.confidence:.2f} confidence), so the backend is choosing one inspectable repair target "
+                "instead of splitting effort across competing misconception hypotheses."
             )
         if prerequisite_gaps:
             return (
-                "The backend is prioritizing the stronger misconception path before a prerequisite-only step-back because "
-                "the misconception evidence is more specific than the broader prerequisite gap."
+                f"This path stayed stronger than the broader prerequisite-only repair posture around {self._kc_label(target_kc_id)}, "
+                "so the backend is keeping the remediation target specific."
             )
         return None
+
+    def _signal_focus_label(self, signal: MisconceptionSignal) -> str:
+        focus_kc_ids = signal.recommended_kc_ids or [signal.kc_id]
+        labels = [self._kc_label(kc_id) for kc_id in focus_kc_ids]
+        if not labels:
+            return self._kc_label(signal.kc_id)
+        if len(labels) == 1:
+            return labels[0]
+        return ", ".join(labels)
 
     def _kc_label(self, kc_id: str) -> str:
         component = self.knowledge_component_store.get(kc_id)
