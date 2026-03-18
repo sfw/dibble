@@ -49,10 +49,22 @@ These are still valuable backend directions, but from the frontend perspective t
 
 | Priority | Area | Frontend stance |
 |---|---|---|
-| P1 | `ORCH-001` learner progression orchestration | Keep strengthening backend ownership of “what should this learner do next?” across ordinary generation, remediation, Socratic follow-up, workspace resume, and classroom drill-in, but do not treat this as a request for new frontend-owned logic or a new contract family right now. |
-| P1 | `ADAPT-006` mastery-loop enforcement | Keep tightening hold / advance / return / transfer gates so repair, bridge, target, and transfer states remain stable and inspectable across workflows. This improves frontend trust, but does not currently require a frontend contract change. |
-| P1 | `DATA-004` ordinary-work evidence handling | Keep improving how ordinary practice and remediation evidence influence progression, rationale, and durable confidence so existing teacher and learner surfaces become more trustworthy without UI workarounds. |
-| P1 | `ADAPT-003` misconception detection / classification | Keep improving misconception precision, recurrence handling, and remediation targeting so backend-owned rationale and intervention packaging read more cleanly in existing surfaces. |
+| P1 | `ORCH-001` learner progression orchestration | Keep strengthening backend ownership of “what should this learner do next?” across ordinary generation, remediation, Socratic follow-up, workspace resume, and classroom drill-in, with a bias toward semantic parity: the same learner decision should read like one judgment across `current_flow`, workspace, history, `workflow_summary`, intervention, and classroom cards. |
+| P1 | `ADAPT-006` mastery-loop enforcement | Keep tightening hold / advance / return / transfer gates so repair, bridge, target, and transfer states remain stable and inspectable across workflows. The frontend need is not a new field; it is rationale strong enough to explain why the backend held this stage instead of the adjacent one. |
+| P1 | `DATA-004` ordinary-work evidence handling | Keep improving how ordinary practice and remediation evidence influence progression, rationale, and durable confidence so existing teacher and learner surfaces become more trustworthy without UI workarounds. The best payoff now is clearer evidence-weighted rationale in existing contracts, especially when ordinary evidence overrides or tempers same-session momentum. |
+| P1 | `ADAPT-003` misconception detection / classification | Keep improving misconception precision, recurrence handling, and remediation targeting so backend-owned rationale and intervention packaging read more cleanly in existing surfaces. The frontend signal to optimize for is not more schema; it is a more trustworthy explanation of which misconception path won and why. |
+
+## Marching Orders After The Latest Backend Review
+
+The latest backend stack on `main` is aligned with the frontend stance and should shift the backend marching orders further toward semantic depth over contract expansion.
+
+The five highest-value backend directions from the frontend perspective are now:
+
+1. keep auditing cross-surface next-step parity so `current_flow`, learner workspace, generation `workflow_summary`, session summaries, history entries, intervention options, and classroom learner cards all describe the same backend decision with the same stage semantics.
+2. keep making rationale fields decision-grade instead of merely present, especially where the UI needs to explain why the backend held repair, bridge, target, or transfer instead of the adjacent stage.
+3. keep making ordinary-work evidence legible inside existing rationale text so the frontend can present backend holds, resumes, and transfer checks confidently without inventing extra interpretation.
+4. keep making misconception-path selection more inspectable inside existing remediation and intervention rationale so the chosen repair target feels earned rather than heuristic or arbitrary.
+5. keep treating “same label, different meaning” drift as a backend bug even when the contract shape does not change.
 
 ## Conditional Next-Wave Backend Work
 
@@ -74,6 +86,10 @@ These are valid backend directions, but they are not current frontend blockers a
 - Recent frontend explainability, shell/fallback, and CSS cleanup passes also did not surface a new backend blocker.
 - The latest teacher-decision continuity and routing-coverage pass also did not surface a new backend blocker; the current intervention, workspace, history, and classroom contracts were sufficient once the frontend honored backend latest-decision state more faithfully.
 - The latest app-level fallback aggregation and failure-path coverage pass also did not surface a new backend blocker; the main issue was frontend shell honesty when one surface fell back while others stayed live.
+- Backend commits from `329d26c` through `873d2ba` on March 17, 2026 are also aligned with the frontend plan.
+- They meaningfully improve misconception-path grounding, ordinary-work and same-session rationale snapshots, stage-aware teacher labels/rationales, held-remediation parity, and cross-surface workflow rationale preference without introducing a new frontend contract seam.
+- The frontend-facing result is positive: the contracts now read more like product decisions and less like raw debug state.
+- The remaining opportunity is semantic consistency and rationale trustworthiness, not endpoint expansion.
 
 ## Frontend Guardrails While This Stance Holds
 
@@ -82,6 +98,14 @@ These are valid backend directions, but they are not current frontend blockers a
 - Prefer backend-owned workspace, history, and intervention contracts over frontend-only resume or override logic.
 - Trust backend-owned workflow vocabularies and machine-readable error `code` values rather than display strings.
 - Treat backend progression, mastery, misconception, and rationale work as backend decision-quality improvements, not invitations for the frontend to reclaim authority.
+
+## Frontend Feedback To Keep Sending Back
+
+While the current contracts stay stable, the most valuable frontend feedback to shape backend work is:
+
+- places where two surfaces use the same backend-owned label but appear to mean different things in actual product UI
+- places where rationale is technically present but still too weak or hedged to present confidently to teachers or learners
+- places where repair, bridge, target, and transfer decisions feel under-justified or inconsistent when a user moves across overview, teacher, classroom, history, and resume flows
 
 ## What The Backend Agent Should Avoid Doing “For The Frontend”
 

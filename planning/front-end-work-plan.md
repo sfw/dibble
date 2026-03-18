@@ -159,6 +159,7 @@ These are the highest-signal frontend gaps discovered so far:
 - continue tightening workflow view integration now that generation, Socratic, and remediation screens can hydrate from backend-owned workspace context
 - keep evolving the new learner progression and classroom surfaces toward more curated teacher workflows, especially around teacher triage and learner handoff continuity
 - keep reviewing new backend progression changes against the frontend contract stance so the UI continues trusting backend-owned repair, target, bridge, and transfer decisions
+- keep reviewing new backend semantic-hardening changes against the frontend contract stance so frontend feedback stays focused on parity drift and rationale trust rather than new schema asks
 - keep replacing enum-shaped or debug-shaped frontend copy with more curated explainability summaries built from existing backend contracts
 - keep making live-vs-demo fallback posture explicit in the shell so contract connectivity changes are visible without opening debug panels or being overwritten by unrelated live refreshes
 - keep consolidating shell and screen layout CSS onto shared primitives where it clearly removes one-off legacy classes instead of adding another styling layer
@@ -167,11 +168,23 @@ These are the highest-signal frontend gaps discovered so far:
 
 ### Next up
 
-1. extend fallback/error-path coverage into no-demo-fallback branches plus generation, Socratic, and remediation action failures after a live-connected boot
-2. continue reducing legacy CSS by migrating repeated screen containers and layout helpers onto shared primitives where it improves clarity
+1. start a merge-readiness pass for bringing `frontend/` onto `main`, with special focus on repo-level CI coverage, root-level docs, PR scoping, and final verification expectations
+2. extend fallback/error-path coverage into no-demo-fallback branches plus generation, Socratic, and remediation action failures after a live-connected boot
 3. curate more explainability-first summaries so fewer product surfaces depend on raw debug payload inspection
 4. keep extending teacher and classroom flows without inventing frontend-owned sequencing or intervention policy
 5. keep this work plan and `from-front-to-back-needs.md` updated together
+
+## Merge Readiness
+
+Current read: the frontend branch is getting close to mergeable as product code, but it still needs a small repo-integration pass before it should land on `main`.
+
+Highest-value merge-prep tasks:
+
+1. add repo-level CI coverage for the frontend so `npm run test:run`, `npm run lint`, and `npm run build` run in automation alongside the existing backend checks
+2. add a short top-level README pointer for the `frontend/` workspace so the main branch documents how the frontend fits into the repo and how to run it locally
+3. keep the merge PR scoped to the frontend workspace plus intentionally synced planning/docs work; do not drag unrelated planning experiments into the merge
+4. do one final rebase onto the latest `main` immediately before merge and rerun backend plus frontend verification from a clean tree
+5. do a short live-contract smoke pass against the latest backend-owned learner workspace, history, progression, intervention, and classroom surfaces before merge so the branch lands against the current semantic contract set
 
 ## Completed
 
@@ -238,6 +251,7 @@ These are the highest-signal frontend gaps discovered so far:
 - added app-level regression coverage for classroom-to-teacher handoff continuity, return-to-classroom flow, learner continue-action routing, and live contract connectivity state
 - changed shell connectivity tracking from a single last-write-wins source flag to per-surface aggregation so one fallbacking contract family cannot be masked by another live refresh
 - added app-level regression coverage for teacher-decision fallback notices and classroom refresh fallback after a live-connected boot
+- rebased onto the latest `origin/main` again and reviewed the March 17, 2026 backend semantic-hardening stack; it strengthens rationale parity, stage-aware intervention language, misconception-path grounding, and held-remediation consistency without creating a new frontend contract gap
 - curated the remaining overview-screen status, progression, strategy, and accommodation labels so fewer learner surfaces leak backend enum shapes directly
 - completed a frontend CSS cleanup pass that replaced the last legacy overview pills, route-reason badges, and learner chip styles with shared `Pill` and `Button` primitives
 - removed dead app-shell selectors that no longer affected layout after the shared primitive migration
