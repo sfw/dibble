@@ -2,12 +2,22 @@ import { useOutletContext } from 'react-router'
 import { Award, BookOpen, Target, TrendingUp } from 'lucide-react'
 import type { LearnerContext } from '../../shells/LearnerShell'
 import { PageContainer } from '../../components/shell/PageContainer'
+import { PageSkeleton } from '@/components/ui/skeleton'
+import { ErrorBanner } from '@/components/ui/error-banner'
 import { formatPercent } from '../../lib/formatters'
 import { learnerStage } from '../../lib/copy'
 import type { CurriculumResourceProgressSummary } from '../../types'
 
 export function Progress() {
-  const { progression, summary, flow } = useOutletContext<LearnerContext>()
+  const { progression, summary, flow, loading, error } = useOutletContext<LearnerContext>()
+
+  if (loading && !summary.student_id) {
+    return (
+      <PageContainer size="narrow" className="py-4">
+        <PageSkeleton cards={4} />
+      </PageContainer>
+    )
+  }
 
   const recentActivity = summary.recent_activity
   const readyResources = progression.ready_resources ?? []
@@ -15,6 +25,8 @@ export function Progress() {
 
   return (
     <PageContainer size="narrow" className="flex flex-col gap-8 py-4">
+      <ErrorBanner message={error} />
+
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Your progress</h1>
         <p className="mt-1 text-muted-foreground">See how far you've come and what's ahead.</p>

@@ -3,6 +3,7 @@ import { useNavigate, useOutletContext } from 'react-router'
 import { ArrowRight, ChevronLeft, Lightbulb, Wrench } from 'lucide-react'
 import type { LearnerContext } from '../../shells/LearnerShell'
 import { PageContainer } from '../../components/shell/PageContainer'
+import { ErrorBanner } from '@/components/ui/error-banner'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useRemediationWorkspace } from '../../hooks/useRemediationWorkspace'
@@ -125,9 +126,7 @@ export function RemediationSession() {
         <ArrowRight className="ml-2 h-4 w-4" />
       </Button>
 
-      {remediation.error && (
-        <p className="text-sm text-red-600">{remediation.error}</p>
-      )}
+      <ErrorBanner message={remediation.error} />
 
       {/* "Why this lesson" disclosure */}
       {session.rationale && (

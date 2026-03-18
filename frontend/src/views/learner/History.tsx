@@ -2,6 +2,8 @@ import { useOutletContext } from 'react-router'
 import { BookOpen, Clock, Loader2, MessageCircle, Wrench } from 'lucide-react'
 import type { LearnerContext } from '../../shells/LearnerShell'
 import { PageContainer } from '../../components/shell/PageContainer'
+import { CardSkeleton } from '@/components/ui/skeleton'
+import { ErrorBanner } from '@/components/ui/error-banner'
 import { Button } from '../../components/ui/button'
 import { formatTimestamp } from '../../lib/formatters'
 import { learnerContentType, learnerStage } from '../../lib/copy'
@@ -78,6 +80,8 @@ export function History() {
     hasMoreHistory,
     loadingMore,
     loadMoreHistory,
+    loading,
+    error,
   } = useOutletContext<LearnerContext>()
 
   const timeline = buildTimeline(generationHistory, socraticHistory, remediationHistory)
@@ -89,7 +93,15 @@ export function History() {
         <p className="mt-1 text-muted-foreground">Review your recent learning activities.</p>
       </header>
 
-      {timeline.length === 0 ? (
+      <ErrorBanner message={error} />
+
+      {loading && timeline.length === 0 ? (
+        <div className="flex flex-col gap-3">
+          <CardSkeleton lines={2} />
+          <CardSkeleton lines={2} />
+          <CardSkeleton lines={2} />
+        </div>
+      ) : timeline.length === 0 ? (
         <div className="rounded-xl border bg-white p-8 text-center text-muted-foreground">
           <Clock className="mx-auto h-8 w-8 mb-2" />
           <p>No activities yet. Start a lesson to see your history here.</p>

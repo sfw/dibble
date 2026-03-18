@@ -84,7 +84,7 @@ Contract-hardening in use:
 |---|---|---|
 | ~~P0~~ | ~~No product-level authentication or user identity~~ | **RESOLVED** — backend supports `learner` and `teacher` roles with entity bindings. Frontend now has login screen (`/login`), `useAuth` hook with bearer token persistence and refresh, `AuthGuard` gating `/learn` and `/teacher` routes, role-aware redirect, logout from shell headers, and `AuthContext` for app-wide auth state. |
 | ~~P1~~ | ~~No assignment model or lifecycle~~ | **RESOLVED** — backend has a first-class `Assignment` entity. Frontend now has learner assignment view (`/learn/assignments`) with active/past grouping, start action, and pagination; teacher assignment view (`/teacher/assignments`) with create form, cancel action, and pagination; `useAssignments` hooks for both roles; nav links in both shells; and tests. |
-| ~~P1~~ | ~~Teacher reporting is a placeholder~~ | **RESOLVED** — `/teacher/reports` now shows a real reporting surface with cross-classroom summary metrics, per-classroom progress cards with stacked distribution bars, and per-classroom deep-dive sections for stage distribution, engagement/frustration overview, activity totals, and attention levels. Reports nav link added to teacher shell. Tests cover all report sections. |
+| ~~P1~~ | ~~Teacher reporting is a placeholder~~ | **RESOLVED** — `/teacher/reports` now shows a real reporting surface with cross-classroom summary metrics, per-classroom progress cards with stacked distribution bars, per-classroom deep-dive sections for stage distribution, engagement/frustration overview, activity totals, and attention levels, per-learner drill-down table with sortable columns and attention reasons, expandable attention-level drill-down, and classroom selector for deep-dive switching. Reports nav link added to teacher shell. Tests cover all report sections. |
 | ~~P1~~ | ~~No pagination on history endpoints~~ | **RESOLVED** — backend returns `{ items, offset, limit, has_more }` paginated responses. Frontend `useLearnerContracts` hook now tracks pagination state and exposes `loadMoreHistory`. History view shows a "Load more" button when more entries are available. |
 | P2 | Course-level progression planning is lighter than a true course planner | UI should trust learner `curriculum_progression` and avoid inventing cross-unit sequencing logic |
 | P2 | No multimodal artifact payload contract | Content cards should stay extensible without assuming diagrams or interactives yet |
@@ -183,18 +183,27 @@ Contract-hardening in use:
 
 ### In progress
 
-- learner experience polish: loading states, transitions, error recovery
+- learner experience polish: flow transitions, product-grade feel
 - teacher reporting depth: trends, standards mastery, per-learner evidence timelines
 
 ### Next up
 
-1. polish learner flow transitions and loading states for product-grade feel
-2. deepen teacher reporting with trend lines and per-learner drill-in
+1. polish learner flow transitions for product-grade feel
+2. deepen teacher reporting with trend lines and standards mastery views
 3. keep this work plan and `from-front-to-back-needs.md` updated together
 
 ### Recently completed
 
-- teacher reports view (`/teacher/reports`) with cross-classroom summary, per-classroom progress cards, stage distribution, engagement/frustration overview, activity totals, and attention levels — with Reports nav link in teacher shell and 9 tests
+- shared `Skeleton`, `CardSkeleton`, `PageSkeleton` and `ErrorBanner` UI primitives for consistent loading/error states across all views
+- learner home: loading skeleton during initial data fetch, error banner for context errors
+- learner progress: loading skeleton during initial fetch, error banner
+- learner continue-learning: error banner for generation failures
+- learner history: loading skeleton during initial history fetch, error banner
+- learner remediation: upgraded error display from small red text to visible `ErrorBanner`
+- learner Socratic check: upgraded error display to `ErrorBanner`
+- teacher reports: loading skeleton, error banner, classroom selector for deep-dive switching, per-learner drill-down table with sortable columns (stage, mastery, engagement, frustration, attention), attention reasons display with human-readable labels, expandable attention-level drill-down showing which learners drive each level with their attention reasons, learner "View" links for direct navigation to learner detail
+- tests for `Skeleton`, `ErrorBanner`, and expanded Reports coverage (15 tests including sorting, drill-down, attention reasons, classroom selector)
+- teacher reports view (`/teacher/reports`) with cross-classroom summary, per-classroom progress cards, stage distribution, engagement/frustration overview, activity totals, and attention levels — with Reports nav link in teacher shell
 - confirmed learner shell already hides all orchestration inputs; no UI changes needed
 - learner assignment view (`/learn/assignments`) with active/past grouping, start action, due dates, and load-more pagination
 - teacher assignment view (`/teacher/assignments`) with create form, student selection, cancel action, and load-more pagination

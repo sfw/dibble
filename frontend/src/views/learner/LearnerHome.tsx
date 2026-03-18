@@ -2,6 +2,8 @@ import { useNavigate, useOutletContext } from 'react-router'
 import { ArrowRight, BookOpen, Sparkles, Target } from 'lucide-react'
 import type { LearnerContext } from '../../shells/LearnerShell'
 import { PageContainer } from '../../components/shell/PageContainer'
+import { PageSkeleton } from '@/components/ui/skeleton'
+import { ErrorBanner } from '@/components/ui/error-banner'
 import { Button } from '@/components/ui/button'
 import { formatPercent } from '../../lib/formatters'
 import {
@@ -13,8 +15,16 @@ import {
 } from '../../lib/copy'
 
 export function LearnerHome() {
-  const { workspace, flow, progression, summary, loading } = useOutletContext<LearnerContext>()
+  const { workspace, flow, progression, summary, loading, error } = useOutletContext<LearnerContext>()
   const navigate = useNavigate()
+
+  if (loading && !workspace.student_id) {
+    return (
+      <PageContainer size="narrow" className="py-4">
+        <PageSkeleton cards={3} />
+      </PageContainer>
+    )
+  }
 
   const artifact = workspace.active_artifact
   const continueAction = workspace.continue_action
@@ -32,6 +42,8 @@ export function LearnerHome() {
 
   return (
     <PageContainer size="narrow" className="flex flex-col gap-8 py-4">
+      <ErrorBanner message={error} />
+
       {/* Greeting */}
       <section className="text-center">
         <h1 className="text-2xl font-semibold tracking-tight">

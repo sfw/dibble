@@ -15,7 +15,7 @@ uv run ruff format src/ tests/       # format
 
 # Frontend
 cd frontend && npm test              # run all frontend tests
-cd frontend && npm run build         # type-check + build
+cd frontend && npm run build         # type-check + production build (MUST pass before committing)
 cd frontend && npm run lint          # eslint
 ```
 
@@ -54,7 +54,7 @@ cd frontend && npm run lint          # eslint
 - Backend: pytest with SQLite fixtures. Every new service or endpoint needs tests.
 - Frontend: Vitest + React Testing Library. Test user-visible behavior, not implementation details.
 - **Tests are not an afterthought.** Write tests alongside the code they cover — every new service, endpoint, or component must include tests in the same piece of work, not as a follow-up.
-- **Before committing**: always run lint and tests for any code you changed. Do not commit code that has not passed both.
+- **Before committing**: always run lint, tests, **and the production build** for any code you changed. Do not commit code that has not passed all three. For the frontend this means running `cd frontend && npm run build` (which runs `tsc -b && vite build`) in addition to tests and lint — CI will fail on type errors or build failures that tests alone do not catch.
 
 ### Dependencies and wiring
 

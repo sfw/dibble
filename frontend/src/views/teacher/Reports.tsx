@@ -1,11 +1,13 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useOutletContext } from 'react-router'
 import {
   Activity,
   AlertTriangle,
   ArrowRight,
+  ArrowUpDown,
   BarChart3,
   BookOpen,
+  ChevronDown,
   Layers,
   MessageCircle,
   Users,
@@ -13,6 +15,8 @@ import {
 } from 'lucide-react'
 import type { TeacherContext } from '../../shells/TeacherShell'
 import { PageContainer } from '../../components/shell/PageContainer'
+import { PageSkeleton } from '@/components/ui/skeleton'
+import { ErrorBanner } from '@/components/ui/error-banner'
 import { Badge } from '@/components/ui/badge'
 import { teacherStage, teacherAttention } from '../../lib/copy'
 import { formatPercent } from '../../lib/formatters'
@@ -31,8 +35,71 @@ function countByKey<T>(items: T[], keyFn: (item: T) => string): Record<string, n
   return counts
 }
 
+function groupByKey<T>(items: T[], keyFn: (item: T) => string): Record<string, T[]> {
+  const groups: Record<string, T[]> = {}
+  for (const item of items) {
+    const key = keyFn(item)
+    ;(groups[key] ??= []).push(item)
+  }
+  return groups
+}
+
 function sumBy<T>(items: T[], valueFn: (item: T) => number): number {
   return items.reduce((sum, item) => sum + valueFn(item), 0)
+}
+
+// ---------------------------------------------------------------------------
+// Sorting
+// ---------------------------------------------------------------------------
+
+type SortField = 'student_id' | 'stage' | 'mastery' | 'engagement' | 'frustration' | 'attention'
+type SortDir = 'asc' | 'desc'
+
+const signalWeight: Record<string, number> = { none: 0, low: 1, medium: 2, high: 3 }
+
+function sortLearners(learners: TeacherLearnerCard[], field: SortField, dir: SortDir): TeacherLearnerCard[] {
+  const sorted = [...learners].sort((a, b) => {
+    let cmp = 0
+    switch (field) {
+      case 'student_id':
+        cmp = a.student_id.localeCompare(b.student_id)
+        break
+      case 'stage':
+        cmp = stageOrder.indexOf(a.curriculum_progression.current_stage) - stageOrder.indexOf(b.curriculum_progression.current_stage)
+        break
+      case 'mastery':
+        cmp = a.curriculum_progression.mastered_resource_ratio - b.curriculum_progression.mastered_resource_ratio
+        break
+      case 'engagement':
+        cmp = (signalWeight[a.engagement] ?? 0) - (signalWeight[b.engagement] ?? 0)
+        break
+      case 'frustration':
+        cmp = (signalWeight[a.frustration] ?? 0) - (signalWeight[b.frustration] ?? 0)
+        break
+      case 'attention':
+        cmp = (signalWeight[a.attention_level] ?? 0) - (signalWeight[b.attention_level] ?? 0)
+        break
+    }
+    return cmp
+  })
+  return dir === 'desc' ? sorted.reverse() : sorted
+}
+
+// ---------------------------------------------------------------------------
+// Attention reason labels
+// ---------------------------------------------------------------------------
+
+const attentionReasonLabels: Record<string, string> = {
+  teacher_intervention_available: 'Intervention ready',
+  blocked_by_prerequisites: 'Blocked by prerequisites',
+  high_frustration: 'High frustration',
+  low_engagement_risk: 'Low engagement',
+  repeated_struggle: 'Repeated struggle',
+  support_dependent: 'Support dependent',
+}
+
+function attentionReasonLabel(reason: string): string {
+  return attentionReasonLabels[reason] ?? reason.replace(/_/g, ' ')
 }
 
 // ---------------------------------------------------------------------------
@@ -40,8 +107,8 @@ function sumBy<T>(items: T[], valueFn: (item: T) => number): number {
 // ---------------------------------------------------------------------------
 
 export function Reports() {
-  const { classrooms, classroom, loading, loadClassroom } = useOutletContext<TeacherContext>()
-  const learners = classroom.learners ?? []
+  const { classrooms, classroom, loading, error, loadClassroom } = useOutletContext<TeacherContext>()
+  const learners = useMemo(() => classroom.learners ?? [], [classroom.learners])
 
   // Auto-load the first classroom if none is selected yet
   useEffect(() => {
@@ -56,6 +123,32 @@ export function Reports() {
   const totalAttention = classrooms.reduce((sum, c) => sum + c.attention_needed_count, 0)
   const totalInterventions = classrooms.reduce((sum, c) => sum + c.intervention_available_count, 0)
 
+  // Sorting state for learner table
+  const [sortField, setSortField] = useState<SortField>('attention')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  function toggleSort(field: SortField) {
+    if (sortField === field) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortField(field)
+      setSortDir('desc')
+    }
+  }
+
+  const sortedLearners = useMemo(
+    () => sortLearners(learners, sortField, sortDir),
+    [learners, sortField, sortDir],
+  )
+
+  if (loading && classrooms.length === 0) {
+    return (
+      <PageContainer size="wide" className="py-4">
+        <PageSkeleton cards={4} />
+      </PageContainer>
+    )
+  }
+
   return (
     <PageContainer size="wide" className="flex flex-col gap-8 py-4">
       <header>
@@ -65,9 +158,7 @@ export function Reports() {
         </p>
       </header>
 
-      {loading && classrooms.length === 0 && (
-        <p className="text-center text-muted-foreground py-12">Loading report data...</p>
-      )}
+      <ErrorBanner message={error} />
 
       {/* Top-line summary */}
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
@@ -90,6 +181,16 @@ export function Reports() {
         </section>
       )}
 
+      {/* Classroom selector for deep-dive */}
+      {classrooms.length > 1 && (
+        <ClassroomSelector
+          classrooms={classrooms}
+          selectedId={classroom.classroom_id}
+          onSelect={(id) => void loadClassroom(id)}
+          loading={loading}
+        />
+      )}
+
       {/* Selected classroom deep-dive */}
       {learners.length > 0 && (
         <>
@@ -104,6 +205,32 @@ export function Reports() {
             <ActivitySummary learners={learners} />
             <AttentionSummary learners={learners} />
           </div>
+
+          {/* Per-learner drill-down table */}
+          <section className="flex flex-col gap-4">
+            <h2 className="font-semibold">All learners</h2>
+            <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-slate-50 text-left">
+                    <SortableHeader field="student_id" label="Learner" current={sortField} dir={sortDir} onSort={toggleSort} />
+                    <SortableHeader field="stage" label="Stage" current={sortField} dir={sortDir} onSort={toggleSort} />
+                    <SortableHeader field="mastery" label="Mastery" current={sortField} dir={sortDir} onSort={toggleSort} />
+                    <SortableHeader field="engagement" label="Engagement" current={sortField} dir={sortDir} onSort={toggleSort} />
+                    <SortableHeader field="frustration" label="Frustration" current={sortField} dir={sortDir} onSort={toggleSort} />
+                    <SortableHeader field="attention" label="Attention" current={sortField} dir={sortDir} onSort={toggleSort} />
+                    <th className="px-4 py-3 font-medium text-muted-foreground">Reasons</th>
+                    <th className="px-4 py-3 font-medium text-muted-foreground" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {sortedLearners.map((learner) => (
+                    <LearnerRow key={learner.student_id} learner={learner} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
         </>
       )}
     </PageContainer>
@@ -111,7 +238,150 @@ export function Reports() {
 }
 
 // ---------------------------------------------------------------------------
-// Summary card (matches Dashboard pattern)
+// Classroom selector
+// ---------------------------------------------------------------------------
+
+function ClassroomSelector({
+  classrooms,
+  selectedId,
+  onSelect,
+  loading,
+}: {
+  classrooms: TeacherClassroomOverview[]
+  selectedId: string
+  onSelect: (id: string) => void
+  loading: boolean
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <label className="text-sm font-medium text-muted-foreground">Deep-dive into:</label>
+      <div className="relative">
+        <select
+          value={selectedId}
+          onChange={(e) => onSelect(e.target.value)}
+          disabled={loading}
+          className="appearance-none rounded-lg border bg-white py-2 pl-3 pr-8 text-sm font-medium shadow-sm transition-colors hover:border-emerald-300 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400 disabled:opacity-50"
+        >
+          {classrooms.map((c) => (
+            <option key={c.classroom_id} value={c.classroom_id}>
+              {c.title}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Sortable table header
+// ---------------------------------------------------------------------------
+
+function SortableHeader({
+  field,
+  label,
+  current,
+  dir,
+  onSort,
+}: {
+  field: SortField
+  label: string
+  current: SortField
+  dir: SortDir
+  onSort: (field: SortField) => void
+}) {
+  const isActive = current === field
+  return (
+    <th className="px-4 py-3">
+      <button
+        onClick={() => onSort(field)}
+        className={`flex items-center gap-1 font-medium transition-colors ${
+          isActive ? 'text-emerald-700' : 'text-muted-foreground hover:text-foreground'
+        }`}
+      >
+        {label}
+        <ArrowUpDown className="h-3 w-3" />
+        {isActive && <span className="text-xs">{dir === 'asc' ? '↑' : '↓'}</span>}
+      </button>
+    </th>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Learner table row
+// ---------------------------------------------------------------------------
+
+const signalBadgeColors: Record<string, string> = {
+  none: 'bg-slate-100 text-slate-600',
+  low: 'bg-emerald-100 text-emerald-700',
+  medium: 'bg-amber-100 text-amber-700',
+  high: 'bg-red-100 text-red-700',
+}
+
+function LearnerRow({ learner }: { learner: TeacherLearnerCard }) {
+  const prog = learner.curriculum_progression
+  return (
+    <tr className="transition-colors hover:bg-slate-50">
+      <td className="px-4 py-3 font-medium">{learner.student_id}</td>
+      <td className="px-4 py-3">
+        <span className={`inline-block rounded-md px-2 py-0.5 text-xs font-medium ${stageColors[prog.current_stage] ?? 'bg-slate-100 text-slate-600'}`}>
+          {teacherStage(prog.current_stage)}
+        </span>
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="h-full rounded-full bg-blue-400 transition-all"
+              style={{ width: `${Math.round(prog.mastered_resource_ratio * 100)}%` }}
+            />
+          </div>
+          <span className="text-xs text-muted-foreground">{formatPercent(prog.mastered_resource_ratio)}</span>
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        <span className={`inline-block rounded-md px-2 py-0.5 text-xs font-medium ${signalBadgeColors[learner.engagement] ?? ''}`}>
+          {learner.engagement}
+        </span>
+      </td>
+      <td className="px-4 py-3">
+        <span className={`inline-block rounded-md px-2 py-0.5 text-xs font-medium ${signalBadgeColors[learner.frustration] ?? ''}`}>
+          {learner.frustration}
+        </span>
+      </td>
+      <td className="px-4 py-3">
+        <Badge variant={attentionBadgeVariants[learner.attention_level] ?? 'outline'}>
+          {teacherAttention(learner.attention_level)}
+        </Badge>
+      </td>
+      <td className="px-4 py-3">
+        {learner.attention_reasons.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {learner.attention_reasons.map((reason) => (
+              <span key={reason} className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-muted-foreground">
+                {attentionReasonLabel(reason)}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        )}
+      </td>
+      <td className="px-4 py-3">
+        <Link
+          to={`/teacher/learners/${learner.student_id}`}
+          className="text-xs font-medium text-emerald-600 hover:text-emerald-700"
+        >
+          View
+        </Link>
+      </td>
+    </tr>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Summary card
 // ---------------------------------------------------------------------------
 
 function SummaryCard({
@@ -399,6 +669,9 @@ const attentionBadgeVariants: Record<string, 'destructive' | 'warning' | 'outlin
 
 function AttentionSummary({ learners }: { learners: TeacherLearnerCard[] }) {
   const counts = countByKey(learners, (l) => l.attention_level)
+  const groups = groupByKey(learners, (l) => l.attention_level)
+
+  const [expanded, setExpanded] = useState<string | null>(null)
 
   return (
     <section className="rounded-xl border bg-white p-6 shadow-sm">
@@ -409,14 +682,50 @@ function AttentionSummary({ learners }: { learners: TeacherLearnerCard[] }) {
       <div className="space-y-2">
         {attentionOrder.map((level) => {
           const count = counts[level] ?? 0
+          const levelLearners = groups[level] ?? []
+          const isExpanded = expanded === level && count > 0
           return (
-            <div key={level} className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-2.5">
-              <div className="flex items-center gap-3">
-                <Badge variant={attentionBadgeVariants[level] ?? 'outline'}>
-                  {teacherAttention(level)}
-                </Badge>
-              </div>
-              <span className="text-sm font-semibold">{count}</span>
+            <div key={level}>
+              <button
+                onClick={() => count > 0 && setExpanded(isExpanded ? null : level)}
+                disabled={count === 0}
+                className="flex w-full items-center justify-between rounded-lg bg-slate-50 px-4 py-2.5 transition-colors hover:bg-slate-100 disabled:cursor-default disabled:hover:bg-slate-50"
+              >
+                <div className="flex items-center gap-3">
+                  <Badge variant={attentionBadgeVariants[level] ?? 'outline'}>
+                    {teacherAttention(level)}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold">{count}</span>
+                  {count > 0 && (
+                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                  )}
+                </div>
+              </button>
+              {isExpanded && (
+                <div className="ml-4 mt-1 space-y-1 pb-1">
+                  {levelLearners.map((l) => (
+                    <div key={l.student_id} className="flex items-center justify-between rounded-md px-3 py-1.5 text-sm">
+                      <Link
+                        to={`/teacher/learners/${l.student_id}`}
+                        className="font-medium text-emerald-600 hover:text-emerald-700"
+                      >
+                        {l.student_id}
+                      </Link>
+                      {l.attention_reasons.length > 0 && (
+                        <div className="flex gap-1">
+                          {l.attention_reasons.map((r) => (
+                            <span key={r} className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-muted-foreground">
+                              {attentionReasonLabel(r)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )
         })}
