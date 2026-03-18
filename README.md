@@ -1,3 +1,4 @@
+![dibble hero](docs/images/dibble.png)
 # Dibble
 
 A dibble is a pointed tool used to make holes in the ground for planting seeds — precise, deliberate, and purposeful. Dibble the platform works the same way: it uses generative AI to surgically plant seeds of knowledge, adapting to each learner so every concept takes root.
