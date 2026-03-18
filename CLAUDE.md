@@ -28,11 +28,13 @@ cd frontend && npm run lint          # eslint
 - Frontend hooks (`src/hooks/`) fetch and cache backend state. They do not compute derived pedagogical state.
 - If a feature requires a new decision or calculation, add it to a backend service and expose it through the API — do not put it in the frontend.
 
-### Keep services focused
+### Modularity is mandatory
 
 - Each service file has a single responsibility. Do not merge unrelated concerns into one file.
 - New domain logic gets its own service file in `src/dibble/services/`. Prefer a new file over growing an existing one past ~300 lines.
 - Services communicate through typed Pydantic models, not raw dicts.
+- **No god files.** If a file is accumulating too many responsibilities, split it. Use the plugin architecture (`src/dibble/plugins/`) and dependency injection (`bootstrap.py`) to keep components loosely coupled and independently testable.
+- When adding new integrations or strategies, implement them as plugins with a shared interface — do not hardcode variants into existing services.
 
 ### Pydantic models are the contract layer
 
@@ -51,6 +53,8 @@ cd frontend && npm run lint          # eslint
 
 - Backend: pytest with SQLite fixtures. Every new service or endpoint needs tests.
 - Frontend: Vitest + React Testing Library. Test user-visible behavior, not implementation details.
+- **Tests are not an afterthought.** Write tests alongside the code they cover — every new service, endpoint, or component must include tests in the same piece of work, not as a follow-up.
+- **Before committing**: always run lint and tests for any code you changed. Do not commit code that has not passed both.
 
 ### Dependencies and wiring
 
