@@ -691,6 +691,7 @@ export interface TeacherLearnerCard {
   curriculum_progression: LearnerCurriculumProgressionSummary
   recent_activity: RecentLearnerActivity
   intervention: TeacherLearnerInterventionSummary
+  display_rationale?: string | null
   attention_level: string
   triage_section: string
   attention_reasons: string[]

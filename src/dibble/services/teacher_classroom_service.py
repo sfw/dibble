@@ -45,6 +45,9 @@ class TeacherClassroomService:
                 summary=summary, intervention=intervention
             )
             attention_level = self._attention_level(attention_reasons)
+            display_rationale = self._display_rationale(
+                summary=summary, intervention=intervention
+            )
             learners.append(
                 TeacherLearnerCard(
                     student_id=str(summary.student_id),
@@ -65,6 +68,7 @@ class TeacherClassroomService:
                             else None
                         ),
                     ),
+                    display_rationale=display_rationale,
                     attention_level=attention_level,
                     triage_section=triage_section_for(
                         attention_level=attention_level,
@@ -150,6 +154,28 @@ class TeacherClassroomService:
             "missing_learner_count": len(missing_student_ids),
             "updated_at": classroom.updated_at,
         }
+
+    @staticmethod
+    def _display_rationale(*, summary, intervention) -> str | None:
+        latest_decision_status = (
+            intervention.latest_decision.status
+            if intervention.latest_decision is not None
+            else None
+        )
+        if latest_decision_status is not None:
+            label = (
+                latest_decision_status.value.replace("_", " ")
+                .replace("-", " ")
+                .title()
+            )
+            return f"Latest teacher decision: {label}."
+        if summary.curriculum_progression.rationale is not None:
+            return summary.curriculum_progression.rationale
+        if summary.current_flow.next_step.rationale is not None:
+            return summary.current_flow.next_step.rationale
+        if summary.current_flow.rationale is not None:
+            return summary.current_flow.rationale
+        return None
 
     def _attention_reasons(self, *, summary, intervention) -> list[str]:
         reasons: list[str] = []

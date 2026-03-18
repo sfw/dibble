@@ -139,6 +139,8 @@ This repository now includes a working MVP backend slice for the revised adaptiv
 - KC mastery now decays over time when a learner has not practiced a KC recently (DATA-004): decay is applied at read time during curriculum progression decisions so stale mastery does not artificially inflate resource classification, with a smooth four-band schedule from no decay within 14 days to a 0.6 floor beyond 90 days
 - Observation writeback now stamps per-KC `kc_last_practiced` timestamps so the mastery decay system knows when each KC was last actively practiced
 - Curriculum progression is now trend-aware (ORCH-001): ordinary mastery trend signals (improving/stable/declining) from the durable mastery profile layer now adjust both the mastery and prerequisite-ready thresholds per resource, so improving learners can advance sooner while declining learners are held more conservatively at the resource-classification level, not only at the progression-ownership hold level
+- Teacher classroom learner cards now carry a backend-owned `display_rationale` field computed server-side, so the frontend can show one canonical rationale without selecting among multiple fallback sources
+- Progression decisions now produce validated outcome signals: a `ProgressionOutcomeTracker` evaluates recent hold, transfer, and prerequisite-rebuild decisions against subsequent mastery evidence and records `progression.outcome` audit events so the system can measure whether its own heuristics are actually helping
 - Dynamic plugin loading for router, retriever, provider, and validator factories
 - API tests covering routing, persistence, retrieval, generation, and fallback behavior
 
