@@ -4,15 +4,20 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from dibble.models.profile import (
+    ClassificationReliabilitySummary,
     LearnerCalibrationSummary,
     LearnerCurriculumProgressionSummary,
     LearnerFlowSummary,
     LearnerProgressSummary,
     ProfileSummary,
     RecentLearnerActivity,
+    StatePredictionReliabilitySummary,
 )
 from dibble.services.learner_flow_service import LearnerFlowService
 from dibble.services.learner_progression_service import LearnerProgressionService
+from dibble.services.learner_state_prediction_signals import (
+    LearnerStatePredictionSignalService,
+)
 from dibble.services.learning_state_profiles import LearnerStateSignalService
 from dibble.services.learning_trait_profiles import LearnerTraitProfileSignalService
 from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
@@ -26,6 +31,7 @@ class LearnerSummaryService:
     strategy_signal_service: LearnerStrategySignalService
     state_signal_service: LearnerStateSignalService
     trait_profile_signal_service: LearnerTraitProfileSignalService
+    state_prediction_signal_service: LearnerStatePredictionSignalService | None = None
     learner_flow_service: LearnerFlowService | None = None
     learner_progression_service: LearnerProgressionService | None = None
     max_events: int = 200
@@ -51,6 +57,9 @@ class LearnerSummaryService:
             ),
             trait_profile=self.trait_profile_signal_service.latest_for_student(
                 student_id=student_id
+            ),
+            state_prediction_reliability=self._state_prediction_reliability(
+                student_id
             ),
             recent_activity=self._recent_activity(events),
             current_flow=(
@@ -192,6 +201,32 @@ class LearnerSummaryService:
             ),
             last_generation_id=self._latest_payload_value(events, "generation_id"),
             last_event_at=events[0].created_at if events else None,
+        )
+
+    def _state_prediction_reliability(
+        self, student_id: UUID
+    ) -> StatePredictionReliabilitySummary:
+        if self.state_prediction_signal_service is None:
+            return StatePredictionReliabilitySummary()
+        signal = self.state_prediction_signal_service.signal_for_student(
+            student_id=str(student_id)
+        )
+        per_classification = [
+            ClassificationReliabilitySummary(
+                classification=v.classification,
+                evaluated_count=v.evaluated_count,
+                accuracy_rate=round(v.accuracy_rate, 3),
+            )
+            for v in signal.per_classification.values()
+        ]
+        return StatePredictionReliabilitySummary(
+            evaluated_count=signal.evaluated_count,
+            overall_accuracy=signal.overall_accuracy,
+            weighted_accuracy=signal.weighted_accuracy,
+            weakest_classification=signal.weakest_classification,
+            strongest_classification=signal.strongest_classification,
+            per_classification=per_classification,
+            rationale=signal.rationale,
         )
 
     def _latest_payload_value(self, events, key: str) -> str | None:

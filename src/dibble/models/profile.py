@@ -288,6 +288,24 @@ class LearnerTraitProfileSummary(BaseModel):
     updated_at: datetime | None = None
 
 
+class ClassificationReliabilitySummary(BaseModel):
+    classification: str
+    evaluated_count: int = 0
+    accuracy_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+class StatePredictionReliabilitySummary(BaseModel):
+    evaluated_count: int = Field(default=0, ge=0)
+    overall_accuracy: float = Field(default=0.0, ge=0.0, le=1.0)
+    weighted_accuracy: float = Field(default=0.0, ge=0.0, le=1.0)
+    weakest_classification: str | None = None
+    strongest_classification: str | None = None
+    per_classification: list[ClassificationReliabilitySummary] = Field(
+        default_factory=list
+    )
+    rationale: str = "Insufficient prediction outcomes to evaluate reliability."
+
+
 class RecentLearnerActivity(BaseModel):
     generation_count: int = Field(default=0, ge=0)
     observation_count: int = Field(default=0, ge=0)
@@ -518,6 +536,9 @@ class ProfileSummary(BaseModel):
     trait_profile: LearnerTraitProfileSummary = Field(
         default_factory=LearnerTraitProfileSummary
     )
+    state_prediction_reliability: StatePredictionReliabilitySummary = Field(
+        default_factory=StatePredictionReliabilitySummary
+    )
     recent_activity: RecentLearnerActivity = Field(
         default_factory=RecentLearnerActivity
     )
@@ -537,6 +558,7 @@ class ProfileSummary(BaseModel):
         strategy: LearnerStrategySummary | None = None,
         state_profile: LearnerStateProfileSummary | None = None,
         trait_profile: LearnerTraitProfileSummary | None = None,
+        state_prediction_reliability: StatePredictionReliabilitySummary | None = None,
         recent_activity: RecentLearnerActivity | None = None,
         current_flow: LearnerFlowSummary | None = None,
         curriculum_progression: LearnerCurriculumProgressionSummary | None = None,
@@ -557,6 +579,8 @@ class ProfileSummary(BaseModel):
             strategy=strategy or LearnerStrategySummary(),
             state_profile=state_profile or LearnerStateProfileSummary(),
             trait_profile=trait_profile or LearnerTraitProfileSummary(),
+            state_prediction_reliability=state_prediction_reliability
+            or StatePredictionReliabilitySummary(),
             recent_activity=recent_activity or RecentLearnerActivity(),
             current_flow=current_flow or LearnerFlowSummary(),
             curriculum_progression=curriculum_progression

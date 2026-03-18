@@ -200,6 +200,22 @@ export interface LearnerCurriculumProgressionSummary {
   updated_at?: string | null
 }
 
+export interface ClassificationReliabilitySummary {
+  classification: string
+  evaluated_count: number
+  accuracy_rate: number
+}
+
+export interface StatePredictionReliabilitySummary {
+  evaluated_count: number
+  overall_accuracy: number
+  weighted_accuracy: number
+  weakest_classification?: string | null
+  strongest_classification?: string | null
+  per_classification: ClassificationReliabilitySummary[]
+  rationale: string
+}
+
 export interface ProfileSummary {
   student_id: string
   grade_level: string
@@ -216,6 +232,7 @@ export interface ProfileSummary {
   strategy: LearnerStrategySummary
   state_profile: LearnerStateProfileSummary
   trait_profile: LearnerTraitProfileSummary
+  state_prediction_reliability: StatePredictionReliabilitySummary
   recent_activity: RecentLearnerActivity
   current_flow: LearnerFlowSummary
   curriculum_progression: LearnerCurriculumProgressionSummary

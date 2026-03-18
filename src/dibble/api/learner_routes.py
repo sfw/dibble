@@ -257,6 +257,16 @@ def build_learner_router(context: ApiContext) -> APIRouter:
         services.ordinary_mastery_profile_recorder.record_from_observation_events(
             observation_events=[observation_audit_event]
         )
+        state_prediction_outcomes = (
+            services.learner_state_prediction_outcome_tracker.evaluate_recent_predictions(
+                student_id=str(student_id),
+                current_kc_mastery=updated_profile.knowledge_state.kc_mastery,
+            )
+        )
+        if state_prediction_outcomes:
+            services.learner_state_prediction_outcome_tracker.record_outcomes(
+                state_prediction_outcomes
+            )
         return inferred_state
 
     @router.get(
