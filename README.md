@@ -130,6 +130,10 @@ This repository now includes a working MVP backend slice for the revised adaptiv
 - Ordinary mastery hold rationale now surfaces session count context and an explicit "extended hold — consider teacher review" signal when a learner has been held across many observations and sessions without improving
 - Ordinary mastery profiles now detect mastery trend direction (improving, stable, declining) by comparing recent versus older recency-weighted observation scores, and the signal classification can rescue an improving borderline-fragile learner to emerging or downgrade a declining borderline-durable to emerging
 - Misconception behavioral evidence now applies recency weighting so recent struggles and low-support successes contribute more than stale observations at the tail of the evidence window
+- Mastery history snapshots are now recorded on every observation-driven profile update, and `GET /api/learners/{student_id}/mastery-history` returns a time-series of overall KC/LO mastery, mastered/struggling KC counts, and affective signals so the frontend can render trend lines
+- `GET /api/teachers/classrooms/{classroom_id}/mastery-trends` returns per-learner mastery trajectories plus daily classroom average points, unblocking teacher report trend lines
+- Ordinary mastery hold thresholds now integrate mastery trend direction: an improving trend relaxes the hold so the learner has room to keep improving, while a declining trend tightens the hold so the learner does not fall further before teacher review
+- Stuck-repair detection now triggers earlier for declining learners (4 observations / 2 sessions instead of 6 / 3) with a distinct "declining hold" label
 - Dynamic plugin loading for router, retriever, provider, and validator factories
 - API tests covering routing, persistence, retrieval, generation, and fallback behavior
 
@@ -193,11 +197,13 @@ The repository includes a `pre-commit` hook that scans staged diffs with `truffl
 - `GET /api/learners/{student_id}/history/generations`
 - `GET /api/learners/{student_id}/history/socratic-sessions`
 - `GET /api/learners/{student_id}/history/remediation-sessions`
+- `GET /api/learners/{student_id}/mastery-history`
 - `GET /api/learners/{student_id}/intervention-action`
 - `POST /api/learners/{student_id}/intervention-action`
 - `PUT /api/teachers/classrooms/{classroom_id}`
 - `GET /api/teachers/classrooms`
 - `GET /api/teachers/classrooms/{classroom_id}`
+- `GET /api/teachers/classrooms/{classroom_id}/mastery-trends`
 - `PUT /api/curriculum/resources/{resource_id}`
 - `GET /api/curriculum/resources`
 - `PUT /api/knowledge-components/{kc_id}`

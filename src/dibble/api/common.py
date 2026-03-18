@@ -20,7 +20,9 @@ from dibble.services.protocols import ClassroomStore
 from dibble.services.cognitive_trait_inference import CognitiveTraitInferenceService
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.generation_mode_calibration import GenerationModeCalibrator
-from dibble.services.learning_calibration_profiles import LearningCalibrationProfileRecorder
+from dibble.services.learning_calibration_profiles import (
+    LearningCalibrationProfileRecorder,
+)
 from dibble.services.learning_progress_profiles import LearningProgressProfileRecorder
 from dibble.services.learning_run_summary_recorder import LearningRunSummaryRecorder
 from dibble.services.learning_state_profiles import LearningStateProfileRecorder
@@ -28,6 +30,7 @@ from dibble.services.learning_trait_profiles import LearningTraitProfileRecorder
 from dibble.services.learner_strategy_profiles import LearningStrategyProfileRecorder
 from dibble.services.learner_state_calibration import LearnerStateCalibrator
 from dibble.services.learner_flow_service import LearnerFlowService
+from dibble.services.mastery_snapshot_service import MasterySnapshotService
 from dibble.services.learner_history_service import LearnerHistoryService
 from dibble.services.learner_progression_service import LearnerProgressionService
 from dibble.services.learner_summary_service import LearnerSummaryService
@@ -50,7 +53,9 @@ from dibble.services.socratic_assessment import SocraticAssessmentService
 from dibble.services.socratic_profile_update import SocraticProfileUpdater
 from dibble.services.state_inference import LearnerStateInferenceService
 from dibble.services.teacher_classroom_service import TeacherClassroomService
-from dibble.services.teacher_intervention_actions import TeacherInterventionActionService
+from dibble.services.teacher_intervention_actions import (
+    TeacherInterventionActionService,
+)
 from dibble.services.telemetry import TelemetryService
 from dibble.services.within_session_adaptation import WithinSessionAdaptationService
 
@@ -123,6 +128,7 @@ class ApiServices(Protocol):
     learner_workspace_service: LearnerWorkspaceService
     teacher_classroom_service: TeacherClassroomService
     teacher_intervention_action_service: TeacherInterventionActionService
+    mastery_snapshot_service: MasterySnapshotService
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_invalidator: PredictiveContentInvalidator
     predictive_warm_scheduler: PredictiveWarmScheduler
@@ -136,7 +142,9 @@ class ApiContext:
     def require_access(self, *allowed_roles: str):
         async def dependency(
             request: Request,
-            api_key: str | None = Header(default=None, alias=self.services.auth_service.header_name),
+            api_key: str | None = Header(
+                default=None, alias=self.services.auth_service.header_name
+            ),
             authorization: str | None = Header(default=None, alias="Authorization"),
         ) -> AuthIdentity:
             bearer_token = None
@@ -177,7 +185,9 @@ class ApiContext:
                         "path": request.url.path,
                         "method": request.method,
                         "header_name": self.services.auth_service.header_name,
-                        "principal_id": identity.principal_id if identity is not None else None,
+                        "principal_id": identity.principal_id
+                        if identity is not None
+                        else None,
                         "role": identity.role if identity is not None else None,
                         "required_roles": list(allowed_roles or ("viewer",)),
                     },

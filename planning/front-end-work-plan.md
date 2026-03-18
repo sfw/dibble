@@ -187,11 +187,11 @@ Contract-hardening in use:
 
 ### In progress
 
-- teacher reporting depth: trend lines (blocked on backend historical snapshots)
+- teacher reporting depth: trend lines — backend now exposes `GET /api/learners/{student_id}/mastery-history` and `GET /api/teachers/classrooms/{classroom_id}/mastery-trends` with per-learner mastery trajectories and daily classroom averages; frontend integration is next
 
 ### Next up
 
-1. add trend lines to teacher reports when backend exposes historical snapshots
+1. integrate backend mastery-history and classroom mastery-trends endpoints into teacher reports for trend lines
 2. keep this work plan and `from-front-to-back-needs.md` updated together
 
 ### Recently completed
@@ -297,7 +297,7 @@ Remaining:
 - ~~teacher reporting surface~~ — **DONE**: `/teacher/reports` with cross-classroom and per-classroom reporting plus per-learner mastery heatmap
 - ~~artifact review~~ — **DONE**: `LearnerDetail` now has a unified evidence timeline with expandable detail and click-to-review generated content via `GET /api/content/{generation_id}`
 - ~~assignment management layer~~ — **DONE**: teacher and learner assignment views
-- trend lines when backend exposes historical snapshots
+- trend lines — backend mastery-history endpoints now available; frontend integration next
 
 ### Phase 3: assignments, reporting, and operational completeness — IN PROGRESS
 
@@ -307,7 +307,7 @@ Remaining:
 - ~~teacher reporting: per-learner mastery heatmap~~ — **DONE**: color-coded mastery strip with hover tooltips and click-through
 - ~~learner progress: resource breakdown~~ — **DONE**: all resources grouped by state with mastery bars and blocker rationale
 - ~~learner history: type filtering~~ — **DONE**: All/Lessons/Checks/Practice tabs with counts
-- teacher reporting depth: trend lines (blocked on backend historical snapshots)
+- teacher reporting depth: trend lines — backend mastery-history endpoints now available; frontend integration next
 - role-aware navigation polish
 
 ### Phase 4: product depth expansion — FUTURE

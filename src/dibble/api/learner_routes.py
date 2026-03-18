@@ -11,6 +11,7 @@ from dibble.models.history import (
     LearnerSocraticSessionHistoryPage,
 )
 from dibble.models.observations import InferredLearnerState, LearnerObservationCreate
+from dibble.models.mastery_history import MasteryHistoryResponse
 from dibble.models.profile import (
     LearnerCurriculumProgressionSummary,
     LearnerFlowSummary,
@@ -18,7 +19,10 @@ from dibble.models.profile import (
     LearnerProfileV2,
     ProfileSummary,
 )
-from dibble.models.teacher_actions import TeacherInterventionActionContract, TeacherInterventionDecisionRequest
+from dibble.models.teacher_actions import (
+    TeacherInterventionActionContract,
+    TeacherInterventionDecisionRequest,
+)
 from dibble.models.workspace import LearnerWorkspace
 from dibble.services.teacher_intervention_actions import (
     TeacherInterventionActionUnavailableError,
@@ -30,7 +34,11 @@ def build_learner_router(context: ApiContext) -> APIRouter:
     router = APIRouter(prefix="/api")
     services = context.services
 
-    @router.put("/learners/{student_id}/profile", response_model=LearnerProfile, dependencies=context.deps("editor"))
+    @router.put(
+        "/learners/{student_id}/profile",
+        response_model=LearnerProfile,
+        dependencies=context.deps("editor"),
+    )
     def upsert_profile(student_id: UUID, profile: LearnerProfile) -> LearnerProfile:
         if student_id != profile.student_id:
             raise api_error(
@@ -40,7 +48,11 @@ def build_learner_router(context: ApiContext) -> APIRouter:
             )
         return services.profile_store.upsert(profile)
 
-    @router.get("/learners/{student_id}/profile", response_model=LearnerProfileV2, dependencies=context.deps("viewer"))
+    @router.get(
+        "/learners/{student_id}/profile",
+        response_model=LearnerProfileV2,
+        dependencies=context.deps("viewer"),
+    )
     def get_profile(student_id: UUID) -> LearnerProfileV2:
         profile = services.profile_store.get(student_id)
         if profile is None:
@@ -51,7 +63,9 @@ def build_learner_router(context: ApiContext) -> APIRouter:
             )
         return LearnerProfileV2.from_profile(profile)
 
-    @router.get("/learners", response_model=list[str], dependencies=context.deps("viewer"))
+    @router.get(
+        "/learners", response_model=list[str], dependencies=context.deps("viewer")
+    )
     def list_profiles() -> list[str]:
         return services.profile_store.list_ids()
 
@@ -60,7 +74,9 @@ def build_learner_router(context: ApiContext) -> APIRouter:
         response_model=InferredLearnerState,
         dependencies=context.deps("editor"),
     )
-    def observe_learner_state(student_id: UUID, observation: LearnerObservationCreate) -> InferredLearnerState:
+    def observe_learner_state(
+        student_id: UUID, observation: LearnerObservationCreate
+    ) -> InferredLearnerState:
         profile = services.profile_store.get(student_id)
         if profile is None:
             raise api_error(
@@ -69,9 +85,15 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 code="learner_profile_not_found",
             )
 
-        persisted_observation = services.observation_store.append(student_id=str(student_id), observation=observation)
-        recent_observations = services.observation_store.list_recent(student_id=str(student_id))
-        inferred_state = services.state_inference_service.infer(student_id=student_id, observations=recent_observations)
+        persisted_observation = services.observation_store.append(
+            student_id=str(student_id), observation=observation
+        )
+        recent_observations = services.observation_store.list_recent(
+            student_id=str(student_id)
+        )
+        inferred_state = services.state_inference_service.infer(
+            student_id=student_id, observations=recent_observations
+        )
         calibration = services.learner_state_calibrator.calibrate(
             student_id=student_id,
             observation=observation,
@@ -99,6 +121,7 @@ def build_learner_router(context: ApiContext) -> APIRouter:
         )
         updated_profile = observation_profile_update.profile
         services.profile_store.upsert(updated_profile)
+        services.mastery_snapshot_service.record_from_profile(updated_profile)
         observation_audit_event = services.audit_store.append(
             event_type="learner.observe",
             status="success",
@@ -138,10 +161,14 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 "durable_mastery_low_support_success_rate": observation_profile_update.durable_mastery_low_support_success_rate,
                 "durable_mastery_high_support_dependency_rate": observation_profile_update.durable_mastery_high_support_dependency_rate,
                 "durable_mastery_rationale": observation_profile_update.durable_mastery_rationale,
-                "updated_kc_mastery": observation_profile_update.kc_mastery_updates or {},
-                "updated_lo_mastery": observation_profile_update.lo_mastery_updates or {},
-                "propagated_kc_mastery": observation_profile_update.propagated_kc_mastery_updates or {},
-                "propagated_lo_mastery": observation_profile_update.propagated_lo_mastery_updates or {},
+                "updated_kc_mastery": observation_profile_update.kc_mastery_updates
+                or {},
+                "updated_lo_mastery": observation_profile_update.lo_mastery_updates
+                or {},
+                "propagated_kc_mastery": observation_profile_update.propagated_kc_mastery_updates
+                or {},
+                "propagated_lo_mastery": observation_profile_update.propagated_lo_mastery_updates
+                or {},
                 "observation_mastery_rationale": observation_profile_update.rationale,
                 "engagement": inferred_state.affective_state.engagement.value,
                 "frustration": inferred_state.affective_state.frustration.value,
@@ -149,13 +176,19 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 "confidence_calibration": inferred_state.metacognitive_state.confidence_calibration,
                 "help_seeking": inferred_state.metacognitive_state.help_seeking.value,
                 "current_evidence_signal": (
-                    inferred_state.current_evidence.signal if inferred_state.current_evidence is not None else "steady"
+                    inferred_state.current_evidence.signal
+                    if inferred_state.current_evidence is not None
+                    else "steady"
                 ),
                 "current_evidence_confidence": (
-                    inferred_state.current_evidence.confidence if inferred_state.current_evidence is not None else 0.0
+                    inferred_state.current_evidence.confidence
+                    if inferred_state.current_evidence is not None
+                    else 0.0
                 ),
                 "current_evidence_rationale": (
-                    inferred_state.current_evidence.rationale if inferred_state.current_evidence is not None else None
+                    inferred_state.current_evidence.rationale
+                    if inferred_state.current_evidence is not None
+                    else None
                 ),
                 "updated_cognitive_traits": sorted(inferred_cognitive_traits.keys()),
                 "state_calibration_signal": calibration.signal,
@@ -180,21 +213,39 @@ def build_learner_router(context: ApiContext) -> APIRouter:
             student_id=student_id,
             event_payload=observation_audit_event.payload,
         )
-        services.predictive_content_invalidator.invalidate_from_trigger_event(observation_audit_event)
-        summary_events = services.learning_run_summary_recorder.record_from_trigger_event(
-            trigger_event=observation_audit_event
+        services.predictive_content_invalidator.invalidate_from_trigger_event(
+            observation_audit_event
         )
-        services.learning_calibration_profile_recorder.record_from_summary_events(summary_events=summary_events)
-        services.learning_progress_profile_recorder.record_from_summary_events(summary_events=summary_events)
-        services.learning_strategy_profile_recorder.record_from_summary_events(summary_events=summary_events)
-        services.learning_state_profile_recorder.record_from_summary_events(summary_events=summary_events)
-        services.learning_trait_profile_recorder.record_from_observation_events(observation_events=[observation_audit_event])
+        summary_events = (
+            services.learning_run_summary_recorder.record_from_trigger_event(
+                trigger_event=observation_audit_event
+            )
+        )
+        services.learning_calibration_profile_recorder.record_from_summary_events(
+            summary_events=summary_events
+        )
+        services.learning_progress_profile_recorder.record_from_summary_events(
+            summary_events=summary_events
+        )
+        services.learning_strategy_profile_recorder.record_from_summary_events(
+            summary_events=summary_events
+        )
+        services.learning_state_profile_recorder.record_from_summary_events(
+            summary_events=summary_events
+        )
+        services.learning_trait_profile_recorder.record_from_observation_events(
+            observation_events=[observation_audit_event]
+        )
         services.ordinary_mastery_profile_recorder.record_from_observation_events(
             observation_events=[observation_audit_event]
         )
         return inferred_state
 
-    @router.get("/learners/{student_id}/state", response_model=InferredLearnerState, dependencies=context.deps("viewer"))
+    @router.get(
+        "/learners/{student_id}/state",
+        response_model=InferredLearnerState,
+        dependencies=context.deps("viewer"),
+    )
     def get_inferred_learner_state(student_id: UUID) -> InferredLearnerState:
         profile = services.profile_store.get(student_id)
         if profile is None:
@@ -203,9 +254,13 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 detail="Learner profile not found.",
                 code="learner_profile_not_found",
             )
-        observations = services.observation_store.list_recent(student_id=str(student_id))
+        observations = services.observation_store.list_recent(
+            student_id=str(student_id)
+        )
         if observations:
-            inferred_state = services.state_inference_service.infer(student_id=student_id, observations=observations)
+            inferred_state = services.state_inference_service.infer(
+                student_id=student_id, observations=observations
+            )
             latest_observation = observations[0]
             return services.learner_state_calibrator.calibrate(
                 student_id=student_id,
@@ -221,9 +276,15 @@ def build_learner_router(context: ApiContext) -> APIRouter:
             last_observation_at=None,
         )
 
-    @router.get("/learners/{student_id}/summary", response_model=ProfileSummary, dependencies=context.deps("viewer"))
+    @router.get(
+        "/learners/{student_id}/summary",
+        response_model=ProfileSummary,
+        dependencies=context.deps("viewer"),
+    )
     def get_profile_summary(student_id: UUID) -> ProfileSummary:
-        summary = services.learner_summary_service.build_for_student(student_id=student_id)
+        summary = services.learner_summary_service.build_for_student(
+            student_id=student_id
+        )
         if summary is None:
             raise api_error(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -232,7 +293,11 @@ def build_learner_router(context: ApiContext) -> APIRouter:
             )
         return summary
 
-    @router.get("/learners/{student_id}/flow", response_model=LearnerFlowSummary, dependencies=context.deps("viewer"))
+    @router.get(
+        "/learners/{student_id}/flow",
+        response_model=LearnerFlowSummary,
+        dependencies=context.deps("viewer"),
+    )
     def get_learner_flow(student_id: UUID) -> LearnerFlowSummary:
         profile = services.profile_store.get(student_id)
         if profile is None:
@@ -248,8 +313,12 @@ def build_learner_router(context: ApiContext) -> APIRouter:
         response_model=LearnerCurriculumProgressionSummary,
         dependencies=context.deps("viewer"),
     )
-    def get_learner_progression(student_id: UUID) -> LearnerCurriculumProgressionSummary:
-        progression = services.learner_progression_service.build_for_student(student_id=student_id)
+    def get_learner_progression(
+        student_id: UUID,
+    ) -> LearnerCurriculumProgressionSummary:
+        progression = services.learner_progression_service.build_for_student(
+            student_id=student_id
+        )
         if progression is None:
             raise api_error(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -258,9 +327,15 @@ def build_learner_router(context: ApiContext) -> APIRouter:
             )
         return progression
 
-    @router.get("/learners/{student_id}/workspace", response_model=LearnerWorkspace, dependencies=context.deps("viewer"))
+    @router.get(
+        "/learners/{student_id}/workspace",
+        response_model=LearnerWorkspace,
+        dependencies=context.deps("viewer"),
+    )
     def get_learner_workspace(student_id: UUID) -> LearnerWorkspace:
-        workspace = services.learner_workspace_service.build_for_student(student_id=student_id)
+        workspace = services.learner_workspace_service.build_for_student(
+            student_id=student_id
+        )
         if workspace is None:
             raise api_error(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -275,7 +350,9 @@ def build_learner_router(context: ApiContext) -> APIRouter:
         dependencies=context.deps("viewer"),
     )
     def list_generation_history(
-        student_id: UUID, limit: int = 20, offset: int = 0,
+        student_id: UUID,
+        limit: int = 20,
+        offset: int = 0,
     ) -> LearnerGenerationHistoryPage:
         profile = services.profile_store.get(student_id)
         if profile is None:
@@ -285,7 +362,9 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 code="learner_profile_not_found",
             )
         return services.learner_history_service.list_generation_history(
-            student_id=student_id, limit=limit, offset=offset,
+            student_id=student_id,
+            limit=limit,
+            offset=offset,
         )
 
     @router.get(
@@ -294,7 +373,9 @@ def build_learner_router(context: ApiContext) -> APIRouter:
         dependencies=context.deps("viewer"),
     )
     def list_socratic_session_history(
-        student_id: UUID, limit: int = 20, offset: int = 0,
+        student_id: UUID,
+        limit: int = 20,
+        offset: int = 0,
     ) -> LearnerSocraticSessionHistoryPage:
         profile = services.profile_store.get(student_id)
         if profile is None:
@@ -304,7 +385,9 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 code="learner_profile_not_found",
             )
         return services.learner_history_service.list_socratic_session_history(
-            student_id=student_id, limit=limit, offset=offset,
+            student_id=student_id,
+            limit=limit,
+            offset=offset,
         )
 
     @router.get(
@@ -313,7 +396,9 @@ def build_learner_router(context: ApiContext) -> APIRouter:
         dependencies=context.deps("viewer"),
     )
     def list_remediation_session_history(
-        student_id: UUID, limit: int = 20, offset: int = 0,
+        student_id: UUID,
+        limit: int = 20,
+        offset: int = 0,
     ) -> LearnerRemediationSessionHistoryPage:
         profile = services.profile_store.get(student_id)
         if profile is None:
@@ -323,15 +408,17 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 code="learner_profile_not_found",
             )
         return services.learner_history_service.list_remediation_session_history(
-            student_id=student_id, limit=limit, offset=offset,
+            student_id=student_id,
+            limit=limit,
+            offset=offset,
         )
 
     @router.get(
-        "/learners/{student_id}/intervention-action",
-        response_model=TeacherInterventionActionContract,
+        "/learners/{student_id}/mastery-history",
+        response_model=MasteryHistoryResponse,
         dependencies=context.deps("viewer"),
     )
-    def get_teacher_intervention_action(student_id: UUID) -> TeacherInterventionActionContract:
+    def get_mastery_history(student_id: UUID, days: int = 30) -> MasteryHistoryResponse:
         profile = services.profile_store.get(student_id)
         if profile is None:
             raise api_error(
@@ -339,7 +426,29 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 detail="Learner profile not found.",
                 code="learner_profile_not_found",
             )
-        return services.teacher_intervention_action_service.build_for_student(student_id=student_id)
+        return services.mastery_snapshot_service.get_learner_history(
+            student_id=student_id,
+            days=min(max(1, days), 365),
+        )
+
+    @router.get(
+        "/learners/{student_id}/intervention-action",
+        response_model=TeacherInterventionActionContract,
+        dependencies=context.deps("viewer"),
+    )
+    def get_teacher_intervention_action(
+        student_id: UUID,
+    ) -> TeacherInterventionActionContract:
+        profile = services.profile_store.get(student_id)
+        if profile is None:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Learner profile not found.",
+                code="learner_profile_not_found",
+            )
+        return services.teacher_intervention_action_service.build_for_student(
+            student_id=student_id
+        )
 
     @router.post(
         "/learners/{student_id}/intervention-action",
