@@ -1,0 +1,97 @@
+from __future__ import annotations
+
+import sqlite3
+
+from dibble.models.assignment import Assignment
+
+
+class SQLiteAssignmentStore:
+    def __init__(self, database_path: str) -> None:
+        self.database_path = database_path
+
+    def upsert(self, assignment: Assignment) -> Assignment:
+        with sqlite3.connect(self.database_path) as connection:
+            connection.execute(
+                """
+                INSERT INTO assignments(assignment_id, student_id, teacher_id, classroom_id, status, payload, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(assignment_id) DO UPDATE SET
+                    student_id = excluded.student_id,
+                    teacher_id = excluded.teacher_id,
+                    classroom_id = excluded.classroom_id,
+                    status = excluded.status,
+                    payload = excluded.payload,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    assignment.assignment_id,
+                    assignment.student_id,
+                    assignment.teacher_id,
+                    assignment.classroom_id,
+                    assignment.status.value,
+                    assignment.model_dump_json(),
+                    assignment.updated_at.isoformat(),
+                ),
+            )
+            connection.commit()
+        return assignment
+
+    def get(self, assignment_id: str) -> Assignment | None:
+        with sqlite3.connect(self.database_path) as connection:
+            row = connection.execute(
+                "SELECT payload FROM assignments WHERE assignment_id = ?",
+                (assignment_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return Assignment.model_validate_json(row[0])
+
+    def list_for_student(self, *, student_id: str, limit: int = 20, offset: int = 0) -> list[Assignment]:
+        with sqlite3.connect(self.database_path) as connection:
+            rows = connection.execute(
+                """
+                SELECT payload
+                FROM assignments
+                WHERE student_id = ?
+                ORDER BY updated_at DESC, assignment_id DESC
+                LIMIT ? OFFSET ?
+                """,
+                (student_id, limit, offset),
+            ).fetchall()
+        return [Assignment.model_validate_json(row[0]) for row in rows]
+
+    def count_for_student(self, *, student_id: str) -> int:
+        with sqlite3.connect(self.database_path) as connection:
+            row = connection.execute(
+                "SELECT COUNT(*) FROM assignments WHERE student_id = ?",
+                (student_id,),
+            ).fetchone()
+        return row[0] if row else 0
+
+    def list_for_classroom(self, *, classroom_id: str, limit: int = 50, offset: int = 0) -> list[Assignment]:
+        with sqlite3.connect(self.database_path) as connection:
+            rows = connection.execute(
+                """
+                SELECT payload
+                FROM assignments
+                WHERE classroom_id = ?
+                ORDER BY updated_at DESC, assignment_id DESC
+                LIMIT ? OFFSET ?
+                """,
+                (classroom_id, limit, offset),
+            ).fetchall()
+        return [Assignment.model_validate_json(row[0]) for row in rows]
+
+    def list_for_teacher(self, *, teacher_id: str, limit: int = 50, offset: int = 0) -> list[Assignment]:
+        with sqlite3.connect(self.database_path) as connection:
+            rows = connection.execute(
+                """
+                SELECT payload
+                FROM assignments
+                WHERE teacher_id = ?
+                ORDER BY updated_at DESC, assignment_id DESC
+                LIMIT ? OFFSET ?
+                """,
+                (teacher_id, limit, offset),
+            ).fetchall()
+        return [Assignment.model_validate_json(row[0]) for row in rows]

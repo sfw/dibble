@@ -212,6 +212,11 @@ The repository includes a `pre-commit` hook that scans staged diffs with `truffl
 - `GET /api/remedial/sessions/{session_id}`
 - `POST /api/remedial/sessions/{session_id}/advance`
 - `POST /api/llm/stream`
+- `POST /api/assignments`
+- `GET /api/assignments/{assignment_id}`
+- `PATCH /api/assignments/{assignment_id}`
+- `GET /api/learners/{student_id}/assignments`
+- `GET /api/teachers/assignments`
 - `GET /api/auth/me`
 - `POST /api/auth/token`
 - `POST /api/auth/token/refresh`

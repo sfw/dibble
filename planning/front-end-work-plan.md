@@ -83,7 +83,7 @@ Contract-hardening in use:
 | Priority | Gap | Impact on frontend |
 |---|---|---|
 | ~~P0~~ | ~~No product-level authentication or user identity~~ | **RESOLVED** — backend supports `learner` and `teacher` roles with entity bindings. Frontend now has login screen (`/login`), `useAuth` hook with bearer token persistence and refresh, `AuthGuard` gating `/learn` and `/teacher` routes, role-aware redirect, logout from shell headers, and `AuthContext` for app-wide auth state. |
-| P1 | No assignment model or lifecycle | Cannot frame learning work as teacher-assigned tasks; learner and teacher views lack an assignment container |
+| ~~P1~~ | ~~No assignment model or lifecycle~~ | **RESOLVED** — backend now has a first-class `Assignment` entity with teacher attribution, lifecycle status, and paginated endpoints for learner and teacher views. Frontend types and API functions added. Frontend still needs assignment views in learner and teacher shells. |
 | P1 | Teacher reporting is a placeholder | `/teacher/reports` shows "Coming soon"; no class-level progress, trend, or standards mastery views |
 | ~~P1~~ | ~~No pagination on history endpoints~~ | **RESOLVED** — backend returns `{ items, offset, limit, has_more }` paginated responses. Frontend `useLearnerContracts` hook now tracks pagination state and exposes `loadMoreHistory`. History view shows a "Load more" button when more entries are available. |
 | P2 | Course-level progression planning is lighter than a true course planner | UI should trust learner `curriculum_progression` and avoid inventing cross-unit sequencing logic |

@@ -1,4 +1,8 @@
 import type {
+  Assignment,
+  AssignmentCreate,
+  AssignmentPage,
+  AssignmentStatus,
   AuthIdentity,
   AuthToken,
   FrontendConfig,
@@ -325,6 +329,48 @@ function parseSseRecord(record: string): GenerationStreamEvent | null {
     event: eventName || 'message',
     ...payload,
   }
+}
+
+export function createAssignment(config: FrontendConfig, payload: AssignmentCreate) {
+  return requestJson<Assignment>(config, '/api/assignments', {
+    method: 'POST',
+    headers: buildHeaders(config),
+    body: JSON.stringify(payload),
+  })
+}
+
+export function getAssignment(config: FrontendConfig, assignmentId: string) {
+  return requestJson<Assignment>(config, `/api/assignments/${assignmentId}`, {
+    headers: buildHeaders(config, false),
+  })
+}
+
+export function updateAssignmentStatus(config: FrontendConfig, assignmentId: string, status: AssignmentStatus) {
+  return requestJson<Assignment>(config, `/api/assignments/${assignmentId}`, {
+    method: 'PATCH',
+    headers: buildHeaders(config),
+    body: JSON.stringify({ status }),
+  })
+}
+
+export function getLearnerAssignments(config: FrontendConfig, studentId: string, limit = 20, offset = 0) {
+  return requestJson<AssignmentPage>(
+    config,
+    `/api/learners/${studentId}/assignments?limit=${limit}&offset=${offset}`,
+    {
+      headers: buildHeaders(config, false),
+    },
+  )
+}
+
+export function getTeacherAssignments(config: FrontendConfig, limit = 50, offset = 0) {
+  return requestJson<AssignmentPage>(
+    config,
+    `/api/teachers/assignments?limit=${limit}&offset=${offset}`,
+    {
+      headers: buildHeaders(config, false),
+    },
+  )
 }
 
 export function getAuthIdentity(config: FrontendConfig) {

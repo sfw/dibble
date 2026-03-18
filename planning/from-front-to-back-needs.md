@@ -25,19 +25,12 @@ What the frontend is building against:
 - backend-owned `triage_section`, `affective_support`, `display_label` / `stage_display_label` fields
 - the frontend does not interpret raw signals or make pedagogical decisions
 
-## Active P1 Backend Asks
+## Recently Resolved P1 Backend Asks
 
-### P1: Assignment model and lifecycle
+### Resolved: Assignment model and lifecycle (was P1)
 
-**What the frontend needs:** Neither frontend nor backend currently owns an assignment concept. The LMS plan calls for teachers to be able to assign, launch, and frame learning work. The learner view needs an "Assignments" container.
-
-**Backend implication:** The frontend should not invent assignment logic. The backend needs to decide:
-- whether assignments are a thin wrapper around existing learner workspace / progression state
-- whether a teacher can "assign" a specific curriculum resource, KC, or learning session to a learner
-- what the assignment lifecycle looks like (assigned → in_progress → completed → reviewed)
-- whether assignments carry backend-owned status and continue-action metadata like other workflow surfaces
-
-**This is a product-expansion gap, not a contract bug.** The frontend can start with a presentation layer around existing workspace and progression, but a real assignment model needs backend ownership.
+**Backend now provides:** A first-class `Assignment` entity with teacher attribution (`teacher_id`), learner targeting (`student_id`, `target_resource_id`, `target_kc_ids`, `target_lo_ids`), lifecycle status (`assigned` → `in_progress` → `completed` → `canceled`), optional scheduling (`due_at`), and timestamps. API surface: `POST /api/assignments` (teacher creates), `GET /api/assignments/{id}`, `PATCH /api/assignments/{id}` (status update), `GET /api/learners/{id}/assignments` (paginated), `GET /api/teachers/assignments` (paginated).
+**Frontend now provides:** TypeScript types (`Assignment`, `AssignmentCreate`, `AssignmentPage`) and API functions (`createAssignment`, `getAssignment`, `updateAssignmentStatus`, `getLearnerAssignments`, `getTeacherAssignments`). Frontend still needs assignment views in learner and teacher shells.
 
 ## Recently Resolved Backend Asks
 
@@ -103,7 +96,7 @@ These are valid backend directions but not current frontend blockers. They shoul
 
 | Priority | Area | When it becomes worth doing | Frontend stance until then |
 |---|---|---|---|
-| P1 | Assignment model / lifecycle | When product scope requires teacher-assigned learning tasks with backend-owned status and lifecycle | Keep trusting workspace and progression; do not invent assignment logic in the frontend |
+| ~~P1~~ | ~~Assignment model / lifecycle~~ | **RESOLVED** — first-class `Assignment` entity with teacher attribution, lifecycle, and paginated endpoints | Frontend needs assignment views in learner and teacher shells |
 | P2 | `ORCH-002` course-level planner | Only if product scope outgrows the current learner `curriculum_progression` contract | Keep trusting `curriculum_progression`; do not invent cross-unit sequencing in the UI |
 | P2 | `GEN-005` richer multimodal artifacts | When actual non-text artifacts are ready to ship as product | Route future artifacts through `response.artifacts` |
 | P2 | Teacher-safe analytics expansion | Only if teacher workflows need more than classroom counts, learner cards, intervention summaries, and current rationale fields | Keep teacher surfaces summary-first |
