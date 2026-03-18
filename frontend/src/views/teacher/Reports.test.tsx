@@ -1,10 +1,54 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router'
 import { Reports } from './Reports'
 import type { TeacherContext } from '../../shells/TeacherShell'
-import type { TeacherClassroomReadModel, TeacherClassroomOverview, TeacherLearnerCard } from '../../types'
+import type {
+  ClassroomMasteryTrendsResponse,
+  TeacherClassroomReadModel,
+  TeacherClassroomOverview,
+  TeacherLearnerCard,
+} from '../../types'
+
+vi.mock('../../api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../api')>()
+  return {
+    ...actual,
+    getClassroomMasteryTrends: vi.fn(),
+  }
+})
+
+import { getClassroomMasteryTrends } from '../../api'
+
+const mockTrends: ClassroomMasteryTrendsResponse = {
+  classroom_id: 'class-1',
+  days: 30,
+  learner_count: 2,
+  learner_trends: [
+    {
+      student_id: 'student-1',
+      snapshot_count: 3,
+      snapshots: [],
+      earliest_mastery: 0.6,
+      latest_mastery: 0.8,
+      mastery_delta: 0.2,
+    },
+    {
+      student_id: 'student-2',
+      snapshot_count: 3,
+      snapshots: [],
+      earliest_mastery: 0.3,
+      latest_mastery: 0.2,
+      mastery_delta: -0.1,
+    },
+  ],
+  classroom_average_snapshots: [
+    { timestamp: '2026-03-01T00:00:00Z', average_mastery: 0.35, learner_count: 2 },
+    { timestamp: '2026-03-08T00:00:00Z', average_mastery: 0.4, learner_count: 2 },
+    { timestamp: '2026-03-15T00:00:00Z', average_mastery: 0.5, learner_count: 2 },
+  ],
+}
 
 function makeLearner(overrides: Partial<TeacherLearnerCard> & { student_id: string }): TeacherLearnerCard {
   return {
@@ -210,6 +254,10 @@ function renderReports(overrides?: Partial<TeacherContext>) {
 }
 
 describe('Reports', () => {
+  beforeEach(() => {
+    vi.mocked(getClassroomMasteryTrends).mockResolvedValue(mockTrends)
+  })
+
   it('renders the page heading', () => {
     renderReports()
     expect(screen.getByRole('heading', { name: 'Reports' })).toBeInTheDocument()
@@ -385,5 +433,74 @@ describe('Reports', () => {
     expect(screen.getAllByText('25–50%').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('50–75%').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('75%+')).toBeInTheDocument()
+  })
+
+  // --- Mastery trend chart ---
+
+  it('renders mastery trend chart with SVG line', async () => {
+    renderReports()
+    await waitFor(() => {
+      expect(screen.getByLabelText('Mastery trend')).toBeInTheDocument()
+    })
+    expect(screen.getByText('Last 30 days · class average')).toBeInTheDocument()
+    // SVG should contain the trend line image
+    expect(screen.getByLabelText('Classroom mastery trend line')).toBeInTheDocument()
+  })
+
+  it('shows not-enough-data message when trends have < 2 points', async () => {
+    vi.mocked(getClassroomMasteryTrends).mockResolvedValue({
+      ...mockTrends,
+      classroom_average_snapshots: [mockTrends.classroom_average_snapshots[0]],
+    })
+    renderReports()
+    await waitFor(() => {
+      expect(screen.getByText('Not enough data for a trend line yet')).toBeInTheDocument()
+    })
+  })
+
+  it('shows loading state for trend chart', () => {
+    vi.mocked(getClassroomMasteryTrends).mockReturnValue(new Promise(() => {}))
+    renderReports()
+    expect(screen.getByText('Loading trend data…')).toBeInTheDocument()
+  })
+
+  // --- Per-learner mastery trends ---
+
+  it('renders per-learner mastery change strip', async () => {
+    renderReports()
+    await waitFor(() => {
+      expect(screen.getByLabelText('Learner mastery trends')).toBeInTheDocument()
+    })
+    expect(screen.getByText('30-day mastery change')).toBeInTheDocument()
+  })
+
+  it('shows improving and declining learner deltas', async () => {
+    renderReports()
+    await waitFor(() => {
+      expect(screen.getByLabelText('Learner mastery trends')).toBeInTheDocument()
+    })
+    const trendStrip = screen.getByLabelText('Per-learner mastery change')
+    // student-1 improved +20%, student-2 declined -10%
+    expect(trendStrip.textContent).toContain('+20%')
+    expect(trendStrip.textContent).toContain('-10%')
+  })
+
+  it('shows trend legend with improving/stable/declining labels', async () => {
+    renderReports()
+    await waitFor(() => {
+      expect(screen.getByText('Improving')).toBeInTheDocument()
+    })
+    expect(screen.getByText('Stable')).toBeInTheDocument()
+    expect(screen.getByText('Declining')).toBeInTheDocument()
+  })
+
+  // --- Per-learner delta in drill-down table ---
+
+  it('shows mastery delta in learner drill-down table', async () => {
+    renderReports()
+    await waitFor(() => {
+      const deltas = screen.getAllByTestId('mastery-delta')
+      expect(deltas.length).toBeGreaterThanOrEqual(1)
+    })
   })
 })

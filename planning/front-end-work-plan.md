@@ -41,7 +41,7 @@ The frontend is a React 19 + Vite + TypeScript app with:
 - **Custom hooks** for data fetching and workflow state (`useLearnerWorkspace`, `useLearnerContracts`, `useGenerationWorkspace`, `useSocraticWorkspace`, `useRemediationWorkspace`, `useTeacherClassroom`)
 - **Copy/vocabulary translation layer** (`lib/copy.ts`) preferring backend-provided `display_label` fields with local fallbacks
 - **Demo fallback** for offline development (staff mode only by default)
-- **30 test files** with Vitest + React Testing Library
+- **30 test files** with 215 tests via Vitest + React Testing Library
 
 ## Backend Contracts In Use
 
@@ -124,7 +124,7 @@ Contract-hardening in use:
 - ~~Build a real teacher reporting surface with class-level progress, mastery trends, and per-learner evidence timelines~~ — **DONE**: `/teacher/reports` with cross-classroom summaries, per-classroom analytics, per-learner mastery heatmap, and learner drill-down table
 - ~~Improve classroom detail density so teachers can scan 30 learners efficiently~~ — **DONE**: collapsible triage sections, compact card mode, filter bar
 - ~~Add teacher-to-learner drill-in for artifact review~~ — **DONE**: `LearnerDetail` evidence timeline with expandable entries and artifact review panel
-- Add trend lines to reports when backend exposes historical snapshots
+- ~~Add trend lines to reports when backend exposes historical snapshots~~ — **DONE**: SVG trend line chart, per-learner mastery change strip, and drill-down table deltas
 
 ### P1: assignment layer (frontend + backend coordination) — DONE
 
@@ -187,12 +187,12 @@ Contract-hardening in use:
 
 ### In progress
 
-- teacher reporting depth: trend lines — backend now exposes `GET /api/learners/{student_id}/mastery-history` and `GET /api/teachers/classrooms/{classroom_id}/mastery-trends` with per-learner mastery trajectories and daily classroom averages; frontend integration is next
+(none)
 
 ### Next up
 
-1. integrate backend mastery-history and classroom mastery-trends endpoints into teacher reports for trend lines
-2. keep this work plan and `from-front-to-back-needs.md` updated together
+1. keep this work plan and `from-front-to-back-needs.md` updated together
+2. continue P2 polish and expansion work as product needs arise
 
 ### Recently completed
 
@@ -226,6 +226,8 @@ Contract-hardening in use:
 - CSS animation utilities: `animate-fade-in-up`, `animate-fade-in`, `animate-scale-in`, `animate-progress-fill`, `animate-pulse-gentle` added to `index.css`
 - teacher Reports: class average mastery banner with on-track/at-risk counts, mastery distribution histogram (4-bucket bar chart), resource mastery breakdown showing weakest-first resources with per-resource mastery bars and mastered/total counts
 - Reports tests expanded to cover mastery banner, mastery distribution, and resource mastery sections (19 tests total)
+- teacher Reports: mastery trend line chart (SVG line, no external chart library) showing classroom average mastery over 30 days with date labels and percentage gridlines, per-learner mastery change strip with improving/stable/declining color coding and delta percentages, per-learner mastery deltas in drill-down table rows — all fetched from `GET /api/teachers/classrooms/{classroom_id}/mastery-trends`
+- Reports tests expanded to cover trend chart SVG, not-enough-data fallback, loading state, per-learner trend strip with delta values, trend legend, and drill-down table deltas (30 tests total)
 - wired backend `display_label` and `stage_display_label` through to `copy.ts` callers in LearnerHome, ContinueLearning, and Progress views
 - added animated loading spinner to ContinueLearning initial load state
 - added loading indicator to RemediationSession when content is loading between steps
@@ -297,7 +299,7 @@ Remaining:
 - ~~teacher reporting surface~~ — **DONE**: `/teacher/reports` with cross-classroom and per-classroom reporting plus per-learner mastery heatmap
 - ~~artifact review~~ — **DONE**: `LearnerDetail` now has a unified evidence timeline with expandable detail and click-to-review generated content via `GET /api/content/{generation_id}`
 - ~~assignment management layer~~ — **DONE**: teacher and learner assignment views
-- trend lines — backend mastery-history endpoints now available; frontend integration next
+- ~~trend lines~~ — **DONE**: integrated backend mastery-trends endpoint into Reports with SVG trend line, per-learner delta strip, and drill-down table deltas
 
 ### Phase 3: assignments, reporting, and operational completeness — IN PROGRESS
 
@@ -307,7 +309,7 @@ Remaining:
 - ~~teacher reporting: per-learner mastery heatmap~~ — **DONE**: color-coded mastery strip with hover tooltips and click-through
 - ~~learner progress: resource breakdown~~ — **DONE**: all resources grouped by state with mastery bars and blocker rationale
 - ~~learner history: type filtering~~ — **DONE**: All/Lessons/Checks/Practice tabs with counts
-- teacher reporting depth: trend lines — backend mastery-history endpoints now available; frontend integration next
+- ~~teacher reporting depth: trend lines~~ — **DONE**: SVG trend line chart, per-learner mastery change strip, and drill-down table deltas
 - role-aware navigation polish
 
 ### Phase 4: product depth expansion — FUTURE
