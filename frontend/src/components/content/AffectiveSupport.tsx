@@ -2,13 +2,21 @@ import { Heart, HelpCircle, Pause, Sparkles } from 'lucide-react'
 import type { ProfileSummary, SignalLevel } from '../../types'
 
 /**
- * Shows contextual support messages based on the learner's affective state.
+ * Renders an affective support message for the learner.
  *
- * Per the spec: learner surfaces should provide encouragement when engagement
- * is high, gentle nudges when frustration is detected, and offers to simplify
- * when confusion is high. Never shows raw signal names.
+ * BACKEND-OWNED DECISION: The choice of when to show encouragement, nudges,
+ * or break suggestions is a pedagogical decision that should be made by the
+ * backend. The backend should provide an `affective_support` field on the
+ * learner workspace or profile with: { kind, title, detail } or null.
+ *
+ * TEMPORARY SHIM: Until the backend provides this contract, the frontend
+ * interprets raw frustration/engagement signals locally. This shim should
+ * be replaced once the backend owns the affective support decision.
  */
 export function AffectiveSupport({ summary }: { summary: ProfileSummary }) {
+  // TODO: Replace with backend-provided affective support message.
+  // When the backend provides `summary.affective_support`, render it directly
+  // instead of interpreting raw signals here.
   const message = resolveAffectiveMessage(summary)
   if (!message) return null
 
@@ -22,6 +30,13 @@ export function AffectiveSupport({ summary }: { summary: ProfileSummary }) {
     </div>
   )
 }
+
+// ---------------------------------------------------------------------------
+// Temporary shim: frontend-side affective interpretation
+// ---------------------------------------------------------------------------
+// This entire section should be deleted once the backend provides
+// an affective_support message contract. The thresholds, priority order,
+// and messaging are pedagogical decisions that belong in the backend.
 
 interface AffectiveMessage {
   icon: typeof Heart
@@ -37,7 +52,6 @@ function resolveAffectiveMessage(summary: ProfileSummary): AffectiveMessage | nu
   const frustration = summary.frustration
   const engagement = summary.engagement
 
-  // High frustration takes priority — offer help
   if (isElevated(frustration)) {
     return {
       icon: Pause,
@@ -50,7 +64,6 @@ function resolveAffectiveMessage(summary: ProfileSummary): AffectiveMessage | nu
     }
   }
 
-  // Medium frustration — gentle nudge
   if (frustration === 'medium') {
     return {
       icon: HelpCircle,
@@ -63,7 +76,6 @@ function resolveAffectiveMessage(summary: ProfileSummary): AffectiveMessage | nu
     }
   }
 
-  // High engagement — encouragement
   if (isElevated(engagement)) {
     return {
       icon: Sparkles,

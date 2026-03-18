@@ -258,15 +258,16 @@ function buildTriageSections(learners: TeacherLearnerCard[]): Array<{
   tone: 'accent' | 'success' | 'warning' | 'danger' | 'neutral'
   learners: TeacherLearnerCard[]
 }> {
+  // Group by backend-provided attention_level and intervention status.
+  // The backend owns the decision about which learners need attention.
   const teacherAction = learners.filter((learner) => learner.intervention.proposal_status === 'available')
-  const blocked = learners.filter(
+  const needsAttention = learners.filter(
     (learner) =>
       learner.intervention.proposal_status !== 'available' &&
-      (learner.curriculum_progression.status.includes('blocked') ||
-        learner.attention_reasons.some((reason) => reason.includes('blocked'))),
+      (learner.attention_level === 'high' || learner.attention_level === 'medium'),
   )
-  const continuing = learners.filter(
-    (learner) => !teacherAction.includes(learner) && !blocked.includes(learner),
+  const onTrack = learners.filter(
+    (learner) => !teacherAction.includes(learner) && !needsAttention.includes(learner),
   )
 
   return [
@@ -278,18 +279,18 @@ function buildTriageSections(learners: TeacherLearnerCard[]): Array<{
       learners: teacherAction,
     },
     {
-      key: 'blocked',
-      title: 'Blocked until prerequisites shift',
-      description: 'These learners are stalled by progression state, so the classroom view keeps them visible without inventing a local next-step policy.',
+      key: 'needs-attention',
+      title: 'Needs attention',
+      description: 'These learners are flagged by the backend for monitoring.',
       tone: 'warning',
-      learners: blocked,
+      learners: needsAttention,
     },
     {
-      key: 'continuing',
+      key: 'on-track',
       title: 'Ready for learner workflow handoff',
       description: 'These learners can usually move straight into their backend-owned continue action.',
       tone: 'success',
-      learners: continuing,
+      learners: onTrack,
     },
   ]
 }

@@ -3,6 +3,16 @@
  *
  * Maps backend contract terms into role-appropriate display strings
  * so that learner and teacher surfaces never expose raw contract vocabulary.
+ *
+ * BACKEND-OWNED DECISION: Display labels are pedagogical framing decisions
+ * (e.g. "repair" → "Building foundations") that should be owned by the backend.
+ * The backend should provide `display_label` fields alongside machine-readable
+ * keys on all learner-facing and teacher-facing contracts.
+ *
+ * TEMPORARY SHIM: Until the backend provides display labels, the frontend
+ * maintains these lookup tables locally. When the backend adds display_label
+ * fields, each function below should prefer the backend-provided label and
+ * fall back to these tables only for backwards compatibility.
  */
 
 // ---------------------------------------------------------------------------
@@ -156,10 +166,23 @@ const teacherProgressionActionLabels: Record<string, string> = {
 }
 
 // ---------------------------------------------------------------------------
-// Public API
+// Internal helpers
 // ---------------------------------------------------------------------------
 
-function lookup(table: Record<string, string>, key: string | null | undefined, nullFallback?: string): string {
+/**
+ * Looks up a display label from a local table.
+ *
+ * When the backend provides display_label fields, callers should pass the
+ * backend label as a fourth argument and this function should prefer it:
+ *   lookup(table, key, nullFallback, backendLabel)
+ */
+function lookup(
+  table: Record<string, string>,
+  key: string | null | undefined,
+  nullFallback?: string,
+  backendLabel?: string | null,
+): string {
+  if (backendLabel) return backendLabel
   if (!key) return nullFallback ?? ''
   if (key in table) return table[key]
   return formatFallback(key)
@@ -173,66 +196,70 @@ function formatFallback(value: string): string {
     .join(' ')
 }
 
-// Learner-facing labels
+// ---------------------------------------------------------------------------
+// Public API — Learner-facing labels
+// ---------------------------------------------------------------------------
 
-export function learnerContinueAction(kind: string | null | undefined): string {
-  return lookup(learnerContinueActionLabels, kind, 'All caught up')
+export function learnerContinueAction(kind: string | null | undefined, backendLabel?: string | null): string {
+  return lookup(learnerContinueActionLabels, kind, 'All caught up', backendLabel)
 }
 
-export function learnerFlowType(flowType: string | null | undefined): string {
-  return lookup(learnerFlowTypeLabels, flowType, 'Activity')
+export function learnerFlowType(flowType: string | null | undefined, backendLabel?: string | null): string {
+  return lookup(learnerFlowTypeLabels, flowType, 'Activity', backendLabel)
 }
 
-export function learnerStage(stage: string | null | undefined): string {
-  return lookup(learnerStageLabels, stage, 'Learning')
+export function learnerStage(stage: string | null | undefined, backendLabel?: string | null): string {
+  return lookup(learnerStageLabels, stage, 'Learning', backendLabel)
 }
 
-export function learnerArtifact(kind: string | null | undefined): string {
-  return lookup(learnerArtifactLabels, kind, 'Activity')
+export function learnerArtifact(kind: string | null | undefined, backendLabel?: string | null): string {
+  return lookup(learnerArtifactLabels, kind, 'Activity', backendLabel)
 }
 
-export function learnerContentType(contentType: string | null | undefined): string {
-  return lookup(learnerContentTypeLabels, contentType, 'Lesson')
+export function learnerContentType(contentType: string | null | undefined, backendLabel?: string | null): string {
+  return lookup(learnerContentTypeLabels, contentType, 'Lesson', backendLabel)
 }
 
-export function learnerSignal(signal: string | null | undefined): string {
-  return lookup(learnerSignalLabels, signal, '')
+export function learnerSignal(signal: string | null | undefined, backendLabel?: string | null): string {
+  return lookup(learnerSignalLabels, signal, '', backendLabel)
 }
 
-export function learnerRemediationPhase(phase: string | null | undefined): string {
-  return lookup(learnerRemediationPhaseLabels, phase, 'Working')
+export function learnerRemediationPhase(phase: string | null | undefined, backendLabel?: string | null): string {
+  return lookup(learnerRemediationPhaseLabels, phase, 'Working', backendLabel)
 }
 
-export function learnerProgressionAction(action: string | null | undefined): string {
-  return lookup(learnerProgressionActionLabels, action, '')
+export function learnerProgressionAction(action: string | null | undefined, backendLabel?: string | null): string {
+  return lookup(learnerProgressionActionLabels, action, '', backendLabel)
 }
 
-// Teacher-facing labels
+// ---------------------------------------------------------------------------
+// Public API — Teacher-facing labels
+// ---------------------------------------------------------------------------
 
-export function teacherContinueAction(kind: string | null | undefined): string {
-  return lookup(teacherContinueActionLabels, kind, 'No pending action')
+export function teacherContinueAction(kind: string | null | undefined, backendLabel?: string | null): string {
+  return lookup(teacherContinueActionLabels, kind, 'No pending action', backendLabel)
 }
 
-export function teacherFlowType(flowType: string | null | undefined): string {
-  return lookup(teacherFlowTypeLabels, flowType, 'Unknown')
+export function teacherFlowType(flowType: string | null | undefined, backendLabel?: string | null): string {
+  return lookup(teacherFlowTypeLabels, flowType, 'Unknown', backendLabel)
 }
 
-export function teacherStage(stage: string | null | undefined): string {
-  return lookup(teacherStageLabels, stage)
+export function teacherStage(stage: string | null | undefined, backendLabel?: string | null): string {
+  return lookup(teacherStageLabels, stage, undefined, backendLabel)
 }
 
-export function teacherArtifact(kind: string | null | undefined): string {
-  return lookup(teacherArtifactLabels, kind, 'Artifact')
+export function teacherArtifact(kind: string | null | undefined, backendLabel?: string | null): string {
+  return lookup(teacherArtifactLabels, kind, 'Artifact', backendLabel)
 }
 
-export function teacherAttention(level: string | null | undefined): string {
-  return lookup(teacherAttentionLabels, level, 'Unknown')
+export function teacherAttention(level: string | null | undefined, backendLabel?: string | null): string {
+  return lookup(teacherAttentionLabels, level, 'Unknown', backendLabel)
 }
 
-export function teacherRemediationPhase(phase: string | null | undefined): string {
-  return lookup(teacherRemediationPhaseLabels, phase)
+export function teacherRemediationPhase(phase: string | null | undefined, backendLabel?: string | null): string {
+  return lookup(teacherRemediationPhaseLabels, phase, undefined, backendLabel)
 }
 
-export function teacherProgressionAction(action: string | null | undefined): string {
-  return lookup(teacherProgressionActionLabels, action)
+export function teacherProgressionAction(action: string | null | undefined, backendLabel?: string | null): string {
+  return lookup(teacherProgressionActionLabels, action, undefined, backendLabel)
 }
