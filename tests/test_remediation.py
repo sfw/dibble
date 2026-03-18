@@ -210,6 +210,132 @@ def test_misconception_detector_uses_recent_behavioral_struggle_to_reinforce_pre
     assert "support-heavy attempts" in prerequisite_signal.rationale
 
 
+def test_misconception_detector_adapts_prerequisite_threshold_to_behavioral_struggle(tmp_path):
+    """ADAPT-003: When a prerequisite KC has recent behavioral struggle
+    (2+ struggles, 0 successes), the prerequisite gap detection threshold
+    should rise from 0.75 to 0.82, so borderline prerequisites that the
+    learner is actively struggling with are flagged more aggressively."""
+    database_path = str(tmp_path / "misconceptions-adaptive-threshold.db")
+    ensure_database(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(database_path)
+    observation_store = SQLiteObservationStore(database_path)
+    student_id = uuid4()
+    kc_store.upsert(KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1", name="Identify numerator and denominator")))
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component(
+                "KC-2",
+                prerequisite_kc_ids=["KC-1"],
+                name="Generate equivalent fractions",
+            )
+        )
+    )
+    # KC-1 mastery is 0.78 — above the base 0.75 threshold, so without
+    # behavioral evidence the prerequisite would NOT be flagged as a gap.
+    # But the learner is struggling hard on KC-1, which should raise the
+    # threshold to 0.82, making 0.78 < 0.82 a positive gap.
+    _append_observation(
+        observation_store,
+        student_id=student_id,
+        target_kc_id="KC-1",
+        support_level="high",
+        hints_used=3,
+        error_count=2,
+        confidence=0.35,
+        response_time_ms=30000,
+    )
+    _append_observation(
+        observation_store,
+        student_id=student_id,
+        target_kc_id="KC-1",
+        support_level="high",
+        hints_used=2,
+        error_count=2,
+        confidence=0.40,
+        response_time_ms=28000,
+    )
+    profile = LearnerProfile.model_validate(build_profile(student_id, kc_mastery={"KC-1": 0.78, "KC-2": 0.6}))
+    detector = MisconceptionDetector(kc_store, observation_store=observation_store)
+
+    signals = detector.detect(
+        profile,
+        target_kc_id="KC-2",
+        misconception_description="The learner is confused about equivalent fractions.",
+        curriculum_context=["Equivalent fractions"],
+    )
+
+    # Should detect a prerequisite gap even though mastery is above 0.75
+    prerequisite_signals = [s for s in signals if s.kc_id == "KC-1" and s.category == "prerequisite_gap"]
+    assert len(prerequisite_signals) == 1
+    assert prerequisite_signals[0].confidence > 0.4
+
+
+def test_misconception_detector_relaxes_prerequisite_threshold_for_recent_successes(tmp_path):
+    """ADAPT-003: When a prerequisite KC has recent low-support successes
+    (2+ successes, 0 struggles), the threshold should lower from 0.75 to
+    0.68, so a prerequisite the learner is recovering on is less likely
+    to trigger a gap signal."""
+    database_path = str(tmp_path / "misconceptions-adaptive-relax.db")
+    ensure_database(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(database_path)
+    observation_store = SQLiteObservationStore(database_path)
+    student_id = uuid4()
+    kc_store.upsert(KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1", name="Identify numerator and denominator")))
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component(
+                "KC-2",
+                prerequisite_kc_ids=["KC-1"],
+                name="Generate equivalent fractions",
+            )
+        )
+    )
+    # KC-1 mastery is 0.70 — below the base 0.75 threshold, so without
+    # behavioral evidence the prerequisite WOULD be flagged.  But 2 recent
+    # low-support successes lower the threshold to 0.68, making 0.70 >= 0.68
+    # so the prerequisite gap should NOT be detected (unless text overlap).
+    _append_observation(
+        observation_store,
+        student_id=student_id,
+        target_kc_id="KC-1",
+        support_level="low",
+        hints_used=0,
+        error_count=0,
+        confidence=0.75,
+        response_time_ms=12000,
+    )
+    _append_observation(
+        observation_store,
+        student_id=student_id,
+        target_kc_id="KC-1",
+        support_level="low",
+        hints_used=0,
+        error_count=0,
+        confidence=0.80,
+        response_time_ms=10000,
+    )
+    profile = LearnerProfile.model_validate(build_profile(student_id, kc_mastery={"KC-1": 0.70, "KC-2": 0.6}))
+    detector = MisconceptionDetector(kc_store, observation_store=observation_store)
+
+    signals = detector.detect(
+        profile,
+        target_kc_id="KC-2",
+        misconception_description="The learner is confused about equivalent fractions.",
+        curriculum_context=["Equivalent fractions"],
+    )
+
+    # The prerequisite gap on KC-1 may still appear because of text
+    # overlap on "fractions", but its confidence should be lower than it
+    # would be without the behavioral success evidence tempering it.
+    prerequisite_signals = [s for s in signals if s.kc_id == "KC-1" and s.category == "prerequisite_gap"]
+    # With 2 low-support successes, the behavioral evidence lowers the
+    # confidence adjustment by -0.05, and the threshold drops from 0.75
+    # to 0.68 so the mastery gap itself is much smaller.  The signal
+    # should be present (because of text overlap) but modest.
+    for signal in prerequisite_signals:
+        assert signal.confidence < 0.65
+
+
 def test_misconception_detector_uses_repair_target_behavioral_evidence_for_catalog_match(tmp_path):
     database_path = str(tmp_path / "misconceptions-behavioral-catalog.db")
     ensure_database(database_path)

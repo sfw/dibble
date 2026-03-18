@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useOutletContext } from 'react-router'
 import {
   Activity,
@@ -11,6 +11,7 @@ import {
   GraduationCap,
   Layers,
   MessageCircle,
+  TrendingDown,
   TrendingUp,
   Users,
   Wrench,
@@ -22,7 +23,12 @@ import { ErrorBanner } from '@/components/ui/error-banner'
 import { Badge } from '@/components/ui/badge'
 import { teacherStage, teacherAttention } from '../../lib/copy'
 import { formatPercent } from '../../lib/formatters'
-import type { TeacherClassroomOverview, TeacherLearnerCard } from '../../types'
+import { getClassroomMasteryTrends } from '../../api'
+import type {
+  ClassroomMasteryTrendsResponse,
+  TeacherClassroomOverview,
+  TeacherLearnerCard,
+} from '../../types'
 
 // ---------------------------------------------------------------------------
 // Aggregation helpers
@@ -109,7 +115,7 @@ function attentionReasonLabel(reason: string): string {
 // ---------------------------------------------------------------------------
 
 export function Reports() {
-  const { classrooms, classroom, loading, error, loadClassroom } = useOutletContext<TeacherContext>()
+  const { config, classrooms, classroom, loading, error, loadClassroom } = useOutletContext<TeacherContext>()
   const learners = useMemo(() => classroom.learners ?? [], [classroom.learners])
 
   // Auto-load the first classroom if none is selected yet
@@ -147,6 +153,42 @@ export function Reports() {
     () => sortLearners(learners, sortField, sortDir),
     [learners, sortField, sortDir],
   )
+
+  // Fetch mastery trends for the selected classroom
+  const [trends, setTrends] = useState<ClassroomMasteryTrendsResponse | null>(null)
+  const [trendsLoading, setTrendsLoading] = useState(false)
+  const trendsClassroomRef = useRef('')
+
+  const loadTrends = useCallback(
+    async (classroomId: string) => {
+      setTrendsLoading(true)
+      try {
+        const data = await getClassroomMasteryTrends(config, classroomId, 30)
+        setTrends(data)
+      } catch {
+        setTrends(null)
+      } finally {
+        setTrendsLoading(false)
+      }
+    },
+    [config],
+  )
+
+  useEffect(() => {
+    if (!classroom.classroom_id || classroom.classroom_id === trendsClassroomRef.current) return
+    trendsClassroomRef.current = classroom.classroom_id
+    void loadTrends(classroom.classroom_id)
+  }, [classroom.classroom_id, loadTrends])
+
+  // Build a lookup of per-learner mastery deltas from trends data
+  const learnerDeltas = useMemo(() => {
+    const map = new Map<string, number>()
+    if (!trends) return map
+    for (const lt of trends.learner_trends) {
+      map.set(lt.student_id, lt.mastery_delta)
+    }
+    return map
+  }, [trends])
 
   if (loading && classrooms.length === 0) {
     return (
@@ -209,6 +251,12 @@ export function Reports() {
           {/* Class average mastery banner */}
           <ClassMasteryBanner average={classAverageMastery} learners={learners} />
 
+          {/* Mastery trend line */}
+          <MasteryTrendChart trends={trends} loading={trendsLoading} />
+
+          {/* Per-learner mastery trends */}
+          <LearnerTrendStrip trends={trends} loading={trendsLoading} />
+
           {/* Per-learner mastery heatmap */}
           <LearnerMasteryStrip learners={learners} />
 
@@ -240,7 +288,7 @@ export function Reports() {
                 </thead>
                 <tbody className="divide-y">
                   {sortedLearners.map((learner) => (
-                    <LearnerRow key={learner.student_id} learner={learner} />
+                    <LearnerRow key={learner.student_id} learner={learner} delta={learnerDeltas.get(learner.student_id)} />
                   ))}
                 </tbody>
               </table>
@@ -249,6 +297,189 @@ export function Reports() {
         </>
       )}
     </PageContainer>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Mastery trend line chart (SVG)
+// ---------------------------------------------------------------------------
+
+function MasteryTrendChart({
+  trends,
+  loading,
+}: {
+  trends: ClassroomMasteryTrendsResponse | null
+  loading: boolean
+}) {
+  const points = trends?.classroom_average_snapshots ?? []
+
+  if (loading) {
+    return (
+      <section className="rounded-xl border bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-4">
+          <TrendingUp className="h-5 w-5 text-muted-foreground" />
+          <h3 className="font-semibold">Mastery trend</h3>
+        </div>
+        <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+          Loading trend data…
+        </div>
+      </section>
+    )
+  }
+
+  if (points.length < 2) {
+    return (
+      <section className="rounded-xl border bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-4">
+          <TrendingUp className="h-5 w-5 text-muted-foreground" />
+          <h3 className="font-semibold">Mastery trend</h3>
+        </div>
+        <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+          Not enough data for a trend line yet
+        </div>
+      </section>
+    )
+  }
+
+  // Chart dimensions
+  const width = 600
+  const height = 160
+  const padX = 40
+  const padTop = 10
+  const padBottom = 24
+
+  const chartW = width - padX * 2
+  const chartH = height - padTop - padBottom
+
+  // X positions evenly spaced, Y mapped from mastery [0,1]
+  const pathPoints = points.map((p, i) => {
+    const x = padX + (i / (points.length - 1)) * chartW
+    const y = padTop + chartH - p.average_mastery * chartH
+    return { x, y, mastery: p.average_mastery, ts: p.timestamp, count: p.learner_count }
+  })
+
+  const pathD = pathPoints.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
+
+  // Y-axis labels
+  const yLabels = [0, 0.25, 0.5, 0.75, 1]
+
+  // Format date label
+  function shortDate(ts: string): string {
+    const d = new Date(ts)
+    return `${d.getMonth() + 1}/${d.getDate()}`
+  }
+
+  // Show first and last date labels, plus middle if enough points
+  const dateLabels: { idx: number; label: string }[] = [
+    { idx: 0, label: shortDate(points[0].timestamp) },
+  ]
+  if (points.length >= 5) {
+    const mid = Math.floor(points.length / 2)
+    dateLabels.push({ idx: mid, label: shortDate(points[mid].timestamp) })
+  }
+  dateLabels.push({ idx: points.length - 1, label: shortDate(points[points.length - 1].timestamp) })
+
+  return (
+    <section className="rounded-xl border bg-white p-6 shadow-sm" aria-label="Mastery trend">
+      <div className="flex items-center gap-3 mb-4">
+        <TrendingUp className="h-5 w-5 text-muted-foreground" />
+        <h3 className="font-semibold">Mastery trend</h3>
+        <span className="ml-auto text-xs text-muted-foreground">Last 30 days · class average</span>
+      </div>
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" role="img" aria-label="Classroom mastery trend line">
+        {/* Gridlines */}
+        {yLabels.map((v) => {
+          const y = padTop + chartH - v * chartH
+          return (
+            <g key={v}>
+              <line x1={padX} x2={width - padX} y1={y} y2={y} stroke="#e2e8f0" strokeWidth={1} />
+              <text x={padX - 6} y={y + 4} textAnchor="end" className="fill-slate-400" fontSize={10}>
+                {Math.round(v * 100)}%
+              </text>
+            </g>
+          )
+        })}
+
+        {/* Line */}
+        <path d={pathD} fill="none" stroke="#10b981" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+
+        {/* Dots */}
+        {pathPoints.map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r={3} fill="#10b981" stroke="white" strokeWidth={1.5}>
+            <title>{`${shortDate(p.ts)}: ${Math.round(p.mastery * 100)}% avg (${p.count} learners)`}</title>
+          </circle>
+        ))}
+
+        {/* Date labels */}
+        {dateLabels.map(({ idx, label }) => (
+          <text key={idx} x={pathPoints[idx].x} y={height - 4} textAnchor="middle" className="fill-slate-400" fontSize={10}>
+            {label}
+          </text>
+        ))}
+      </svg>
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Per-learner mastery trend strip
+// ---------------------------------------------------------------------------
+
+function LearnerTrendStrip({
+  trends,
+  loading,
+}: {
+  trends: ClassroomMasteryTrendsResponse | null
+  loading: boolean
+}) {
+  const learnerTrends = trends?.learner_trends ?? []
+
+  if (loading || learnerTrends.length === 0) return null
+
+  // Sort by delta ascending (most declining first)
+  const sorted = [...learnerTrends].sort((a, b) => a.mastery_delta - b.mastery_delta)
+
+  return (
+    <section className="rounded-xl border bg-white p-5 shadow-sm" aria-label="Learner mastery trends">
+      <div className="flex items-center gap-3 mb-3">
+        <Activity className="h-5 w-5 text-muted-foreground" />
+        <h3 className="font-semibold">30-day mastery change</h3>
+        <span className="ml-auto text-xs text-muted-foreground">Per learner · sorted by change</span>
+      </div>
+      <div className="flex flex-wrap gap-2" role="list" aria-label="Per-learner mastery change">
+        {sorted.map((lt) => {
+          const deltaPct = Math.round(lt.mastery_delta * 100)
+          const isPositive = lt.mastery_delta > 0.005
+          const isNegative = lt.mastery_delta < -0.005
+          const colorClass = isPositive
+            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+            : isNegative
+              ? 'bg-red-50 text-red-700 border-red-200'
+              : 'bg-slate-50 text-slate-600 border-slate-200'
+
+          return (
+            <Link
+              key={lt.student_id}
+              to={`/teacher/learners/${lt.student_id}`}
+              role="listitem"
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors hover:shadow-sm ${colorClass}`}
+            >
+              <span className="font-medium">{lt.student_id}</span>
+              {isPositive && <TrendingUp className="h-3.5 w-3.5" />}
+              {isNegative && <TrendingDown className="h-3.5 w-3.5" />}
+              <span className="font-semibold">
+                {deltaPct > 0 ? '+' : ''}{deltaPct}%
+              </span>
+            </Link>
+          )
+        })}
+      </div>
+      <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-emerald-400" />Improving</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-slate-300" />Stable</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-red-400" />Declining</span>
+      </div>
+    </section>
   )
 }
 
@@ -579,7 +810,7 @@ const signalBadgeColors: Record<string, string> = {
   high: 'bg-red-100 text-red-700',
 }
 
-function LearnerRow({ learner }: { learner: TeacherLearnerCard }) {
+function LearnerRow({ learner, delta }: { learner: TeacherLearnerCard; delta?: number }) {
   const prog = learner.curriculum_progression
   return (
     <tr className="transition-colors hover:bg-slate-50">
@@ -598,6 +829,11 @@ function LearnerRow({ learner }: { learner: TeacherLearnerCard }) {
             />
           </div>
           <span className="text-xs text-muted-foreground">{formatPercent(prog.mastered_resource_ratio)}</span>
+          {delta != null && delta !== 0 && (
+            <span className={`text-xs font-medium ${delta > 0 ? 'text-emerald-600' : 'text-red-600'}`} data-testid="mastery-delta">
+              {delta > 0 ? '+' : ''}{Math.round(delta * 100)}%
+            </span>
+          )}
         </div>
       </td>
       <td className="px-4 py-3">

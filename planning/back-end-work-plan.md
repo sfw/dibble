@@ -196,6 +196,8 @@ Most recent progress:
 53. `GET /api/teachers/classrooms/{classroom_id}/mastery-trends` returns per-learner mastery trajectories plus daily classroom average points, directly unblocking the frontend teacher report trend line feature that was blocked on historical snapshots.
 54. ordinary mastery hold thresholds now integrate mastery trend direction (ADAPT-006): an improving trend raises the effective hold threshold by 0.06 so a learner who is gaining ground is not held as aggressively, while a declining trend lowers it by 0.05 so a learner who is losing ground is held more conservatively.
 55. stuck-repair detection now triggers earlier for declining learners (ADAPT-006): when the mastery trend is declining, the "consider teacher review" signal surfaces at 4 observations across 2 sessions instead of the standard 6 across 3, and uses a distinct "declining hold" label so teacher surfaces can distinguish a learner who is actively losing ground from one who is merely plateaued.
+56. ordinary mastery hold threshold adjustments are now scaled by evidence depth (ADAPT-006): the low-support success rate bonus and high-support dependency rate penalty are multiplied by `min(1.0, matched_observation_count / 4)`, so a learner with only 1–2 observations does not earn the same threshold shift as one with 6+, preventing sparse evidence windows from prematurely releasing or over-holding.
+57. misconception prerequisite gap detection now adapts its mastery threshold to recent behavioral evidence (ADAPT-003): 2+ recent struggles on a prerequisite raise the threshold from 0.75 to 0.82 so borderline prerequisites the learner is actively struggling with are flagged more aggressively, while 2+ recent low-support successes lower it to 0.68 so a prerequisite the learner is recovering on is less likely to trigger a gap signal.
 
 ### Frontend Alignment Update
 
@@ -211,7 +213,7 @@ The frontend has moved from a contract integration workbench to a three-layer LM
 6. vocabulary translation layer preferring backend-provided `display_label` fields
 7. all backend-owned contracts integrated: summary, flow, workspace, history, progression, workflow_summary, intervention, remediation, Socratic, classroom, continue_action, triage_section, affective_support, display_label, machine-readable error codes
 8. learner interaction polish: all three core interaction views (SocraticCheck, RemediationSession, ContinueLearning) now have accessibility improvements, form validation, error retry buttons, and empty state handling
-9. 30 test files with 199 tests
+9. 30 test files with 215 tests
 
 **What the frontend is now asking for:**
 

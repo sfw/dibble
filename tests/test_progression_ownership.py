@@ -877,6 +877,7 @@ def test_high_low_support_success_rate_relaxes_hold_threshold():
     # Confidence 0.58 is above the base support_dependent threshold (0.55)
     # for target stage, but should NOT hold when low_support_success_rate
     # is high enough to raise the effective threshold to 0.63.
+    # matched_observation_count must be >= 4 for the full bonus to apply.
     service = ProgressionOwnershipService(
         knowledge_component_store=StubKnowledgeComponentStore(),
         strategy_signal_service=StubStrategySignalService(LearnerStrategySummary()),
@@ -888,6 +889,7 @@ def test_high_low_support_success_rate_relaxes_hold_threshold():
                 signal="support_dependent",
                 source="ordinary_mastery_profile",
                 confidence=0.58,
+                matched_observation_count=6,
                 average_observed_mastery=0.60,
                 low_support_success_rate=0.55,
                 high_support_dependency_rate=0.2,
@@ -910,6 +912,51 @@ def test_high_low_support_success_rate_relaxes_hold_threshold():
     assert decision.action != "hold_target"
 
 
+def test_sparse_evidence_scales_down_low_support_bonus():
+    """ADAPT-006: When there are very few observations, the low-support
+    success rate bonus should be scaled down so sparse evidence doesn't
+    earn the full threshold adjustment."""
+    student_id = uuid4()
+    # Same as test_high_low_support_success_rate_relaxes_hold_threshold
+    # but with only 1 observation — the bonus should be scaled to 0.02
+    # (0.08 * 1/4), making the effective threshold 0.57 instead of 0.63.
+    # Since confidence=0.58 >= 0.57, the learner SHOULD be held.
+    service = ProgressionOwnershipService(
+        knowledge_component_store=StubKnowledgeComponentStore(),
+        strategy_signal_service=StubStrategySignalService(LearnerStrategySummary()),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(
+            WithinSessionAdaptationSummary()
+        ),
+        ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
+            OrdinaryMasterySummary(
+                signal="support_dependent",
+                source="ordinary_mastery_profile",
+                confidence=0.58,
+                matched_observation_count=1,
+                average_observed_mastery=0.60,
+                low_support_success_rate=0.55,
+                high_support_dependency_rate=0.2,
+                rationale="Support-dependent but with sparse independence evidence.",
+            )
+        ),
+    )
+
+    decision = service.resolve_request(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            target_kc_ids=["KC-1"],
+            target_lo_ids=["LO-1"],
+            requested_content_type="practice_problem",
+        ),
+    )
+
+    # Should hold because the scaled bonus (0.02) doesn't raise the
+    # threshold enough: effective threshold = 0.57, confidence = 0.58.
+    assert decision.action == "hold_target"
+    assert decision.source == "ordinary_mastery_profile"
+
+
 def test_high_support_dependency_rate_tightens_hold_threshold():
     """ADAPT-006: When the ordinary mastery profile has a very high support
     dependency rate (>= 0.7), the hold threshold should be lowered so that
@@ -918,6 +965,7 @@ def test_high_support_dependency_rate_tightens_hold_threshold():
     # Confidence 0.50 is below the base support_dependent threshold (0.55)
     # for target stage, but SHOULD hold when high_support_dependency_rate
     # is high enough to lower the effective threshold to 0.49.
+    # matched_observation_count must be >= 4 for the full penalty to apply.
     service = ProgressionOwnershipService(
         knowledge_component_store=StubKnowledgeComponentStore(),
         strategy_signal_service=StubStrategySignalService(LearnerStrategySummary()),
@@ -929,6 +977,7 @@ def test_high_support_dependency_rate_tightens_hold_threshold():
                 signal="support_dependent",
                 source="ordinary_mastery_profile",
                 confidence=0.50,
+                matched_observation_count=5,
                 average_observed_mastery=0.52,
                 low_support_success_rate=0.1,
                 high_support_dependency_rate=0.75,
