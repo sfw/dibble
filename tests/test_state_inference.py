@@ -3,7 +3,7 @@ from uuid import uuid4
 from dibble.models.observations import LearnerObservation
 from dibble.models.profile import SignalLevel
 from dibble.services.audit_store import SQLiteAuditStore
-from dibble.services.learning_state_profiles import LearnerStateSignalService
+from dibble.services.learner_state_signal import LearnerStateSignalService
 from dibble.services.state_inference import LearnerStateInferenceService
 from dibble.storage import ensure_database
 

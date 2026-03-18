@@ -12,7 +12,7 @@ from dibble.models.profile import LearnerProfile
 from dibble.services.adaptive_router import AdaptiveRouter
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.calibrated_router import CalibratedRouter
-from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
+from dibble.services.learner_strategy_signal import LearnerStrategySignalService
 from dibble.services.router_calibration_signals import RouterCalibrationSignalService
 from dibble.services.within_session_adaptation import WithinSessionAdaptationService
 from dibble.services.within_session_controller_store import (

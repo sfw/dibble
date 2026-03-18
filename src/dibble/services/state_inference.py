@@ -11,7 +11,7 @@ from dibble.models.profile import (
     MetacognitiveState,
     SignalLevel,
 )
-from dibble.services.learning_state_profiles import LearnerStateSignalService
+from dibble.services.learner_state_signal import LearnerStateSignalService
 from dibble.services.state_calibration import (
     discriminate_current_evidence,
     summarize_observations,

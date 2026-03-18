@@ -32,7 +32,7 @@ from dibble.services.generation_engine import GenerationEngine
 from dibble.services.generation_mode_calibration import GenerationModeCalibrator
 from dibble.services.generation_request_hydrator import hydrate_target_kc_hints
 from dibble.services.generation_modes import build_generation_mode_plan
-from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
+from dibble.services.learner_strategy_signal import LearnerStrategySignalService
 from dibble.services.misconception_profiles import LearningMisconceptionProfileRecorder
 from dibble.services.observation_profile_update import (
     ObservationProfileUpdater,

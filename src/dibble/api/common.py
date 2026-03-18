@@ -25,9 +25,9 @@ from dibble.services.learning_calibration_profiles import (
 )
 from dibble.services.learning_progress_profiles import LearningProgressProfileRecorder
 from dibble.services.learning_run_summary_recorder import LearningRunSummaryRecorder
-from dibble.services.learning_state_profiles import LearningStateProfileRecorder
+from dibble.services.learning_state_recorder import LearningStateProfileRecorder
 from dibble.services.learning_trait_profiles import LearningTraitProfileRecorder
-from dibble.services.learner_strategy_profiles import LearningStrategyProfileRecorder
+from dibble.services.learning_strategy_recorder import LearningStrategyProfileRecorder
 from dibble.services.learner_state_calibration import LearnerStateCalibrator
 from dibble.services.learner_flow_service import LearnerFlowService
 from dibble.services.mastery_snapshot_service import MasterySnapshotService

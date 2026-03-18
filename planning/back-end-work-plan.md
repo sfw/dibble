@@ -219,6 +219,8 @@ Most recent progress:
 78. the learner summary now includes a cross-signal consistency analysis that detects logical contradictions between evidence sources (progress vs strategy, strategy trajectory vs state profile, affective/cognitive coherence, prediction reliability vs confidence, progress trend alignment, and trait stability vs challenge evidence) and surfaces divergences with severity, coherence score, and per-divergence descriptions — so the system and teachers can tell when the adaptive model is internally coherent versus when different signals are pulling in opposite directions.
 79. the teacher LearnerDetail view now also surfaces signal consistency when divergences are detected, with per-divergence severity badges, signal pair labels, descriptions, and an overall coherence score — so teachers can see when the system's evidence sources agree versus when they should interpret recommendations with more caution.
 
+80. modularity refactor: split `learning_state_profiles.py` (954 lines, 5 classes) and `learner_strategy_profiles.py` (1011 lines, 5 classes) into 10 focused single-responsibility files, each under the ~300-line CLAUDE.md guideline — snapshot+build, builder, recorder, resolver, and signal service — with all imports across 15 consuming files updated and 631 backend tests still passing.
+
 ### Frontend Alignment Update
 
 The frontend has moved from a contract integration workbench to a three-layer LMS interface (building on the earlier direction in historical `planning/lms-interface-plan.md`). PR #3 merged the LMS shell implementation onto `main`.
@@ -233,7 +235,7 @@ The frontend has moved from a contract integration workbench to a three-layer LM
 6. vocabulary translation layer preferring backend-provided `display_label` fields
 7. all backend-owned contracts integrated: summary, flow, workspace, history, progression, workflow_summary, intervention, remediation, Socratic, classroom, continue_action, triage_section, affective_support, display_label, machine-readable error codes
 8. learner interaction polish: all three core interaction views (SocraticCheck, RemediationSession, ContinueLearning) now have accessibility improvements, form validation, error retry buttons, and empty state handling
-9. 30 test files with 215 tests
+9. 34 test files with 262 tests
 
 **What the frontend is now asking for:**
 

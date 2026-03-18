@@ -10,7 +10,7 @@ from dibble.models.profile import (
     SignalLevel,
 )
 from dibble.services.audit_store import SQLiteAuditStore
-from dibble.services.learning_state_profiles import LearnerStateSignalService
+from dibble.services.learner_state_signal import LearnerStateSignalService
 from dibble.services.learner_state_calibration import LearnerStateCalibrator
 from dibble.services.router_calibration_signals import RouterCalibrationSignalService
 from dibble.storage import ensure_database

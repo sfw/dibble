@@ -2,10 +2,8 @@ from uuid import uuid4
 
 from dibble.models.generation import GenerationRequest
 from dibble.services.audit_store import SQLiteAuditStore
-from dibble.services.learning_state_profiles import (
-    LearningStateProfileRecorder,
-    LearnerStateSignalService,
-)
+from dibble.services.learner_state_signal import LearnerStateSignalService
+from dibble.services.learning_state_recorder import LearningStateProfileRecorder
 from dibble.storage import ensure_database
 
 
