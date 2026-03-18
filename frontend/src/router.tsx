@@ -3,6 +3,7 @@ import { RoleSwitcher } from './shells/RoleSwitcher'
 import { LearnerShell } from './shells/LearnerShell'
 import { TeacherShell } from './shells/TeacherShell'
 import { StaffShell } from './shells/StaffShell'
+import { LearnerHome } from './views/learner/LearnerHome'
 
 function Placeholder({ label }: { label: string }) {
   return (
@@ -24,7 +25,7 @@ export const router = createBrowserRouter([
     path: '/learn',
     element: <LearnerShell />,
     children: [
-      { index: true, element: <Placeholder label="Learner Home" /> },
+      { index: true, element: <LearnerHome /> },
       { path: 'continue', element: <Placeholder label="Continue Learning" /> },
       { path: 'socratic/:sessionId', element: <Placeholder label="Socratic Check" /> },
       { path: 'remediation/:sessionId', element: <Placeholder label="Remediation Session" /> },
