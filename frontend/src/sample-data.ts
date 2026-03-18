@@ -239,6 +239,15 @@ export const demoProfileSummary: ProfileSummary = {
     rationale:
       'State prediction accuracy: 75% overall (78% recency-weighted) across 8 evaluated predictions. Strongest: overload (100% accuracy, 3 evaluated). Weakest: support_dependence (50% accuracy, 2 evaluated).',
   },
+  signal_consistency: {
+    divergence_count: 0,
+    coherence_score: 1.0,
+    high_count: 0,
+    medium_count: 0,
+    low_count: 0,
+    divergences: [],
+    rationale: 'All evidence sources are directionally consistent.',
+  },
   recent_activity: {
     generation_count: 9,
     observation_count: 16,

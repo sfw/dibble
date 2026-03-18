@@ -216,6 +216,23 @@ export interface StatePredictionReliabilitySummary {
   rationale: string
 }
 
+export interface SignalDivergenceSummary {
+  signal_a: string
+  signal_b: string
+  severity: string
+  description: string
+}
+
+export interface CrossSignalConsistencySummary {
+  divergence_count: number
+  coherence_score: number
+  high_count: number
+  medium_count: number
+  low_count: number
+  divergences: SignalDivergenceSummary[]
+  rationale: string
+}
+
 export interface ProfileSummary {
   student_id: string
   grade_level: string
@@ -233,6 +250,7 @@ export interface ProfileSummary {
   state_profile: LearnerStateProfileSummary
   trait_profile: LearnerTraitProfileSummary
   state_prediction_reliability: StatePredictionReliabilitySummary
+  signal_consistency: CrossSignalConsistencySummary
   recent_activity: RecentLearnerActivity
   current_flow: LearnerFlowSummary
   curriculum_progression: LearnerCurriculumProgressionSummary
