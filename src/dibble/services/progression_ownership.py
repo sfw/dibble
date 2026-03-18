@@ -428,6 +428,21 @@ class ProgressionOwnershipService:
             effective_support_dependent_threshold -= 0.05
             effective_fragile_threshold -= 0.05
 
+        # DATA-004 + ORCH-001: High mastery volatility means the aggregate
+        # signal is less trustworthy — the learner's mastery swings enough
+        # that an average score could mask real struggle.  Lower the hold
+        # threshold so the system errs on the side of caution.
+        if summary.mastery_volatility >= 0.18:
+            # Highly volatile: strong penalty — hold more aggressively.
+            volatility_penalty = 0.07 * evidence_scale
+            effective_support_dependent_threshold -= volatility_penalty
+            effective_fragile_threshold -= volatility_penalty
+        elif summary.mastery_volatility >= 0.12:
+            # Meaningfully unstable: moderate penalty.
+            volatility_penalty = 0.04 * evidence_scale
+            effective_support_dependent_threshold -= volatility_penalty
+            effective_fragile_threshold -= volatility_penalty
+
         if (
             summary.signal == "support_dependent"
             and summary.confidence >= effective_support_dependent_threshold
@@ -661,6 +676,8 @@ class ProgressionOwnershipService:
             )
         if summary.mastery_trend != "stable":
             fragments.append(f"trend {summary.mastery_trend}")
+        if summary.mastery_volatility >= 0.12:
+            fragments.append(f"volatility {summary.mastery_volatility:.2f}")
         if summary.low_support_success_rate > 0.0:
             fragments.append(
                 f"low-support success rate {summary.low_support_success_rate:.2f}"
