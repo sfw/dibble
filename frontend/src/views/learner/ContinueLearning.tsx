@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router'
-import { ArrowRight, BookOpen, ChevronLeft } from 'lucide-react'
+import { ArrowRight, BookOpen, ChevronLeft, Loader2 } from 'lucide-react'
 import type { LearnerContext } from '../../shells/LearnerShell'
 import { PageContainer } from '../../components/shell/PageContainer'
 import { ErrorBanner } from '@/components/ui/error-banner'
@@ -69,7 +69,7 @@ export function ContinueLearning() {
             {learnerContentType(artifact.content_type)}
           </p>
           <h1 className="text-xl font-semibold">
-            {progression.current_resource?.title ?? learnerStage(progression.current_stage)}
+            {progression.current_resource?.title ?? learnerStage(progression.current_stage, progression.stage_display_label)}
           </h1>
         </div>
       </header>
@@ -79,8 +79,9 @@ export function ContinueLearning() {
 
       {/* Content canvas — streaming-aware with block type rendering */}
       {loading && !hasContent && !isStreaming && (
-        <div className="flex items-center justify-center py-16 text-muted-foreground">
-          Loading your lesson...
+        <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <p>Loading your lesson...</p>
         </div>
       )}
 
@@ -98,7 +99,7 @@ export function ContinueLearning() {
 
       {/* Progress rail */}
       <div className="flex items-center gap-3 rounded-lg bg-slate-100 px-4 py-3 text-sm">
-        <span className="font-medium">{learnerStage(progression.current_stage)}</span>
+        <span className="font-medium">{learnerStage(progression.current_stage, progression.stage_display_label)}</span>
         <span className="text-muted-foreground">
           {progression.mastered_resource_count} of {progression.resource_count} complete
         </span>
@@ -112,7 +113,7 @@ export function ContinueLearning() {
           disabled={loading || isStreaming}
           onClick={handleContinue}
         >
-          {isStreaming ? 'Generating...' : learnerContinueAction(continueAction.kind)}
+          {isStreaming ? 'Generating...' : learnerContinueAction(continueAction.kind, continueAction.display_label)}
           <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       )}

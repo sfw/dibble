@@ -293,9 +293,9 @@ export function TeacherView({
 
         <div className="panel">
           <SectionHeader
-            eyebrow="Remaining backend gaps"
-            title="What the frontend still cannot delegate cleanly to the backend"
-            description="These are the gaps that still matter after the new history, workspace, and intervention contracts landed."
+            eyebrow="Future expansion seams"
+            title="Product-expansion areas not yet built"
+            description="These are P2 future seams tracked for product expansion, not current frontend blockers."
           />
           <div className="gap-list">
             {gaps.map((gap) => (

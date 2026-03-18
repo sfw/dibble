@@ -77,7 +77,7 @@ export const demoCurriculumProgression: LearnerCurriculumProgressionSummary = {
     mastery_ratio: 0.81,
     current_flow_aligned: true,
     target_stage: 'transfer',
-    rationale: 'This resource aligns with the learner’s current transfer-ready target.',
+    rationale: "This resource aligns with the learner's current transfer-ready target.",
   },
   next_resource: {
     resource_id: 'CURR-3',
@@ -1106,14 +1106,14 @@ export const demoTeacherClassrooms: TeacherClassroomOverview[] = [
 
 export const teacherContractGaps: TeacherContractGap[] = [
   {
-    severity: 'P1',
-    title: 'Course progression is still local, not course-owned',
+    severity: 'P2',
+    title: 'Course progression is local, not course-planner-owned',
     why_it_matters:
-      'The frontend should not decide the learner’s next unit or lesson when the revised system wants backend-owned progression.',
+      'The backend owns local progression through curriculum_progression and current_flow, but there is no true course-level planner with cross-unit sequencing authority.',
     current_backend:
-      'The backend now exposes learner curriculum progression and classroom-level posture, but it is still short of a fuller course planner with long-horizon sequencing authority.',
+      'Backend exposes learner curriculum progression, classroom posture, and dependency-aware resource ranking. A fuller course planner is deferred until product needs exceed this.',
     frontend_response:
-      'Treat `current_flow` and `curriculum_progression` as authoritative and avoid inventing cross-unit sequencing logic in the frontend.',
+      'Treat `current_flow` and `curriculum_progression` as authoritative. Avoid inventing cross-unit sequencing logic in the frontend.',
   },
   {
     severity: 'P2',
@@ -1121,18 +1121,18 @@ export const teacherContractGaps: TeacherContractGap[] = [
     why_it_matters:
       'The revised spec includes diagrams and richer media, but the current generation contract is still text-block oriented.',
     current_backend:
-      'Generated content returns block lists, grounding, moderation, and workflow metadata only. There is no diagram, simulation, or asset payload shape yet.',
+      'Generated content exposes a discriminated `response.artifacts` contract with a stable `text` variant. Diagram, simulation, and interactive variants are future extensions.',
     frontend_response:
       'Design blocks as extensible cards and reserve space for future visual artifacts without pretending the data exists today.',
   },
   {
     severity: 'P2',
-    title: 'Teacher-facing analytics are admin-biased today',
+    title: 'Teacher analytics are summary-oriented, not dashboard-grade',
     why_it_matters:
-      'The system has observability data, but teachers should not need admin audit access to understand why a learner is being held or redirected.',
+      'Teachers see classroom cards, learner summaries, and intervention rationale but do not yet have trend lines, standards mastery views, or richer historical analytics.',
     current_backend:
-      'Audit and metrics endpoints are admin-only; teacher-safe explainability has to come from summary contracts rather than telemetry feeds.',
+      'Teacher-safe data flows through summary read models, rationale fields, classroom contracts, and intervention proposals. Richer analytics are deferred until product needs justify them.',
     frontend_response:
-      'Use summary read models and rationale fields as the teacher UI source of truth, and keep raw telemetry as a developer/admin tool only.',
+      'Use summary read models and rationale fields as the teacher UI source of truth. Keep raw telemetry as a developer/admin tool only.',
   },
 ]

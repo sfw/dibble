@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useNavigate, useOutletContext, useParams } from 'react-router'
-import { ChevronLeft, MessageCircle, Send } from 'lucide-react'
+import { ChevronLeft, Loader2, MessageCircle, Send } from 'lucide-react'
 import type { LearnerContext } from '../../shells/LearnerShell'
 import { PageContainer } from '../../components/shell/PageContainer'
 import { ErrorBanner } from '@/components/ui/error-banner'
@@ -94,6 +94,16 @@ export function SocraticCheck() {
         {/* Latest prompt if not already in history */}
         {latestTurn && !conversationHistory.length && (
           <ChatBubble role="assistant" text={latestTurn.prompt} />
+        )}
+
+        {/* Thinking indicator while waiting for response */}
+        {socratic.loading && (
+          <div className="flex justify-start">
+            <div className="flex items-center gap-2 rounded-2xl border bg-white px-4 py-3 text-sm text-muted-foreground shadow-sm">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Thinking...
+            </div>
+          </div>
         )}
       </div>
 

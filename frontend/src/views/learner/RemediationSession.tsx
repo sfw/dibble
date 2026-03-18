@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router'
-import { ArrowRight, ChevronLeft, Lightbulb, Wrench } from 'lucide-react'
+import { ArrowRight, ChevronLeft, Lightbulb, Loader2, Wrench } from 'lucide-react'
 import type { LearnerContext } from '../../shells/LearnerShell'
 import { PageContainer } from '../../components/shell/PageContainer'
 import { ErrorBanner } from '@/components/ui/error-banner'
@@ -96,13 +96,18 @@ export function RemediationSession() {
       <AffectiveSupport message={workspace.affective_support} />
 
       {/* Content from generated blocks */}
-      {contentBlocks.length > 0 && (
+      {contentBlocks.length > 0 ? (
         <div className="flex flex-col gap-4">
           {contentBlocks.map((block, index) => (
             <ContentBlock key={index} block={block} />
           ))}
         </div>
-      )}
+      ) : remediation.loading ? (
+        <div className="flex flex-col items-center justify-center gap-3 py-12 text-muted-foreground">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <p>Preparing your next step...</p>
+        </div>
+      ) : null}
 
       {/* Learner input */}
       <div className="flex flex-col gap-3">

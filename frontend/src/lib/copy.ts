@@ -9,10 +9,10 @@
  * The backend should provide `display_label` fields alongside machine-readable
  * keys on all learner-facing and teacher-facing contracts.
  *
- * TEMPORARY SHIM: Until the backend provides display labels, the frontend
- * maintains these lookup tables locally. When the backend adds display_label
- * fields, each function below should prefer the backend-provided label and
- * fall back to these tables only for backwards compatibility.
+ * The backend now provides `display_label` on `LearnerContinueAction` and
+ * `stage_display_label` on `LearnerCurriculumProgressionSummary`. Callers
+ * should pass the backend-provided label as the second argument so it takes
+ * precedence. These local tables serve as backwards-compatible fallbacks.
  */
 
 // ---------------------------------------------------------------------------
