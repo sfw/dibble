@@ -33,6 +33,14 @@ TREND_MASTERY_PENALTY = 0.03  # declining: raise mastery threshold
 TREND_PREREQUISITE_BONUS = 0.03  # improving: lower prerequisite threshold
 TREND_PREREQUISITE_PENALTY = 0.04  # declining: raise prerequisite threshold
 
+# ADAPT-006: Mastery quality gate.  Even when raw KC mastery exceeds the
+# mastery threshold, the resource is not truly mastered if the ordinary
+# mastery profile shows the learner reached that score with heavy support
+# or volatile evidence.  These signals and confidence floors gate resource
+# mastery so dependents do not unlock prematurely.
+MASTERY_QUALITY_GATE_SIGNALS = {"support_dependent", "fragile"}
+MASTERY_QUALITY_GATE_CONFIDENCE = 0.4
+
 
 @dataclass(slots=True)
 class ResourcePlanningEntry:
@@ -96,7 +104,12 @@ class LearnerProgressionService:
 
         # ORCH-001: Collect per-KC ordinary mastery trend signals so resource
         # classification can adjust thresholds for improving/declining KCs.
-        kc_trends = self._kc_trends(student_id=student_id, components=components)
+        # ADAPT-006: Also collect the full signal summaries so the mastery
+        # quality gate can block resources whose KCs are support_dependent
+        # or fragile even when raw mastery is above threshold.
+        kc_trends, kc_mastery_signals = self._kc_mastery_profiles(
+            student_id=student_id, components=components
+        )
 
         entries = [
             self._resource_entry(
@@ -111,6 +124,7 @@ class LearnerProgressionService:
                 resource_by_id=resource_by_id,
                 kc_to_resource_ids=kc_to_resource_ids,
                 kc_trends=kc_trends,
+                kc_mastery_signals=kc_mastery_signals,
             )
             for resource in resources
         ]
@@ -200,6 +214,7 @@ class LearnerProgressionService:
         resource_by_id: dict[str, CurriculumResource],
         kc_to_resource_ids: dict[str, list[str]],
         kc_trends: dict[str, str] | None = None,
+        kc_mastery_signals: dict[str, OrdinaryMasterySummary] | None = None,
     ) -> ResourcePlanningEntry:
         required_kc_ids = list(resource.knowledge_component_ids)
 
@@ -234,6 +249,14 @@ class LearnerProgressionService:
             components=components,
             kc_to_resource_ids=kc_to_resource_ids,
         )
+        # ADAPT-006: Check mastery quality — even when raw scores pass, a
+        # resource is not truly mastered if the learner's ordinary mastery
+        # profile shows support_dependent or fragile signals.
+        mastery_quality = self._mastery_quality(
+            kc_ids=required_kc_ids,
+            kc_mastery_signals=kc_mastery_signals or {},
+        )
+
         if current_flow_aligned:
             state = "active"
             rationale = (
@@ -248,8 +271,21 @@ class LearnerProgressionService:
             mastery_threshold=resource_mastery_threshold,
             prerequisite_threshold=resource_prerequisite_threshold,
         ):
-            state = "mastered"
-            rationale = "Mastery across this resource's mapped targets is strong enough to treat it as complete."
+            if mastery_quality in MASTERY_QUALITY_GATE_SIGNALS:
+                # Raw scores pass but evidence quality is not strong enough
+                # to consider the resource truly mastered.
+                state = "ready"
+                quality_label = (
+                    "scaffolded" if mastery_quality == "support_dependent"
+                    else "unstable"
+                )
+                rationale = (
+                    f"Mastery scores are above threshold, but recent evidence looks {quality_label}. "
+                    "Demonstrate independent understanding to complete this resource."
+                )
+            else:
+                state = "mastered"
+                rationale = "Mastery across this resource's mapped targets is strong enough to treat it as complete."
         elif self._is_deferred_target_being_unlocked(
             flow=flow,
             blocked_prerequisites=blocked_prerequisites,
@@ -334,6 +370,7 @@ class LearnerProgressionService:
                 mastery_ratio=mastery_ratio,
                 current_flow_aligned=current_flow_aligned,
                 target_stage=current_stage if current_flow_aligned else "target",
+                mastery_quality=mastery_quality,
                 rationale=rationale,
             ),
             dependency_resource_ids=dependency_resource_ids,
@@ -561,18 +598,22 @@ class LearnerProgressionService:
             return 0.0
         return round(sum(scores) / len(scores), 2)
 
-    # --- ORCH-001: Trend-aware threshold helpers ---
+    # --- ORCH-001 + ADAPT-006: Mastery profile helpers ---
 
-    def _kc_trends(
+    def _kc_mastery_profiles(
         self,
         *,
         student_id: UUID,
         components: dict[str, KnowledgeComponent],
-    ) -> dict[str, str]:
-        """Return a {kc_id: trend} map for all KCs that have ordinary mastery profiles."""
+    ) -> tuple[dict[str, str], dict[str, OrdinaryMasterySummary]]:
+        """Return ({kc_id: trend}, {kc_id: OrdinaryMasterySummary}) for all KCs
+        that have ordinary mastery profiles.  The trend dict is the same format
+        used by _trend_adjusted_thresholds; the signal dict is used by the
+        ADAPT-006 mastery quality gate."""
         if self.ordinary_mastery_signal_service is None:
-            return {}
+            return {}, {}
         trends: dict[str, str] = {}
+        signals: dict[str, OrdinaryMasterySummary] = {}
         for kc_id in components:
             summary: OrdinaryMasterySummary = (
                 self.ordinary_mastery_signal_service.latest_for_student(
@@ -581,9 +622,36 @@ class LearnerProgressionService:
                     target_lo_ids=[],
                 )
             )
-            if summary.signal != "insufficient" and summary.mastery_trend != "stable":
-                trends[kc_id] = summary.mastery_trend
-        return trends
+            if summary.signal != "insufficient":
+                signals[kc_id] = summary
+                if summary.mastery_trend != "stable":
+                    trends[kc_id] = summary.mastery_trend
+        return trends, signals
+
+    def _mastery_quality(
+        self,
+        *,
+        kc_ids: list[str],
+        kc_mastery_signals: dict[str, OrdinaryMasterySummary],
+    ) -> str | None:
+        """Return the worst mastery quality signal across a resource's KCs,
+        or None if all KCs are healthy or have insufficient data.
+
+        ADAPT-006: A resource is not truly mastered if any required KC shows
+        support_dependent or fragile evidence with sufficient confidence."""
+        worst: str | None = None
+        for kc_id in kc_ids:
+            summary = kc_mastery_signals.get(kc_id)
+            if summary is None:
+                continue
+            if (
+                summary.signal in MASTERY_QUALITY_GATE_SIGNALS
+                and summary.confidence >= MASTERY_QUALITY_GATE_CONFIDENCE
+            ):
+                if summary.signal == "support_dependent":
+                    return "support_dependent"
+                worst = summary.signal
+        return worst
 
     def _trend_adjusted_thresholds(
         self,

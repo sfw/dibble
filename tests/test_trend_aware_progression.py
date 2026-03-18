@@ -114,7 +114,12 @@ def _profile(
 
 
 def _mastery_summary(
-    *, signal: str, trend: str, confidence: float = 0.7
+    *,
+    signal: str,
+    trend: str,
+    confidence: float = 0.7,
+    low_support_success_rate: float = 0.5,
+    high_support_dependency_rate: float = 0.0,
 ) -> OrdinaryMasterySummary:
     return OrdinaryMasterySummary(
         signal=signal,
@@ -123,7 +128,8 @@ def _mastery_summary(
         matched_observation_count=5,
         matched_session_count=3,
         average_observed_mastery=0.72,
-        low_support_success_rate=0.5,
+        low_support_success_rate=low_support_success_rate,
+        high_support_dependency_rate=high_support_dependency_rate,
         mastery_trend=trend,
     )
 
@@ -347,10 +353,12 @@ def test_stable_trend_uses_default_thresholds():
 
 
 def test_mixed_trends_resolve_to_dominant():
-    """When a resource has KCs with mixed trends, the dominant trend should win."""
+    """When a resource has KCs with mixed trends and no quality-gate signals,
+    the dominant trend should win for threshold adjustment."""
     now = datetime.now(timezone.utc)
     # Two improving, one declining -> improving dominates
     # 0.78 avg is below 0.80 but above 0.76 (improved threshold)
+    # All KCs use emerging_mastery so the quality gate does not fire.
     profile = _profile(
         kc_mastery={"KC-A": 0.78, "KC-B": 0.78, "KC-C": 0.78},
         kc_last_practiced={"KC-A": now, "KC-B": now, "KC-C": now},
@@ -372,7 +380,7 @@ def test_mixed_trends_resolve_to_dominant():
             {
                 "KC-A": _mastery_summary(signal="emerging_mastery", trend="improving"),
                 "KC-B": _mastery_summary(signal="emerging_mastery", trend="improving"),
-                "KC-C": _mastery_summary(signal="fragile", trend="declining"),
+                "KC-C": _mastery_summary(signal="emerging_mastery", trend="declining"),
             }
         ),
     )
@@ -380,6 +388,40 @@ def test_mixed_trends_resolve_to_dominant():
     assert result is not None
     # min score 0.78 >= lowered prerequisite threshold 0.62, avg 0.78 >= lowered mastery threshold 0.76
     assert result.mastered_resource_count == 1
+
+
+def test_mixed_trends_with_fragile_kc_blocked_by_quality_gate():
+    """When one KC in a multi-KC resource has a fragile signal, the quality
+    gate should prevent mastery even when threshold adjustments would allow it."""
+    now = datetime.now(timezone.utc)
+    profile = _profile(
+        kc_mastery={"KC-A": 0.78, "KC-B": 0.78, "KC-C": 0.78},
+        kc_last_practiced={"KC-A": now, "KC-B": now, "KC-C": now},
+    )
+    service = LearnerProgressionService(
+        profile_store=StubProfileStore(profile),
+        curriculum_store=StubCurriculumStore(
+            [_resource("R1", ["KC-A", "KC-B", "KC-C"])]
+        ),
+        knowledge_component_store=StubKnowledgeComponentStore(
+            [_kc("KC-A"), _kc("KC-B"), _kc("KC-C")]
+        ),
+        learner_flow_service=StubLearnerFlowService(),
+        ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
+            {
+                "KC-A": _mastery_summary(signal="emerging_mastery", trend="improving"),
+                "KC-B": _mastery_summary(signal="emerging_mastery", trend="improving"),
+                "KC-C": _mastery_summary(signal="fragile", trend="declining"),
+            }
+        ),
+    )
+    result = service.build_for_student(student_id=profile.student_id)
+    assert result is not None
+    # Quality gate fires on KC-C despite trend-adjusted threshold allowing mastery
+    assert result.mastered_resource_count == 0
+    resource = result.ready_resources[0] if result.ready_resources else None
+    assert resource is not None
+    assert resource.mastery_quality == "fragile"
 
 
 # --- Combined: decay + trend ---
@@ -408,3 +450,220 @@ def test_decay_and_declining_trend_compound():
     assert result is not None
     # 0.88 * ~0.91 (decay) ≈ 0.80, which is below raised threshold of 0.83
     assert result.mastered_resource_count == 0
+
+
+# --- ADAPT-006: Mastery quality gate ---
+
+
+def test_support_dependent_prevents_resource_mastery():
+    """A resource whose KC has support_dependent signal should not be marked
+    mastered even when raw mastery is above threshold."""
+    now = datetime.now(timezone.utc)
+    profile = _profile(
+        kc_mastery={"KC-1": 0.90},
+        kc_last_practiced={"KC-1": now},
+    )
+    service = LearnerProgressionService(
+        profile_store=StubProfileStore(profile),
+        curriculum_store=StubCurriculumStore([_resource("R1", ["KC-1"])]),
+        knowledge_component_store=StubKnowledgeComponentStore([_kc("KC-1")]),
+        learner_flow_service=StubLearnerFlowService(),
+        ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
+            {
+                "KC-1": _mastery_summary(
+                    signal="support_dependent",
+                    trend="stable",
+                    confidence=0.6,
+                    high_support_dependency_rate=0.7,
+                ),
+            }
+        ),
+    )
+    result = service.build_for_student(student_id=profile.student_id)
+    assert result is not None
+    assert result.mastered_resource_count == 0
+    resource = result.ready_resources[0] if result.ready_resources else None
+    assert resource is not None
+    assert resource.state == "ready"
+    assert resource.mastery_quality == "support_dependent"
+    assert "scaffolded" in (resource.rationale or "")
+
+
+def test_fragile_prevents_resource_mastery():
+    """A resource whose KC has fragile signal should not be marked mastered."""
+    now = datetime.now(timezone.utc)
+    profile = _profile(
+        kc_mastery={"KC-1": 0.85},
+        kc_last_practiced={"KC-1": now},
+    )
+    service = LearnerProgressionService(
+        profile_store=StubProfileStore(profile),
+        curriculum_store=StubCurriculumStore([_resource("R1", ["KC-1"])]),
+        knowledge_component_store=StubKnowledgeComponentStore([_kc("KC-1")]),
+        learner_flow_service=StubLearnerFlowService(),
+        ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
+            {
+                "KC-1": _mastery_summary(
+                    signal="fragile",
+                    trend="declining",
+                    confidence=0.55,
+                ),
+            }
+        ),
+    )
+    result = service.build_for_student(student_id=profile.student_id)
+    assert result is not None
+    # Both threshold raise (declining) and quality gate should prevent mastery
+    assert result.mastered_resource_count == 0
+    # Find the resource in ready list
+    resource = next(
+        (r for r in result.ready_resources if r.resource_id == "R1"), None
+    )
+    assert resource is not None
+    assert resource.mastery_quality == "fragile"
+    assert "unstable" in (resource.rationale or "")
+
+
+def test_durable_mastery_allows_resource_mastery():
+    """A resource whose KCs all have durable_mastery signal should still be
+    marked mastered normally."""
+    now = datetime.now(timezone.utc)
+    profile = _profile(
+        kc_mastery={"KC-1": 0.88},
+        kc_last_practiced={"KC-1": now},
+    )
+    service = LearnerProgressionService(
+        profile_store=StubProfileStore(profile),
+        curriculum_store=StubCurriculumStore([_resource("R1", ["KC-1"])]),
+        knowledge_component_store=StubKnowledgeComponentStore([_kc("KC-1")]),
+        learner_flow_service=StubLearnerFlowService(),
+        ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
+            {
+                "KC-1": _mastery_summary(
+                    signal="durable_mastery",
+                    trend="stable",
+                    confidence=0.85,
+                ),
+            }
+        ),
+    )
+    result = service.build_for_student(student_id=profile.student_id)
+    assert result is not None
+    assert result.mastered_resource_count == 1
+
+
+def test_insufficient_signal_does_not_block_mastery():
+    """If the mastery signal is 'insufficient' (not enough observations),
+    it should not block resource mastery."""
+    now = datetime.now(timezone.utc)
+    profile = _profile(
+        kc_mastery={"KC-1": 0.85},
+        kc_last_practiced={"KC-1": now},
+    )
+    service = LearnerProgressionService(
+        profile_store=StubProfileStore(profile),
+        curriculum_store=StubCurriculumStore([_resource("R1", ["KC-1"])]),
+        knowledge_component_store=StubKnowledgeComponentStore([_kc("KC-1")]),
+        learner_flow_service=StubLearnerFlowService(),
+        # No ordinary mastery signal service means insufficient data
+    )
+    result = service.build_for_student(student_id=profile.student_id)
+    assert result is not None
+    assert result.mastered_resource_count == 1
+
+
+def test_low_confidence_signal_does_not_block_mastery():
+    """A support_dependent signal with very low confidence should not
+    block mastery — sparse evidence should not override raw scores."""
+    now = datetime.now(timezone.utc)
+    profile = _profile(
+        kc_mastery={"KC-1": 0.88},
+        kc_last_practiced={"KC-1": now},
+    )
+    service = LearnerProgressionService(
+        profile_store=StubProfileStore(profile),
+        curriculum_store=StubCurriculumStore([_resource("R1", ["KC-1"])]),
+        knowledge_component_store=StubKnowledgeComponentStore([_kc("KC-1")]),
+        learner_flow_service=StubLearnerFlowService(),
+        ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
+            {
+                "KC-1": _mastery_summary(
+                    signal="support_dependent",
+                    trend="stable",
+                    confidence=0.25,  # below 0.4 threshold
+                    high_support_dependency_rate=0.7,
+                ),
+            }
+        ),
+    )
+    result = service.build_for_student(student_id=profile.student_id)
+    assert result is not None
+    assert result.mastered_resource_count == 1
+
+
+def test_multi_kc_resource_blocked_by_worst_signal():
+    """If even one KC in a multi-KC resource is support_dependent,
+    the resource should not be mastered."""
+    now = datetime.now(timezone.utc)
+    profile = _profile(
+        kc_mastery={"KC-A": 0.90, "KC-B": 0.85},
+        kc_last_practiced={"KC-A": now, "KC-B": now},
+    )
+    service = LearnerProgressionService(
+        profile_store=StubProfileStore(profile),
+        curriculum_store=StubCurriculumStore(
+            [_resource("R1", ["KC-A", "KC-B"])]
+        ),
+        knowledge_component_store=StubKnowledgeComponentStore(
+            [_kc("KC-A"), _kc("KC-B")]
+        ),
+        learner_flow_service=StubLearnerFlowService(),
+        ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
+            {
+                "KC-A": _mastery_summary(
+                    signal="durable_mastery", trend="stable", confidence=0.8
+                ),
+                "KC-B": _mastery_summary(
+                    signal="support_dependent",
+                    trend="stable",
+                    confidence=0.6,
+                    high_support_dependency_rate=0.7,
+                ),
+            }
+        ),
+    )
+    result = service.build_for_student(student_id=profile.student_id)
+    assert result is not None
+    assert result.mastered_resource_count == 0
+    resource = result.ready_resources[0] if result.ready_resources else None
+    assert resource is not None
+    assert resource.mastery_quality == "support_dependent"
+
+
+def test_emerging_mastery_allows_resource_mastery():
+    """A resource with emerging_mastery signal should still be allowed
+    to be mastered — the quality gate only blocks support_dependent and fragile."""
+    now = datetime.now(timezone.utc)
+    profile = _profile(
+        kc_mastery={"KC-1": 0.82},
+        kc_last_practiced={"KC-1": now},
+    )
+    service = LearnerProgressionService(
+        profile_store=StubProfileStore(profile),
+        curriculum_store=StubCurriculumStore([_resource("R1", ["KC-1"])]),
+        knowledge_component_store=StubKnowledgeComponentStore([_kc("KC-1")]),
+        learner_flow_service=StubLearnerFlowService(),
+        ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
+            {
+                "KC-1": _mastery_summary(
+                    signal="emerging_mastery",
+                    trend="improving",
+                    confidence=0.65,
+                ),
+            }
+        ),
+    )
+    result = service.build_for_student(student_id=profile.student_id)
+    assert result is not None
+    # 0.82 > lowered threshold (0.76), and emerging_mastery is not gated
+    assert result.mastered_resource_count == 1

@@ -63,7 +63,7 @@ The frontend is a React 19 + Vite + TypeScript app with:
 - **Custom hooks** for data fetching and workflow state (`useLearnerWorkspace`, `useLearnerContracts`, `useGenerationWorkspace`, `useSocraticWorkspace`, `useRemediationWorkspace`, `useTeacherClassroom`)
 - **Copy/vocabulary translation layer** (`lib/copy.ts`) preferring backend-provided `display_label` fields with local fallbacks
 - **Demo fallback** for offline development (staff mode only by default)
-- **30 test files** with 215 tests via Vitest + React Testing Library
+- **30 test files** with 218 tests via Vitest + React Testing Library
 
 ## Backend Contracts In Use
 
@@ -199,6 +199,7 @@ Contract-hardening in use:
 
 ### Recently completed
 
+- learner Progress: mastery quality badges — `ResourceCard` now renders "Needs independent practice" (amber) and "Unstable mastery" (orange) badges when the backend `mastery_quality` field is `support_dependent` or `fragile`, with rationale text shown alongside the badge; 2 new tests cover both badge variants
 - teacher classroom detail density: collapsible triage sections with learner count badges (on-track collapsed by default), compact card mode toggle (grid/list), and filter bar with student ID search, attention level dropdown, and intervention toggle — all three features with tests
 - `CollapsibleTriageSection` component with chevron disclosure, smooth CSS grid-rows animation, and `aria-expanded` accessibility
 - `CompactLearnerCard` component with dense single-row layout, expandable detail on click, and reduced padding

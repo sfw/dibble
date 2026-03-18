@@ -433,6 +433,7 @@ class CurriculumResourceProgressSummary(BaseModel):
     mastery_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
     current_flow_aligned: bool = False
     target_stage: str = "target"
+    mastery_quality: str | None = None
     rationale: str | None = None
 
 

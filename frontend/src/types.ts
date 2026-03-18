@@ -174,6 +174,7 @@ export interface CurriculumResourceProgressSummary {
   mastery_ratio: number
   current_flow_aligned: boolean
   target_stage: string
+  mastery_quality?: string | null
   rationale?: string | null
 }
 

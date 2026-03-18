@@ -114,4 +114,52 @@ describe('Progress', () => {
     renderProgress({ error: 'Load failed' })
     expect(screen.getByText('Load failed')).toBeInTheDocument()
   })
+
+  it('shows support_dependent mastery quality badge', () => {
+    renderProgress({
+      progression: {
+        ...demoCurriculumProgression,
+        ready_resources: [
+          {
+            resource_id: 'R-scaffolded',
+            title: 'Scaffolded Resource',
+            state: 'ready',
+            learning_objective_ids: [],
+            knowledge_component_ids: ['KC-1'],
+            blocked_prerequisite_kc_ids: [],
+            mastery_ratio: 0.85,
+            current_flow_aligned: false,
+            target_stage: 'target',
+            mastery_quality: 'support_dependent',
+            rationale: 'Mastery scores are above threshold, but recent evidence looks scaffolded.',
+          },
+        ],
+      },
+    })
+    expect(screen.getAllByText('Needs independent practice').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('shows fragile mastery quality badge', () => {
+    renderProgress({
+      progression: {
+        ...demoCurriculumProgression,
+        ready_resources: [
+          {
+            resource_id: 'R-fragile',
+            title: 'Fragile Resource',
+            state: 'ready',
+            learning_objective_ids: [],
+            knowledge_component_ids: ['KC-1'],
+            blocked_prerequisite_kc_ids: [],
+            mastery_ratio: 0.82,
+            current_flow_aligned: false,
+            target_stage: 'target',
+            mastery_quality: 'fragile',
+            rationale: 'Mastery scores are above threshold, but recent evidence looks unstable.',
+          },
+        ],
+      },
+    })
+    expect(screen.getAllByText('Unstable mastery').length).toBeGreaterThanOrEqual(1)
+  })
 })
