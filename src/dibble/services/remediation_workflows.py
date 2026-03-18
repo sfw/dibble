@@ -315,16 +315,25 @@ class RemediationWorkflowCoordinator:
     ) -> LearnerContinueAction:
         if status == "complete":
             target_kc_ids = list(session.kc_sequence.deferred_kc_ids or session.focus_kc_ids)
+            latest_generation_id = (
+                str(session.completed_generation_ids[-1])
+                if session.completed_generation_ids
+                else None
+            )
             return LearnerContinueAction.generate_follow_up(
                 resource_id=session.session_id,
+                generation_id=latest_generation_id,
+                learning_session_id=session.session_id,
                 content_type=RequestedContentType.practice_problem.value,
                 target_stage="transfer",
                 target_kc_ids=target_kc_ids,
                 request_payload={
                     "student_id": str(session.student_id),
+                    "learning_session_id": session.session_id,
                     "target_kc_ids": target_kc_ids,
                     "curriculum_context": list(session.curriculum_context),
                     "requested_content_type": RequestedContentType.practice_problem.value,
+                    "source_generation_id": latest_generation_id,
                 },
                 rationale=next_step.rationale,
             )

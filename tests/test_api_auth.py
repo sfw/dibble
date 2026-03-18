@@ -109,6 +109,41 @@ def test_auth_can_issue_and_accept_bearer_tokens(tmp_path):
     assert me_response.json()["principal_id"] == "editor-user"
 
 
+def test_bearer_token_forbidden_response_preserves_identity_and_error_contract(tmp_path, student_id):
+    settings = Settings(
+        database_path=str(tmp_path / "dibble-bearer-rbac.db"),
+        auth_enabled=True,
+        auth_principals=(
+            "viewer-key:viewer-user:viewer",
+            "admin-key:admin-user:admin",
+        ),
+        auth_token_secret="super-secret",
+        auth_token_ttl_seconds=900,
+    )
+    app = create_app(settings)
+
+    with TestClient(app) as client:
+        viewer_token = client.post("/api/auth/token", headers={"X-API-Key": "viewer-key"}).json()["access_token"]
+        forbidden_write = client.put(
+            f"/api/learners/{student_id}/profile",
+            headers={"Authorization": f"Bearer {viewer_token}"},
+            json=build_profile(student_id),
+        )
+        audit_response = client.get("/api/audit/events", headers={"X-API-Key": "admin-key"})
+
+    assert_machine_readable_error(
+        forbidden_write,
+        status_code=403,
+        code="auth_insufficient_role",
+        detail="Your role does not allow access to this endpoint.",
+    )
+    assert audit_response.status_code == 200
+    assert audit_response.json()[0]["event_type"] == "auth.request"
+    assert audit_response.json()[0]["status"] == "forbidden"
+    assert audit_response.json()[0]["payload"]["principal_id"] == "viewer-user"
+    assert audit_response.json()[0]["payload"]["role"] == "viewer"
+
+
 def test_refresh_rotates_tokens_and_old_refresh_token_stops_working(tmp_path):
     settings = Settings(
         database_path=str(tmp_path / "dibble-refresh.db"),

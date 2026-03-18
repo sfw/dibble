@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from dibble.models.workspace import LearnerWorkspace, LearnerWorkspaceArtifact
+from dibble.contract_labels import affective_support_message
+from dibble.models.workspace import AffectiveSupportMessage, LearnerWorkspace, LearnerWorkspaceArtifact
 from dibble.services.content_workflow import ContentWorkflowService
 from dibble.services.learner_summary_service import LearnerSummaryService
 from dibble.services.socratic_assessment import SocraticAssessmentService
@@ -86,6 +87,19 @@ class LearnerWorkspaceService:
             summary=summary,
             active_artifact=artifact,
             continue_action=flow.continue_action,
+            affective_support=(
+                AffectiveSupportMessage.model_validate(
+                    message
+                )
+                if (
+                    message := affective_support_message(
+                        frustration=summary.frustration.value,
+                        engagement=summary.engagement.value,
+                    )
+                )
+                is not None
+                else None
+            ),
             generated_content=generated_content,
             remediation_session=remediation_session,
             socratic_session=socratic_session,

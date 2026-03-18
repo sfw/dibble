@@ -34,6 +34,7 @@ class TeacherLearnerCard(BaseModel):
     recent_activity: RecentLearnerActivity
     intervention: TeacherLearnerInterventionSummary = Field(default_factory=TeacherLearnerInterventionSummary)
     attention_level: str = "normal"
+    triage_section: str = "on_track"
     attention_reasons: list[str] = Field(default_factory=list)
 
 

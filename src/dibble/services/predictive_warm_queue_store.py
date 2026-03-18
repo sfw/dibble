@@ -681,7 +681,7 @@ def _priority_for_request(request: GenerationRequest) -> float:
         priority += 0.04
     if sequence_action == "attempt_transfer":
         priority += 0.06
-    elif sequence_action in {"hold_target", "hold_repair_target"}:
+    elif sequence_action in {"hold_target", "hold_repair_target", "hold_bridge_target"}:
         priority += 0.03
     if request.intent.value == "remediation":
         priority += 0.05

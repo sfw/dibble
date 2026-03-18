@@ -730,6 +730,8 @@ class ContentWorkflowService:
         action = str(progression.get("action", ""))
         if action in {"hold_target", "hold_target_before_assessment"}:
             return RequestedContentType.practice_problem.value
+        if action == "hold_bridge_target":
+            return RequestedContentType.practice_problem.value
         if action in {
             "rebuild_prerequisite_first",
             "rebuild_prerequisite_before_assessment",
@@ -791,6 +793,10 @@ class ContentWorkflowService:
         if session_id is None:
             return LearnerContinueAction.idle(rationale=next_step.rationale)
         if str(remediation_data.get("status", "in_progress")) == "complete":
+            summary_continue_action = self._dict_value(remediation_data.get("summary_continue_action"))
+            if summary_continue_action:
+                return LearnerContinueAction.model_validate(summary_continue_action)
+
             target_kc_ids = list(next_step.target_kc_ids) or self._string_list(
                 request_context.get("focus_kc_ids") or request_context.get("target_kc_ids")
             )
@@ -1171,7 +1177,7 @@ class ContentWorkflowService:
                 "executed_phase": executed_step.phase,
                 "executed_step_target_kc_ids": executed_step.target_kc_ids,
                 "next_phase": next_step.phase if next_step is not None else None,
-                "next_step_target_kc_ids": next_step.target_kc_ids if next_step is not None else [],
+                "next_step_target_kc_ids": list(session.summary.next_step.target_kc_ids),
                 "completed_step_count": len(session.completed_generation_ids),
                 "step_count": len(session.steps),
                 "progression_decision": session.progression_decision,
@@ -1182,6 +1188,7 @@ class ContentWorkflowService:
                 "progression_average_observed_mastery": session.progression_average_observed_mastery,
                 "progression_low_support_success_count": session.progression_low_support_success_count,
                 "next_step_rationale": session.summary.next_step.rationale,
+                "summary_continue_action": session.summary.continue_action.model_dump(mode="json"),
             },
         }
         if misconception_signals is not None:

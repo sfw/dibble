@@ -151,7 +151,42 @@ def test_progression_ownership_rebuilds_prerequisite_before_requested_target():
     assert decision.request.curriculum_context[-2] == "Progression ownership: rebuild_prerequisite_first."
 
 
-def test_progression_ownership_bridges_through_related_kc_during_bridge_phase():
+def test_progression_ownership_preserves_strategy_hold_target_as_explicit_action():
+    student_id = uuid4()
+    service = ProgressionOwnershipService(
+        knowledge_component_store=StubKnowledgeComponentStore(),
+        strategy_signal_service=StubStrategySignalService(
+            LearnerStrategySummary(
+                signal="support_intensive",
+                source="strategy_profile",
+                support_bias=-1,
+                recovery_focus="guided_practice",
+                trajectory_state="plateaued",
+                recommended_next_action="introduce_varied_support",
+                rationale="Recent strategy signals suggest staying on the target KC until the learner stabilizes.",
+            )
+        ),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+    )
+
+    decision = service.resolve_request(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            target_kc_ids=["KC-1"],
+            target_lo_ids=["LO-1"],
+            requested_content_type="practice_problem",
+        ),
+    )
+
+    assert decision.action == "hold_target"
+    assert decision.source == "strategy_profile"
+    assert decision.target_stage == "target"
+    assert decision.applied_target_kc_ids == ["KC-1"]
+    assert decision.rationale == "Recent strategy signals suggest staying on the target KC until the learner stabilizes."
+
+
+def test_progression_ownership_preserves_bridge_hold_target_during_bridge_phase():
     student_id = uuid4()
     service = ProgressionOwnershipService(
         knowledge_component_store=StubKnowledgeComponentStore(),
@@ -162,7 +197,7 @@ def test_progression_ownership_bridges_through_related_kc_during_bridge_phase():
                 source="session_controller",
                 phase="bridge",
                 recovery_intent="bridge_target",
-                sequence_action="hold_repair_target",
+                sequence_action="hold_bridge_target",
                 rationale="Bridge through a nearby KC before the final return.",
             )
         ),
@@ -178,7 +213,7 @@ def test_progression_ownership_bridges_through_related_kc_during_bridge_phase():
         ),
     )
 
-    assert decision.action == "bridge_to_related_kc"
+    assert decision.action == "hold_bridge_target"
     assert decision.source == "session_controller"
     assert decision.target_stage == "bridge"
     assert decision.applied_target_kc_ids == ["KC-2"]
@@ -522,7 +557,7 @@ def test_progression_ownership_gates_bridge_redirected_assessment_back_to_practi
                 source="session_controller",
                 phase="bridge",
                 recovery_intent="bridge_target",
-                sequence_action="hold_repair_target",
+                sequence_action="hold_bridge_target",
                 rationale="Bridge through a nearby KC before the final return.",
             )
         ),

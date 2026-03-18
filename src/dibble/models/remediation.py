@@ -3,8 +3,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
+from dibble.contract_labels import remediation_phase_display_label
 from dibble.models.generation import GeneratedContent, RequestedContentType
 from dibble.models.profile import LearnerContinueAction, LearnerFlowNextStep, LearnerStrategySummary
 
@@ -15,6 +16,7 @@ def utc_now() -> datetime:
 
 class RemediationWorkflowStep(BaseModel):
     phase: str
+    phase_display_label: str | None = None
     title: str
     target_kc_ids: list[str] = Field(default_factory=list)
     support_level: str
@@ -24,6 +26,12 @@ class RemediationWorkflowStep(BaseModel):
     recommended_content_type: RequestedContentType
     status: str = "pending"
     generated_content_id: str | None = None
+
+    @model_validator(mode="after")
+    def _stabilize_phase_display_label(self) -> "RemediationWorkflowStep":
+        if self.phase_display_label is None:
+            self.phase_display_label = remediation_phase_display_label(self.phase)
+        return self
 
 
 class RemediationWorkflowSummary(BaseModel):

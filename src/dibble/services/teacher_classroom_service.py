@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
+from dibble.contract_labels import triage_section_for
 from dibble.models.classroom import Classroom
 from dibble.models.teacher_actions import TeacherInterventionProposalStatus
 from dibble.models.teacher_classroom import (
@@ -35,6 +36,7 @@ class TeacherClassroomService:
                 continue
             intervention = self.teacher_intervention_action_service.build_for_student(student_id=parsed_student_id)
             attention_reasons = self._attention_reasons(summary=summary, intervention=intervention)
+            attention_level = self._attention_level(attention_reasons)
             learners.append(
                 TeacherLearnerCard(
                     student_id=str(summary.student_id),
@@ -53,7 +55,11 @@ class TeacherClassroomService:
                             intervention.latest_decision.status if intervention.latest_decision is not None else None
                         ),
                     ),
-                    attention_level=self._attention_level(attention_reasons),
+                    attention_level=attention_level,
+                    triage_section=triage_section_for(
+                        attention_level=attention_level,
+                        proposal_status=intervention.proposal_status.value,
+                    ),
                     attention_reasons=attention_reasons,
                 )
             )

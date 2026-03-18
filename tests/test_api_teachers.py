@@ -109,6 +109,7 @@ def test_teacher_classroom_read_model_packages_learner_cards_and_counts(client):
     assert active_card["intervention"]["recommended_action_kind"] == "generate_follow_up"
     assert active_card["curriculum_progression"]["status"] in {"active_curriculum_focus", "ready_for_next_resource"}
     assert active_card["attention_level"] == "medium"
+    assert active_card["triage_section"] == "teacher_action"
     assert "teacher_intervention_available" in active_card["attention_reasons"]
     assert active_card["current_flow"] == active_summary_payload["current_flow"]
     assert "current learner flow releases the active target" in active_card["curriculum_progression"]["rationale"]
@@ -121,6 +122,7 @@ def test_teacher_classroom_read_model_packages_learner_cards_and_counts(client):
         "blocked_resources"
     ][0]["rationale"]
     assert blocked_card["attention_level"] == "medium"
+    assert blocked_card["triage_section"] == "needs_attention"
     assert "blocked_on_prerequisites" in blocked_card["attention_reasons"]
     assert blocked_card["current_flow"] == blocked_summary_payload["current_flow"]
     assert blocked_card["curriculum_progression"] == blocked_summary_payload["curriculum_progression"]
