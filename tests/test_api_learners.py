@@ -622,6 +622,9 @@ def test_learner_history_endpoints_expose_generation_socratic_and_remediation_hi
     assert socratic_history_payload[0]["latest_steering_action"] == "verify_transfer"
     assert socratic_history_payload[0]["continue_action"]["kind"] == "generate_follow_up"
     assert_continue_action_contract(socratic_history_payload[0]["continue_action"])
+    assert socratic_history_payload[0]["rationale"] == socratic_response.json()["summary"]["rationale"]
+    assert socratic_history_payload[0]["rationale"] == socratic_response.json()["summary"]["next_step"]["rationale"]
+    assert "testing transfer instead of adding another support step" in socratic_history_payload[0]["rationale"]
     assert socratic_history_payload[0]["continue_action"] == socratic_response.json()["summary"]["continue_action"]
 
     assert remediation_history_payload[0]["session_id"] == remediation_response.json()["request_context"]["remediation_session_id"]
@@ -637,6 +640,58 @@ def test_learner_history_endpoints_expose_generation_socratic_and_remediation_hi
     assert remediation_generation_entry["continue_action"]["content_type"] == remediation_session_payload["summary"]["continue_action"]["content_type"]
     assert remediation_generation_entry["continue_action"]["target_stage"] == remediation_session_payload["summary"]["continue_action"]["target_stage"]
     assert remediation_generation_entry["continue_action"]["target_kc_ids"] == remediation_session_payload["summary"]["continue_action"]["target_kc_ids"]
+
+
+def test_socratic_rationale_stays_aligned_across_flow_workspace_history_and_intervention(client, student_id):
+    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+
+    socratic_response = client.post(
+        "/api/assessments/socratic",
+        json={
+            "student_id": str(student_id),
+            "learning_session_id": "socratic-parity-session",
+            "target_kc_ids": ["KC-1"],
+            "curriculum_context": ["Equivalent fractions"],
+            "learner_response": "Equivalent fractions are the same amount because 1/2 and 2/4 cover equal space on the model.",
+            "learner_confidence": 0.72,
+        },
+    )
+    flow_response = client.get(f"/api/learners/{student_id}/flow")
+    summary_response = client.get(f"/api/learners/{student_id}/summary")
+    workspace_response = client.get(f"/api/learners/{student_id}/workspace")
+    history_response = client.get(f"/api/learners/{student_id}/history/socratic-sessions")
+    intervention_response = client.get(f"/api/learners/{student_id}/intervention-action")
+
+    assert socratic_response.status_code == 200
+    assert flow_response.status_code == 200
+    assert summary_response.status_code == 200
+    assert workspace_response.status_code == 200
+    assert history_response.status_code == 200
+    assert intervention_response.status_code == 200
+
+    socratic_payload = socratic_response.json()
+    flow_payload = flow_response.json()
+    summary_payload = summary_response.json()
+    workspace_payload = workspace_response.json()
+    history_payload = history_response.json()
+    intervention_payload = intervention_response.json()
+
+    canonical_rationale = socratic_payload["summary"]["rationale"]
+
+    assert socratic_payload["summary"]["rationale"] == socratic_payload["summary"]["next_step"]["rationale"]
+    assert flow_payload["flow_type"] == "socratic_assessment"
+    assert flow_payload["rationale"] == canonical_rationale
+    assert summary_payload["current_flow"]["rationale"] == canonical_rationale
+    assert workspace_payload["summary"]["current_flow"]["rationale"] == canonical_rationale
+    assert workspace_payload["active_artifact"]["rationale"] == canonical_rationale
+    assert workspace_payload["socratic_session"]["summary"]["rationale"] == canonical_rationale
+    assert history_payload[0]["rationale"] == canonical_rationale
+    assert intervention_payload["rationale"] == canonical_rationale
+    assert intervention_payload["proposed_action"]["rationale"] == canonical_rationale
+    assert intervention_payload["available_options"][0]["rationale"] == canonical_rationale
+    assert intervention_payload["available_options"][0]["continue_action"] == socratic_payload["summary"]["continue_action"]
+    assert "testing transfer instead of adding another support step" in canonical_rationale
 
 
 def test_learner_history_endpoints_return_machine_readable_not_found_error(client, student_id):

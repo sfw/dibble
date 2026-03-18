@@ -10,6 +10,7 @@ from dibble.models.profile import LearnerContinueAction, LearnerFlowNextStep, Le
 from dibble.models.remediation import RemediationWorkflowSession, RemediationWorkflowStep, RemediationWorkflowSummary
 from dibble.services.protocols import RemediationSessionStore
 from dibble.services.remediation_planner import RemediationPlan
+from dibble.services.workflow_rationale import decision_grade_rationale, target_stage_for_phase
 
 
 class RemediationWorkflowNotFoundError(LookupError):
@@ -277,7 +278,12 @@ class RemediationWorkflowCoordinator:
                 content_type=content_type,
                 target_stage=target_stage,
                 target_kc_ids=list(session.progression_target_kc_ids),
-                rationale=session.progression_rationale,
+                rationale=decision_grade_rationale(
+                    session.progression_rationale,
+                    action=session.progression_decision,
+                    target_stage=target_stage,
+                    fallback=session.rationale,
+                ),
             )
         if current_step is None:
             return LearnerFlowNextStep(
@@ -285,9 +291,13 @@ class RemediationWorkflowCoordinator:
                 content_type=None,
                 target_stage="transfer",
                 target_kc_ids=list(session.kc_sequence.deferred_kc_ids or session.focus_kc_ids),
-                rationale="The remediation workflow is complete.",
+                rationale=decision_grade_rationale(
+                    "The remediation workflow is complete.",
+                    action="complete",
+                    target_stage="transfer",
+                ),
             )
-        target_stage = "transfer" if current_step.phase == "return" else "bridge" if current_step.phase == "bridge" else "repair"
+        target_stage = target_stage_for_phase(current_step.phase)
         return LearnerFlowNextStep(
             action=current_step.phase,
             content_type=current_step.recommended_content_type.value,
@@ -355,16 +365,14 @@ class RemediationWorkflowCoordinator:
         session: RemediationWorkflowSession,
         current_step: RemediationWorkflowStep,
     ) -> str | None:
-        if session.progression_rationale:
-            return session.progression_rationale
-        base = session.rationale or current_step.objective or current_step.guidance
-        instruction = current_step.guidance or current_step.objective
-        if not base:
-            return instruction
-        if not instruction or instruction in base:
-            return base
-        phase_label = current_step.phase.replace("_", " ")
-        return f"{base} Current {phase_label} step: {instruction}"
+        return decision_grade_rationale(
+            session.progression_rationale or session.rationale,
+            action=current_step.phase,
+            target_stage=target_stage_for_phase(current_step.phase),
+            fallback=current_step.objective or current_step.guidance,
+            step_phase=current_step.phase,
+            step_instruction=current_step.guidance or current_step.objective,
+        )
 
     def _strategy_curriculum_context(self, strategy_summary: LearnerStrategySummary) -> list[str]:
         if strategy_summary.signal == "insufficient":

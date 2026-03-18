@@ -355,7 +355,7 @@ def test_within_session_controller_moves_through_consolidate_and_bridge_before_t
         sequence_actions.append(summary.sequence_action)
 
     assert phases == ["consolidate", "bridge", "transfer_check"]
-    assert sequence_actions == ["hold_target", "hold_repair_target", "attempt_transfer"]
+    assert sequence_actions == ["hold_target", "hold_bridge_target", "attempt_transfer"]
 
 
 def test_within_session_controller_blocks_transfer_when_live_evidence_still_shows_support_dependence(tmp_path):
@@ -422,9 +422,9 @@ def test_within_session_controller_blocks_transfer_when_live_evidence_still_show
     )
 
     assert phases == ["consolidate", "bridge", "bridge"]
-    assert sequence_actions == ["hold_target", "hold_repair_target", "hold_repair_target"]
+    assert sequence_actions == ["hold_target", "hold_bridge_target", "hold_bridge_target"]
     assert final_summary.phase == "bridge"
-    assert final_summary.sequence_action == "hold_repair_target"
+    assert final_summary.sequence_action == "hold_bridge_target"
     assert final_summary.recovery_intent == "bridge_target"
 
 

@@ -7,6 +7,7 @@ from uuid import UUID
 from dibble.models.generation import GenerationRequest
 from dibble.models.session_adaptation import WithinSessionControllerState
 from dibble.services.protocols import AuditStore, WithinSessionControllerStore
+from dibble.services.workflow_rationale import decision_grade_rationale
 
 
 @dataclass(frozen=True, slots=True)
@@ -421,11 +422,22 @@ class WithinSessionAdaptationService:
         session_id: str,
     ) -> str:
         if latest_assessment is not None and latest_assessment.get("next_action") == "step_back":
-            return (
-                f"Recent same-session evidence in {session_id} still points to step-back reasoning, so support should stay high on the current target before any transfer."
+            return decision_grade_rationale(
+                (
+                    f"Recent same-session evidence in {session_id} still points to step-back reasoning, "
+                    "so support should stay high on the current target before any transfer."
+                ),
+                action="hold_target",
+                target_stage="repair",
             )
-        return (
-            f"Recent same-session observations and assessments in {session_id} show active struggle ({observation_count} observations, {assessment_count} assessments), so support should increase and the next step should stay on the current target."
+        return decision_grade_rationale(
+            (
+                f"Recent same-session observations and assessments in {session_id} show active struggle "
+                f"({observation_count} observations, {assessment_count} assessments), so support should increase "
+                "and the next step should stay on the current target."
+            ),
+            action="hold_target",
+            target_stage="target",
         )
 
     def _positive_rationale(
@@ -437,11 +449,19 @@ class WithinSessionAdaptationService:
         session_id: str,
     ) -> str:
         if latest_assessment is not None and latest_assessment.get("next_action") == "advance":
-            return (
-                f"Recent same-session evidence in {session_id} demonstrates enough understanding to test transfer on the target next."
+            return decision_grade_rationale(
+                f"Recent same-session evidence in {session_id} demonstrates enough understanding to test transfer on the target next.",
+                action="attempt_transfer",
+                target_stage="transfer",
             )
-        return (
-            f"Recent same-session observations and assessments in {session_id} stayed strong ({observation_count} observations, {assessment_count} assessments), so support can fade and the next step can test transfer."
+        return decision_grade_rationale(
+            (
+                f"Recent same-session observations and assessments in {session_id} stayed strong "
+                f"({observation_count} observations, {assessment_count} assessments), so support can fade "
+                "and the next step can test transfer."
+            ),
+            action="attempt_transfer",
+            target_stage="transfer",
         )
 
     def _overlap_score(self, left: list[str], right: object) -> float:
@@ -892,7 +912,7 @@ class WithinSessionAdaptationService:
         if phase == "consolidate":
             return "recovering", 0, "hold_target"
         if phase == "bridge":
-            return "recovering", 0, "hold_repair_target"
+            return "recovering", 0, "hold_bridge_target"
         if phase == "transfer_check":
             return "positive", 1, "attempt_transfer"
         if raw_summary.signal == "mixed" and negative_streak > 0:
@@ -926,46 +946,88 @@ class WithinSessionAdaptationService:
         arc_action: str,
         event_type: str,
     ) -> str:
+        posture_action = (
+            "attempt_transfer"
+            if phase == "transfer_check"
+            else "hold_bridge_target"
+            if phase == "bridge"
+            else "hold_target"
+        )
+        posture_stage = (
+            "transfer"
+            if phase == "transfer_check"
+            else "bridge"
+            if phase == "bridge"
+            else "target"
+        )
         if raw_summary.signal == "positive" and self._current_evidence_blocks_transfer(raw_summary):
-            return (
+            return decision_grade_rationale(
                 f"Within-session controller for {learning_session_id} has some recovery evidence, "
                 "but live signals still look support-dependent or overloaded, so it is holding before transfer."
+                ,
+                action="hold_bridge_target" if phase == "bridge" else "hold_target",
+                target_stage="bridge" if phase == "bridge" else "target",
             )
         if stuck_loop_risk == "high":
-            return (
+            return decision_grade_rationale(
                 f"Within-session controller for {learning_session_id} has exhausted its guided support budget during {phase}, "
                 f"so after {event_type} it is changing angle instead of repeating the same scaffold."
+                ,
+                action=posture_action,
+                target_stage=posture_stage,
             )
         if phase == "repair":
-            return (
+            return decision_grade_rationale(
                 f"Within-session controller for {learning_session_id} has seen {negative_streak} consecutive struggle signals, "
                 f"so it is staying in repair mode after {event_type}."
+                ,
+                action="hold_target",
+                target_stage="repair",
             )
         if phase == "stabilize":
-            return (
+            return decision_grade_rationale(
                 f"Within-session controller for {learning_session_id} is stabilizing support after fresh same-session struggle."
+                ,
+                action="hold_target",
+                target_stage="repair",
             )
         if phase == "consolidate":
-            return (
+            return decision_grade_rationale(
                 f"Within-session controller for {learning_session_id} has seen recovery evidence after earlier struggle, "
                 "so it is holding the target while confidence consolidates."
+                ,
+                action="hold_target",
+                target_stage="target",
             )
         if phase == "bridge":
-            return (
+            return decision_grade_rationale(
                 f"Within-session controller for {learning_session_id} has seen repeated recovery evidence, "
                 "so it is bridging through one more guided target step before transfer."
+                ,
+                action="hold_bridge_target",
+                target_stage="bridge",
             )
         if phase == "transfer_check":
-            return (
+            return decision_grade_rationale(
                 f"Within-session controller for {learning_session_id} has seen {positive_streak} consecutive strong signals, "
                 "so the next generated step can test transfer."
+                ,
+                action="attempt_transfer",
+                target_stage="transfer",
             )
         if arc_action == "reprobe_new_angle":
-            return (
+            return decision_grade_rationale(
                 f"Within-session controller for {learning_session_id} is avoiding a support loop by probing the same target from a new angle."
+                ,
+                action=posture_action,
+                target_stage=posture_stage,
             )
-        return raw_summary.rationale or (
+        return decision_grade_rationale(
+            raw_summary.rationale or (
             f"Within-session controller for {learning_session_id} is monitoring the active recovery intent {recovery_intent}."
+            ),
+            action=posture_action,
+            target_stage=posture_stage,
         )
 
     def _generation_step_rationale(

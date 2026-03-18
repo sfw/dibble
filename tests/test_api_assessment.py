@@ -28,6 +28,10 @@ def test_socratic_assessment_starts_with_probe_when_no_learner_response(client, 
     assert payload["summary"]["latest_prompt_style"] == "diagnostic"
     assert payload["summary"]["latest_next_action"] == "ask_probe"
     assert payload["summary"]["next_step"]["content_type"] == "assessment_probe"
+    assert payload["summary"]["rationale"] == payload["summary"]["next_step"]["rationale"]
+    assert "gathering one more assessment signal instead of releasing into practice yet" in payload["summary"][
+        "rationale"
+    ]
     assert payload["summary"]["continue_action"]["kind"] == "continue_socratic"
     assert payload["summary"]["continue_action"]["endpoint"] == "/api/assessments/socratic"
     assert payload["generation_metadata"]["prompt_template_name"] is not None
@@ -72,6 +76,8 @@ def test_socratic_assessment_detects_grounded_reasoning_in_learner_response(clie
     assert payload["summary"]["latest_next_action"] == "advance"
     assert payload["summary"]["next_step"]["content_type"] == "practice_problem"
     assert payload["summary"]["next_step"]["target_stage"] == "transfer"
+    assert payload["summary"]["rationale"] == payload["summary"]["next_step"]["rationale"]
+    assert "testing transfer instead of adding another support step" in payload["summary"]["rationale"]
     assert payload["summary"]["continue_action"]["kind"] == "generate_follow_up"
     assert payload["summary"]["continue_action"]["request_payload"]["requested_content_type"] == "practice_problem"
     assert "equivalent" in payload["evaluation"]["matched_terms"]

@@ -22,6 +22,7 @@ from dibble.services.generation_engine import GenerationEngine
 from dibble.services.protocols import SocraticSessionStore
 from dibble.services.socratic_evidence import SocraticEvidenceScorer
 from dibble.services.socratic_policy import SocraticTurnPolicy
+from dibble.services.workflow_rationale import decision_grade_rationale
 
 
 @dataclass(slots=True)
@@ -205,7 +206,7 @@ class SocraticAssessmentService:
             latest_next_action=latest_turn.evaluation.next_action.value,
             latest_evidence_strength=latest_turn.evaluation.evidence_strength.value,
             latest_evidence_score=latest_turn.evaluation.evidence_score,
-            rationale=latest_turn.evaluation.rationale or latest_turn.policy_rationale,
+            rationale=next_step.rationale,
             next_step=next_step,
             continue_action=self._continue_action_for(
                 latest_turn=latest_turn,
@@ -230,12 +231,24 @@ class SocraticAssessmentService:
         elif next_action == SocraticNextAction.advance:
             content_type = "practice_problem"
             target_stage = "transfer"
+        posture_action = (
+            "hold_repair_target"
+            if target_stage == "repair"
+            else "attempt_transfer"
+            if target_stage == "transfer"
+            else None
+        )
         return LearnerFlowNextStep(
             action=latest_turn.steering_action.value,
             content_type=content_type,
             target_stage=target_stage,
             target_kc_ids=list(session.target_kc_ids),
-            rationale=latest_turn.evaluation.rationale or latest_turn.policy_rationale,
+            rationale=decision_grade_rationale(
+                latest_turn.evaluation.rationale,
+                action=posture_action,
+                target_stage=target_stage,
+                fallback=latest_turn.policy_rationale,
+            ),
         )
 
     def _continue_action_for(

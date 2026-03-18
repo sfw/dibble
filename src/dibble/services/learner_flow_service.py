@@ -17,6 +17,7 @@ from dibble.services.protocols import (
     SocraticSessionStore,
     WithinSessionControllerStore,
 )
+from dibble.services.workflow_rationale import decision_grade_rationale
 
 
 @dataclass(slots=True)
@@ -435,10 +436,14 @@ class LearnerFlowService:
                         fallback_target_kc_ids=fallback_target_kc_ids,
                         next_content_type=next_content_type,
                     ),
-                    rationale=self._first_text(
-                        progression.get("mastery_gate_reason"),
-                        progression.get("rationale"),
-                        next_reason,
+                    rationale=decision_grade_rationale(
+                        self._maybe_str(progression.get("mastery_gate_reason")),
+                        action=progression_action,
+                        target_stage=target_stage,
+                        fallback=self._first_text(
+                            progression.get("rationale"),
+                            next_reason,
+                        ),
                     ),
                 ),
                 "predictive_event",
@@ -460,10 +465,14 @@ class LearnerFlowService:
                         fallback_target_kc_ids=fallback_target_kc_ids,
                         next_content_type=next_content_type,
                     ),
-                    rationale=self._first_text(
-                        progression.get("mastery_gate_reason"),
-                        progression.get("rationale"),
-                        next_reason,
+                    rationale=decision_grade_rationale(
+                        self._maybe_str(progression.get("mastery_gate_reason")),
+                        action=progression_action,
+                        target_stage=target_stage,
+                        fallback=self._first_text(
+                            progression.get("rationale"),
+                            next_reason,
+                        ),
                     ),
                 ),
                 "predictive_planner",
@@ -475,9 +484,11 @@ class LearnerFlowService:
                 content_type=None,
                 target_stage=target_stage,
                 target_kc_ids=self._string_list(progression.get("applied_target_kc_ids")) or fallback_target_kc_ids,
-                rationale=self._first_text(
-                    progression.get("mastery_gate_reason"),
-                    progression.get("rationale"),
+                rationale=decision_grade_rationale(
+                    self._maybe_str(progression.get("mastery_gate_reason")),
+                    action=progression_action,
+                    target_stage=target_stage,
+                    fallback=self._maybe_str(progression.get("rationale")),
                 ),
             ),
             "insufficient",

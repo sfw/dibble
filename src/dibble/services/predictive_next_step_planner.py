@@ -251,7 +251,7 @@ class PredictiveNextStepPlanner:
                         "Within-session recovery is consolidating, so warm one more repair-focused practice step before transfer.",
                     )
                 ]
-            if sequence_action in {"hold_target", "hold_repair_target"}:
+            if sequence_action in {"hold_target", "hold_repair_target", "hold_bridge_target"}:
                 return [
                     (
                         RequestedContentType.practice_problem,

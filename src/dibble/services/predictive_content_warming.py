@@ -100,7 +100,7 @@ class PredictiveContentWarmer:
             RequestedContentType.practice_problem,
             RequestedContentType.worked_example,
             RequestedContentType.remedial_micro_module,
-        } and action in {"rebuild_prerequisite_first", "hold_repair_target", "hold_target"}:
+        } and action in {"rebuild_prerequisite_first", "hold_repair_target", "hold_bridge_target", "hold_target"}:
             return ordered_kc_ids[:1] or default_target_kc_ids
         return default_target_kc_ids
 

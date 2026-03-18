@@ -238,6 +238,39 @@ def test_predictive_next_step_planner_honors_session_bridge_phase_after_remediat
     ]
 
 
+def test_predictive_next_step_planner_treats_bridge_hold_like_guided_reentry():
+    generated_content = _build_generated_content(
+        content_type="remedial_micro_module",
+        request_context={
+            "learning_session_id": "session-bridge-hold",
+            "target_kc_ids": ["KC-2"],
+            "selected_content_type": "remedial_micro_module",
+            "mode_calibration": {
+                "support_bias": 0,
+                "sequence_action": "hold_bridge_target",
+            },
+        },
+        route_calibration=RouteCalibrationSummary(
+            signal="mixed",
+            source="session_controller",
+            confidence=0.77,
+            average_run_outcome_score=0.67,
+            matched_run_count=3,
+            progress_signal="stable",
+            progress_delta=0.01,
+        ),
+    )
+
+    plan = PredictiveNextStepPlanner().plan(generated_content)
+
+    assert plan == [
+        (
+            RequestedContentType.practice_problem,
+            "Per-KC sequencing suggests staying on the repair target before moving back into transfer.",
+        )
+    ]
+
+
 def test_predictive_next_step_planner_honors_session_bridge_phase_after_practice():
     generated_content = _build_generated_content(
         content_type="practice_problem",

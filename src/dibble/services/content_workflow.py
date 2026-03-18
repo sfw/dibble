@@ -41,6 +41,7 @@ from dibble.services.remediation_workflows import (
     RemediationWorkflowNotFoundError,
 )
 from dibble.services.within_session_adaptation import WithinSessionAdaptationService
+from dibble.services.workflow_rationale import decision_grade_rationale
 
 
 class LearnerProfileNotFoundError(LookupError):
@@ -533,6 +534,7 @@ class ContentWorkflowService:
             next_phase = remediation_data.get("next_phase")
             progression_decision = str(remediation_data.get("progression_decision", "advance"))
             next_target_kc_ids = self._remediation_next_step_target_kc_ids(remediation_data=remediation_data)
+            explicit_next_step_rationale = self._maybe_str(remediation_data.get("next_step_rationale"))
             next_step = LearnerFlowNextStep(
                 action=(
                     str(remediation_data.get("progression_decision"))
@@ -549,12 +551,24 @@ class ContentWorkflowService:
                 ),
                 target_kc_ids=next_target_kc_ids,
                 rationale=self._workflow_step_rationale(
-                    primary=self._maybe_str(remediation_data.get("next_step_rationale"))
-                    or self._maybe_str(remediation_data.get("progression_rationale")),
-                    fallback=self._first_text(
-                        progression_data.get("mastery_gate_reason"),
-                        progression_data.get("rationale"),
-                        request_context.get("remediation_rationale"),
+                    primary=explicit_next_step_rationale or self._maybe_str(remediation_data.get("progression_rationale")),
+                    action=(
+                        progression_decision
+                        if progression_decision.startswith("hold_")
+                        else str(next_phase or "complete")
+                    ),
+                    target_stage=self._target_stage_for_remediation_next_step(
+                        phase=next_phase or executed_phase,
+                        progression_decision=progression_decision,
+                    ),
+                    fallback=(
+                        None
+                        if explicit_next_step_rationale is not None
+                        else self._first_text(
+                            progression_data.get("mastery_gate_reason"),
+                            progression_data.get("rationale"),
+                            request_context.get("remediation_rationale"),
+                        )
                     ),
                 ),
             )
@@ -571,15 +585,7 @@ class ContentWorkflowService:
                         active_target_kc_ids=self._string_list(
                             progression_data.get("applied_target_kc_ids") or request_context.get("target_kc_ids")
                         ),
-                        rationale=self._workflow_step_rationale(
-                            primary=next_step.rationale,
-                            fallback=self._first_text(
-                                progression_data.get("mastery_gate_reason"),
-                                progression_data.get("rationale"),
-                                remediation_data.get("progression_rationale"),
-                                request_context.get("remediation_rationale"),
-                            ),
-                        ),
+                        rationale=next_step.rationale,
                         next_step=next_step,
                         continue_action=self._continue_action_for_remediation_content(
                             generated_content=generated_content,
@@ -612,14 +618,7 @@ class ContentWorkflowService:
                     active_target_kc_ids=self._string_list(
                         progression_data.get("applied_target_kc_ids") or request_context.get("target_kc_ids")
                     ),
-                    rationale=self._workflow_step_rationale(
-                        primary=next_step.rationale,
-                        fallback=self._first_text(
-                            progression_data.get("mastery_gate_reason"),
-                            progression_data.get("rationale"),
-                            self._dict_value(request_context.get("session_adaptation")).get("rationale"),
-                        ),
-                    ),
+                    rationale=next_step.rationale,
                     next_step=next_step,
                     continue_action=self._continue_action_for_lesson_content(
                         generated_content=generated_content,
@@ -648,6 +647,8 @@ class ContentWorkflowService:
                 ),
                 rationale=self._workflow_step_rationale(
                     primary=self._maybe_str(progression.get("mastery_gate_reason")),
+                    action=str(progression.get("action", "stay_on_requested_target")),
+                    target_stage=str(progression.get("target_stage", "target")),
                     fallback=self._maybe_str(progression.get("rationale")),
                 ),
             )
@@ -661,6 +662,8 @@ class ContentWorkflowService:
                 ),
                 rationale=self._workflow_step_rationale(
                     primary=self._maybe_str(progression.get("mastery_gate_reason")),
+                    action=str(progression.get("action", "stay_on_requested_target")),
+                    target_stage=str(progression.get("target_stage", "target")),
                     fallback=self._maybe_str(progression.get("rationale")),
                 ),
             )
@@ -676,6 +679,8 @@ class ContentWorkflowService:
             target_kc_ids=target_kc_ids or self._string_list(request_context.get("target_kc_ids")),
             rationale=self._workflow_step_rationale(
                 primary=self._maybe_str(progression.get("mastery_gate_reason")),
+                action=str(progression.get("action", "stay_on_requested_target")),
+                target_stage=str(progression.get("target_stage", "target")),
                 fallback=self._first_text(
                     progression.get("rationale"),
                     next_reason,
@@ -740,9 +745,16 @@ class ContentWorkflowService:
         self,
         *,
         primary: str | None,
+        action: str | None = None,
+        target_stage: str | None = None,
         fallback: str | None,
     ) -> str | None:
-        return self._first_text(primary, fallback)
+        return decision_grade_rationale(
+            primary,
+            action=action,
+            target_stage=target_stage,
+            fallback=fallback,
+        )
 
     def _continue_action_for_lesson_content(
         self,
@@ -787,7 +799,12 @@ class ContentWorkflowService:
                     "content_type": RequestedContentType.practice_problem.value,
                     "target_stage": "transfer",
                     "target_kc_ids": target_kc_ids,
-                    "rationale": self._first_text(next_step.rationale, "Return to the target skill after remediation."),
+                    "rationale": decision_grade_rationale(
+                        next_step.rationale,
+                        action="attempt_transfer",
+                        target_stage="transfer",
+                        fallback="Return to the target skill after remediation.",
+                    ),
                 }
             )
             return LearnerContinueAction.generate_follow_up(
