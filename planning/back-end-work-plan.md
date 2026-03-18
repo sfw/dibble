@@ -128,9 +128,9 @@ Legend:
 
 Based on `planning/4 - revised-spec/implementation-roadmap.md`, `planning/5 - dev-handoff-revised-spec/requirements-traceability.csv`, the current code seams, `planning/front-end-work-plan.md`, `planning/from-front-to-back-needs.md`, and `planning/lms-interface-plan.md`, the strongest next backend slices are now:
 
-1. **product-level authentication clarity**: the frontend is building a real LMS with learner login, teacher login, and role-aware routing; the backend auth contract exists (`POST /api/auth/token`, RBAC roles, bearer tokens) but needs to clearly support learner and teacher identity flows, not just API-key access for integration testing.
+1. ~~**product-level authentication clarity**~~: **DONE** — `learner` and `teacher` roles now exist in the RBAC hierarchy with entity bindings (`learner_id`, `teacher_id`, `display_name`, `classroom_ids`) that persist through API keys, bearer tokens, token refresh, and `/api/auth/me`. Principal config format supports `api_key:principal_id:learner:student-uuid:Display Name` and `api_key:principal_id:teacher:teacher-uuid:Name:classroom-1,classroom-2`.
 2. **assignment model ownership**: the LMS plan calls for teacher-assigned learning tasks; neither frontend nor backend currently owns an assignment concept; the backend should decide whether assignments are a thin wrapper around existing learner workspace / progression state or a first-class entity with lifecycle, status, and continue-action metadata.
-3. **history pagination**: history endpoints currently return up to 20 entries with no cursor or offset; the frontend needs pagination for learners and teachers with longer histories.
+3. ~~**history pagination**~~: **DONE** — all three history endpoints now return `{ items, offset, limit, has_more }` paginated responses with offset-based pagination, limit clamped to 1–100.
 4. keep strengthening backend decision quality (`ORCH-001`, `ADAPT-006`, `DATA-004`, `ADAPT-003`) without changing contract shape.
 5. revisit a true course-level planner only if product needs exceed the current learner `curriculum_progression` read model and local progression ownership.
 6. keep multimodal expansion behind the explicit `response.artifacts` envelope.
@@ -183,6 +183,8 @@ Most recent progress:
 42. teacher classroom learner cards now also carry a backend-owned `triage_section`, so teacher-action, needs-attention, and on-track grouping no longer depends on frontend interpretation of `attention_level` and intervention availability.
 43. learner workspace payloads now also carry an optional backend-owned `affective_support` message, so break suggestions, nudges, and encouragement can be versioned and tuned in the backend instead of hardcoded against raw frustration and engagement signals in the UI.
 44. backend-owned display labels now also ride alongside `continue_action.kind`, `curriculum_progression.current_stage`, and remediation workflow `phase`, so the frontend can prefer backend framing while preserving machine-readable keys for stability and fallback.
+45. the auth system now supports `learner` and `teacher` as first-class RBAC roles with entity bindings: `learner_id`, `teacher_id`, `display_name`, and `classroom_ids` persist through API keys, bearer tokens, token refresh, and `/api/auth/me`, so the frontend can identify who a user is in product terms without inventing identity mapping locally.
+46. history endpoints now return offset-based paginated responses (`items`, `offset`, `limit`, `has_more`) with limit clamped to 1–100, so the frontend can load-more or paginate through longer learner histories without hardcoding a single-page cap.
 
 ### Frontend Alignment Update
 
@@ -269,10 +271,10 @@ Even with the narrower frontend ask list, the backend still owns a few stability
 
 The next backend agent should work from this priority order:
 
-1. **P0: authentication clarity** — ensure the existing auth contract cleanly supports learner and teacher login flows. Verify that `/api/auth/me` returns role and associated learner/teacher entity IDs. If learner-to-classroom membership is not yet queryable from the auth identity, add that seam. Add test coverage for role-based auth scenarios.
-2. **P1: history pagination** — add cursor-based or offset-based pagination to the three history endpoints. This is a small, well-scoped contract extension.
+1. ~~**P0: authentication clarity**~~ — **DONE**. `learner` and `teacher` roles now exist with entity bindings that persist through the full token lifecycle. `/api/auth/me` returns role, `learner_id`/`teacher_id`, `display_name`, and `classroom_ids`. Test coverage added for learner/teacher auth, RBAC, bearer tokens, and refresh with entity preservation.
+2. ~~**P1: history pagination**~~ — **DONE**. All three history endpoints now return `{ items, offset, limit, has_more }` with offset-based pagination, limit clamped to 1–100. Frontend types, API functions, hook, and test mocks updated.
 3. **P1: assignment model decision** — decide whether assignments should be a thin read-model wrapper around existing workspace/progression state or a first-class entity. If the latter, design the entity and API surface. Document the decision in this file and in `from-front-to-back-needs.md`.
-4. **Quality work** — if P0-P1 items are done, choose the most justified decision-quality pass from `ORCH-001`, `ADAPT-006`, `DATA-004`, or `ADAPT-003`, with a bias toward improvements that strengthen backend-owned next-step consistency, mastery-loop trust, ordinary-work evidence use, or misconception precision without changing contract shape.
+4. **Quality work** — if P1 items are done, choose the most justified decision-quality pass from `ORCH-001`, `ADAPT-006`, `DATA-004`, or `ADAPT-003`, with a bias toward improvements that strengthen backend-owned next-step consistency, mastery-loop trust, ordinary-work evidence use, or misconception precision without changing contract shape.
 5. avoid frontend-only sequencing policy, avoid reopening stable contract seams without a concrete bug, avoid dashboard-style teacher analytics unless current classroom summaries prove insufficient.
 6. for each justified pass: add focused tests, update `README.md`, update this document, run `uv run ruff check .`, run `uv run pytest`, and make a coherent focused commit.
 7. stop rather than forcing more work if the honest result is that no additional improvement is justified right now.

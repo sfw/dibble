@@ -154,30 +154,41 @@ class SQLiteGeneratedContentStore:
         *,
         student_id: str,
         limit: int = 20,
+        offset: int = 0,
         include_predictive_warm: bool = False,
     ) -> list[GeneratedContent]:
         with sqlite3.connect(self.database_path) as connection:
+            if include_predictive_warm:
+                rows = connection.execute(
+                    """
+                    SELECT generation_id, student_id, content_type, request_context, workflow_summary_payload, response_payload, quality_payload, created_at, expires_at
+                    FROM generated_content
+                    WHERE student_id = ?
+                    ORDER BY created_at DESC, generation_id DESC
+                    LIMIT ? OFFSET ?
+                    """,
+                    (student_id, limit, offset),
+                ).fetchall()
+                return [self._content_from_row(row) for row in rows]
+
             rows = connection.execute(
                 """
                 SELECT generation_id, student_id, content_type, request_context, workflow_summary_payload, response_payload, quality_payload, created_at, expires_at
                 FROM generated_content
                 WHERE student_id = ?
                 ORDER BY created_at DESC, generation_id DESC
-                LIMIT ?
+                LIMIT ? OFFSET ?
                 """,
-                (student_id, limit * 4 if not include_predictive_warm else limit),
+                (student_id, (limit + offset) * 4, 0),
             ).fetchall()
 
         entries = [self._content_from_row(row) for row in rows]
-        if include_predictive_warm:
-            return entries[:limit]
-
         filtered = [
             entry
             for entry in entries
             if not bool(entry.request_context.get("is_predictive_warm"))
         ]
-        return filtered[:limit]
+        return filtered[offset : offset + limit]
 
     def expire_predictive_content(
         self,

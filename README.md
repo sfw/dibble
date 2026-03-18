@@ -120,9 +120,11 @@ This repository now includes a working MVP backend slice for the revised adaptiv
 - Generated content responses now also expose a discriminated `response.artifacts` contract alongside the legacy `blocks` list, with a stable `text` artifact shape that keeps current consumers working while giving future multimodal artifacts an explicit extension seam
 - Stream `complete` events now carry that same compact `workflow_summary` contract and run through the same progression-ownership and session-finalization path as non-stream generation, so frontend state does not diverge between SSE and normal response modes
 - Generated content can now be reloaded by `generation_id`, and learner workspace responses can now bundle learner summary/flow with the active generation or active remediation/Socratic session for resume-after-refresh frontend work
-- Optional principal-based API key auth with `viewer`/`editor`/`admin` roles can protect every endpoint except `GET /health`
-- Signed bearer tokens can be minted, refreshed, and revoked for request-scoped sessions
+- Optional principal-based API key auth with `learner`/`viewer`/`teacher`/`editor`/`admin` roles can protect every endpoint except `GET /health`
+- `learner` and `teacher` principals now carry entity bindings (`learner_id`, `teacher_id`, `display_name`, `classroom_ids`) that persist through bearer tokens, refresh, and `/api/auth/me` so the frontend can identify who a user is in product terms
+- Signed bearer tokens can be minted, refreshed, and revoked for request-scoped sessions, and entity bindings survive token refresh
 - RBAC failures now keep the same `403` machine-readable contract for API-key and bearer-token callers, and forbidden-request audit events preserve the authenticated principal instead of falling back to API-key-only handling
+- History endpoints (`/history/generations`, `/history/socratic-sessions`, `/history/remediation-sessions`) now return paginated responses with `items`, `offset`, `limit`, and `has_more` fields, supporting offset-based pagination with limit clamped to 1–100
 - Dynamic plugin loading for router, retriever, provider, and validator factories
 - API tests covering routing, persistence, retrieval, generation, and fallback behavior
 

@@ -36,6 +36,10 @@ class ApiKeyPrincipal:
     api_key: str
     principal_id: str
     role: str
+    learner_id: str | None = None
+    teacher_id: str | None = None
+    display_name: str | None = None
+    classroom_ids: tuple[str, ...] = ()
 
 
 @dataclass(slots=True)
@@ -75,7 +79,15 @@ class AuthService:
 
         for principal in self.principals:
             if provided_key == principal.api_key:
-                return AuthIdentity(principal_id=principal.principal_id, role=principal.role, auth_scheme="api_key")
+                return AuthIdentity(
+                    principal_id=principal.principal_id,
+                    role=principal.role,
+                    auth_scheme="api_key",
+                    learner_id=principal.learner_id,
+                    teacher_id=principal.teacher_id,
+                    display_name=principal.display_name,
+                    classroom_ids=list(principal.classroom_ids),
+                )
 
         raise AuthenticationError("A valid API key is required for this endpoint.")
 
@@ -107,6 +119,12 @@ class AuthService:
         session_id = str(uuid4())
         access_expires_at = now + timedelta(seconds=self.token_ttl_seconds)
         refresh_expires_at = now + timedelta(seconds=self.refresh_ttl_seconds)
+        entity_claims = {
+            "learner_id": identity.learner_id,
+            "teacher_id": identity.teacher_id,
+            "display_name": identity.display_name,
+            "classroom_ids": identity.classroom_ids,
+        }
         access_claims = AuthTokenClaims(
             sub=identity.principal_id,
             role=identity.role,
@@ -116,6 +134,7 @@ class AuthService:
             iat=int(now.timestamp()),
             exp=int(access_expires_at.timestamp()),
             iss=self.token_issuer,
+            **entity_claims,
         )
         refresh_claims = AuthTokenClaims(
             sub=identity.principal_id,
@@ -126,6 +145,7 @@ class AuthService:
             iat=int(now.timestamp()),
             exp=int(refresh_expires_at.timestamp()),
             iss=self.token_issuer,
+            **entity_claims,
         )
         token = self._encode_token(access_claims)
         refresh_token = self._encode_token(refresh_claims)
@@ -145,6 +165,10 @@ class AuthService:
                 principal_id=identity.principal_id,
                 role=identity.role,
                 auth_scheme="bearer",
+                learner_id=identity.learner_id,
+                teacher_id=identity.teacher_id,
+                display_name=identity.display_name,
+                classroom_ids=identity.classroom_ids,
             ),
         )
 
@@ -160,6 +184,10 @@ class AuthService:
                 principal_id=claims.sub,
                 role=claims.role,
                 auth_scheme="bearer",
+                learner_id=claims.learner_id,
+                teacher_id=claims.teacher_id,
+                display_name=claims.display_name,
+                classroom_ids=claims.classroom_ids,
             ),
             session_id=claims.sid,
             authenticated_at=authenticated_at,
@@ -179,10 +207,24 @@ class AuthService:
         if session.principal_id != claims.sub or session.role != claims.role:
             raise AuthenticationError("Refresh token session does not match the current principal.")
 
-        identity = AuthIdentity(principal_id=claims.sub, role=claims.role, auth_scheme="bearer")
+        identity = AuthIdentity(
+            principal_id=claims.sub,
+            role=claims.role,
+            auth_scheme="bearer",
+            learner_id=claims.learner_id,
+            teacher_id=claims.teacher_id,
+            display_name=claims.display_name,
+            classroom_ids=claims.classroom_ids,
+        )
         now = datetime.now(timezone.utc)
         access_expires_at = now + timedelta(seconds=self.token_ttl_seconds)
         refresh_expires_at = now + timedelta(seconds=self.refresh_ttl_seconds)
+        entity_claims = {
+            "learner_id": identity.learner_id,
+            "teacher_id": identity.teacher_id,
+            "display_name": identity.display_name,
+            "classroom_ids": identity.classroom_ids,
+        }
         access_claims = AuthTokenClaims(
             sub=identity.principal_id,
             role=identity.role,
@@ -192,6 +234,7 @@ class AuthService:
             iat=int(now.timestamp()),
             exp=int(access_expires_at.timestamp()),
             iss=self.token_issuer,
+            **entity_claims,
         )
         refresh_claims = AuthTokenClaims(
             sub=identity.principal_id,
@@ -202,6 +245,7 @@ class AuthService:
             iat=int(now.timestamp()),
             exp=int(refresh_expires_at.timestamp()),
             iss=self.token_issuer,
+            **entity_claims,
         )
         access_token = self._encode_token(access_claims)
         rotated_refresh_token = self._encode_token(refresh_claims)
@@ -326,15 +370,37 @@ def _build_principals(settings: Settings) -> tuple[ApiKeyPrincipal, ...]:
     if settings.auth_principals:
         principals: list[ApiKeyPrincipal] = []
         for entry in settings.auth_principals:
-            api_key, separator, remainder = entry.partition(":")
-            principal_id, separator_two, role = remainder.partition(":")
-            if not api_key or separator == "" or not principal_id or separator_two == "" or not role:
+            parts = entry.split(":")
+            if len(parts) < 3:
                 continue
+            api_key, principal_id, role = parts[0], parts[1], parts[2].lower()
+            if not api_key or not principal_id or not role:
+                continue
+            learner_id: str | None = None
+            teacher_id: str | None = None
+            display_name: str | None = None
+            classroom_ids: tuple[str, ...] = ()
+            if role == "learner" and len(parts) >= 4 and parts[3]:
+                learner_id = parts[3]
+                if len(parts) >= 5 and parts[4]:
+                    display_name = parts[4]
+            elif role == "teacher" and len(parts) >= 4 and parts[3]:
+                teacher_id = parts[3]
+                if len(parts) >= 5 and parts[4]:
+                    display_name = parts[4]
+                if len(parts) >= 6 and parts[5]:
+                    classroom_ids = tuple(
+                        cid.strip() for cid in parts[5].split(",") if cid.strip()
+                    )
             principals.append(
                 ApiKeyPrincipal(
                     api_key=api_key,
                     principal_id=principal_id,
-                    role=role.lower(),
+                    role=role,
+                    learner_id=learner_id,
+                    teacher_id=teacher_id,
+                    display_name=display_name,
+                    classroom_ids=classroom_ids,
                 )
             )
         if principals:

@@ -25,18 +25,7 @@ What the frontend is building against:
 - backend-owned `triage_section`, `affective_support`, `display_label` / `stage_display_label` fields
 - the frontend does not interpret raw signals or make pedagogical decisions
 
-## Active P0/P1 Backend Asks
-
-### P0: Product-level authentication flow
-
-**What the frontend needs:** The backend has auth endpoints (`POST /api/auth/token`, token refresh, RBAC roles) but the frontend has no login flow. Learners and teachers select their role manually; there is no identity persistence across browser sessions.
-
-**Backend implication:** The backend auth contract may be sufficient as-is, but the frontend needs clarity on:
-- how learner and teacher identities map to the existing RBAC model (learner role, teacher role, admin role)
-- whether the backend should provide a `/api/auth/me`-style identity endpoint that returns role and associated learner/teacher IDs
-- whether classroom membership is the binding between a teacher identity and their learners
-
-**This is the single biggest product gap right now.** An LMS without login is a demo, not a product.
+## Active P1 Backend Asks
 
 ### P1: Assignment model and lifecycle
 
@@ -50,11 +39,17 @@ What the frontend is building against:
 
 **This is a product-expansion gap, not a contract bug.** The frontend can start with a presentation layer around existing workspace and progression, but a real assignment model needs backend ownership.
 
-### P1: History pagination
+## Recently Resolved Backend Asks
 
-**What the frontend needs:** History endpoints (`/history/generations`, `/history/socratic-sessions`, `/history/remediation-sessions`) currently return up to 20 entries with no cursor or offset. The frontend needs pagination support for learners and teachers with longer histories.
+### Resolved: Product-level authentication flow (was P0)
 
-**Backend implication:** Add cursor-based or offset-based pagination to history endpoints. This is a small contract extension.
+**Backend now provides:** `learner` and `teacher` RBAC roles with entity bindings (`learner_id`, `teacher_id`, `display_name`, `classroom_ids`) that persist through API keys, bearer tokens, token refresh, and `/api/auth/me`. Principal config format: `api_key:principal_id:learner:student-uuid:Display Name` and `api_key:principal_id:teacher:teacher-uuid:Name:classroom-1,classroom-2`.
+**Frontend still needs:** login screen, role-aware redirect, session persistence using the new auth contracts.
+
+### Resolved: History pagination (was P1)
+
+**Backend now provides:** all three history endpoints return `{ items, offset, limit, has_more }` paginated responses with offset-based pagination, limit clamped to 1–100.
+**Frontend still needs:** load-more or infinite scroll UI using the `offset` and `has_more` fields.
 
 ## Resolved P1 Backend Asks
 

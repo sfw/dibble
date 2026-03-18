@@ -6,9 +6,9 @@ from fastapi import APIRouter, Request, status
 
 from dibble.api.common import ApiContext, api_error
 from dibble.models.history import (
-    LearnerGenerationHistoryEntry,
-    LearnerRemediationSessionHistoryEntry,
-    LearnerSocraticSessionHistoryEntry,
+    LearnerGenerationHistoryPage,
+    LearnerRemediationSessionHistoryPage,
+    LearnerSocraticSessionHistoryPage,
 )
 from dibble.models.observations import InferredLearnerState, LearnerObservationCreate
 from dibble.models.profile import (
@@ -271,10 +271,12 @@ def build_learner_router(context: ApiContext) -> APIRouter:
 
     @router.get(
         "/learners/{student_id}/history/generations",
-        response_model=list[LearnerGenerationHistoryEntry],
+        response_model=LearnerGenerationHistoryPage,
         dependencies=context.deps("viewer"),
     )
-    def list_generation_history(student_id: UUID, limit: int = 20) -> list[LearnerGenerationHistoryEntry]:
+    def list_generation_history(
+        student_id: UUID, limit: int = 20, offset: int = 0,
+    ) -> LearnerGenerationHistoryPage:
         profile = services.profile_store.get(student_id)
         if profile is None:
             raise api_error(
@@ -282,14 +284,18 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 detail="Learner profile not found.",
                 code="learner_profile_not_found",
             )
-        return services.learner_history_service.list_generation_history(student_id=student_id, limit=limit)
+        return services.learner_history_service.list_generation_history(
+            student_id=student_id, limit=limit, offset=offset,
+        )
 
     @router.get(
         "/learners/{student_id}/history/socratic-sessions",
-        response_model=list[LearnerSocraticSessionHistoryEntry],
+        response_model=LearnerSocraticSessionHistoryPage,
         dependencies=context.deps("viewer"),
     )
-    def list_socratic_session_history(student_id: UUID, limit: int = 20) -> list[LearnerSocraticSessionHistoryEntry]:
+    def list_socratic_session_history(
+        student_id: UUID, limit: int = 20, offset: int = 0,
+    ) -> LearnerSocraticSessionHistoryPage:
         profile = services.profile_store.get(student_id)
         if profile is None:
             raise api_error(
@@ -297,17 +303,18 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 detail="Learner profile not found.",
                 code="learner_profile_not_found",
             )
-        return services.learner_history_service.list_socratic_session_history(student_id=student_id, limit=limit)
+        return services.learner_history_service.list_socratic_session_history(
+            student_id=student_id, limit=limit, offset=offset,
+        )
 
     @router.get(
         "/learners/{student_id}/history/remediation-sessions",
-        response_model=list[LearnerRemediationSessionHistoryEntry],
+        response_model=LearnerRemediationSessionHistoryPage,
         dependencies=context.deps("viewer"),
     )
     def list_remediation_session_history(
-        student_id: UUID,
-        limit: int = 20,
-    ) -> list[LearnerRemediationSessionHistoryEntry]:
+        student_id: UUID, limit: int = 20, offset: int = 0,
+    ) -> LearnerRemediationSessionHistoryPage:
         profile = services.profile_store.get(student_id)
         if profile is None:
             raise api_error(
@@ -315,7 +322,9 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 detail="Learner profile not found.",
                 code="learner_profile_not_found",
             )
-        return services.learner_history_service.list_remediation_session_history(student_id=student_id, limit=limit)
+        return services.learner_history_service.list_remediation_session_history(
+            student_id=student_id, limit=limit, offset=offset,
+        )
 
     @router.get(
         "/learners/{student_id}/intervention-action",

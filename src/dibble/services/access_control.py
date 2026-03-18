@@ -4,7 +4,9 @@ from collections.abc import Iterable
 
 
 ROLE_RANKS = {
+    "learner": 1,
     "viewer": 1,
+    "teacher": 2,
     "editor": 2,
     "admin": 3,
 }

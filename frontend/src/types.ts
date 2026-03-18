@@ -724,6 +724,35 @@ export interface TeacherContractGap {
   frontend_response: string
 }
 
+export interface AuthIdentity {
+  principal_id: string
+  role: string
+  auth_scheme: string
+  learner_id?: string | null
+  teacher_id?: string | null
+  display_name?: string | null
+  classroom_ids: string[]
+}
+
+export interface AuthToken {
+  access_token: string
+  refresh_token?: string | null
+  token_type: string
+  expires_in: number
+  identity: AuthIdentity
+}
+
+export interface HistoryPage<T> {
+  items: T[]
+  offset: number
+  limit: number
+  has_more: boolean
+}
+
+export type LearnerGenerationHistoryPage = HistoryPage<LearnerGenerationHistoryEntry>
+export type LearnerSocraticSessionHistoryPage = HistoryPage<LearnerSocraticSessionHistoryEntry>
+export type LearnerRemediationSessionHistoryPage = HistoryPage<LearnerRemediationSessionHistoryEntry>
+
 export interface FrontendConfig {
   baseUrl: string
   apiKey: string

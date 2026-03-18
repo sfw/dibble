@@ -2,13 +2,17 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AuthIdentity(BaseModel):
     principal_id: str
     role: str
     auth_scheme: str = "api_key"
+    learner_id: str | None = None
+    teacher_id: str | None = None
+    display_name: str | None = None
+    classroom_ids: list[str] = Field(default_factory=list)
 
 
 class AuthToken(BaseModel):
@@ -28,6 +32,10 @@ class AuthTokenClaims(BaseModel):
     iat: int
     exp: int
     iss: str
+    learner_id: str | None = None
+    teacher_id: str | None = None
+    display_name: str | None = None
+    classroom_ids: list[str] = Field(default_factory=list)
 
 
 class AuthSession(BaseModel):
