@@ -164,9 +164,7 @@ class TeacherClassroomService:
         )
         if latest_decision_status is not None:
             label = (
-                latest_decision_status.value.replace("_", " ")
-                .replace("-", " ")
-                .title()
+                latest_decision_status.value.replace("_", " ").replace("-", " ").title()
             )
             return f"Latest teacher decision: {label}."
         if summary.curriculum_progression.rationale is not None:

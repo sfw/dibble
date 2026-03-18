@@ -371,9 +371,7 @@ def _has_kc_overlap(payload: dict, target_kc_ids: list[str]) -> bool:
     return any(str(kc) in target_set for kc in obs_kc_ids)
 
 
-def _decision_mastery(
-    payload: dict, target_kc_ids: list[str]
-) -> float | None:
+def _decision_mastery(payload: dict, target_kc_ids: list[str]) -> float | None:
     mastery = payload.get("progression_average_observed_mastery")
     if mastery is not None:
         try:
@@ -383,9 +381,7 @@ def _decision_mastery(
     return None
 
 
-def _average_mastery(
-    kc_ids: list[str], kc_mastery: dict[str, float]
-) -> float | None:
+def _average_mastery(kc_ids: list[str], kc_mastery: dict[str, float]) -> float | None:
     values = [kc_mastery[kc] for kc in kc_ids if kc in kc_mastery]
     if not values:
         return None
