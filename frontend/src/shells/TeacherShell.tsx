@@ -4,6 +4,7 @@ import { GraduationCap, LayoutDashboard, School } from 'lucide-react'
 import { useTeacherClassroom } from '../hooks/useTeacherClassroom'
 import { usePersistentConfig } from '../hooks/usePersistentConfig'
 import type { DataSource } from '../app/workspace'
+import { TeacherBreadcrumbs } from '../components/shell/Breadcrumbs'
 import type {
   FrontendConfig,
   TeacherClassroomOverview,
@@ -75,6 +76,7 @@ export function TeacherShell() {
         </nav>
       </header>
       <main className="flex-1 p-6">
+        <TeacherBreadcrumbs />
         <Outlet context={context} />
       </main>
     </div>
