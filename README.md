@@ -1,33 +1,33 @@
 ![dibble hero](docs/images/dibble.png)
 # Dibble
 
-A dibble is a pointed tool used to make holes in the ground for planting seeds — precise, deliberate, and purposeful. Dibble the platform works the same way: it uses generative AI to surgically plant seeds of knowledge, adapting to each learner so every concept takes root.
+A dibble is a pointed tool for making holes in the ground to plant seeds. Dibble the platform does something similar: it uses generative AI to figure out what a learner needs and then makes it for them.
 
-Dibble is an adaptive learning management system that watches how a learner thinks, struggles, and recovers — then generates exactly the right content at the right moment. Explanations, worked examples, practice problems, and Socratic assessments are all created on the fly, grounded in real curriculum, and tuned to the learner's mastery, cognitive load, and affective state. When its own decisions don't work, the system notices: it tracks whether each hold, redirect, and progression call actually helped the learner, and adjusts its thresholds so the next decision is better.
+It's an adaptive LMS. It generates explanations, worked examples, practice problems, and Socratic assessments on the fly, all grounded in real curriculum. It tracks mastery, estimates cognitive load and affect, and adjusts what it serves based on how the learner is actually doing. When its decisions don't help, it notices and changes course.
 
 ## What learners experience
 
-A learner working on adding fractions gets a practice problem wrong. Dibble doesn't just serve another problem — it detects a likely place-value misconception from the error pattern and prior struggle history, steps back to a prerequisite concept, generates a worked example with fading support tailored to the learner's cognitive load, then bridges back to the original topic through a connecting problem. The whole arc happens within a single session, with the system adjusting support intensity based on how the learner responds at each step.
+Say a learner gets a fraction addition problem wrong. Instead of just throwing another problem at them, Dibble looks at the error pattern and their history, figures out they probably have a place-value misconception, steps back to the prerequisite, generates a worked example with fading support, and then bridges back to the original topic. This all happens in one session, and the system adjusts as the learner responds.
 
-If the learner is frustrated, Dibble notices and eases off. If they're coasting through scaffolded problems without actually understanding, it notices that too — and holds them on the concept instead of letting inflated scores push them forward prematurely.
+If the learner is frustrated, it eases off. If they're breezing through scaffolded problems without really understanding, it holds them there instead of letting inflated scores push them forward.
 
 ## What teachers experience
 
-Teachers see their classroom sorted into three triage buckets — **needs action**, **needs attention**, and **on track** — computed server-side from each learner's mastery trajectory, intervention history, and current state. They can drill into any learner to see the system's current pedagogical decision and its rationale: why it's holding a student on repair practice, why it redirected an assessment attempt back to a prerequisite, or why it's ready to let a student attempt transfer.
+Teachers see their classroom in three buckets: **needs action**, **needs attention**, and **on track**. These are computed server-side from each learner's mastery trajectory and intervention history. Teachers can drill into any learner to see what the system is doing and why: why it's holding someone on repair practice, why it sent them back to a prerequisite, why it thinks they're ready for transfer.
 
-Every decision the system makes is a proposal. Teachers can approve the current move, choose from backend-generated alternatives (each labeled with its stage — repair, bridge, target, transfer), defer, or escalate. Mastery trend lines show per-learner trajectories and classroom averages over time, so teachers can see whether the system's interventions are actually working.
+Every decision the system makes is a proposal. Teachers can approve it, pick from alternatives (labeled by stage: repair, bridge, target, transfer), defer, or escalate. Trend lines show per-learner and classroom-level mastery over time so you can tell if interventions are actually working.
 
 ## How it works
 
-**The backend owns all learning decisions.** Mastery gates, progression sequencing, remediation arcs, misconception detection, and content-mode selection all live in backend services. The frontend renders those decisions — it never interprets raw signals or makes pedagogical choices on its own.
+**The backend owns all learning decisions.** Mastery gates, progression sequencing, remediation, misconception detection, content-mode selection: all backend services. The frontend renders what the backend tells it to. No pedagogical logic lives client-side.
 
 The core loop:
 
-1. **Observe** — the system ingests learner interaction signals (time on task, correctness, help-seeking, confidence) and infers affective state, cognitive load, and metacognitive readiness
-2. **Route** — an adaptive router chooses the next instructional move: teach, reteach, step back to a prerequisite, stretch toward transfer, or trigger remediation
-3. **Generate** — a retrieval-grounded pipeline produces curriculum-aligned content through an LLM, with moderation, validation, and deterministic fallbacks
-4. **Assess** — multi-turn Socratic probes evaluate understanding through conversational evidence scoring, feeding mastery and metacognitive updates back into the loop
-5. **Calibrate** — the system evaluates its own decisions against subsequent learner outcomes. Progression holds that helped are reinforced; holds that stalled are relaxed. Misconception remediation that resolved is noted; remediation that failed repeatedly is flagged for teacher review. These feedback loops run at the level of individual routing actions, mastery quality gates, and misconception detection confidence — not as global tuning, but as per-learner, per-concept self-correction
+1. **Observe**: ingest learner signals (time on task, correctness, help-seeking, confidence) and infer affective state, cognitive load, and metacognitive readiness
+2. **Route**: pick the next move. Teach, reteach, step back to a prerequisite, stretch toward transfer, or trigger remediation
+3. **Generate**: produce curriculum-aligned content through an LLM with retrieval grounding, moderation, validation, and deterministic fallbacks
+4. **Assess**: run multi-turn Socratic probes that evaluate understanding through conversational evidence scoring, then feed mastery and metacognitive updates back into the loop
+5. **Calibrate**: evaluate past decisions against what actually happened. Holds that helped get reinforced; holds that stalled get relaxed. Remediation that worked is noted; remediation that kept failing gets flagged for teacher review. This runs per-learner, per-concept, not as global tuning
 
 ## Repository layout
 
@@ -68,7 +68,7 @@ pre-commit install   # installs trufflehog secret scanning hook
 
 ## Configuration
 
-Dibble runs on SQLite by default (`dibble.db`). No external services are required for local development — the system falls back to a deterministic mock LLM provider and a local embedder when no API keys are configured.
+Dibble runs on SQLite by default (`dibble.db`). No external services needed for local dev. If you don't configure API keys, it falls back to a deterministic mock LLM provider and a local embedder.
 
 ### Core settings
 
@@ -103,15 +103,15 @@ export DIBBLE_VALIDATOR_PLUGIN=dibble.plugins.defaults.validator:build
 
 ## API
 
-The API is organized around learners, teachers, content generation, curriculum, and platform operations. Start the server and visit `/docs` for the full interactive OpenAPI reference.
+Start the server and hit `/docs` for the interactive OpenAPI reference. Endpoints cover learners, teachers, content generation, curriculum, and platform operations.
 
 ## Architecture
 
-The backend is built on **FastAPI + Pydantic + SQLite** with dependency injection (`bootstrap.py`) and a plugin system for extensibility. Services are single-responsibility and communicate through typed Pydantic models.
+Backend is **FastAPI + Pydantic + SQLite** with dependency injection (`bootstrap.py`) and a plugin system. Services are single-responsibility and talk to each other through typed Pydantic models.
 
-The frontend is built on **React + Vite + TypeScript** with **shadcn/ui + Tailwind CSS**. It fetches and renders backend decisions — no pedagogical logic lives client-side.
+Frontend is **React + Vite + TypeScript** with **shadcn/ui + Tailwind CSS**. It renders backend decisions. That's it.
 
-For the full technical changelog, including calibration pipelines, misconception detection, mastery decay, progression outcome feedback loops, and content moderation details, see [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
+Full technical changelog (calibration, misconception detection, mastery decay, feedback loops, content moderation, etc.) is in [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 
 ## License
 
