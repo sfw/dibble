@@ -1,6 +1,6 @@
 # Frontend Work Plan
 
-Last updated: 2026-03-17
+Last updated: 2026-03-18
 
 ## Purpose
 
@@ -30,6 +30,28 @@ Dibble is building the world's most adaptable and functional AI-powered educatio
 See `planning/lms-interface-plan.md` for the full product vision and information architecture.
 
 Guardrail: the frontend renders backend-owned workflow decisions. It does not invent progression logic, mastery gating, or intervention policy locally.
+
+## Leadership-Aligned Frontend Rubric
+
+Frontend planning should follow the backend leadership lens rather than drifting into feature accumulation.
+
+For every meaningful frontend item, answer:
+
+| Field | What it must say |
+|---|---|
+| Type | `protect_differentiator`, `surface_world_class_gap`, `contract_hardening`, or `activation_readiness` |
+| Leadership anchor | Which backend differentiator this preserves or which named world-class gap it helps expose honestly |
+| Backend owner | Which backend contract, field, or decision remains the source of truth |
+| UI value | What learner, teacher, or operator outcome improves if this lands |
+| Stop rule | When the frontend has done enough around the current backend capability |
+| Frontend boundary | What the UI must not infer, score, or sequence locally |
+
+Planning discipline:
+
+1. protect backend-owned adaptation, inspectable progression, and teacher-aligned control rather than recreating them in UI code
+2. surface uncertainty and limitation honestly when the backend is still heuristic or locally scoped
+3. only add course maps, richer analytics, multimodal views, messaging, or notifications when the backend owns the semantics those surfaces imply
+4. treat cross-surface drift in stage, rationale, continue-action, or mastery framing as a bug, not as an invitation for frontend reconciliation logic
 
 ## Current Architecture
 
@@ -82,14 +104,12 @@ Contract-hardening in use:
 
 | Priority | Gap | Impact on frontend |
 |---|---|---|
-| ~~P0~~ | ~~No product-level authentication or user identity~~ | **RESOLVED** — backend supports `learner` and `teacher` roles with entity bindings. Frontend now has login screen (`/login`), `useAuth` hook with bearer token persistence and refresh, `AuthGuard` gating `/learn` and `/teacher` routes, role-aware redirect, logout from shell headers, and `AuthContext` for app-wide auth state. |
-| ~~P1~~ | ~~No assignment model or lifecycle~~ | **RESOLVED** — backend has a first-class `Assignment` entity. Frontend now has learner assignment view (`/learn/assignments`) with active/past grouping, start action, and pagination; teacher assignment view (`/teacher/assignments`) with create form, cancel action, and pagination; `useAssignments` hooks for both roles; nav links in both shells; and tests. |
-| ~~P1~~ | ~~Teacher reporting is a placeholder~~ | **RESOLVED** — `/teacher/reports` now shows a real reporting surface with cross-classroom summary metrics, per-classroom progress cards with stacked distribution bars, per-classroom deep-dive sections for stage distribution, engagement/frustration overview, activity totals, and attention levels, per-learner drill-down table with sortable columns and attention reasons, expandable attention-level drill-down, and classroom selector for deep-dive switching. Reports nav link added to teacher shell. Tests cover all report sections. |
-| ~~P1~~ | ~~No pagination on history endpoints~~ | **RESOLVED** — backend returns `{ items, offset, limit, has_more }` paginated responses. Frontend `useLearnerContracts` hook now tracks pagination state and exposes `loadMoreHistory`. History view shows a "Load more" button when more entries are available. |
-| P2 | Course-level progression planning is lighter than a true course planner | UI should trust learner `curriculum_progression` and avoid inventing cross-unit sequencing logic |
-| P2 | No multimodal artifact payload contract | Content cards should stay extensible without assuming diagrams or interactives yet |
-| P2 | No learner-to-learner or teacher-to-learner messaging | No in-app communication channel |
-| P2 | No notification / inbox concept | No push or pull notification surface for learners or teachers |
+| P1 | Cross-surface rationale and stage parity can still drift in presentation | Treat parity drift as a product bug; prefer one backend rationale path over frontend synthesis |
+| P1 | Mastery-loop evidence still needs clearer learner and teacher rendering | Surface backend evidence snapshots, blockers, mastery history, and next-step framing without inventing trust scores locally |
+| P2 | Course-level progression planning is lighter than a true course planner | Do not imply stronger sequencing authority with course maps or unit navigation before backend ownership exists |
+| P2 | Multimodal support is envelope-first, not capability-complete | Keep `response.artifacts` rendering extensible without assuming diagrams, simulations, or interactives already exist |
+| P2 | Teacher analytics are workflow-first rather than instructional-intelligence-first | Expand reporting only when backend-owned analytics deepen beyond current classroom and mastery-trend surfaces |
+| P2 | Messaging and notifications remain product-expansion seams | No inbox, comments, or push surfaces until backend ownership is explicit |
 
 ### Residual frontend code gaps
 
@@ -101,44 +121,26 @@ Contract-hardening in use:
 
 ## Execution Priorities
 
-### P0: product-level authentication
+### P1: protect backend-owned differentiation
 
-- Integrate with the existing backend auth contract (`POST /api/auth/token`, bearer tokens, RBAC roles)
-- Add a login screen and role-aware redirect
-- Persist auth state across browser sessions
-- Gate learner/teacher routes behind authenticated identity
-- Keep staff mode available for API-key-based access
+- keep learner, teacher, and staff surfaces aligned to the same backend-owned next-step, stage, and rationale semantics
+- reduce remaining frontend rationale composition where a canonical backend field can replace it
+- keep learner interactions polished enough that backend-owned adaptation feels coherent rather than fragile
+- regression-test parity across summary, flow, workspace, history, intervention, and classroom drill-in surfaces
 
-### P1: learner experience polish
+### P1: surface world-class gaps honestly
 
-- ~~Hide orchestration inputs from the learner shell~~ — **DONE**: already internal-only
-- Make the Continue Learning flow seamless: learner taps resume, sees content, responds, gets next step — no raw workflow vocabulary
-- ~~Add real pagination or infinite scroll to history views~~ — **DONE**: load-more pagination
-- ~~Add type filtering to history views~~ — **DONE**: All/Lessons/Checks/Practice filter tabs with counts
-- ~~Enrich Progress view with resource breakdown~~ — **DONE**: all resources grouped by state with mastery bars and blocker rationale
-- ~~Polish the Socratic check and remediation session UX for student safety and clarity~~ — **DONE**: accessibility improvements (aria radiogroup, aria-current on steps), form validation (empty response prevention), error retry buttons, empty state handling
-- ~~Add loading states, transitions, and error recovery that feel product-grade~~ — **DONE**: retry buttons on all three learner interaction views (SocraticCheck, RemediationSession, ContinueLearning)
+- present mastery-loop evidence, blocker rationale, mastery trends, and affective support in ways that make current backend confidence and limits legible
+- avoid course or unit navigation patterns that imply stronger sequencing authority than `curriculum_progression` actually owns
+- keep teacher reports useful for workflow and evidence review without overstating instructional-intelligence depth
+- keep `response.artifacts` rendering extensible so richer capabilities can land without frontend churn
 
-### P1: teacher experience depth
+### P2: activation-based expansion
 
-- ~~Build a real teacher reporting surface with class-level progress, mastery trends, and per-learner evidence timelines~~ — **DONE**: `/teacher/reports` with cross-classroom summaries, per-classroom analytics, per-learner mastery heatmap, and learner drill-down table
-- ~~Improve classroom detail density so teachers can scan 30 learners efficiently~~ — **DONE**: collapsible triage sections, compact card mode, filter bar
-- ~~Add teacher-to-learner drill-in for artifact review~~ — **DONE**: `LearnerDetail` evidence timeline with expandable entries and artifact review panel
-- ~~Add trend lines to reports when backend exposes historical snapshots~~ — **DONE**: SVG trend line chart, per-learner mastery change strip, and drill-down table deltas
-
-### P1: assignment layer (frontend + backend coordination) — DONE
-
-- ~~Design a lightweight assignment model~~ — backend owns a first-class `Assignment` entity
-- ~~Learner view~~ — `/learn/assignments` shows assigned work with start action, due dates, and pagination
-- ~~Teacher view~~ — `/teacher/assignments` shows all assignments with create form, cancel, and pagination
-- ~~Hooks~~ — `useLearnerAssignments` and `useTeacherAssignments` with full CRUD and pagination
-
-### P2: polish and expansion
-
-- Continue improving explainability summaries so fewer surfaces depend on raw contract inspection
-- Continue making the UI resilient to richer artifact types via `response.artifacts`
-- Add offline / connectivity resilience for learner sessions
-- Extend test coverage as new surfaces land
+- add course maps and broader navigation only when backend course-planning authority exists
+- add richer multimodal views only when backend artifact variants exist beyond `text`
+- add richer teacher intelligence, messaging, notifications, or family-facing surfaces only when backend ownership and product need are explicit
+- continue offline / connectivity resilience and test coverage as enabling work
 
 ## Key Decisions
 
@@ -191,8 +193,9 @@ Contract-hardening in use:
 
 ### Next up
 
-1. keep this work plan and `from-front-to-back-needs.md` updated together
-2. continue P2 polish and expansion work as product needs arise
+1. keep this work plan and `from-front-to-back-needs.md` updated together with explicit leadership anchors
+2. reduce remaining frontend-owned rationale selection where the backend can supply a canonical display field
+3. keep parity and artifact-extensibility regression coverage strong as backend quality work continues
 
 ### Recently completed
 
@@ -301,7 +304,7 @@ Remaining:
 - ~~assignment management layer~~ — **DONE**: teacher and learner assignment views
 - ~~trend lines~~ — **DONE**: integrated backend mastery-trends endpoint into Reports with SVG trend line, per-learner delta strip, and drill-down table deltas
 
-### Phase 3: assignments, reporting, and operational completeness — IN PROGRESS
+### Phase 3: assignments, reporting, and operational completeness — DONE / maintenance
 
 - ~~assignment framing layer~~ — **DONE**: learner and teacher assignment views with create, start, cancel, and pagination
 - ~~teacher reporting placeholder~~ — **DONE**: `/teacher/reports` now shows class-level progress, learner distribution, engagement/frustration, activity totals, and attention levels across classrooms

@@ -116,7 +116,7 @@ Legend:
 | `DATA-003` GeneratedContent entity with quality metadata                      | Implemented | Persisted generated content plus `generation_metadata` and `GeneratedContent` API envelope                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `DATA-004` Practice-driven knowledge updates                                  | Partial     | Socratic assessment can update KC and LO mastery and propagate that evidence through the KC graph, linked practice or remediation observations can now also write target mastery back through the same migration layer, repeated same-session target observations can now strengthen that writeback, strong target-scoped ordinary-work observations can still count without an explicit generation/session link when the evidence is specific enough, a newer durable `learning.ordinary_mastery.profile` layer can now summarize repeated ordinary-work evidence into inspectable `durable_mastery`, `emerging_mastery`, `support_dependent`, or `fragile` signals that modestly shape later writeback trust, ordinary mastery resolution is now also target-scoped instead of falling back to unrelated KC history, strong support-dependent or fragile ordinary evidence on a backend-applied repair target can now explicitly hold that repair stage, and ordinary mastery profiles now also detect mastery volatility as a recency-weighted standard deviation of scores so downstream consumers can treat unstable learners more cautiously when the aggregate signal swings enough to be unreliable, but the pipeline is still heuristic rather than a learned knowledge-tracing system                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `DATA-005` Learned knowledge tracing                                          | Deferred    | Replace the current inspectable heuristic writeback and durable ordinary mastery summaries with a learned or probabilistic knowledge-tracing layer only after the current backend-owned evidence loop has stabilized and proven where heuristics genuinely fall short                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `GEN-005` Discriminated multimodal artifact contract                          | Partial     | Generated content now also exposes a discriminated `response.artifacts` contract with a stable `text` artifact variant derived from the existing block payload, so future multimodal or interactive artifacts can extend a backend-owned envelope without breaking current `blocks` consumers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `GEN-006` Discriminated multimodal artifact contract                          | Partial     | Generated content now also exposes a discriminated `response.artifacts` contract with a stable `text` artifact variant derived from the existing block payload, so future multimodal or interactive artifacts can extend a backend-owned envelope without breaking current `blocks` consumers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `ORCH-001` Learner progression orchestration                                  | Partial     | The backend now carries mode-calibration, KC-sequencing, session-phase, remediation-session, predictive next-step metadata, a first remediation-local hold/advance decision that can reuse linked learner evidence, and a broader local progression-ownership layer that can redirect ordinary generation to prerequisite or bridge KCs before honoring the caller's requested target, explicitly name whether work is in a repair, bridge, target, or transfer stage, now evaluate progression evidence against the backend-applied repair or bridge target instead of only the originally requested KC, now also let durable ordinary mastery profiles veto premature ordinary transfer when same-session evidence is sparse, keep that ordinary mastery lookup scoped to the actual target instead of unrelated KC history, sharpen backend-applied repair redirects into an explicit `hold_repair_target` state when durable repair evidence still looks weak, preserve `hold_bridge_target` as a distinct guided bridge posture instead of collapsing it back into repair semantics, reuse one more canonical rationale spine across lesson, remediation, Socratic, workspace, history, intervention, and classroom read models, preserve deferred and transfer target metadata in lesson flow even when persisted `workflow_summary` data is present, now rank curriculum resources through a dependency-aware frontier so the deferred return target stays visible while repair or bridge work is in flight, resume transfer on the deferred target when stronger same-session evidence earns that override, rewrite premature assessment probes back into practice on the appropriate stage target, and expose a backend-owned curriculum progression read model that summarizes current resource focus, next ready resource, and prerequisite blockers, but there is still no true course-level planner or sequencing subsystem                                                                                                                                                                                                                                          |
 | `ORCH-004` Teacher-safe intervention action contract                          | Implemented | `GET /api/learners/{student_id}/intervention-action` now exposes a backend-owned proposal keyed to the current learner flow, explicit selectable backend-generated alternatives, allowed teacher decisions, persisted latest-decision state, and stage-aware option labels plus rationales for lesson follow-ups so repair, bridge, target, and transfer choices stay legible without frontend-owned naming logic                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `ORCH-002` Course-level progression planner                                   | Deferred    | Add a single backend-owned planner for cross-lesson, cross-unit, and course-level progression only if the current local stage ownership, learner-flow contract, and inspectable next-step rules prove insufficient for broader progression control                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
@@ -128,14 +128,11 @@ Legend:
 
 Based on `planning/4 - revised-spec/implementation-roadmap.md`, `planning/5 - dev-handoff-revised-spec/requirements-traceability.csv`, the current code seams, `planning/front-end-work-plan.md`, `planning/from-front-to-back-needs.md`, and `planning/lms-interface-plan.md`, the strongest next backend slices are now:
 
-1. ~~**product-level authentication clarity**~~: **DONE** — `learner` and `teacher` roles now exist in the RBAC hierarchy with entity bindings (`learner_id`, `teacher_id`, `display_name`, `classroom_ids`) that persist through API keys, bearer tokens, token refresh, and `/api/auth/me`. Principal config format supports `api_key:principal_id:learner:student-uuid:Display Name` and `api_key:principal_id:teacher:teacher-uuid:Name:classroom-1,classroom-2`.
-2. ~~**assignment model ownership**~~: **DONE end-to-end** — backend has first-class `Assignment` entity with teacher attribution, lifecycle, and paginated endpoints. Frontend now has learner assignment view (`/learn/assignments`) and teacher assignment view (`/teacher/assignments`) with create, start, cancel, pagination, and tests.
-3. ~~**history pagination**~~: **DONE** — all three history endpoints now return `{ items, offset, limit, has_more }` paginated responses with offset-based pagination, limit clamped to 1–100.
-4. keep strengthening backend decision quality (`ORCH-001`, `ADAPT-006`, `DATA-004`, `ADAPT-003`) without changing contract shape.
-5. revisit a true course-level planner only if product needs exceed the current learner `curriculum_progression` read model and local progression ownership.
-6. keep multimodal expansion behind the explicit `response.artifacts` envelope.
-7. keep classroom detail compact and summary-first.
-8. keep scheduler autonomy and deeper intelligence work behind observed product pressure.
+1. protect the current adaptive differentiators by keeping backend-owned next-step decisions, rationale parity, and teacher-control semantics stable across summary, flow, workspace, history, intervention, and classroom surfaces
+2. deepen the mastery loop where it most improves trust in backend-owned progression decisions, with a bias toward `ORCH-001`, `ADAPT-006`, `DATA-004`, and `ADAPT-003`
+3. add better evidence and validation around learner-model and misconception quality so we can tell when heuristics are still good enough versus when a different approach is justified
+4. deepen curriculum reasoning and progression authority only where the current local progression layer is demonstrably insufficient, rather than jumping straight to a course planner
+5. keep multimodal, scheduler-autonomy, and other broader expansion work behind explicit activation criteria and product pressure
 
 Most recent progress:
 
@@ -222,9 +219,9 @@ The frontend has moved from a contract integration workbench to a three-layer LM
 
 **What the frontend is now asking for:**
 
-1. **P0**: product-level authentication flow so learners and teachers can log in (the backend auth contract exists but the frontend needs role-to-identity mapping clarity)
-2. ~~**P1**: assignment model ownership~~ — **DONE end-to-end**. Backend entity plus frontend learner and teacher assignment views with create, start, cancel, pagination, and tests.
-3. **P1**: history pagination (cursor or offset support on history endpoints)
+1. no new P0 or P1 backend blocker remains for the current LMS surface
+2. stable cross-surface contract parity and inspectable rationale on the surfaces already in use
+3. backend quality work only where it clearly deepens progression trust, mastery-loop integrity, misconception precision, or learner-model honesty
 
 **What the frontend is NOT asking for:**
 
@@ -236,13 +233,11 @@ The key product guardrail remains: the frontend renders backend-owned workflow d
 
 #### Current Frontend Ask
 
-The frontend ask has shifted from "no new contracts" to "three concrete product-level needs plus continued quality work":
+The frontend ask is now narrower and more strategic:
 
-1. ~~**P0: authentication flow**~~ — **DONE end-to-end**. Backend auth contract exists with `learner` and `teacher` roles. Frontend now has login screen, `useAuth` hook, `AuthGuard` route protection, bearer token persistence, role-aware redirect, and logout.
-2. **P1: assignment model** — neither frontend nor backend owns assignments yet. The backend should decide whether this is a thin wrapper around workspace/progression or a first-class entity.
-3. **P1: history pagination** — small contract extension for cursor or offset support on history endpoints.
-4. the backend should continue preserving and hardening existing stable contracts.
-5. backend quality work on progression orchestration, mastery-loop enforcement, ordinary-work evidence, and misconception precision remains valuable.
+1. keep existing backend-owned contracts stable, explicit, and parity-safe across all learner and teacher surfaces
+2. keep backend decisions inspectable enough that the UI can explain repair, bridge, target, and transfer behavior without inventing policy
+3. only expand backend scope when a new surface clearly helps close one of the named world-class gaps rather than merely adding more adjacent capability
 
 #### Stable Frontend Contracts In Use
 
@@ -260,9 +255,8 @@ The frontend plan now surfaces both active asks and conditional product-expansio
 
 | Priority | Gap | Backend implication |
 | -------- | --- | ------------------- |
-| P0 | Product-level authentication flow | Clarify how learner and teacher identities map to the existing RBAC model; ensure `/api/auth/me` or equivalent returns role and associated entity IDs |
-| P1 | Assignment model and lifecycle | Decide whether assignments are a thin wrapper around workspace/progression or a first-class entity with lifecycle, status, and continue-action metadata |
-| P1 | History pagination | Add cursor-based or offset-based pagination to `/history/generations`, `/history/socratic-sessions`, `/history/remediation-sessions` |
+| P1 | Cross-surface rationale parity and decision trust | Keep summary, flow, workspace, history, intervention, and classroom views aligned to one backend-owned judgment so the frontend does not have to reconcile competing rationale fragments |
+| P1 | Stronger mastery-loop and misconception evidence surfacing | Continue improving backend-owned evidence snapshots, mastery history, and next-step rationale so learner and teacher surfaces can show why a hold, repair, bridge, or transfer decision happened |
 
 **Conditional future seams:**
 
@@ -287,15 +281,15 @@ Even with the narrower frontend ask list, the backend still owns a few stability
 5. do not rename, reshape, or casually reopen already-stable frontend-facing contract seams unless there is a concrete bug or parity regression.
 6. keep auth transport-neutral too: API-key and bearer-token callers should hit the same machine-readable RBAC error contract, and forbidden-request audit trails should preserve the authenticated principal without re-parsing credentials through a weaker path.
 
-#### New Agent Plan
+#### Leadership-Aligned Backend Plan
 
 The next backend agent should work from this priority order:
 
-1. ~~**P0: authentication clarity**~~ — **DONE**. `learner` and `teacher` roles now exist with entity bindings that persist through the full token lifecycle. `/api/auth/me` returns role, `learner_id`/`teacher_id`, `display_name`, and `classroom_ids`. Test coverage added for learner/teacher auth, RBAC, bearer tokens, and refresh with entity preservation.
-2. ~~**P1: history pagination**~~ — **DONE**. All three history endpoints now return `{ items, offset, limit, has_more }` with offset-based pagination, limit clamped to 1–100. Frontend types, API functions, hook, and test mocks updated.
-3. ~~**P1: assignment model decision**~~ — **DONE**. Assignments are a first-class entity (`Assignment` model) with teacher attribution, learner targeting, lifecycle status (`assigned` → `in_progress` → `completed` → `canceled`), and `continue_action`-style pagination. API: `POST /api/assignments` (teacher creates), `GET /api/assignments/{id}`, `PATCH /api/assignments/{id}` (status update), `GET /api/learners/{id}/assignments` (paginated learner view), `GET /api/teachers/assignments` (paginated teacher view). SQLite-backed store with student, teacher, and classroom queries.
-4. **Quality work** — if P1 items are done, choose the most justified decision-quality pass from `ORCH-001`, `ADAPT-006`, `DATA-004`, or `ADAPT-003`, with a bias toward improvements that strengthen backend-owned next-step consistency, mastery-loop trust, ordinary-work evidence use, or misconception precision without changing contract shape.
-5. avoid frontend-only sequencing policy, avoid reopening stable contract seams without a concrete bug, avoid dashboard-style teacher analytics unless current classroom summaries prove insufficient.
+1. **Protect current differentiation first** — preserve backend-owned adaptation, multiscale evidence loops, inspectable stage decisions, and teacher-aligned control. Contract stability and parity are part of the product, not cleanup.
+2. **Deepen the mastery loop where it changes trust** — favor `ADAPT-006`, `DATA-004`, `ADAPT-003`, and `ORCH-001` work that makes hold, repair, bridge, return, and transfer decisions more honest, not just more elaborate.
+3. **Add validation pressure before adding more heuristics** — strengthen outcome instrumentation, evidence snapshots, and failure detection so we can tell when learner-model or misconception logic is truly helping.
+4. **Escalate to bigger architecture only with evidence** — move toward `DATA-005`, `ORCH-002`, or `ORCH-003` only when the current local progression and heuristic evidence loops show clear product failure or ceiling.
+5. avoid frontend-only sequencing policy, avoid reopening stable contract seams without a concrete bug, and avoid speculative analytics or scheduler depth that does not strengthen adaptive learning quality.
 6. for each justified pass: add focused tests, update `README.md`, update this document, run `uv run ruff check .`, run `uv run pytest`, and make a coherent focused commit.
 7. stop rather than forcing more work if the honest result is that no additional improvement is justified right now.
 
@@ -340,25 +334,46 @@ At the same time, the document also makes clear why the platform is not yet at a
 
 These gaps are not current frontend blockers, but they are the main reasons the backend should be described as a strong adaptive foundation rather than a finished world-class adaptive platform.
 
-## Recommendation
+## Leadership-Aligned Planning Rubric
 
-The backend adaptive learning engine is mature and the frontend has evolved from a contract workbench into a real three-layer LMS. The platform is at an inflection point: the next highest-leverage work is **product completeness**, not deeper backend intelligence or more contract hardening.
+Every meaningful backend plan item should answer the same questions before work starts:
 
-**Priority order for the next phase:**
+| Field | What it must say |
+| ----- | ---------------- |
+| Type | `protect_differentiator`, `close_world_class_gap`, `activation_trigger`, or `contract_hardening` |
+| Leadership anchor | Which current differentiator or named world-class gap this item directly serves |
+| Why now | What concrete learner, teacher, product, or reliability pressure makes the work worth doing now |
+| Evidence | What tests, telemetry, or learner-outcome signal will tell us the work helped |
+| Stop rule | When to stop heuristic tuning because the current approach is good enough for now |
+| Escalation trigger | What signal means the next step requires a different architecture, richer curriculum reasoning, or learned/probabilistic methods |
+| Frontend boundary | How the frontend should render the result without inventing pedagogy or sequencing logic |
 
-1. **Authentication** (P0): An LMS without login is a demo. The backend auth contract exists but needs to clearly support learner/teacher login flows with role-to-identity mapping. This unblocks the frontend from shipping a real product.
+Planning discipline:
 
-2. **Assignment model** (P1): Core LMS functionality. Teachers need to assign work; learners need to see what's assigned. The backend should own this concept.
+1. if an item does not protect an existing differentiator or close a named world-class gap, it is not a priority
+2. if an item only adds more heuristic depth without clearer trust, evidence, or outcome leverage, it should usually stop
+3. if an item belongs to `DATA-005`, `ORCH-002`, `ORCH-003`, multimodal synthesis, or richer scheduler autonomy, it needs activation criteria before implementation
+4. if an item changes learner or teacher semantics, it must preserve backend ownership and cross-surface parity
 
-3. ~~**History pagination** (P1)~~: **DONE end-to-end**. Backend provides offset-based pagination. Frontend now has load-more UI.
+## Replanned Backend Priorities
 
-4. **Continued backend decision quality** (P1): The four ongoing quality tracks (`ORCH-001`, `ADAPT-006`, `DATA-004`, `ADAPT-003`) remain valuable and should continue in parallel with product-completeness work. The adaptive learning engine is the core differentiator.
+The backend should now be planned in four tracks:
 
-5. **Product expansion when justified** (P2+): course-level planner, multimodal artifacts, teacher analytics, messaging, notifications. These should wait for product pressure.
+1. **Protect current differentiators**
+   Keep backend-owned adaptation, inspectable stage semantics, teacher-aligned control, and cross-surface parity strong enough that the frontend never has to invent policy or reconcile conflicting next-step answers.
 
-**What to avoid:**
+2. **Deepen mastery-loop trust**
+   Prioritize `ADAPT-006`, `DATA-004`, `ADAPT-003`, and `ORCH-001` work that most directly improves whether the system can honestly hold, repair, bridge, return, or transfer based on evidence rather than momentum or prompt shape.
 
-- speculative backend work that does not serve a concrete product need
-- reopening stable frontend-facing contracts without a concrete bug
-- building assignment, messaging, or notification contracts speculatively
-- turning the backend into a job platform, planner, or analytics system before the core LMS product loop is complete
+3. **Validate learner-model quality**
+   Push `PROF-*`, `ADAPT-003`, and adjacent inference layers toward stronger evidence, evaluation, and failure detection so we know when heuristics still suffice and when the system needs a more fundamental approach.
+
+4. **Gate bigger bets behind activation criteria**
+   Treat `DATA-005`, `ORCH-002`, `ORCH-003`, `GEN-005`, `GEN-006`, and deeper scheduler autonomy as explicit future tracks that activate only when learner outcomes, product needs, or repeated failure modes justify them.
+
+What to avoid:
+
+- speculative backend work that does not map to the leadership lens
+- local heuristic tuning that does not improve decision trust, evidence quality, or product leverage
+- reopening stable frontend-facing contracts without a concrete bug or parity failure
+- pushing curriculum sequencing, mastery interpretation, or intervention policy into the frontend
