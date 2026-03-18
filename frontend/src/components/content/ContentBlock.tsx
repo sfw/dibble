@@ -105,7 +105,7 @@ const blockRenderers: Record<string, (block: GeneratedBlock) => React.JSX.Elemen
           .split('\n')
           .filter((line) => line.trim())
           .map((step, i) => (
-            <li key={i}>{step.replace(/^\d+[\.\)]\s*/, '')}</li>
+            <li key={i}>{step.replace(/^\d+[.)]\s*/, '')}</li>
           ))}
       </ol>
     </article>
