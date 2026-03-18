@@ -11,6 +11,7 @@ from dibble.services.auth import AuthService
 from dibble.services.auth_sessions import SQLiteAuthSessionStore
 from dibble.services.calibrated_router import CalibratedRouter
 from dibble.services.content_warmer import ContentWarmer
+from dibble.services.cross_signal_consistency import CrossSignalConsistencyService
 from dibble.services.content_workflow import ContentWorkflowService
 from dibble.services.classroom_store import SQLiteClassroomStore
 from dibble.services.cognitive_trait_inference import CognitiveTraitInferenceService
@@ -107,6 +108,12 @@ from dibble.services.teacher_intervention_actions import (
     TeacherInterventionActionService,
 )
 from dibble.services.telemetry import TelemetryService
+from dibble.services.learner_state_prediction_outcomes import (
+    LearnerStatePredictionOutcomeTracker,
+)
+from dibble.services.learner_state_prediction_signals import (
+    LearnerStatePredictionSignalService,
+)
 from dibble.services.within_session_adaptation import WithinSessionAdaptationService
 from dibble.services.within_session_controller_store import (
     SQLiteWithinSessionControllerStore,
@@ -159,6 +166,8 @@ class ApplicationServices:
     misconception_remediation_outcome_tracker: MisconceptionRemediationOutcomeTracker
     resource_state_transition_tracker: ResourceStateTransitionTracker
     mastery_quality_gate_outcome_tracker: MasteryQualityGateOutcomeTracker
+    learner_state_prediction_outcome_tracker: LearnerStatePredictionOutcomeTracker
+    learner_state_prediction_signal_service: LearnerStatePredictionSignalService
     within_session_adaptation_service: WithinSessionAdaptationService
     router_plugin: RouterPlugin
 
@@ -194,6 +203,9 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         audit_store=audit_store
     )
     ordinary_mastery_signal_service = OrdinaryMasterySignalService(
+        audit_store=audit_store
+    )
+    learner_state_prediction_signal_service = LearnerStatePredictionSignalService(
         audit_store=audit_store
     )
     progression_outcome_signal_service = ProgressionOutcomeSignalService(
@@ -333,12 +345,15 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         ordinary_mastery_signal_service=ordinary_mastery_signal_service,
         quality_gate_signal_service=mastery_quality_gate_signal_service,
     )
+    cross_signal_consistency_service = CrossSignalConsistencyService()
     learner_summary_service = LearnerSummaryService(
         profile_store=profile_store,
         audit_store=audit_store,
         strategy_signal_service=learner_strategy_signal_service,
         state_signal_service=learner_state_signal_service,
         trait_profile_signal_service=learner_trait_profile_signal_service,
+        state_prediction_signal_service=learner_state_prediction_signal_service,
+        cross_signal_consistency_service=cross_signal_consistency_service,
         learner_flow_service=learner_flow_service,
         learner_progression_service=learner_progression_service,
     )
@@ -363,6 +378,9 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     misconception_remediation_outcome_tracker = MisconceptionRemediationOutcomeTracker(
         audit_store=audit_store,
         remediation_session_store=remediation_session_store,
+    )
+    learner_state_prediction_outcome_tracker = LearnerStatePredictionOutcomeTracker(
+        audit_store=audit_store
     )
     content_warmer = ContentWarmer(
         profile_store,
@@ -457,6 +475,8 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         resource_state_transition_tracker=resource_state_transition_tracker,
         mastery_quality_gate_outcome_tracker=mastery_quality_gate_outcome_tracker,
         misconception_remediation_outcome_tracker=misconception_remediation_outcome_tracker,
+        learner_state_prediction_outcome_tracker=learner_state_prediction_outcome_tracker,
+        learner_state_prediction_signal_service=learner_state_prediction_signal_service,
         within_session_adaptation_service=within_session_adaptation_service,
         router_plugin=router_plugin,
     )

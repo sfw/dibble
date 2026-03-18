@@ -225,6 +225,29 @@ export const demoProfileSummary: ProfileSummary = {
       'Processing speed and working memory are stable enough to reduce scaffolds gradually, but not to skip transfer checks.',
     updated_at: '2026-03-16T08:45:00Z',
   },
+  state_prediction_reliability: {
+    evaluated_count: 8,
+    overall_accuracy: 0.75,
+    weighted_accuracy: 0.78,
+    weakest_classification: 'support_dependence',
+    strongest_classification: 'overload',
+    per_classification: [
+      { classification: 'overload', evaluated_count: 3, accuracy_rate: 1.0 },
+      { classification: 'productive_struggle', evaluated_count: 3, accuracy_rate: 0.667 },
+      { classification: 'support_dependence', evaluated_count: 2, accuracy_rate: 0.5 },
+    ],
+    rationale:
+      'State prediction accuracy: 75% overall (78% recency-weighted) across 8 evaluated predictions. Strongest: overload (100% accuracy, 3 evaluated). Weakest: support_dependence (50% accuracy, 2 evaluated).',
+  },
+  signal_consistency: {
+    divergence_count: 0,
+    coherence_score: 1.0,
+    high_count: 0,
+    medium_count: 0,
+    low_count: 0,
+    divergences: [],
+    rationale: 'All evidence sources are directionally consistent.',
+  },
   recent_activity: {
     generation_count: 9,
     observation_count: 16,

@@ -4,15 +4,26 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from dibble.models.profile import (
+    ClassificationReliabilitySummary,
+    CrossSignalConsistencySummary,
     LearnerCalibrationSummary,
     LearnerCurriculumProgressionSummary,
     LearnerFlowSummary,
     LearnerProgressSummary,
+    LearnerStateProfileSummary,
+    LearnerStrategySummary,
+    LearnerTraitProfileSummary,
     ProfileSummary,
     RecentLearnerActivity,
+    SignalDivergenceSummary,
+    StatePredictionReliabilitySummary,
 )
 from dibble.services.learner_flow_service import LearnerFlowService
 from dibble.services.learner_progression_service import LearnerProgressionService
+from dibble.services.cross_signal_consistency import CrossSignalConsistencyService
+from dibble.services.learner_state_prediction_signals import (
+    LearnerStatePredictionSignalService,
+)
 from dibble.services.learning_state_profiles import LearnerStateSignalService
 from dibble.services.learning_trait_profiles import LearnerTraitProfileSignalService
 from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
@@ -26,6 +37,8 @@ class LearnerSummaryService:
     strategy_signal_service: LearnerStrategySignalService
     state_signal_service: LearnerStateSignalService
     trait_profile_signal_service: LearnerTraitProfileSignalService
+    state_prediction_signal_service: LearnerStatePredictionSignalService | None = None
+    cross_signal_consistency_service: CrossSignalConsistencyService | None = None
     learner_flow_service: LearnerFlowService | None = None
     learner_progression_service: LearnerProgressionService | None = None
     max_events: int = 200
@@ -39,18 +52,35 @@ class LearnerSummaryService:
             for event in self.audit_store.list(limit=self.max_events)
             if event.student_id == student_id
         ]
+
+        progress = self._latest_progress(events)
+        strategy = self.strategy_signal_service.latest_for_student(
+            student_id=student_id
+        )
+        state_profile = self.state_signal_service.latest_for_student(
+            student_id=student_id
+        )
+        trait_profile = self.trait_profile_signal_service.latest_for_student(
+            student_id=student_id
+        )
+        state_prediction_reliability = self._state_prediction_reliability(
+            student_id
+        )
+
         return ProfileSummary.from_profile(
             profile,
             calibration=self._latest_calibration(events),
-            progress=self._latest_progress(events),
-            strategy=self.strategy_signal_service.latest_for_student(
-                student_id=student_id
-            ),
-            state_profile=self.state_signal_service.latest_for_student(
-                student_id=student_id
-            ),
-            trait_profile=self.trait_profile_signal_service.latest_for_student(
-                student_id=student_id
+            progress=progress,
+            strategy=strategy,
+            state_profile=state_profile,
+            trait_profile=trait_profile,
+            state_prediction_reliability=state_prediction_reliability,
+            signal_consistency=self._signal_consistency(
+                progress=progress,
+                strategy=strategy,
+                state_profile=state_profile,
+                trait_profile=trait_profile,
+                state_prediction_reliability=state_prediction_reliability,
             ),
             recent_activity=self._recent_activity(events),
             current_flow=(
@@ -192,6 +222,68 @@ class LearnerSummaryService:
             ),
             last_generation_id=self._latest_payload_value(events, "generation_id"),
             last_event_at=events[0].created_at if events else None,
+        )
+
+    def _state_prediction_reliability(
+        self, student_id: UUID
+    ) -> StatePredictionReliabilitySummary:
+        if self.state_prediction_signal_service is None:
+            return StatePredictionReliabilitySummary()
+        signal = self.state_prediction_signal_service.signal_for_student(
+            student_id=str(student_id)
+        )
+        per_classification = [
+            ClassificationReliabilitySummary(
+                classification=v.classification,
+                evaluated_count=v.evaluated_count,
+                accuracy_rate=round(v.accuracy_rate, 3),
+            )
+            for v in signal.per_classification.values()
+        ]
+        return StatePredictionReliabilitySummary(
+            evaluated_count=signal.evaluated_count,
+            overall_accuracy=signal.overall_accuracy,
+            weighted_accuracy=signal.weighted_accuracy,
+            weakest_classification=signal.weakest_classification,
+            strongest_classification=signal.strongest_classification,
+            per_classification=per_classification,
+            rationale=signal.rationale,
+        )
+
+    def _signal_consistency(
+        self,
+        *,
+        progress: LearnerProgressSummary,
+        strategy: LearnerStrategySummary,
+        state_profile: LearnerStateProfileSummary,
+        trait_profile: LearnerTraitProfileSummary,
+        state_prediction_reliability: StatePredictionReliabilitySummary,
+    ) -> CrossSignalConsistencySummary:
+        if self.cross_signal_consistency_service is None:
+            return CrossSignalConsistencySummary()
+        result = self.cross_signal_consistency_service.evaluate(
+            progress=progress,
+            strategy=strategy,
+            state_profile=state_profile,
+            trait_profile=trait_profile,
+            state_prediction_reliability=state_prediction_reliability,
+        )
+        return CrossSignalConsistencySummary(
+            divergence_count=len(result.divergences),
+            coherence_score=result.coherence_score,
+            high_count=result.high_count,
+            medium_count=result.medium_count,
+            low_count=result.low_count,
+            divergences=[
+                SignalDivergenceSummary(
+                    signal_a=d.signal_a,
+                    signal_b=d.signal_b,
+                    severity=d.severity,
+                    description=d.description,
+                )
+                for d in result.divergences
+            ],
+            rationale=result.rationale,
         )
 
     def _latest_payload_value(self, events, key: str) -> str | None:

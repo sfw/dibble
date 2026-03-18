@@ -288,6 +288,41 @@ class LearnerTraitProfileSummary(BaseModel):
     updated_at: datetime | None = None
 
 
+class ClassificationReliabilitySummary(BaseModel):
+    classification: str
+    evaluated_count: int = 0
+    accuracy_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+class StatePredictionReliabilitySummary(BaseModel):
+    evaluated_count: int = Field(default=0, ge=0)
+    overall_accuracy: float = Field(default=0.0, ge=0.0, le=1.0)
+    weighted_accuracy: float = Field(default=0.0, ge=0.0, le=1.0)
+    weakest_classification: str | None = None
+    strongest_classification: str | None = None
+    per_classification: list[ClassificationReliabilitySummary] = Field(
+        default_factory=list
+    )
+    rationale: str = "Insufficient prediction outcomes to evaluate reliability."
+
+
+class SignalDivergenceSummary(BaseModel):
+    signal_a: str
+    signal_b: str
+    severity: str
+    description: str
+
+
+class CrossSignalConsistencySummary(BaseModel):
+    divergence_count: int = Field(default=0, ge=0)
+    coherence_score: float = Field(default=1.0, ge=0.0, le=1.0)
+    high_count: int = Field(default=0, ge=0)
+    medium_count: int = Field(default=0, ge=0)
+    low_count: int = Field(default=0, ge=0)
+    divergences: list[SignalDivergenceSummary] = Field(default_factory=list)
+    rationale: str = "Insufficient signal data to evaluate cross-signal consistency."
+
+
 class RecentLearnerActivity(BaseModel):
     generation_count: int = Field(default=0, ge=0)
     observation_count: int = Field(default=0, ge=0)
@@ -518,6 +553,12 @@ class ProfileSummary(BaseModel):
     trait_profile: LearnerTraitProfileSummary = Field(
         default_factory=LearnerTraitProfileSummary
     )
+    state_prediction_reliability: StatePredictionReliabilitySummary = Field(
+        default_factory=StatePredictionReliabilitySummary
+    )
+    signal_consistency: CrossSignalConsistencySummary = Field(
+        default_factory=CrossSignalConsistencySummary
+    )
     recent_activity: RecentLearnerActivity = Field(
         default_factory=RecentLearnerActivity
     )
@@ -537,6 +578,8 @@ class ProfileSummary(BaseModel):
         strategy: LearnerStrategySummary | None = None,
         state_profile: LearnerStateProfileSummary | None = None,
         trait_profile: LearnerTraitProfileSummary | None = None,
+        state_prediction_reliability: StatePredictionReliabilitySummary | None = None,
+        signal_consistency: CrossSignalConsistencySummary | None = None,
         recent_activity: RecentLearnerActivity | None = None,
         current_flow: LearnerFlowSummary | None = None,
         curriculum_progression: LearnerCurriculumProgressionSummary | None = None,
@@ -557,6 +600,10 @@ class ProfileSummary(BaseModel):
             strategy=strategy or LearnerStrategySummary(),
             state_profile=state_profile or LearnerStateProfileSummary(),
             trait_profile=trait_profile or LearnerTraitProfileSummary(),
+            state_prediction_reliability=state_prediction_reliability
+            or StatePredictionReliabilitySummary(),
+            signal_consistency=signal_consistency
+            or CrossSignalConsistencySummary(),
             recent_activity=recent_activity or RecentLearnerActivity(),
             current_flow=current_flow or LearnerFlowSummary(),
             curriculum_progression=curriculum_progression

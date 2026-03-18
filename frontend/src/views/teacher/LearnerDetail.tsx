@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Link, useNavigate, useOutletContext, useParams } from 'react-router'
 import {
+  AlertTriangle,
   BookOpen,
   ChevronDown,
   ChevronLeft,
@@ -8,6 +9,7 @@ import {
   Clock,
   Loader2,
   MessageCircle,
+  Shield,
   Target,
   TrendingUp,
   Wrench,
@@ -265,6 +267,110 @@ export function LearnerDetail() {
                   )}
                 </>
               )}
+            </div>
+          </section>
+        )}
+
+        {/* Model reliability */}
+        {summary.state_prediction_reliability && summary.state_prediction_reliability.evaluated_count > 0 && (
+          <section className="rounded-xl border bg-white p-6 shadow-sm">
+            <div className="flex items-center gap-3 mb-4">
+              <Target className="h-5 w-5 text-muted-foreground" />
+              <h2 className="font-semibold">Model reliability</h2>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Overall accuracy</span>
+                <span className={`text-sm font-medium ${
+                  summary.state_prediction_reliability.overall_accuracy >= 0.7
+                    ? 'text-green-700'
+                    : summary.state_prediction_reliability.overall_accuracy >= 0.5
+                      ? 'text-amber-700'
+                      : 'text-red-700'
+                }`}>
+                  {formatPercent(summary.state_prediction_reliability.overall_accuracy)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Evaluated predictions</span>
+                <span className="text-sm">{summary.state_prediction_reliability.evaluated_count}</span>
+              </div>
+              {summary.state_prediction_reliability.per_classification.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  {summary.state_prediction_reliability.per_classification.map((c) => (
+                    <div key={c.classification} className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">{titleCase(c.classification.replace(/_/g, ' '))}</span>
+                      <span className={
+                        c.accuracy_rate >= 0.7 ? 'text-green-700' :
+                        c.accuracy_rate >= 0.5 ? 'text-amber-700' : 'text-red-700'
+                      }>
+                        {formatPercent(c.accuracy_rate)} ({c.evaluated_count})
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {summary.state_prediction_reliability.weakest_classification && (
+                <p className="text-xs text-muted-foreground pt-1">
+                  {summary.state_prediction_reliability.rationale}
+                </p>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Signal consistency */}
+        {summary.signal_consistency && summary.signal_consistency.divergence_count > 0 && (
+          <section className="rounded-xl border bg-white p-6 shadow-sm">
+            <div className="flex items-center gap-3 mb-4">
+              <Shield className="h-5 w-5 text-muted-foreground" />
+              <h2 className="font-semibold">Signal consistency</h2>
+              <Badge
+                variant="outline"
+                className={`ml-auto ${
+                  summary.signal_consistency.high_count > 0
+                    ? 'border-red-200 text-red-700'
+                    : summary.signal_consistency.medium_count > 0
+                      ? 'border-amber-200 text-amber-700'
+                      : 'border-slate-200'
+                }`}
+              >
+                {formatPercent(summary.signal_consistency.coherence_score)} coherent
+              </Badge>
+            </div>
+            <div className="space-y-3">
+              {summary.signal_consistency.divergences.map((d, i) => (
+                <div key={i} className="rounded-lg bg-slate-50 px-4 py-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <AlertTriangle className={`h-3.5 w-3.5 ${
+                      d.severity === 'high'
+                        ? 'text-red-500'
+                        : d.severity === 'medium'
+                          ? 'text-amber-500'
+                          : 'text-slate-400'
+                    }`} />
+                    <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      {d.signal_a} vs {d.signal_b}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] px-1.5 py-0 ${
+                        d.severity === 'high'
+                          ? 'border-red-200 text-red-700'
+                          : d.severity === 'medium'
+                            ? 'border-amber-200 text-amber-700'
+                            : 'border-slate-200'
+                      }`}
+                    >
+                      {d.severity}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{d.description}</p>
+                </div>
+              ))}
+              <p className="text-xs text-muted-foreground pt-1">
+                {summary.signal_consistency.rationale}
+              </p>
             </div>
           </section>
         )}
