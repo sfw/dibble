@@ -527,7 +527,8 @@ def test_generation_endpoint_uses_durable_ordinary_mastery_to_hold_assessment_re
         "Keep the learner on target practice instead of assigning a transfer check yet. "
         "Ordinary mastery signal support_dependent at 0.81 confidence; "
         "average observed mastery 0.60; low-support success rate 0.20; "
-        "high-support dependency rate 0.80; 5 matched observation(s)."
+        "high-support dependency rate 0.80; 5 matched observation(s); "
+        "across 3 sessions."
     )
     assert payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
 
@@ -1006,7 +1007,8 @@ def test_generation_endpoint_uses_repair_target_ordinary_mastery_to_hold_backend
         "Keep the learner on the repair target instead of returning to the target KC yet. "
         "Ordinary mastery signal support_dependent at 0.84 confidence; "
         "average observed mastery 0.58; low-support success rate 0.20; "
-        "high-support dependency rate 0.80; 5 matched observation(s)."
+        "high-support dependency rate 0.80; 5 matched observation(s); "
+        "across 3 sessions."
     )
     assert payload["workflow_summary"]["next_step"]["content_type"] == "remedial_micro_module"
 

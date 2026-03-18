@@ -554,3 +554,114 @@ def test_observation_profile_updater_holds_target_when_success_is_still_support_
     assert decision.matched_observation_count == 2
     assert decision.average_observed_mastery is not None
     assert decision.confidence >= 0.5
+
+
+def test_mastery_writeback_saturation_dampens_upward_blend_for_high_prior_mastery():
+    """DATA-004: When prior mastery is above 0.85 and inferred mastery is at or above
+    prior, the evidence weight should be reduced so the score stabilises near the
+    ceiling instead of oscillating."""
+    student_id = uuid4()
+    # Start with high prior mastery
+    profile = build_profile(student_id, frustration="low", total_load=0.2, kc_mastery={"KC-2": 0.92})
+    updater = ObservationProfileUpdater()
+
+    result_high_prior = updater.apply(
+        profile=LearnerProfile.model_validate(profile),
+        observation=LearnerObservation.model_validate(
+            {
+                "observation_id": "obs-sat-1",
+                "student_id": str(student_id),
+                "response_time_ms": 13000,
+                "hints_used": 0,
+                "error_count": 0,
+                "pause_count": 0,
+                "modality_switches": 0,
+                "completed": True,
+                "confidence": 0.82,
+                "task_type": "practice",
+                "support_level": "low",
+                "expected_duration_ms": 18000,
+                "learning_session_id": "session-sat",
+                "generation_id": "gen-sat",
+                "observed_content_type": "practice_problem",
+                "target_kc_ids": ["KC-2"],
+                "target_lo_ids": ["LO-1"],
+            }
+        ),
+    )
+
+    # Now do the same update but with a moderate prior for comparison
+    profile_moderate = build_profile(student_id, frustration="low", total_load=0.2, kc_mastery={"KC-2": 0.60})
+    result_moderate_prior = updater.apply(
+        profile=LearnerProfile.model_validate(profile_moderate),
+        observation=LearnerObservation.model_validate(
+            {
+                "observation_id": "obs-sat-2",
+                "student_id": str(student_id),
+                "response_time_ms": 13000,
+                "hints_used": 0,
+                "error_count": 0,
+                "pause_count": 0,
+                "modality_switches": 0,
+                "completed": True,
+                "confidence": 0.82,
+                "task_type": "practice",
+                "support_level": "low",
+                "expected_duration_ms": 18000,
+                "learning_session_id": "session-sat",
+                "generation_id": "gen-sat",
+                "observed_content_type": "practice_problem",
+                "target_kc_ids": ["KC-2"],
+                "target_lo_ids": ["LO-1"],
+            }
+        ),
+    )
+
+    assert result_high_prior.applied is True
+    assert result_moderate_prior.applied is True
+
+    # The high-prior case should move less than the moderate-prior case
+    high_prior_delta = abs(result_high_prior.kc_mastery_updates["KC-2"] - 0.92)
+    moderate_prior_delta = abs(result_moderate_prior.kc_mastery_updates["KC-2"] - 0.60)
+    assert high_prior_delta < moderate_prior_delta
+
+    # The high-prior result should still be above or near the prior
+    assert result_high_prior.kc_mastery_updates["KC-2"] >= 0.92
+
+
+def test_mastery_writeback_saturation_does_not_affect_downward_correction():
+    """DATA-004: Saturation only applies to upward blending. Downward correction
+    (when inferred mastery is below prior) should not be dampened."""
+    student_id = uuid4()
+    profile = build_profile(student_id, frustration="low", total_load=0.2, kc_mastery={"KC-2": 0.90})
+    updater = ObservationProfileUpdater()
+
+    # A poor observation should still be able to pull mastery down
+    result = updater.apply(
+        profile=LearnerProfile.model_validate(profile),
+        observation=LearnerObservation.model_validate(
+            {
+                "observation_id": "obs-sat-down-1",
+                "student_id": str(student_id),
+                "response_time_ms": 35000,
+                "hints_used": 4,
+                "error_count": 3,
+                "pause_count": 3,
+                "modality_switches": 1,
+                "completed": False,
+                "confidence": 0.2,
+                "task_type": "practice",
+                "support_level": "high",
+                "expected_duration_ms": 18000,
+                "learning_session_id": "session-sat-down",
+                "generation_id": "gen-sat-down",
+                "observed_content_type": "practice_problem",
+                "target_kc_ids": ["KC-2"],
+                "target_lo_ids": ["LO-1"],
+            }
+        ),
+    )
+
+    assert result.applied is True
+    # Mastery should have decreased — saturation should not block downward correction
+    assert result.kc_mastery_updates["KC-2"] < 0.90
