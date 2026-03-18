@@ -9,9 +9,9 @@ from dibble.models.profile import (
     SocraticConversationSummary,
 )
 from dibble.services.kc_sequence_planner import KcSequencePlanner
-from dibble.services.learning_state_profiles import LearnerStateSignalService
+from dibble.services.learner_state_signal import LearnerStateSignalService
 from dibble.services.learning_trait_profiles import LearnerTraitProfileSignalService
-from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
+from dibble.services.learner_strategy_signal import LearnerStrategySignalService
 from dibble.services.router_calibration_signals import RouterCalibrationSignalService
 from dibble.services.socratic_conversation_signals import (
     SocraticConversationSignalService,

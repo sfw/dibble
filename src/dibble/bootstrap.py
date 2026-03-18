@@ -26,18 +26,14 @@ from dibble.services.learning_calibration_profiles import (
 )
 from dibble.services.learning_progress_profiles import LearningProgressProfileRecorder
 from dibble.services.learning_run_summary_recorder import LearningRunSummaryRecorder
-from dibble.services.learning_state_profiles import (
-    LearnerStateSignalService,
-    LearningStateProfileRecorder,
-)
+from dibble.services.learner_state_signal import LearnerStateSignalService
+from dibble.services.learning_state_recorder import LearningStateProfileRecorder
 from dibble.services.learning_trait_profiles import (
     LearnerTraitProfileSignalService,
     LearningTraitProfileRecorder,
 )
-from dibble.services.learner_strategy_profiles import (
-    LearnerStrategySignalService,
-    LearningStrategyProfileRecorder,
-)
+from dibble.services.learner_strategy_signal import LearnerStrategySignalService
+from dibble.services.learning_strategy_recorder import LearningStrategyProfileRecorder
 from dibble.services.learner_state_calibration import LearnerStateCalibrator
 from dibble.services.mastery_quality_gate_outcomes import (
     MasteryQualityGateOutcomeTracker,

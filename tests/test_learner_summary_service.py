@@ -4,9 +4,9 @@ from uuid import uuid4
 
 from dibble.models.profile import LearnerProfile
 from dibble.services.audit_store import SQLiteAuditStore
-from dibble.services.learning_state_profiles import LearnerStateSignalService
+from dibble.services.learner_state_signal import LearnerStateSignalService
 from dibble.services.learning_trait_profiles import LearnerTraitProfileSignalService
-from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
+from dibble.services.learner_strategy_signal import LearnerStrategySignalService
 from dibble.services.learner_summary_service import LearnerSummaryService
 from dibble.services.profile_store import SQLiteProfileStore
 from dibble.storage import ensure_database

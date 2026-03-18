@@ -10,7 +10,7 @@ from dibble.models.generation import (
 )
 from dibble.models.profile import LearnerProfile, SignalLevel
 from dibble.plugins.contracts import RouterPlugin
-from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
+from dibble.services.learner_strategy_signal import LearnerStrategySignalService
 from dibble.services.router_calibration_signals import RouterCalibrationSignalService
 from dibble.services.within_session_adaptation import WithinSessionAdaptationService
 

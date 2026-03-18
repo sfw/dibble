@@ -24,9 +24,9 @@ from dibble.services.cross_signal_consistency import CrossSignalConsistencyServi
 from dibble.services.learner_state_prediction_signals import (
     LearnerStatePredictionSignalService,
 )
-from dibble.services.learning_state_profiles import LearnerStateSignalService
+from dibble.services.learner_state_signal import LearnerStateSignalService
 from dibble.services.learning_trait_profiles import LearnerTraitProfileSignalService
-from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
+from dibble.services.learner_strategy_signal import LearnerStrategySignalService
 from dibble.services.protocols import AuditStore, ProfileStore
 
 
