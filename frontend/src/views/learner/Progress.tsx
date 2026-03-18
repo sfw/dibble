@@ -282,7 +282,17 @@ function ResourceCard({
         <span className={`text-xs ${blocked ? 'text-slate-400' : 'text-muted-foreground'}`}>
           {learnerStage(resource.target_stage)}
         </span>
-        {blocked && resource.rationale && (
+        {resource.mastery_quality === 'support_dependent' && (
+          <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+            Needs independent practice
+          </span>
+        )}
+        {resource.mastery_quality === 'fragile' && (
+          <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+            Unstable mastery
+          </span>
+        )}
+        {(blocked || resource.mastery_quality) && resource.rationale && (
           <span className="text-xs text-slate-400 truncate" title={resource.rationale}>
             {resource.rationale}
           </span>
