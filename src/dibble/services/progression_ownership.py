@@ -345,7 +345,26 @@ class ProgressionOwnershipService:
         support_dependent_threshold = 0.45 if target_stage == "repair" else 0.55
         fragile_threshold = 0.55 if target_stage == "repair" else 0.65
 
-        if summary.signal == "support_dependent" and summary.confidence >= support_dependent_threshold:
+        # ADAPT-006: If the learner has a genuinely high low-support success
+        # rate despite the aggregate signal still reading support_dependent or
+        # fragile, the hold is less warranted — the learner is demonstrating
+        # growing independence even if the overall average is still shaky.
+        # Conversely, a very high support-dependency rate tightens the hold so
+        # borderline cases are not released prematurely.
+        effective_support_dependent_threshold = support_dependent_threshold
+        effective_fragile_threshold = fragile_threshold
+        if summary.low_support_success_rate >= 0.5:
+            effective_support_dependent_threshold += 0.08
+            effective_fragile_threshold += 0.08
+        if summary.high_support_dependency_rate >= 0.7:
+            effective_support_dependent_threshold = max(
+                effective_support_dependent_threshold - 0.06, support_dependent_threshold - 0.06
+            )
+            effective_fragile_threshold = max(
+                effective_fragile_threshold - 0.06, fragile_threshold - 0.06
+            )
+
+        if summary.signal == "support_dependent" and summary.confidence >= effective_support_dependent_threshold:
             return OrdinaryProgressionDecision(
                 decision=hold_action,
                 rationale=self._ordinary_mastery_hold_rationale(
@@ -360,7 +379,7 @@ class ProgressionOwnershipService:
                 ),
                 summary=summary,
             )
-        if summary.signal == "fragile" and summary.confidence >= fragile_threshold:
+        if summary.signal == "fragile" and summary.confidence >= effective_fragile_threshold:
             return OrdinaryProgressionDecision(
                 decision=hold_action,
                 rationale=self._ordinary_mastery_hold_rationale(
@@ -556,6 +575,16 @@ class ProgressionOwnershipService:
             fragments.append(f"high-support dependency rate {summary.high_support_dependency_rate:.2f}")
         if summary.matched_observation_count > 0:
             fragments.append(f"{summary.matched_observation_count} matched observation(s)")
+        if summary.matched_session_count >= 2:
+            fragments.append(f"across {summary.matched_session_count} sessions")
+        # ADAPT-006: Surface stuck-repair context when a learner has many
+        # observations without improving past support_dependent or fragile.
+        if (
+            summary.matched_observation_count >= 6
+            and summary.matched_session_count >= 3
+            and summary.signal in {"support_dependent", "fragile"}
+        ):
+            fragments.append("extended hold — consider teacher review")
         return append_evidence_snapshot(rationale, fragments=fragments) or rationale
 
     def _append_progression_evidence_snapshot(

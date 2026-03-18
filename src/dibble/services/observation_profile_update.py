@@ -583,6 +583,13 @@ class ObservationProfileUpdater:
                         SocraticEvidenceStrength.emerging: 0.54,
                         SocraticEvidenceStrength.insufficient: 0.86,
                     }[evidence_strength]
+                # DATA-004: Mastery saturation — when prior mastery is already
+                # high, apply diminishing returns so the score stabilises near
+                # the ceiling instead of oscillating.  The factor scales
+                # linearly from 1.0 at prior=0.85 down to 0.4 at prior=0.95.
+                if prior > 0.85 and inferred_mastery >= prior:
+                    saturation_factor = max(0.4, 1.0 - (prior - 0.85) * 6.0)
+                    adjusted_weight *= saturation_factor
                 updated_value = _blend(prior, inferred_mastery, adjusted_weight)
             rounded = round(_clamp(updated_value), 2)
             current_values[target_id] = rounded

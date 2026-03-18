@@ -187,6 +187,9 @@ Most recent progress:
 44. backend-owned display labels now also ride alongside `continue_action.kind`, `curriculum_progression.current_stage`, and remediation workflow `phase`, so the frontend can prefer backend framing while preserving machine-readable keys for stability and fallback.
 45. the auth system now supports `learner` and `teacher` as first-class RBAC roles with entity bindings: `learner_id`, `teacher_id`, `display_name`, and `classroom_ids` persist through API keys, bearer tokens, token refresh, and `/api/auth/me`, so the frontend can identify who a user is in product terms without inventing identity mapping locally.
 46. history endpoints now return offset-based paginated responses (`items`, `offset`, `limit`, `has_more`) with limit clamped to 1–100, so the frontend can load-more or paginate through longer learner histories without hardcoding a single-page cap.
+47. mastery writeback now applies diminishing returns when prior KC mastery is above 0.85 and the new observation is at or above the prior (DATA-004), so high mastery stabilises near the ceiling instead of oscillating from repeated strong observations; downward correction is not affected.
+48. ordinary mastery hold thresholds now adapt to the learner's actual independence signals (ADAPT-006): a high low-support success rate (>= 0.5) raises the hold threshold by 0.08 so learners with growing independence are released sooner, while a very high support-dependency rate (>= 0.7) lowers it by 0.06 so heavily scaffolded learners are held more conservatively.
+49. ordinary mastery hold rationale now includes session count context and, when a learner has been held for 6+ observations across 3+ sessions without improving past `support_dependent` or `fragile`, surfaces an explicit "extended hold — consider teacher review" signal so downstream consumers like teacher intervention can detect stuck repair loops.
 
 ### Frontend Alignment Update
 

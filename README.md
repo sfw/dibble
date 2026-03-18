@@ -125,6 +125,9 @@ This repository now includes a working MVP backend slice for the revised adaptiv
 - Signed bearer tokens can be minted, refreshed, and revoked for request-scoped sessions, and entity bindings survive token refresh
 - RBAC failures now keep the same `403` machine-readable contract for API-key and bearer-token callers, and forbidden-request audit events preserve the authenticated principal instead of falling back to API-key-only handling
 - History endpoints (`/history/generations`, `/history/socratic-sessions`, `/history/remediation-sessions`) now return paginated responses with `items`, `offset`, `limit`, and `has_more` fields, supporting offset-based pagination with limit clamped to 1–100
+- Mastery writeback now applies diminishing returns when prior KC mastery is above 0.85 and the observation is upward, so high mastery stabilises near the ceiling instead of oscillating
+- Ordinary mastery hold thresholds now adapt to the learner's actual independence signals: high low-support success rate relaxes the hold, very high support-dependency rate tightens it
+- Ordinary mastery hold rationale now surfaces session count context and an explicit "extended hold — consider teacher review" signal when a learner has been held across many observations and sessions without improving
 - Dynamic plugin loading for router, retriever, provider, and validator factories
 - API tests covering routing, persistence, retrieval, generation, and fallback behavior
 

@@ -827,3 +827,131 @@ def test_asymmetric_repair_hold_fragile_triggers_at_lower_confidence():
     )
 
     assert target_decision.action != "hold_target"
+
+
+def test_high_low_support_success_rate_relaxes_hold_threshold():
+    """ADAPT-006: When the ordinary mastery profile has a high low-support
+    success rate (>= 0.5), the hold threshold should be raised so that the
+    learner with growing independence is not held as aggressively."""
+    student_id = uuid4()
+    # Confidence 0.58 is above the base support_dependent threshold (0.55)
+    # for target stage, but should NOT hold when low_support_success_rate
+    # is high enough to raise the effective threshold to 0.63.
+    service = ProgressionOwnershipService(
+        knowledge_component_store=StubKnowledgeComponentStore(),
+        strategy_signal_service=StubStrategySignalService(LearnerStrategySummary()),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
+            OrdinaryMasterySummary(
+                signal="support_dependent",
+                source="ordinary_mastery_profile",
+                confidence=0.58,
+                average_observed_mastery=0.60,
+                low_support_success_rate=0.55,
+                high_support_dependency_rate=0.2,
+                rationale="Support-dependent but with growing independence.",
+            )
+        ),
+    )
+
+    decision = service.resolve_request(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            target_kc_ids=["KC-1"],
+            target_lo_ids=["LO-1"],
+            requested_content_type="practice_problem",
+        ),
+    )
+
+    # Should NOT hold because the effective threshold was raised by 0.08
+    assert decision.action != "hold_target"
+
+
+def test_high_support_dependency_rate_tightens_hold_threshold():
+    """ADAPT-006: When the ordinary mastery profile has a very high support
+    dependency rate (>= 0.7), the hold threshold should be lowered so that
+    borderline cases are held more aggressively."""
+    student_id = uuid4()
+    # Confidence 0.50 is below the base support_dependent threshold (0.55)
+    # for target stage, but SHOULD hold when high_support_dependency_rate
+    # is high enough to lower the effective threshold to 0.49.
+    service = ProgressionOwnershipService(
+        knowledge_component_store=StubKnowledgeComponentStore(),
+        strategy_signal_service=StubStrategySignalService(LearnerStrategySummary()),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
+            OrdinaryMasterySummary(
+                signal="support_dependent",
+                source="ordinary_mastery_profile",
+                confidence=0.50,
+                average_observed_mastery=0.52,
+                low_support_success_rate=0.1,
+                high_support_dependency_rate=0.75,
+                rationale="Very support-heavy ordinary practice.",
+            )
+        ),
+    )
+
+    decision = service.resolve_request(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            target_kc_ids=["KC-1"],
+            target_lo_ids=["LO-1"],
+            requested_content_type="practice_problem",
+        ),
+    )
+
+    # Should hold because the effective threshold was lowered by 0.06
+    assert decision.action == "hold_target"
+    assert decision.source == "ordinary_mastery_profile"
+
+
+def test_stuck_repair_context_surfaces_in_rationale_for_many_observations():
+    """ADAPT-006: When a learner has been held for many observations across
+    many sessions without improving, the rationale should include a stuck-
+    repair context hint for downstream consumers."""
+    student_id = uuid4()
+    service = ProgressionOwnershipService(
+        knowledge_component_store=StubKnowledgeComponentStore(),
+        strategy_signal_service=StubStrategySignalService(
+            LearnerStrategySummary(
+                signal="support_intensive",
+                source="strategy_profile",
+                recovery_focus="prerequisite_rebuild",
+                recommended_next_action="rebuild_prerequisite",
+                rationale="Rebuild the prerequisite before returning to the target.",
+            )
+        ),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
+            OrdinaryMasterySummary(
+                signal="support_dependent",
+                source="ordinary_mastery_profile",
+                confidence=0.82,
+                matched_observation_count=8,
+                matched_session_count=4,
+                average_observed_mastery=0.54,
+                low_support_success_rate=0.1,
+                high_support_dependency_rate=0.7,
+                rationale="Many observations but still support-dependent.",
+            )
+        ),
+    )
+
+    decision = service.resolve_request(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            target_kc_ids=["KC-3"],
+            target_lo_ids=["LO-1"],
+            requested_content_type="practice_problem",
+        ),
+    )
+
+    assert decision.action == "hold_repair_target"
+    assert "extended hold" in decision.rationale
+    assert "teacher review" in decision.rationale
+    assert "8 matched observation(s)" in decision.rationale
+    assert "across 4 sessions" in decision.rationale
