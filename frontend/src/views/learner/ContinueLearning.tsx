@@ -44,6 +44,10 @@ export function ContinueLearning() {
   const displayBlocks = isStreaming ? generation.streamedBlocks : staticBlocks
   const hasContent = displayBlocks.length > 0
 
+  const masteryPercent = Math.round(
+    (progression.mastered_resource_count / Math.max(progression.resource_count, 1)) * 100,
+  )
+
   function handleContinue() {
     void generation.handleStream()
   }
@@ -53,14 +57,14 @@ export function ContinueLearning() {
       {/* Back nav */}
       <button
         onClick={() => navigate('/learn')}
-        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
       >
         <ChevronLeft className="h-4 w-4" />
         Back to home
       </button>
 
       {/* Lesson header */}
-      <header className="flex items-start gap-4">
+      <header className="flex items-start gap-4 animate-fade-in-up">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
           <BookOpen className="h-5 w-5" />
         </div>
@@ -79,9 +83,9 @@ export function ContinueLearning() {
 
       {/* Content canvas — streaming-aware with block type rendering */}
       {loading && !hasContent && !isStreaming && (
-        <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
-          <Loader2 className="h-6 w-6 animate-spin" />
-          <p>Loading your lesson...</p>
+        <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground animate-fade-in">
+          <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+          <p className="font-medium">Loading your lesson...</p>
         </div>
       )}
 
@@ -92,24 +96,32 @@ export function ContinueLearning() {
       <ErrorBanner message={generation.error} />
 
       {!loading && !hasContent && !isStreaming && !generation.error && (
-        <div className="rounded-xl border bg-white p-8 text-center text-muted-foreground">
+        <div className="rounded-xl border bg-white p-8 text-center text-muted-foreground animate-scale-in">
           <p>No content available yet. Your next lesson is being prepared.</p>
         </div>
       )}
 
-      {/* Progress rail */}
-      <div className="flex items-center gap-3 rounded-lg bg-slate-100 px-4 py-3 text-sm">
-        <span className="font-medium">{learnerStage(progression.current_stage, progression.stage_display_label)}</span>
-        <span className="text-muted-foreground">
-          {progression.mastered_resource_count} of {progression.resource_count} complete
-        </span>
+      {/* Progress rail — animated bar */}
+      <div className="rounded-lg bg-slate-100 px-4 py-3 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+        <div className="flex items-baseline justify-between text-sm mb-2">
+          <span className="font-medium">{learnerStage(progression.current_stage, progression.stage_display_label)}</span>
+          <span className="text-muted-foreground">
+            {progression.mastered_resource_count} of {progression.resource_count} complete
+          </span>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-slate-200">
+          <div
+            className="h-full rounded-full bg-blue-500 animate-progress-fill transition-all"
+            style={{ width: `${masteryPercent}%` }}
+          />
+        </div>
       </div>
 
       {/* Next step CTA */}
       {continueAction.kind !== 'idle' && (
         <Button
           size="lg"
-          className="w-full"
+          className="w-full transition-all"
           disabled={loading || isStreaming}
           onClick={handleContinue}
         >

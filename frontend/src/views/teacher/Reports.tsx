@@ -8,8 +8,10 @@ import {
   BarChart3,
   BookOpen,
   ChevronDown,
+  GraduationCap,
   Layers,
   MessageCircle,
+  TrendingUp,
   Users,
   Wrench,
 } from 'lucide-react'
@@ -123,6 +125,11 @@ export function Reports() {
   const totalAttention = classrooms.reduce((sum, c) => sum + c.attention_needed_count, 0)
   const totalInterventions = classrooms.reduce((sum, c) => sum + c.intervention_available_count, 0)
 
+  // Class average mastery
+  const classAverageMastery = learners.length > 0
+    ? learners.reduce((sum, l) => sum + l.curriculum_progression.mastered_resource_ratio, 0) / learners.length
+    : 0
+
   // Sorting state for learner table
   const [sortField, setSortField] = useState<SortField>('attention')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
@@ -199,10 +206,15 @@ export function Reports() {
             <Badge variant="outline">{learners.length} learners</Badge>
           </div>
 
+          {/* Class average mastery banner */}
+          <ClassMasteryBanner average={classAverageMastery} learners={learners} />
+
           <div className="grid gap-6 lg:grid-cols-2">
             <StageDistribution learners={learners} />
+            <MasteryDistribution learners={learners} />
             <EngagementOverview learners={learners} />
             <ActivitySummary learners={learners} />
+            <ResourceMastery learners={learners} />
             <AttentionSummary learners={learners} />
           </div>
 
@@ -234,6 +246,186 @@ export function Reports() {
         </>
       )}
     </PageContainer>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Class mastery banner
+// ---------------------------------------------------------------------------
+
+function ClassMasteryBanner({ average, learners }: { average: number; learners: TeacherLearnerCard[] }) {
+  const avgPercent = Math.round(average * 100)
+  const atRisk = learners.filter((l) => l.curriculum_progression.mastered_resource_ratio < 0.25).length
+  const onTrack = learners.filter((l) => l.curriculum_progression.mastered_resource_ratio >= 0.5).length
+
+  return (
+    <div className="flex items-center gap-6 rounded-xl border bg-white p-5 shadow-sm">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+          <GraduationCap className="h-5 w-5" />
+        </div>
+        <div>
+          <p className="text-2xl font-semibold">{avgPercent}%</p>
+          <p className="text-sm text-muted-foreground">Class average mastery</p>
+        </div>
+      </div>
+      <div className="hidden sm:flex items-center gap-6 ml-auto text-sm">
+        <div className="text-center">
+          <p className="font-semibold text-emerald-600">{onTrack}</p>
+          <p className="text-muted-foreground">On track (≥50%)</p>
+        </div>
+        <div className="text-center">
+          <p className={`font-semibold ${atRisk > 0 ? 'text-red-600' : ''}`}>{atRisk}</p>
+          <p className="text-muted-foreground">At risk (&lt;25%)</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Mastery distribution histogram
+// ---------------------------------------------------------------------------
+
+const masteryBuckets = [
+  { label: '0–25%', min: 0, max: 0.25, color: 'bg-red-400' },
+  { label: '25–50%', min: 0.25, max: 0.5, color: 'bg-amber-400' },
+  { label: '50–75%', min: 0.5, max: 0.75, color: 'bg-blue-400' },
+  { label: '75–100%', min: 0.75, max: 1.01, color: 'bg-emerald-400' },
+]
+
+function MasteryDistribution({ learners }: { learners: TeacherLearnerCard[] }) {
+  const bucketCounts = masteryBuckets.map((bucket) => ({
+    ...bucket,
+    count: learners.filter((l) => {
+      const r = l.curriculum_progression.mastered_resource_ratio
+      return r >= bucket.min && r < bucket.max
+    }).length,
+  }))
+
+  const maxCount = Math.max(...bucketCounts.map((b) => b.count), 1)
+
+  return (
+    <section className="rounded-xl border bg-white p-6 shadow-sm">
+      <div className="flex items-center gap-3 mb-4">
+        <TrendingUp className="h-5 w-5 text-muted-foreground" />
+        <h3 className="font-semibold">Mastery distribution</h3>
+      </div>
+      <div className="flex items-end gap-3 h-32">
+        {bucketCounts.map((bucket) => {
+          const heightPct = (bucket.count / maxCount) * 100
+          return (
+            <div key={bucket.label} className="flex-1 flex flex-col items-center gap-1">
+              <span className="text-sm font-semibold">{bucket.count}</span>
+              <div className="w-full flex items-end" style={{ height: '80px' }}>
+                <div
+                  className={`w-full rounded-t-md transition-all ${bucket.color}`}
+                  style={{ height: `${Math.max(heightPct, 4)}%` }}
+                />
+              </div>
+              <span className="text-xs text-muted-foreground">{bucket.label}</span>
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Resource mastery breakdown
+// ---------------------------------------------------------------------------
+
+interface ResourceMasteryRow {
+  title: string
+  resourceId: string
+  avgMastery: number
+  learnerCount: number
+  masteredCount: number
+}
+
+function ResourceMastery({ learners }: { learners: TeacherLearnerCard[] }) {
+  const resources = useMemo(() => {
+    // Collect all resources across learners and aggregate mastery
+    const resourceMap = new Map<string, { title: string; masterySum: number; count: number; masteredCount: number }>()
+
+    for (const learner of learners) {
+      const prog = learner.curriculum_progression
+      const allResources = [
+        prog.current_resource,
+        prog.next_resource,
+        ...prog.blocked_resources,
+        ...prog.ready_resources,
+      ].filter(Boolean)
+
+      for (const resource of allResources) {
+        if (!resource) continue
+        const existing = resourceMap.get(resource.resource_id)
+        if (existing) {
+          existing.masterySum += resource.mastery_ratio
+          existing.count += 1
+          if (resource.mastery_ratio >= 0.8) existing.masteredCount += 1
+        } else {
+          resourceMap.set(resource.resource_id, {
+            title: resource.title,
+            masterySum: resource.mastery_ratio,
+            count: 1,
+            masteredCount: resource.mastery_ratio >= 0.8 ? 1 : 0,
+          })
+        }
+      }
+    }
+
+    const rows: ResourceMasteryRow[] = []
+    for (const [resourceId, data] of resourceMap) {
+      rows.push({
+        resourceId,
+        title: data.title,
+        avgMastery: data.masterySum / data.count,
+        learnerCount: data.count,
+        masteredCount: data.masteredCount,
+      })
+    }
+
+    // Sort by average mastery ascending (weakest first)
+    return rows.sort((a, b) => a.avgMastery - b.avgMastery)
+  }, [learners])
+
+  if (resources.length === 0) return null
+
+  return (
+    <section className="rounded-xl border bg-white p-6 shadow-sm lg:col-span-2">
+      <div className="flex items-center gap-3 mb-4">
+        <BookOpen className="h-5 w-5 text-muted-foreground" />
+        <h3 className="font-semibold">Resource mastery</h3>
+        <span className="text-xs text-muted-foreground ml-auto">Weakest first</span>
+      </div>
+      <div className="space-y-2">
+        {resources.slice(0, 8).map((resource) => {
+          const pct = Math.round(resource.avgMastery * 100)
+          const barColor = pct < 25 ? 'bg-red-400' : pct < 50 ? 'bg-amber-400' : pct < 75 ? 'bg-blue-400' : 'bg-emerald-400'
+          return (
+            <div key={resource.resourceId} className="flex items-center gap-3">
+              <span className="w-48 truncate text-sm font-medium" title={resource.title}>
+                {resource.title}
+              </span>
+              <div className="flex-1">
+                <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className={`h-full rounded-full transition-all ${barColor}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </div>
+              <span className="w-12 text-right text-sm font-medium">{pct}%</span>
+              <span className="w-20 text-right text-xs text-muted-foreground">
+                {resource.masteredCount}/{resource.learnerCount} mastered
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </section>
   )
 }
 

@@ -45,7 +45,7 @@ export function LearnerHome() {
       <ErrorBanner message={error} />
 
       {/* Greeting */}
-      <section className="text-center">
+      <section className="text-center animate-fade-in-up">
         <h1 className="text-2xl font-semibold tracking-tight">
           {isIdle ? 'Great work today!' : 'Welcome back'}
         </h1>
@@ -58,7 +58,7 @@ export function LearnerHome() {
 
       {/* Current lesson card */}
       {!isIdle && (
-        <section className="rounded-xl border bg-white p-6 shadow-sm">
+        <section className="rounded-xl border bg-white p-6 shadow-sm animate-fade-in-up" style={{ animationDelay: '80ms' }}>
           <div className="flex items-start gap-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
               <BookOpen className="h-5 w-5" />
@@ -78,7 +78,7 @@ export function LearnerHome() {
             </div>
           </div>
           <Button
-            className="mt-4 w-full"
+            className="mt-4 w-full transition-all"
             size="lg"
             onClick={handleResume}
             disabled={loading}
@@ -90,7 +90,7 @@ export function LearnerHome() {
       )}
 
       {/* Today's focus */}
-      <section className="rounded-xl border bg-white p-6 shadow-sm">
+      <section className="rounded-xl border bg-white p-6 shadow-sm animate-fade-in-up" style={{ animationDelay: '160ms' }}>
         <div className="flex items-center gap-3">
           <Target className="h-5 w-5 text-muted-foreground" />
           <h2 className="font-semibold">Today's focus</h2>
@@ -111,7 +111,7 @@ export function LearnerHome() {
       </section>
 
       {/* Progress summary */}
-      <section className="rounded-xl border bg-white p-6 shadow-sm">
+      <section className="rounded-xl border bg-white p-6 shadow-sm animate-fade-in-up" style={{ animationDelay: '240ms' }}>
         <div className="flex items-center gap-3">
           <Sparkles className="h-5 w-5 text-muted-foreground" />
           <h2 className="font-semibold">Your progress</h2>
@@ -152,7 +152,7 @@ function ProgressBar({ label, ratio, detail }: { label: string; ratio: number; d
       </div>
       <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100">
         <div
-          className="h-full rounded-full bg-blue-500 transition-all"
+          className="h-full rounded-full bg-blue-500 animate-progress-fill transition-all"
           style={{ width: `${percent}%` }}
         />
       </div>

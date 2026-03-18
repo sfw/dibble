@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router'
-import { ArrowRight, ChevronLeft, Lightbulb, Loader2, Wrench } from 'lucide-react'
+import { ArrowRight, Check, ChevronLeft, Lightbulb, Loader2, Wrench } from 'lucide-react'
 import type { LearnerContext } from '../../shells/LearnerShell'
 import { PageContainer } from '../../components/shell/PageContainer'
 import { ErrorBanner } from '@/components/ui/error-banner'
@@ -42,14 +42,14 @@ export function RemediationSession() {
       {/* Back nav */}
       <button
         onClick={() => navigate('/learn')}
-        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
       >
         <ChevronLeft className="h-4 w-4" />
         Back to home
       </button>
 
       {/* Phase header */}
-      <header>
+      <header className="animate-fade-in-up">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-600">
             <Wrench className="h-5 w-5" />
@@ -64,25 +64,28 @@ export function RemediationSession() {
           </div>
         </div>
 
-        {/* Step progress */}
-        <div className="mt-4 flex items-center gap-2">
-          {steps.map((step, index) => (
-            <StepDot
-              key={index}
-              index={index}
-              currentIndex={currentIndex}
-              label={learnerRemediationPhase(step.phase)}
-            />
-          ))}
-          <span className="ml-2 text-sm text-muted-foreground">
+        {/* Step progress — enhanced with connected track and check marks */}
+        <div className="mt-5">
+          <div className="flex items-center gap-1">
+            {steps.map((step, index) => (
+              <StepIndicator
+                key={index}
+                index={index}
+                currentIndex={currentIndex}
+                totalSteps={totalSteps}
+                label={learnerRemediationPhase(step.phase)}
+              />
+            ))}
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
             Step {currentIndex + 1} of {totalSteps}
-          </span>
+          </p>
         </div>
       </header>
 
       {/* Phase label */}
       {currentStep && (
-        <div className="rounded-lg bg-amber-50 px-4 py-3">
+        <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 animate-scale-in">
           <p className="text-sm font-medium text-amber-800">
             {learnerRemediationPhase(currentStep.phase)}
           </p>
@@ -99,24 +102,26 @@ export function RemediationSession() {
       {contentBlocks.length > 0 ? (
         <div className="flex flex-col gap-4">
           {contentBlocks.map((block, index) => (
-            <ContentBlock key={index} block={block} />
+            <div key={index} className="animate-fade-in-up" style={{ animationDelay: `${index * 80}ms` }}>
+              <ContentBlock block={block} />
+            </div>
           ))}
         </div>
       ) : remediation.loading ? (
-        <div className="flex flex-col items-center justify-center gap-3 py-12 text-muted-foreground">
-          <Loader2 className="h-6 w-6 animate-spin" />
-          <p>Preparing your next step...</p>
+        <div className="flex flex-col items-center justify-center gap-3 py-12 text-muted-foreground animate-fade-in">
+          <Loader2 className="h-6 w-6 animate-spin text-amber-500" />
+          <p className="font-medium">Preparing your next step...</p>
         </div>
       ) : null}
 
       {/* Learner input */}
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
         <label className="text-sm font-medium">Your response</label>
         <Textarea
           value={remediation.advancePrompt}
           onChange={(e) => remediation.setAdvancePrompt(e.target.value)}
           placeholder="What do you think?"
-          className="min-h-[100px] resize-none"
+          className="min-h-[100px] resize-none transition-shadow focus:shadow-sm"
         />
       </div>
 
@@ -124,7 +129,7 @@ export function RemediationSession() {
       <Button
         onClick={handleAdvance}
         disabled={remediation.loading}
-        className="w-full"
+        className="w-full transition-all"
         size="lg"
       >
         {remediation.loading ? 'Working...' : 'Continue'}
@@ -136,7 +141,7 @@ export function RemediationSession() {
       {/* "Why this lesson" disclosure */}
       {session.rationale && (
         <details className="rounded-xl border bg-slate-50 p-4">
-          <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium text-muted-foreground">
+          <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
             <Lightbulb className="h-4 w-4" />
             Why am I working on this?
           </summary>
@@ -147,23 +152,57 @@ export function RemediationSession() {
   )
 }
 
-function StepDot({ index, currentIndex, label }: { index: number; currentIndex: number; label: string }) {
+function StepIndicator({
+  index,
+  currentIndex,
+  totalSteps,
+  label,
+}: {
+  index: number
+  currentIndex: number
+  totalSteps: number
+  label: string
+}) {
   const isComplete = index < currentIndex
   const isCurrent = index === currentIndex
+  const isLast = index === totalSteps - 1
+
   return (
-    <div className="group relative">
-      <div
-        className={`h-2.5 w-2.5 rounded-full transition-colors ${
-          isComplete
-            ? 'bg-amber-500'
-            : isCurrent
-              ? 'bg-amber-400 ring-2 ring-amber-200'
-              : 'bg-slate-200'
-        }`}
-      />
-      <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
-        {label}
-      </span>
+    <div className="flex items-center flex-1 group">
+      {/* Step circle */}
+      <div className="relative">
+        <div
+          className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium transition-all duration-300 ${
+            isComplete
+              ? 'bg-amber-500 text-white shadow-sm'
+              : isCurrent
+                ? 'bg-amber-100 text-amber-700 ring-2 ring-amber-300 shadow-sm'
+                : 'bg-slate-100 text-slate-400'
+          }`}
+        >
+          {isComplete ? (
+            <Check className="h-3.5 w-3.5" />
+          ) : (
+            index + 1
+          )}
+        </div>
+        {/* Tooltip */}
+        <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+          {label}
+        </span>
+      </div>
+      {/* Connector line */}
+      {!isLast && (
+        <div className="flex-1 mx-1">
+          <div className="h-0.5 rounded-full bg-slate-200 overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${
+                isComplete ? 'bg-amber-400 w-full' : 'w-0'
+              }`}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
