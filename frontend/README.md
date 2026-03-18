@@ -4,7 +4,7 @@ React + Vite + TypeScript frontend for the revised learner workflow surfaces def
 
 - `planning/4 - revised-spec/*`
 - `planning/5 - dev-handoff-revised-spec/*`
-- `planning/current-backend-gap-analysis.md`
+- `planning/back-end-work-plan.md`
 
 ## Frontend Standards
 
