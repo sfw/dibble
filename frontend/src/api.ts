@@ -5,6 +5,7 @@ import type {
   AssignmentStatus,
   AuthIdentity,
   AuthToken,
+  ClassroomMasteryTrendsResponse,
   FrontendConfig,
   GeneratedContent,
   GenerationRequestPayload,
@@ -16,6 +17,7 @@ import type {
   LearnerRemediationSessionHistoryPage,
   LearnerSocraticSessionHistoryPage,
   LearnerWorkspace,
+  MasteryHistoryResponse,
   ProfileSummary,
   RemediationWorkflowAdvanceResponse,
   RemediationWorkflowSession,
@@ -406,4 +408,12 @@ export function revokeAuthToken(config: FrontendConfig, refreshToken?: string) {
     headers: buildHeaders(config),
     body: JSON.stringify({ refresh_token: refreshToken ?? null }),
   })
+}
+
+export function getLearnerMasteryHistory(config: FrontendConfig, studentId: string, days = 30) {
+  return requestJson<MasteryHistoryResponse>(config, `/api/learners/${studentId}/mastery-history?days=${days}`)
+}
+
+export function getClassroomMasteryTrends(config: FrontendConfig, classroomId: string, days = 30) {
+  return requestJson<ClassroomMasteryTrendsResponse>(config, `/api/teachers/classrooms/${classroomId}/mastery-trends?days=${days}`)
 }

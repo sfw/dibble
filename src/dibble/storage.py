@@ -143,6 +143,23 @@ CREATE TABLE IF NOT EXISTS assignments (
 );
 """
 
+MASTERY_SNAPSHOT_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS mastery_snapshots (
+    snapshot_id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL,
+    overall_kc_mastery REAL NOT NULL,
+    overall_lo_mastery REAL NOT NULL,
+    kc_count INTEGER NOT NULL,
+    lo_count INTEGER NOT NULL,
+    mastered_kc_count INTEGER NOT NULL,
+    struggling_kc_count INTEGER NOT NULL,
+    engagement TEXT NOT NULL,
+    frustration TEXT NOT NULL,
+    total_load REAL NOT NULL,
+    created_at TEXT NOT NULL
+);
+"""
+
 PREDICTIVE_WARM_QUEUE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS predictive_warm_queue (
     task_id TEXT PRIMARY KEY,
@@ -185,6 +202,7 @@ def ensure_database(database_path: str) -> None:
         connection.execute(WITHIN_SESSION_CONTROLLER_TABLE_SQL)
         connection.execute(CLASSROOM_TABLE_SQL)
         connection.execute(ASSIGNMENT_TABLE_SQL)
+        connection.execute(MASTERY_SNAPSHOT_TABLE_SQL)
         connection.execute(PREDICTIVE_WARM_QUEUE_TABLE_SQL)
         _ensure_sqlite_columns(
             connection,
@@ -223,4 +241,6 @@ def _ensure_sqlite_columns(
     for column_name, column_sql in columns.items():
         if column_name in existing:
             continue
-        connection.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_sql}")
+        connection.execute(
+            f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_sql}"
+        )

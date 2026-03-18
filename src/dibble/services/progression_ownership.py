@@ -3,11 +3,19 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from uuid import UUID
 
-from dibble.models.generation import ContentIntent, GenerationRequest, RequestedContentType
+from dibble.models.generation import (
+    ContentIntent,
+    GenerationRequest,
+    RequestedContentType,
+)
 from dibble.models.profile import OrdinaryMasterySummary
 from dibble.services.kc_sequence_planner import KcSequencePlanner
 from dibble.services.observation_profile_update import ObservationProfileUpdater
-from dibble.services.protocols import AuditStore, KnowledgeComponentStore, ObservationStore
+from dibble.services.protocols import (
+    AuditStore,
+    KnowledgeComponentStore,
+    ObservationStore,
+)
 from dibble.services.workflow_rationale import append_evidence_snapshot
 
 
@@ -60,9 +68,13 @@ class ProgressionOwnershipService:
 
     def __post_init__(self) -> None:
         if self.kc_sequence_planner is None:
-            self.kc_sequence_planner = KcSequencePlanner(knowledge_component_store=self.knowledge_component_store)
+            self.kc_sequence_planner = KcSequencePlanner(
+                knowledge_component_store=self.knowledge_component_store
+            )
 
-    def resolve_request(self, *, student_id: UUID, request: GenerationRequest) -> ProgressionOwnershipDecision:
+    def resolve_request(
+        self, *, student_id: UUID, request: GenerationRequest
+    ) -> ProgressionOwnershipDecision:
         requested_target_kc_ids = list(request.target_kc_ids)
         if not requested_target_kc_ids:
             return ProgressionOwnershipDecision(
@@ -71,15 +83,21 @@ class ProgressionOwnershipService:
                 applied_target_kc_ids=[],
             )
 
-        strategy = self.strategy_signal_service.strategy_for(student_id=student_id, request=request)
-        session = self.within_session_adaptation_service.adaptation_for(student_id=student_id, request=request)
+        strategy = self.strategy_signal_service.strategy_for(
+            student_id=student_id, request=request
+        )
+        session = self.within_session_adaptation_service.adaptation_for(
+            student_id=student_id, request=request
+        )
         prerequisite_kc_ids = self._prerequisite_kc_ids(requested_target_kc_ids)
         sequence = self.kc_sequence_planner.plan(
             strategy_summary=strategy,
             target_kc_ids=requested_target_kc_ids,
             prerequisite_kc_ids=prerequisite_kc_ids,
         )
-        transfer_target_kc_ids = list(sequence.deferred_kc_ids or requested_target_kc_ids)
+        transfer_target_kc_ids = list(
+            sequence.deferred_kc_ids or requested_target_kc_ids
+        )
 
         action = "stay_on_requested_target"
         source = "requested_target"
@@ -87,7 +105,9 @@ class ProgressionOwnershipService:
         applied_target_kc_ids = list(requested_target_kc_ids)
         rationale = None
         requested_content_type = (
-            request.requested_content_type.value if request.requested_content_type is not None else None
+            request.requested_content_type.value
+            if request.requested_content_type is not None
+            else None
         )
         applied_request = request
         mastery_gate_applied = False
@@ -96,7 +116,11 @@ class ProgressionOwnershipService:
         if (
             session.phase == "bridge" or session.recovery_intent == "bridge_target"
         ) and sequence.bridge_kc_ids:
-            action = "hold_bridge_target" if session.sequence_action == "hold_bridge_target" else "bridge_to_related_kc"
+            action = (
+                "hold_bridge_target"
+                if session.sequence_action == "hold_bridge_target"
+                else "bridge_to_related_kc"
+            )
             source = session.source
             target_stage = "bridge"
             applied_target_kc_ids = [sequence.bridge_kc_ids[0]]
@@ -130,7 +154,8 @@ class ProgressionOwnershipService:
         stage_request = request.model_copy(
             update={
                 "target_kc_ids": applied_target_kc_ids,
-                "target_lo_ids": self._target_lo_ids(applied_target_kc_ids) or request.target_lo_ids,
+                "target_lo_ids": self._target_lo_ids(applied_target_kc_ids)
+                or request.target_lo_ids,
             }
         )
         evidence_decision = self._evidence_decision(
@@ -145,11 +170,16 @@ class ProgressionOwnershipService:
             target_stage=target_stage,
         )
         bridge_hold_active = action == "hold_bridge_target"
-        if self._should_prefer_transfer(evidence_decision=evidence_decision) and not bridge_hold_active:
+        if (
+            self._should_prefer_transfer(evidence_decision=evidence_decision)
+            and not bridge_hold_active
+        ):
             action = "attempt_transfer"
             source = "progression_evidence"
             target_stage = "transfer"
-            applied_target_kc_ids = list(transfer_target_kc_ids or requested_target_kc_ids)
+            applied_target_kc_ids = list(
+                transfer_target_kc_ids or requested_target_kc_ids
+            )
             rationale = self._transfer_rationale(
                 request=stage_request,
                 transfer_target_kc_ids=applied_target_kc_ids,
@@ -160,7 +190,9 @@ class ProgressionOwnershipService:
         ):
             action = evidence_decision.decision
             source = "progression_evidence"
-            target_stage = self._target_stage_for_action(action=action, fallback=target_stage)
+            target_stage = self._target_stage_for_action(
+                action=action, fallback=target_stage
+            )
             rationale = self._append_progression_evidence_snapshot(
                 evidence_decision.rationale
                 or "Recent same-session progression evidence suggests holding the current stage target.",
@@ -169,19 +201,24 @@ class ProgressionOwnershipService:
         elif ordinary_mastery_decision.decision != "monitor":
             action = ordinary_mastery_decision.decision
             source = "ordinary_mastery_profile"
-            target_stage = self._target_stage_for_action(action=action, fallback=target_stage)
+            target_stage = self._target_stage_for_action(
+                action=action, fallback=target_stage
+            )
             rationale = ordinary_mastery_decision.rationale
 
-        applied_request, mastery_gate_action, mastery_gate_reason = self._apply_mastery_gate(
-            request=applied_request.model_copy(
-                update={
-                    "target_kc_ids": applied_target_kc_ids,
-                    "target_lo_ids": self._target_lo_ids(applied_target_kc_ids) or request.target_lo_ids,
-                }
-            ),
-            action=action,
-            target_stage=target_stage,
-            rationale=rationale or sequence.rationale,
+        applied_request, mastery_gate_action, mastery_gate_reason = (
+            self._apply_mastery_gate(
+                request=applied_request.model_copy(
+                    update={
+                        "target_kc_ids": applied_target_kc_ids,
+                        "target_lo_ids": self._target_lo_ids(applied_target_kc_ids)
+                        or request.target_lo_ids,
+                    }
+                ),
+                action=action,
+                target_stage=target_stage,
+                rationale=rationale or sequence.rationale,
+            )
         )
         if mastery_gate_action is not None:
             action = mastery_gate_action
@@ -189,7 +226,9 @@ class ProgressionOwnershipService:
             mastery_gate_applied = True
 
         applied_content_type = (
-            applied_request.requested_content_type.value if applied_request.requested_content_type is not None else None
+            applied_request.requested_content_type.value
+            if applied_request.requested_content_type is not None
+            else None
         )
         target_redirect_applied = applied_target_kc_ids != requested_target_kc_ids
 
@@ -282,13 +321,17 @@ class ProgressionOwnershipService:
             lo_ids.append(component.parent_lo_id)
         return lo_ids
 
-    def _evidence_decision(self, *, student_id: UUID, request: GenerationRequest, session_summary):
+    def _evidence_decision(
+        self, *, student_id: UUID, request: GenerationRequest, session_summary
+    ):
         if (
             self.observation_store is None
             or self.audit_store is None
             or self.observation_profile_updater is None
         ):
-            from dibble.services.observation_profile_update import ProgressionEvidenceDecision
+            from dibble.services.observation_profile_update import (
+                ProgressionEvidenceDecision,
+            )
 
             return ProgressionEvidenceDecision()
         observations = self.observation_store.list_recent(student_id=str(student_id))
@@ -358,13 +401,29 @@ class ProgressionOwnershipService:
             effective_fragile_threshold += 0.08
         if summary.high_support_dependency_rate >= 0.7:
             effective_support_dependent_threshold = max(
-                effective_support_dependent_threshold - 0.06, support_dependent_threshold - 0.06
+                effective_support_dependent_threshold - 0.06,
+                support_dependent_threshold - 0.06,
             )
             effective_fragile_threshold = max(
                 effective_fragile_threshold - 0.06, fragile_threshold - 0.06
             )
 
-        if summary.signal == "support_dependent" and summary.confidence >= effective_support_dependent_threshold:
+        # ADAPT-006: Mastery trend adjusts hold aggressiveness.  An improving
+        # learner is gaining ground, so the hold threshold rises (harder to
+        # trigger a hold — give the learner room to continue improving).
+        # A declining learner is losing ground, so the threshold drops (easier
+        # to trigger — hold them before they fall further).
+        if summary.mastery_trend == "improving":
+            effective_support_dependent_threshold += 0.06
+            effective_fragile_threshold += 0.06
+        elif summary.mastery_trend == "declining":
+            effective_support_dependent_threshold -= 0.05
+            effective_fragile_threshold -= 0.05
+
+        if (
+            summary.signal == "support_dependent"
+            and summary.confidence >= effective_support_dependent_threshold
+        ):
             return OrdinaryProgressionDecision(
                 decision=hold_action,
                 rationale=self._ordinary_mastery_hold_rationale(
@@ -379,7 +438,10 @@ class ProgressionOwnershipService:
                 ),
                 summary=summary,
             )
-        if summary.signal == "fragile" and summary.confidence >= effective_fragile_threshold:
+        if (
+            summary.signal == "fragile"
+            and summary.confidence >= effective_fragile_threshold
+        ):
             return OrdinaryProgressionDecision(
                 decision=hold_action,
                 rationale=self._ordinary_mastery_hold_rationale(
@@ -394,7 +456,11 @@ class ProgressionOwnershipService:
                 ),
                 summary=summary,
             )
-        if current_action == "attempt_transfer" and summary.signal == "emerging_mastery" and summary.confidence >= 0.7:
+        if (
+            current_action == "attempt_transfer"
+            and summary.signal == "emerging_mastery"
+            and summary.confidence >= 0.7
+        ):
             return OrdinaryProgressionDecision(
                 decision=hold_action,
                 rationale=self._ordinary_mastery_hold_rationale(
@@ -422,13 +488,16 @@ class ProgressionOwnershipService:
         assessment_requested = request.intent.value == "assessment" or (
             request.requested_content_type == RequestedContentType.assessment_probe
         )
-        if not assessment_requested or not self._should_gate_assessment(action=action, target_stage=target_stage):
+        if not assessment_requested or not self._should_gate_assessment(
+            action=action, target_stage=target_stage
+        ):
             return request, None, None
-        gate_reason = (
-            rationale
-            or self._default_mastery_gate_reason(target_stage=target_stage)
+        gate_reason = rationale or self._default_mastery_gate_reason(
+            target_stage=target_stage
         )
-        gate_action = self._mastery_gate_action(action=action, target_stage=target_stage)
+        gate_action = self._mastery_gate_action(
+            action=action, target_stage=target_stage
+        )
         return (
             request.model_copy(
                 update={
@@ -446,7 +515,10 @@ class ProgressionOwnershipService:
         )
 
     def _should_prefer_transfer(self, *, evidence_decision) -> bool:
-        return evidence_decision.decision == "attempt_transfer" and evidence_decision.confidence >= 0.6
+        return (
+            evidence_decision.decision == "attempt_transfer"
+            and evidence_decision.confidence >= 0.6
+        )
 
     def _transfer_rationale(
         self,
@@ -455,7 +527,11 @@ class ProgressionOwnershipService:
         transfer_target_kc_ids: list[str],
         evidence_decision,
     ) -> str:
-        target_fragment = ", ".join(transfer_target_kc_ids) if transfer_target_kc_ids else "the target KC"
+        target_fragment = (
+            ", ".join(transfer_target_kc_ids)
+            if transfer_target_kc_ids
+            else "the target KC"
+        )
         return self._append_progression_evidence_snapshot(
             evidence_decision.rationale
             or f"Recent same-session evidence on {request.learning_session_id} was strong enough to resume transfer on {target_fragment}.",
@@ -557,7 +633,9 @@ class ProgressionOwnershipService:
                         ),
                         summary=summary,
                     )
-            return self._append_ordinary_mastery_snapshot(summary.rationale, summary=summary)
+            return self._append_ordinary_mastery_snapshot(
+                summary.rationale, summary=summary
+            )
         return self._append_ordinary_mastery_snapshot(fallback, summary=summary)
 
     def _append_ordinary_mastery_snapshot(
@@ -566,27 +644,46 @@ class ProgressionOwnershipService:
         *,
         summary: OrdinaryMasterySummary,
     ) -> str:
-        fragments = [f"Ordinary mastery signal {summary.signal} at {summary.confidence:.2f} confidence"]
+        fragments = [
+            f"Ordinary mastery signal {summary.signal} at {summary.confidence:.2f} confidence"
+        ]
         if summary.average_observed_mastery is not None:
-            fragments.append(f"average observed mastery {summary.average_observed_mastery:.2f}")
+            fragments.append(
+                f"average observed mastery {summary.average_observed_mastery:.2f}"
+            )
         if summary.mastery_trend != "stable":
             fragments.append(f"trend {summary.mastery_trend}")
         if summary.low_support_success_rate > 0.0:
-            fragments.append(f"low-support success rate {summary.low_support_success_rate:.2f}")
+            fragments.append(
+                f"low-support success rate {summary.low_support_success_rate:.2f}"
+            )
         if summary.high_support_dependency_rate > 0.0:
-            fragments.append(f"high-support dependency rate {summary.high_support_dependency_rate:.2f}")
+            fragments.append(
+                f"high-support dependency rate {summary.high_support_dependency_rate:.2f}"
+            )
         if summary.matched_observation_count > 0:
-            fragments.append(f"{summary.matched_observation_count} matched observation(s)")
+            fragments.append(
+                f"{summary.matched_observation_count} matched observation(s)"
+            )
         if summary.matched_session_count >= 2:
             fragments.append(f"across {summary.matched_session_count} sessions")
         # ADAPT-006: Surface stuck-repair context when a learner has many
         # observations without improving past support_dependent or fragile.
-        if (
-            summary.matched_observation_count >= 6
-            and summary.matched_session_count >= 3
-            and summary.signal in {"support_dependent", "fragile"}
-        ):
-            fragments.append("extended hold — consider teacher review")
+        # A declining trend triggers the stuck signal earlier (4 obs / 2 sessions)
+        # because the learner is actively losing ground.
+        if summary.signal in {"support_dependent", "fragile"}:
+            stuck_observation_threshold = (
+                4 if summary.mastery_trend == "declining" else 6
+            )
+            stuck_session_threshold = 2 if summary.mastery_trend == "declining" else 3
+            if (
+                summary.matched_observation_count >= stuck_observation_threshold
+                and summary.matched_session_count >= stuck_session_threshold
+            ):
+                if summary.mastery_trend == "declining":
+                    fragments.append("declining hold — consider teacher review")
+                else:
+                    fragments.append("extended hold — consider teacher review")
         return append_evidence_snapshot(rationale, fragments=fragments) or rationale
 
     def _append_progression_evidence_snapshot(
@@ -595,13 +692,23 @@ class ProgressionOwnershipService:
         *,
         evidence_decision,
     ) -> str:
-        fragments = [f"Same-session evidence confidence {evidence_decision.confidence:.2f}"]
+        fragments = [
+            f"Same-session evidence confidence {evidence_decision.confidence:.2f}"
+        ]
         if evidence_decision.matched_observation_count > 0:
-            fragments.append(f"{evidence_decision.matched_observation_count} observation(s)")
+            fragments.append(
+                f"{evidence_decision.matched_observation_count} observation(s)"
+            )
         if evidence_decision.matched_assessment_count > 0:
-            fragments.append(f"{evidence_decision.matched_assessment_count} assessment(s)")
+            fragments.append(
+                f"{evidence_decision.matched_assessment_count} assessment(s)"
+            )
         if evidence_decision.average_observed_mastery is not None:
-            fragments.append(f"average observed mastery {evidence_decision.average_observed_mastery:.2f}")
+            fragments.append(
+                f"average observed mastery {evidence_decision.average_observed_mastery:.2f}"
+            )
         if evidence_decision.average_assessment_mastery is not None:
-            fragments.append(f"average assessment mastery {evidence_decision.average_assessment_mastery:.2f}")
+            fragments.append(
+                f"average assessment mastery {evidence_decision.average_assessment_mastery:.2f}"
+            )
         return append_evidence_snapshot(rationale, fragments=fragments) or rationale

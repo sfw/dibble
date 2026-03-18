@@ -127,7 +127,9 @@ def test_progression_ownership_rebuilds_prerequisite_before_requested_target():
                 rationale="Rebuild the prerequisite before returning to the target.",
             )
         ),
-        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(
+            WithinSessionAdaptationSummary()
+        ),
     )
 
     decision = service.resolve_request(
@@ -148,7 +150,10 @@ def test_progression_ownership_rebuilds_prerequisite_before_requested_target():
     assert decision.applied_target_kc_ids == ["KC-1"]
     assert decision.transfer_target_kc_ids == ["KC-3"]
     assert decision.request.target_kc_ids == ["KC-1"]
-    assert decision.request.curriculum_context[-2] == "Progression ownership: rebuild_prerequisite_first."
+    assert (
+        decision.request.curriculum_context[-2]
+        == "Progression ownership: rebuild_prerequisite_first."
+    )
 
 
 def test_progression_ownership_preserves_strategy_hold_target_as_explicit_action():
@@ -166,7 +171,9 @@ def test_progression_ownership_preserves_strategy_hold_target_as_explicit_action
                 rationale="Recent strategy signals suggest staying on the target KC until the learner stabilizes.",
             )
         ),
-        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(
+            WithinSessionAdaptationSummary()
+        ),
     )
 
     decision = service.resolve_request(
@@ -183,7 +190,10 @@ def test_progression_ownership_preserves_strategy_hold_target_as_explicit_action
     assert decision.source == "strategy_profile"
     assert decision.target_stage == "target"
     assert decision.applied_target_kc_ids == ["KC-1"]
-    assert decision.rationale == "Recent strategy signals suggest staying on the target KC until the learner stabilizes."
+    assert (
+        decision.rationale
+        == "Recent strategy signals suggest staying on the target KC until the learner stabilizes."
+    )
 
 
 def test_progression_ownership_preserves_bridge_hold_target_during_bridge_phase():
@@ -221,7 +231,9 @@ def test_progression_ownership_preserves_bridge_hold_target_during_bridge_phase(
     assert decision.request.target_kc_ids == ["KC-2"]
 
 
-def test_progression_ownership_holds_target_when_recent_success_is_support_heavy(tmp_path):
+def test_progression_ownership_holds_target_when_recent_success_is_support_heavy(
+    tmp_path,
+):
     database_path = str(tmp_path / "progression-hold.db")
     ensure_database(database_path)
     observation_store = SQLiteObservationStore(database_path)
@@ -249,7 +261,9 @@ def test_progression_ownership_holds_target_when_recent_success_is_support_heavy
     service = ProgressionOwnershipService(
         knowledge_component_store=StubKnowledgeComponentStore(),
         strategy_signal_service=StubStrategySignalService(LearnerStrategySummary()),
-        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(
+            WithinSessionAdaptationSummary()
+        ),
         observation_store=observation_store,
         audit_store=audit_store,
         observation_profile_updater=ObservationProfileUpdater(),
@@ -273,7 +287,9 @@ def test_progression_ownership_holds_target_when_recent_success_is_support_heavy
     assert decision.evidence_assessment_count == 0
 
 
-def test_progression_ownership_uses_repair_target_evidence_after_backend_redirect(tmp_path):
+def test_progression_ownership_uses_repair_target_evidence_after_backend_redirect(
+    tmp_path,
+):
     database_path = str(tmp_path / "progression-repair-evidence.db")
     ensure_database(database_path)
     observation_store = SQLiteObservationStore(database_path)
@@ -344,7 +360,9 @@ def test_progression_ownership_uses_repair_target_evidence_after_backend_redirec
     assert decision.average_observed_mastery >= 0.72
 
 
-def test_progression_ownership_attempts_transfer_when_assessment_confirms_readiness(tmp_path):
+def test_progression_ownership_attempts_transfer_when_assessment_confirms_readiness(
+    tmp_path,
+):
     database_path = str(tmp_path / "progression-transfer.db")
     ensure_database(database_path)
     observation_store = SQLiteObservationStore(database_path)
@@ -385,7 +403,9 @@ def test_progression_ownership_attempts_transfer_when_assessment_confirms_readin
     service = ProgressionOwnershipService(
         knowledge_component_store=StubKnowledgeComponentStore(),
         strategy_signal_service=StubStrategySignalService(LearnerStrategySummary()),
-        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(
+            WithinSessionAdaptationSummary()
+        ),
         observation_store=observation_store,
         audit_store=audit_store,
         observation_profile_updater=ObservationProfileUpdater(),
@@ -414,7 +434,9 @@ def test_progression_ownership_attempts_transfer_when_assessment_confirms_readin
     assert "1 assessment(s)" in decision.rationale
 
 
-def test_progression_ownership_holds_assessment_request_on_target_practice_until_mastery_is_stronger(tmp_path):
+def test_progression_ownership_holds_assessment_request_on_target_practice_until_mastery_is_stronger(
+    tmp_path,
+):
     database_path = str(tmp_path / "progression-mastery-gate.db")
     ensure_database(database_path)
     observation_store = SQLiteObservationStore(database_path)
@@ -442,7 +464,9 @@ def test_progression_ownership_holds_assessment_request_on_target_practice_until
     service = ProgressionOwnershipService(
         knowledge_component_store=StubKnowledgeComponentStore(),
         strategy_signal_service=StubStrategySignalService(LearnerStrategySummary()),
-        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(
+            WithinSessionAdaptationSummary()
+        ),
         observation_store=observation_store,
         audit_store=audit_store,
         observation_profile_updater=ObservationProfileUpdater(),
@@ -472,7 +496,9 @@ def test_progression_ownership_holds_assessment_request_on_target_practice_until
     assert decision.request.requested_content_type == "practice_problem"
 
 
-def test_progression_ownership_prefers_strong_same_session_transfer_over_prerequisite_rebuild(tmp_path):
+def test_progression_ownership_prefers_strong_same_session_transfer_over_prerequisite_rebuild(
+    tmp_path,
+):
     database_path = str(tmp_path / "progression-transfer-override.db")
     ensure_database(database_path)
     observation_store = SQLiteObservationStore(database_path)
@@ -521,7 +547,9 @@ def test_progression_ownership_prefers_strong_same_session_transfer_over_prerequ
                 rationale="Rebuild the prerequisite before returning to the target.",
             )
         ),
-        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(
+            WithinSessionAdaptationSummary()
+        ),
         observation_store=observation_store,
         audit_store=audit_store,
         observation_profile_updater=ObservationProfileUpdater(),
@@ -597,7 +625,9 @@ def test_progression_ownership_uses_durable_ordinary_mastery_to_hold_target_befo
                 rationale="Recent cross-session strategy suggests checking transfer readiness.",
             )
         ),
-        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(
+            WithinSessionAdaptationSummary()
+        ),
         ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
             OrdinaryMasterySummary(
                 signal="support_dependent",
@@ -647,7 +677,9 @@ def test_progression_ownership_uses_durable_ordinary_mastery_to_hold_repair_targ
                 rationale="Rebuild the prerequisite before returning to the target.",
             )
         ),
-        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(
+            WithinSessionAdaptationSummary()
+        ),
         ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
             OrdinaryMasterySummary(
                 signal="support_dependent",
@@ -699,7 +731,9 @@ def test_asymmetric_repair_hold_support_dependent_triggers_at_lower_confidence()
                 rationale="Rebuild the prerequisite before returning to the target.",
             )
         ),
-        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(
+            WithinSessionAdaptationSummary()
+        ),
         ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
             OrdinaryMasterySummary(
                 signal="support_dependent",
@@ -730,7 +764,9 @@ def test_asymmetric_repair_hold_support_dependent_triggers_at_lower_confidence()
     target_service = ProgressionOwnershipService(
         knowledge_component_store=StubKnowledgeComponentStore(),
         strategy_signal_service=StubStrategySignalService(LearnerStrategySummary()),
-        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(
+            WithinSessionAdaptationSummary()
+        ),
         ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
             OrdinaryMasterySummary(
                 signal="support_dependent",
@@ -774,7 +810,9 @@ def test_asymmetric_repair_hold_fragile_triggers_at_lower_confidence():
                 rationale="Rebuild the prerequisite before returning to the target.",
             )
         ),
-        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(
+            WithinSessionAdaptationSummary()
+        ),
         ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
             OrdinaryMasterySummary(
                 signal="fragile",
@@ -804,7 +842,9 @@ def test_asymmetric_repair_hold_fragile_triggers_at_lower_confidence():
     target_service = ProgressionOwnershipService(
         knowledge_component_store=StubKnowledgeComponentStore(),
         strategy_signal_service=StubStrategySignalService(LearnerStrategySummary()),
-        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(
+            WithinSessionAdaptationSummary()
+        ),
         ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
             OrdinaryMasterySummary(
                 signal="fragile",
@@ -840,7 +880,9 @@ def test_high_low_support_success_rate_relaxes_hold_threshold():
     service = ProgressionOwnershipService(
         knowledge_component_store=StubKnowledgeComponentStore(),
         strategy_signal_service=StubStrategySignalService(LearnerStrategySummary()),
-        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(
+            WithinSessionAdaptationSummary()
+        ),
         ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
             OrdinaryMasterySummary(
                 signal="support_dependent",
@@ -879,7 +921,9 @@ def test_high_support_dependency_rate_tightens_hold_threshold():
     service = ProgressionOwnershipService(
         knowledge_component_store=StubKnowledgeComponentStore(),
         strategy_signal_service=StubStrategySignalService(LearnerStrategySummary()),
-        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(
+            WithinSessionAdaptationSummary()
+        ),
         ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
             OrdinaryMasterySummary(
                 signal="support_dependent",
@@ -924,7 +968,9 @@ def test_stuck_repair_context_surfaces_in_rationale_for_many_observations():
                 rationale="Rebuild the prerequisite before returning to the target.",
             )
         ),
-        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(
+            WithinSessionAdaptationSummary()
+        ),
         ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
             OrdinaryMasterySummary(
                 signal="support_dependent",
@@ -955,3 +1001,175 @@ def test_stuck_repair_context_surfaces_in_rationale_for_many_observations():
     assert "teacher review" in decision.rationale
     assert "8 matched observation(s)" in decision.rationale
     assert "across 4 sessions" in decision.rationale
+
+
+def test_improving_trend_relaxes_hold_threshold():
+    """ADAPT-006: An improving mastery trend should raise the effective hold
+    threshold so a learner who is gaining ground is not held as aggressively."""
+    student_id = uuid4()
+    # Confidence 0.58 is above the base target threshold (0.55) for
+    # support_dependent, but with an improving trend the effective threshold
+    # rises by 0.06 to 0.61, so 0.58 should NOT trigger a hold.
+    service = ProgressionOwnershipService(
+        knowledge_component_store=StubKnowledgeComponentStore(),
+        strategy_signal_service=StubStrategySignalService(LearnerStrategySummary()),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(
+            WithinSessionAdaptationSummary()
+        ),
+        ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
+            OrdinaryMasterySummary(
+                signal="support_dependent",
+                source="ordinary_mastery_profile",
+                confidence=0.58,
+                average_observed_mastery=0.55,
+                mastery_trend="improving",
+                rationale="Support-dependent but improving.",
+            )
+        ),
+    )
+
+    decision = service.resolve_request(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            target_kc_ids=["KC-1"],
+            target_lo_ids=["LO-1"],
+            requested_content_type="practice_problem",
+        ),
+    )
+
+    # Improving trend should prevent the hold
+    assert decision.action != "hold_target"
+
+
+def test_declining_trend_tightens_hold_threshold():
+    """ADAPT-006: A declining mastery trend should lower the effective hold
+    threshold so a learner who is losing ground is held more aggressively."""
+    student_id = uuid4()
+    # Confidence 0.52 is below the base target threshold (0.55) for
+    # support_dependent, but with a declining trend the effective threshold
+    # drops by 0.05 to 0.50, so 0.52 should NOW trigger a hold.
+    service = ProgressionOwnershipService(
+        knowledge_component_store=StubKnowledgeComponentStore(),
+        strategy_signal_service=StubStrategySignalService(LearnerStrategySummary()),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(
+            WithinSessionAdaptationSummary()
+        ),
+        ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
+            OrdinaryMasterySummary(
+                signal="support_dependent",
+                source="ordinary_mastery_profile",
+                confidence=0.52,
+                average_observed_mastery=0.50,
+                mastery_trend="declining",
+                rationale="Support-dependent and declining.",
+            )
+        ),
+    )
+
+    decision = service.resolve_request(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            target_kc_ids=["KC-1"],
+            target_lo_ids=["LO-1"],
+            requested_content_type="practice_problem",
+        ),
+    )
+
+    assert decision.action == "hold_target"
+    assert decision.source == "ordinary_mastery_profile"
+    assert "declining" in decision.rationale
+
+
+def test_declining_trend_triggers_earlier_stuck_detection():
+    """ADAPT-006: A declining trend should trigger the stuck-repair signal
+    earlier (4 observations / 2 sessions) instead of the usual 6 / 3."""
+    student_id = uuid4()
+    service = ProgressionOwnershipService(
+        knowledge_component_store=StubKnowledgeComponentStore(),
+        strategy_signal_service=StubStrategySignalService(
+            LearnerStrategySummary(
+                signal="rebuild_prerequisite_first",
+                source="strategy_profile",
+                recommended_next_action="rebuild_prerequisite",
+                rationale="Rebuild the prerequisite before returning to the target.",
+            )
+        ),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(
+            WithinSessionAdaptationSummary()
+        ),
+        ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
+            OrdinaryMasterySummary(
+                signal="fragile",
+                source="ordinary_mastery_profile",
+                confidence=0.62,
+                matched_observation_count=4,
+                matched_session_count=2,
+                average_observed_mastery=0.42,
+                mastery_trend="declining",
+                rationale="Repair target fragile and declining.",
+            )
+        ),
+    )
+
+    decision = service.resolve_request(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            target_kc_ids=["KC-3"],
+            target_lo_ids=["LO-1"],
+            requested_content_type="practice_problem",
+        ),
+    )
+
+    assert decision.action == "hold_repair_target"
+    assert "declining hold" in decision.rationale
+    assert "teacher review" in decision.rationale
+
+
+def test_stable_trend_does_not_trigger_early_stuck_detection():
+    """ADAPT-006: With a stable trend, the stuck signal should still require
+    the standard 6 observations / 3 sessions threshold."""
+    student_id = uuid4()
+    service = ProgressionOwnershipService(
+        knowledge_component_store=StubKnowledgeComponentStore(),
+        strategy_signal_service=StubStrategySignalService(
+            LearnerStrategySummary(
+                signal="rebuild_prerequisite_first",
+                source="strategy_profile",
+                recommended_next_action="rebuild_prerequisite",
+                rationale="Rebuild the prerequisite.",
+            )
+        ),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(
+            WithinSessionAdaptationSummary()
+        ),
+        ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
+            OrdinaryMasterySummary(
+                signal="fragile",
+                source="ordinary_mastery_profile",
+                confidence=0.62,
+                matched_observation_count=4,
+                matched_session_count=2,
+                average_observed_mastery=0.42,
+                mastery_trend="stable",
+                rationale="Repair target fragile and stable.",
+            )
+        ),
+    )
+
+    decision = service.resolve_request(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            target_kc_ids=["KC-3"],
+            target_lo_ids=["LO-1"],
+            requested_content_type="practice_problem",
+        ),
+    )
+
+    assert decision.action == "hold_repair_target"
+    # With stable trend and only 4 observations / 2 sessions, no stuck signal
+    assert "extended hold" not in (decision.rationale or "")
+    assert "declining hold" not in (decision.rationale or "")

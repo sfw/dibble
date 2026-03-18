@@ -20,7 +20,9 @@ from dibble.services.generation_mode_calibration import GenerationModeCalibrator
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
 from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
 from dibble.services.knowledge_state_migration import KnowledgeStateMigrator
-from dibble.services.learning_calibration_profiles import LearningCalibrationProfileRecorder
+from dibble.services.learning_calibration_profiles import (
+    LearningCalibrationProfileRecorder,
+)
 from dibble.services.learning_progress_profiles import LearningProgressProfileRecorder
 from dibble.services.learning_run_summary_recorder import LearningRunSummaryRecorder
 from dibble.services.learning_state_profiles import (
@@ -36,6 +38,8 @@ from dibble.services.learner_strategy_profiles import (
     LearningStrategyProfileRecorder,
 )
 from dibble.services.learner_state_calibration import LearnerStateCalibrator
+from dibble.services.mastery_snapshot_service import MasterySnapshotService
+from dibble.services.mastery_snapshot_store import SQLiteMasterySnapshotStore
 from dibble.services.learner_flow_service import LearnerFlowService
 from dibble.services.learner_history_service import LearnerHistoryService
 from dibble.services.learner_progression_service import LearnerProgressionService
@@ -75,17 +79,23 @@ from dibble.services.remediation_session_store import SQLiteRemediationSessionSt
 from dibble.services.remediation_workflows import RemediationWorkflowCoordinator
 from dibble.services.router_calibration_signals import RouterCalibrationSignalService
 from dibble.services.socratic_assessment import SocraticAssessmentService
-from dibble.services.socratic_conversation_signals import SocraticConversationSignalService
+from dibble.services.socratic_conversation_signals import (
+    SocraticConversationSignalService,
+)
 from dibble.services.socratic_evidence import SocraticEvidenceScorer
 from dibble.services.socratic_policy import SocraticTurnPolicy
 from dibble.services.socratic_profile_update import SocraticProfileUpdater
 from dibble.services.socratic_session_store import SQLiteSocraticSessionStore
 from dibble.services.state_inference import LearnerStateInferenceService
 from dibble.services.teacher_classroom_service import TeacherClassroomService
-from dibble.services.teacher_intervention_actions import TeacherInterventionActionService
+from dibble.services.teacher_intervention_actions import (
+    TeacherInterventionActionService,
+)
 from dibble.services.telemetry import TelemetryService
 from dibble.services.within_session_adaptation import WithinSessionAdaptationService
-from dibble.services.within_session_controller_store import SQLiteWithinSessionControllerStore
+from dibble.services.within_session_controller_store import (
+    SQLiteWithinSessionControllerStore,
+)
 from dibble.storage import ensure_database
 
 
@@ -129,6 +139,7 @@ class ApplicationServices:
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_invalidator: PredictiveContentInvalidator
     predictive_warm_scheduler: PredictiveWarmScheduler
+    mastery_snapshot_service: MasterySnapshotService
     within_session_adaptation_service: WithinSessionAdaptationService
     router_plugin: RouterPlugin
 
@@ -147,24 +158,34 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     observation_store = SQLiteObservationStore(settings.database_path)
     socratic_session_store = SQLiteSocraticSessionStore(settings.database_path)
     remediation_session_store = SQLiteRemediationSessionStore(settings.database_path)
-    within_session_controller_store = SQLiteWithinSessionControllerStore(settings.database_path)
+    within_session_controller_store = SQLiteWithinSessionControllerStore(
+        settings.database_path
+    )
     provider_health_store = SQLiteProviderHealthStore(settings.database_path)
     auth_service = AuthService.from_settings(
         settings,
         session_store=SQLiteAuthSessionStore(settings.database_path),
     )
     plugins = build_generation_plugins(settings, curriculum_store=curriculum_store)
-    learner_strategy_signal_service = LearnerStrategySignalService(audit_store=audit_store)
+    learner_strategy_signal_service = LearnerStrategySignalService(
+        audit_store=audit_store
+    )
     learner_state_signal_service = LearnerStateSignalService(audit_store=audit_store)
-    learner_trait_profile_signal_service = LearnerTraitProfileSignalService(audit_store=audit_store)
-    ordinary_mastery_signal_service = OrdinaryMasterySignalService(audit_store=audit_store)
+    learner_trait_profile_signal_service = LearnerTraitProfileSignalService(
+        audit_store=audit_store
+    )
+    ordinary_mastery_signal_service = OrdinaryMasterySignalService(
+        audit_store=audit_store
+    )
     within_session_adaptation_service = WithinSessionAdaptationService(
         audit_store=audit_store,
         controller_store=within_session_controller_store,
     )
     router_plugin = CalibratedRouter(
         base_router=plugins.router,
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         strategy_signal_service=learner_strategy_signal_service,
         within_session_adaptation_service=within_session_adaptation_service,
     )
@@ -195,10 +216,14 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         turn_policy=SocraticTurnPolicy(),
     )
     socratic_profile_updater = SocraticProfileUpdater(
-        knowledge_state_migrator=KnowledgeStateMigrator(knowledge_component_store=knowledge_component_store)
+        knowledge_state_migrator=KnowledgeStateMigrator(
+            knowledge_component_store=knowledge_component_store
+        )
     )
     observation_profile_updater = ObservationProfileUpdater(
-        knowledge_state_migrator=KnowledgeStateMigrator(knowledge_component_store=knowledge_component_store),
+        knowledge_state_migrator=KnowledgeStateMigrator(
+            knowledge_component_store=knowledge_component_store
+        ),
         ordinary_mastery_signal_service=ordinary_mastery_signal_service,
     )
     progression_ownership_service = ProgressionOwnershipService(
@@ -217,12 +242,18 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         trait_profile_signal_service=learner_trait_profile_signal_service
     )
     learner_state_calibrator = LearnerStateCalibrator(
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         state_signal_service=learner_state_signal_service,
     )
-    socratic_conversation_signal_service = SocraticConversationSignalService(audit_store=audit_store)
+    socratic_conversation_signal_service = SocraticConversationSignalService(
+        audit_store=audit_store
+    )
     generation_mode_calibrator = GenerationModeCalibrator(
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         strategy_signal_service=learner_strategy_signal_service,
         within_session_adaptation_service=within_session_adaptation_service,
         state_signal_service=learner_state_signal_service,
@@ -230,12 +261,28 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         socratic_conversation_signal_service=socratic_conversation_signal_service,
     )
     learning_run_summary_recorder = LearningRunSummaryRecorder(audit_store=audit_store)
-    learning_calibration_profile_recorder = LearningCalibrationProfileRecorder(audit_store=audit_store)
-    learning_progress_profile_recorder = LearningProgressProfileRecorder(audit_store=audit_store)
-    learning_strategy_profile_recorder = LearningStrategyProfileRecorder(audit_store=audit_store)
-    learning_state_profile_recorder = LearningStateProfileRecorder(audit_store=audit_store)
-    learning_trait_profile_recorder = LearningTraitProfileRecorder(audit_store=audit_store)
-    ordinary_mastery_profile_recorder = OrdinaryMasteryProfileRecorder(audit_store=audit_store)
+    learning_calibration_profile_recorder = LearningCalibrationProfileRecorder(
+        audit_store=audit_store
+    )
+    learning_progress_profile_recorder = LearningProgressProfileRecorder(
+        audit_store=audit_store
+    )
+    learning_strategy_profile_recorder = LearningStrategyProfileRecorder(
+        audit_store=audit_store
+    )
+    learning_state_profile_recorder = LearningStateProfileRecorder(
+        audit_store=audit_store
+    )
+    learning_trait_profile_recorder = LearningTraitProfileRecorder(
+        audit_store=audit_store
+    )
+    ordinary_mastery_profile_recorder = OrdinaryMasteryProfileRecorder(
+        audit_store=audit_store
+    )
+    mastery_snapshot_store = SQLiteMasterySnapshotStore(settings.database_path)
+    mastery_snapshot_service = MasterySnapshotService(
+        snapshot_store=mastery_snapshot_store
+    )
     learner_flow_service = LearnerFlowService(
         audit_store=audit_store,
         generated_content_store=generated_content_store,
@@ -271,7 +318,9 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         learner_summary_service=learner_summary_service,
         teacher_intervention_action_service=teacher_intervention_action_service,
     )
-    misconception_profile_recorder = LearningMisconceptionProfileRecorder(audit_store=audit_store)
+    misconception_profile_recorder = LearningMisconceptionProfileRecorder(
+        audit_store=audit_store
+    )
     content_warmer = ContentWarmer(
         profile_store,
         generation_engine,
@@ -360,6 +409,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         generation_mode_calibrator=generation_mode_calibrator,
         predictive_content_invalidator=predictive_content_invalidator,
         predictive_warm_scheduler=predictive_warm_scheduler,
+        mastery_snapshot_service=mastery_snapshot_service,
         within_session_adaptation_service=within_session_adaptation_service,
         router_plugin=router_plugin,
     )

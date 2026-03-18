@@ -786,6 +786,52 @@ export interface AssignmentCreate {
 
 export type AssignmentPage = HistoryPage<Assignment>
 
+// Mastery history snapshots
+export interface MasterySnapshot {
+  snapshot_id: string
+  student_id: string
+  overall_kc_mastery: number
+  overall_lo_mastery: number
+  kc_count: number
+  lo_count: number
+  mastered_kc_count: number
+  struggling_kc_count: number
+  engagement: string
+  frustration: string
+  total_load: number
+  created_at: string
+}
+
+export interface MasteryHistoryResponse {
+  student_id: string
+  days: number
+  snapshot_count: number
+  snapshots: MasterySnapshot[]
+}
+
+export interface LearnerMasteryTrend {
+  student_id: string
+  snapshot_count: number
+  snapshots: MasterySnapshot[]
+  earliest_mastery: number | null
+  latest_mastery: number | null
+  mastery_delta: number
+}
+
+export interface ClassroomAveragePoint {
+  timestamp: string
+  average_mastery: number
+  learner_count: number
+}
+
+export interface ClassroomMasteryTrendsResponse {
+  classroom_id: string
+  days: number
+  learner_count: number
+  learner_trends: LearnerMasteryTrend[]
+  classroom_average_snapshots: ClassroomAveragePoint[]
+}
+
 export interface FrontendConfig {
   baseUrl: string
   apiKey: string
