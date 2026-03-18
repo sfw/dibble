@@ -876,3 +876,84 @@ export interface FrontendConfig {
   useDemoFallback: boolean
   showDebugPanels: boolean
 }
+
+export interface SetupStatus {
+  configured: boolean
+  has_llm_key: boolean
+  has_embedding_key: boolean
+  has_database: boolean
+  has_admin_user: boolean
+  llm_api_base: string
+  llm_model: string | null
+  auth_enabled: boolean
+  config_file_exists: boolean
+  app_version: string
+}
+
+export interface SetupConfigureRequest {
+  llm_api_base?: string
+  llm_api_key?: string
+  llm_model?: string
+  embedding_api_key?: string
+  embedding_model?: string
+  database_path?: string
+}
+
+export interface SetupConfigureResponse {
+  status: 'ok'
+  config_path: string
+  restart_required: boolean
+}
+
+export interface CreateInitialAdminRequest {
+  display_name?: string
+}
+
+export interface CreateInitialAdminResponse {
+  user_id: string
+  api_key: string
+  display_name: string | null
+  role: string
+}
+
+export interface UserCreateRequest {
+  display_name?: string
+  role: string
+  learner_id?: string
+  teacher_id?: string
+  classroom_ids?: string[]
+}
+
+export interface UserCreateResponse {
+  user_id: string
+  credential: string
+  display_name: string | null
+  role: string
+}
+
+export interface UserSummary {
+  user_id: string
+  display_name: string | null
+  role: string
+  learner_id: string | null
+  teacher_id: string | null
+  classroom_ids: string[]
+  created_at: string
+  updated_at: string
+}
+
+export interface UserUpdateRequest {
+  display_name?: string
+  role?: string
+  learner_id?: string
+  teacher_id?: string
+  classroom_ids?: string[]
+}
+
+export interface BulkUserCreateRequest {
+  users: UserCreateRequest[]
+}
+
+export interface BulkUserCreateResponse {
+  created: UserCreateResponse[]
+}

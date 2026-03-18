@@ -1,18 +1,61 @@
+from datetime import datetime, timezone
+from uuid import uuid4
+
 from fastapi.testclient import TestClient
 
 from dibble.app import create_app
 from dibble.config import Settings
+from dibble.models.auth import User
+from dibble.services.auth import hash_credential
+from dibble.services.user_store import SQLiteUserStore
+from dibble.storage import ensure_database
 
 from tests.support import assert_machine_readable_error, build_profile
 
 
-def test_auth_can_protect_api_endpoints(tmp_path, student_id):
-    settings = Settings(
-        database_path=str(tmp_path / "dibble-auth.db"),
-        auth_enabled=True,
-        auth_principals=("secret-key:admin-user:admin",),
+def _seed_user(
+    db_path: str,
+    *,
+    api_key: str,
+    role: str,
+    user_id: str | None = None,
+    learner_id: str | None = None,
+    teacher_id: str | None = None,
+    display_name: str | None = None,
+    classroom_ids: list[str] | None = None,
+) -> User:
+    store = SQLiteUserStore(db_path)
+    now = datetime.now(timezone.utc).isoformat()
+    user = User(
+        user_id=user_id or str(uuid4()),
+        display_name=display_name,
+        role=role,
+        api_key_hash=hash_credential(api_key),
+        learner_id=learner_id,
+        teacher_id=teacher_id,
+        classroom_ids=classroom_ids or [],
+        created_at=now,
+        updated_at=now,
     )
-    app = create_app(settings)
+    return store.create(user)
+
+
+def _make_app(tmp_path, *, token_secret=None, token_ttl=None, refresh_ttl=None):
+    db_path = str(tmp_path / "dibble.db")
+    ensure_database(db_path)
+    settings = Settings(
+        database_path=db_path,
+        auth_enabled=True,
+        auth_token_secret=token_secret,
+        auth_token_ttl_seconds=token_ttl or 3600,
+        auth_refresh_ttl_seconds=refresh_ttl or 604800,
+    )
+    return create_app(settings), db_path
+
+
+def test_auth_can_protect_api_endpoints(tmp_path, student_id):
+    app, db_path = _make_app(tmp_path)
+    _seed_user(db_path, api_key="secret-key", role="admin")
 
     with TestClient(app) as client:
         health_response = client.get("/health")
@@ -31,7 +74,7 @@ def test_auth_can_protect_api_endpoints(tmp_path, student_id):
         unauthorized,
         status_code=401,
         code="auth_invalid_credentials",
-        detail="A valid API key is required for this endpoint.",
+        detail="A credential is required for this endpoint.",
     )
     assert unauthorized.headers["www-authenticate"] == "Bearer"
     assert authorized.status_code == 200
@@ -41,16 +84,10 @@ def test_auth_can_protect_api_endpoints(tmp_path, student_id):
 
 
 def test_auth_exposes_identity_and_rbac(tmp_path, student_id):
-    settings = Settings(
-        database_path=str(tmp_path / "dibble-rbac.db"),
-        auth_enabled=True,
-        auth_principals=(
-            "viewer-key:viewer-user:viewer",
-            "editor-key:editor-user:editor",
-            "admin-key:admin-user:admin",
-        ),
-    )
-    app = create_app(settings)
+    app, db_path = _make_app(tmp_path)
+    _seed_user(db_path, api_key="viewer-key", role="viewer", user_id="viewer-user")
+    _seed_user(db_path, api_key="editor-key", role="editor", user_id="editor-user")
+    _seed_user(db_path, api_key="admin-key", role="admin", user_id="admin-user")
 
     with TestClient(app) as client:
         me_response = client.get("/api/auth/me", headers={"X-API-Key": "viewer-key"})
@@ -91,14 +128,8 @@ def test_auth_exposes_identity_and_rbac(tmp_path, student_id):
 
 
 def test_auth_can_issue_and_accept_bearer_tokens(tmp_path):
-    settings = Settings(
-        database_path=str(tmp_path / "dibble-token.db"),
-        auth_enabled=True,
-        auth_principals=("editor-key:editor-user:editor",),
-        auth_token_secret="super-secret",
-        auth_token_ttl_seconds=900,
-    )
-    app = create_app(settings)
+    app, db_path = _make_app(tmp_path, token_secret="super-secret", token_ttl=900)
+    _seed_user(db_path, api_key="editor-key", role="editor", user_id="editor-user")
 
     with TestClient(app) as client:
         token_response = client.post(
@@ -122,17 +153,9 @@ def test_auth_can_issue_and_accept_bearer_tokens(tmp_path):
 def test_bearer_token_forbidden_response_preserves_identity_and_error_contract(
     tmp_path, student_id
 ):
-    settings = Settings(
-        database_path=str(tmp_path / "dibble-bearer-rbac.db"),
-        auth_enabled=True,
-        auth_principals=(
-            "viewer-key:viewer-user:viewer",
-            "admin-key:admin-user:admin",
-        ),
-        auth_token_secret="super-secret",
-        auth_token_ttl_seconds=900,
-    )
-    app = create_app(settings)
+    app, db_path = _make_app(tmp_path, token_secret="super-secret", token_ttl=900)
+    _seed_user(db_path, api_key="viewer-key", role="viewer", user_id="viewer-user")
+    _seed_user(db_path, api_key="admin-key", role="admin", user_id="admin-user")
 
     with TestClient(app) as client:
         viewer_token = client.post(
@@ -161,15 +184,10 @@ def test_bearer_token_forbidden_response_preserves_identity_and_error_contract(
 
 
 def test_refresh_rotates_tokens_and_old_refresh_token_stops_working(tmp_path):
-    settings = Settings(
-        database_path=str(tmp_path / "dibble-refresh.db"),
-        auth_enabled=True,
-        auth_principals=("editor-key:editor-user:editor",),
-        auth_token_secret="super-secret",
-        auth_token_ttl_seconds=900,
-        auth_refresh_ttl_seconds=1800,
+    app, db_path = _make_app(
+        tmp_path, token_secret="super-secret", token_ttl=900, refresh_ttl=1800
     )
-    app = create_app(settings)
+    _seed_user(db_path, api_key="editor-key", role="editor", user_id="editor-user")
 
     with TestClient(app) as client:
         issued = client.post(
@@ -196,15 +214,10 @@ def test_refresh_rotates_tokens_and_old_refresh_token_stops_working(tmp_path):
 
 
 def test_revocation_invalidates_existing_bearer_session(tmp_path):
-    settings = Settings(
-        database_path=str(tmp_path / "dibble-revoke.db"),
-        auth_enabled=True,
-        auth_principals=("editor-key:editor-user:editor",),
-        auth_token_secret="super-secret",
-        auth_token_ttl_seconds=900,
-        auth_refresh_ttl_seconds=1800,
+    app, db_path = _make_app(
+        tmp_path, token_secret="super-secret", token_ttl=900, refresh_ttl=1800
     )
-    app = create_app(settings)
+    _seed_user(db_path, api_key="editor-key", role="editor", user_id="editor-user")
 
     with TestClient(app) as client:
         issued = client.post(
@@ -231,15 +244,16 @@ def test_revocation_invalidates_existing_bearer_session(tmp_path):
 
 
 def test_learner_principal_carries_entity_binding(tmp_path, student_id):
-    settings = Settings(
-        database_path=str(tmp_path / "dibble-learner.db"),
-        auth_enabled=True,
-        auth_principals=(
-            f"learner-key:learner-1:learner:{student_id}:Alice Student",
-            "admin-key:admin-user:admin",
-        ),
+    app, db_path = _make_app(tmp_path)
+    _seed_user(
+        db_path,
+        api_key="learner-key",
+        role="learner",
+        user_id="learner-1",
+        learner_id=str(student_id),
+        display_name="Alice Student",
     )
-    app = create_app(settings)
+    _seed_user(db_path, api_key="admin-key", role="admin", user_id="admin-user")
 
     with TestClient(app) as client:
         me_response = client.get("/api/auth/me", headers={"X-API-Key": "learner-key"})
@@ -255,15 +269,17 @@ def test_learner_principal_carries_entity_binding(tmp_path, student_id):
 
 
 def test_teacher_principal_carries_entity_and_classroom_binding(tmp_path):
-    settings = Settings(
-        database_path=str(tmp_path / "dibble-teacher.db"),
-        auth_enabled=True,
-        auth_principals=(
-            "teacher-key:teacher-1:teacher:T-100:Ms. Smith:CLS-A,CLS-B",
-            "admin-key:admin-user:admin",
-        ),
+    app, db_path = _make_app(tmp_path)
+    _seed_user(
+        db_path,
+        api_key="teacher-key",
+        role="teacher",
+        user_id="teacher-1",
+        teacher_id="T-100",
+        display_name="Ms. Smith",
+        classroom_ids=["CLS-A", "CLS-B"],
     )
-    app = create_app(settings)
+    _seed_user(db_path, api_key="admin-key", role="admin", user_id="admin-user")
 
     with TestClient(app) as client:
         me_response = client.get("/api/auth/me", headers={"X-API-Key": "teacher-key"})
@@ -279,15 +295,16 @@ def test_teacher_principal_carries_entity_and_classroom_binding(tmp_path):
 
 
 def test_learner_role_can_read_but_not_write(tmp_path, student_id):
-    settings = Settings(
-        database_path=str(tmp_path / "dibble-learner-rbac.db"),
-        auth_enabled=True,
-        auth_principals=(
-            f"learner-key:learner-1:learner:{student_id}:Alice",
-            "admin-key:admin-user:admin",
-        ),
+    app, db_path = _make_app(tmp_path)
+    _seed_user(
+        db_path,
+        api_key="learner-key",
+        role="learner",
+        user_id="learner-1",
+        learner_id=str(student_id),
+        display_name="Alice",
     )
-    app = create_app(settings)
+    _seed_user(db_path, api_key="admin-key", role="admin", user_id="admin-user")
 
     with TestClient(app) as client:
         read_response = client.get(
@@ -308,12 +325,16 @@ def test_learner_role_can_read_but_not_write(tmp_path, student_id):
 
 
 def test_teacher_role_can_read_and_write(tmp_path, student_id):
-    settings = Settings(
-        database_path=str(tmp_path / "dibble-teacher-rbac.db"),
-        auth_enabled=True,
-        auth_principals=("teacher-key:teacher-1:teacher:T-100:Ms. Smith:CLS-A",),
+    app, db_path = _make_app(tmp_path)
+    _seed_user(
+        db_path,
+        api_key="teacher-key",
+        role="teacher",
+        user_id="teacher-1",
+        teacher_id="T-100",
+        display_name="Ms. Smith",
+        classroom_ids=["CLS-A"],
     )
-    app = create_app(settings)
 
     with TestClient(app) as client:
         read_response = client.get(
@@ -330,14 +351,15 @@ def test_teacher_role_can_read_and_write(tmp_path, student_id):
 
 
 def test_bearer_token_preserves_entity_bindings(tmp_path, student_id):
-    settings = Settings(
-        database_path=str(tmp_path / "dibble-learner-bearer.db"),
-        auth_enabled=True,
-        auth_principals=(f"learner-key:learner-1:learner:{student_id}:Alice Student",),
-        auth_token_secret="super-secret",
-        auth_token_ttl_seconds=900,
+    app, db_path = _make_app(tmp_path, token_secret="super-secret", token_ttl=900)
+    _seed_user(
+        db_path,
+        api_key="learner-key",
+        role="learner",
+        user_id="learner-1",
+        learner_id=str(student_id),
+        display_name="Alice Student",
     )
-    app = create_app(settings)
 
     with TestClient(app) as client:
         token_response = client.post(
@@ -362,14 +384,15 @@ def test_bearer_token_preserves_entity_bindings(tmp_path, student_id):
 
 
 def test_refresh_preserves_entity_bindings(tmp_path, student_id):
-    settings = Settings(
-        database_path=str(tmp_path / "dibble-learner-refresh.db"),
-        auth_enabled=True,
-        auth_principals=(f"learner-key:learner-1:learner:{student_id}:Alice",),
-        auth_token_secret="super-secret",
-        auth_token_ttl_seconds=900,
+    app, db_path = _make_app(tmp_path, token_secret="super-secret", token_ttl=900)
+    _seed_user(
+        db_path,
+        api_key="learner-key",
+        role="learner",
+        user_id="learner-1",
+        learner_id=str(student_id),
+        display_name="Alice",
     )
-    app = create_app(settings)
 
     with TestClient(app) as client:
         issued = client.post(
@@ -387,16 +410,10 @@ def test_refresh_preserves_entity_bindings(tmp_path, student_id):
 
 
 def test_existing_roles_still_work_without_entity_binding(tmp_path, student_id):
-    settings = Settings(
-        database_path=str(tmp_path / "dibble-compat.db"),
-        auth_enabled=True,
-        auth_principals=(
-            "viewer-key:viewer-user:viewer",
-            "editor-key:editor-user:editor",
-            "admin-key:admin-user:admin",
-        ),
-    )
-    app = create_app(settings)
+    app, db_path = _make_app(tmp_path)
+    _seed_user(db_path, api_key="viewer-key", role="viewer", user_id="viewer-user")
+    _seed_user(db_path, api_key="editor-key", role="editor", user_id="editor-user")
+    _seed_user(db_path, api_key="admin-key", role="admin", user_id="admin-user")
 
     with TestClient(app) as client:
         viewer_me = client.get(

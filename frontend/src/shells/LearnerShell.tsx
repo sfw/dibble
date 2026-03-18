@@ -4,6 +4,7 @@ import { BookOpen, ClipboardList, Clock, Home, LogOut, TrendingUp } from 'lucide
 import { useLearnerWorkspace } from '../hooks/useLearnerWorkspace'
 import { useLearnerContracts } from '../hooks/useLearnerContracts'
 import { useAuthContext } from '../contexts/AuthContext'
+import { useConfigContext } from '../contexts/ConfigContext'
 import type { DataSource } from '../app/workspace'
 import type {
   FrontendConfig,
@@ -41,10 +42,11 @@ const navItems = [
 
 export function LearnerShell() {
   const auth = useAuthContext()
+  const { baseUrl } = useConfigContext()
 
   // Build config from auth state — bearer token from auth, no demo fallback in authenticated mode
   const learnerConfig: FrontendConfig = {
-    baseUrl: 'http://127.0.0.1:8000',
+    baseUrl,
     apiKey: '',
     bearerToken: auth.getToken(),
     useDemoFallback: !auth.authenticated,

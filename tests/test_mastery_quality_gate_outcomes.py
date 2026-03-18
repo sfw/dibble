@@ -219,7 +219,11 @@ def test_recording_persists_events():
     )
     tracker.record_outcomes(outcomes)
 
-    events = [e for e in store.list(limit=100) if e.event_type == "mastery_quality_gate.outcome"]
+    events = [
+        e
+        for e in store.list(limit=100)
+        if e.event_type == "mastery_quality_gate.outcome"
+    ]
     assert len(events) == 1
     assert events[0].payload["outcome"] == "positive"
     assert events[0].payload["resource_id"] == "R1"
@@ -229,7 +233,9 @@ def test_fragile_gate_signal_tracked():
     """Fragile gate holds should be tracked with their signal type."""
     store = StubAuditStore(
         [
-            _gate_hold_event("R1", gate_signal="fragile", mastery_ratio=0.72, days_ago=5),
+            _gate_hold_event(
+                "R1", gate_signal="fragile", mastery_ratio=0.72, days_ago=5
+            ),
         ]
     )
     tracker = MasteryQualityGateOutcomeTracker(audit_store=store)

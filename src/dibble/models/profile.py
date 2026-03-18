@@ -602,8 +602,7 @@ class ProfileSummary(BaseModel):
             trait_profile=trait_profile or LearnerTraitProfileSummary(),
             state_prediction_reliability=state_prediction_reliability
             or StatePredictionReliabilitySummary(),
-            signal_consistency=signal_consistency
-            or CrossSignalConsistencySummary(),
+            signal_consistency=signal_consistency or CrossSignalConsistencySummary(),
             recent_activity=recent_activity or RecentLearnerActivity(),
             current_flow=current_flow or LearnerFlowSummary(),
             curriculum_progression=curriculum_progression

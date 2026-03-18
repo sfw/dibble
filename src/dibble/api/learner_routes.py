@@ -257,11 +257,9 @@ def build_learner_router(context: ApiContext) -> APIRouter:
         services.ordinary_mastery_profile_recorder.record_from_observation_events(
             observation_events=[observation_audit_event]
         )
-        state_prediction_outcomes = (
-            services.learner_state_prediction_outcome_tracker.evaluate_recent_predictions(
-                student_id=str(student_id),
-                current_kc_mastery=updated_profile.knowledge_state.kc_mastery,
-            )
+        state_prediction_outcomes = services.learner_state_prediction_outcome_tracker.evaluate_recent_predictions(
+            student_id=str(student_id),
+            current_kc_mastery=updated_profile.knowledge_state.kc_mastery,
         )
         if state_prediction_outcomes:
             services.learner_state_prediction_outcome_tracker.record_outcomes(
@@ -365,11 +363,9 @@ def build_learner_router(context: ApiContext) -> APIRouter:
         if progression.next_resource is not None:
             all_resources.append(progression.next_resource)
         if all_resources:
-            transitions = (
-                services.resource_state_transition_tracker.detect_transitions(
-                    student_id=str(student_id),
-                    current_resources=all_resources,
-                )
+            transitions = services.resource_state_transition_tracker.detect_transitions(
+                student_id=str(student_id),
+                current_resources=all_resources,
             )
             if transitions:
                 services.resource_state_transition_tracker.record_transitions(
@@ -377,9 +373,7 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 )
 
             # Evaluate quality gate outcomes using current resource mastery.
-            resource_mastery = {
-                r.resource_id: r.mastery_ratio for r in all_resources
-            }
+            resource_mastery = {r.resource_id: r.mastery_ratio for r in all_resources}
             gate_outcomes = (
                 services.mastery_quality_gate_outcome_tracker.evaluate_gate_outcomes(
                     student_id=str(student_id),

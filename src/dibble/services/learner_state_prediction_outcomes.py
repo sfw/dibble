@@ -24,7 +24,9 @@ class StatePredictionOutcome:
 
     event_id: str
     student_id: str
-    predicted_signal: str  # productive_struggle | overload | disengagement | support_dependence
+    predicted_signal: (
+        str  # productive_struggle | overload | disengagement | support_dependence
+    )
     predicted_confidence: float
     outcome: str  # positive | negative | inconclusive
     subsequent_observation_count: int
@@ -63,8 +65,7 @@ class LearnerStatePredictionOutcomeTracker:
                 [
                     e
                     for e in self.audit_store.list(limit=_MAX_LOOKBACK_EVENTS)
-                    if e.student_id is not None
-                    and str(e.student_id) == str(student_id)
+                    if e.student_id is not None and str(e.student_id) == str(student_id)
                 ]
             )
         )
@@ -92,7 +93,9 @@ class LearnerStatePredictionOutcomeTracker:
             pred_event = events[pred_idx]
             if pred_event.event_id in already_evaluated:
                 continue
-            predicted_signal = str(pred_event.payload.get("current_evidence_signal", ""))
+            predicted_signal = str(
+                pred_event.payload.get("current_evidence_signal", "")
+            )
             if predicted_signal not in {
                 "productive_struggle",
                 "overload",
@@ -107,18 +110,13 @@ class LearnerStatePredictionOutcomeTracker:
 
             # Find subsequent observations (later in chronological order)
             subsequent = [
-                events[obs_idx]
-                for obs_idx in observation_indices
-                if obs_idx > pred_idx
+                events[obs_idx] for obs_idx in observation_indices if obs_idx > pred_idx
             ]
             if len(subsequent) < _MIN_SUBSEQUENT_OBSERVATIONS:
                 continue
 
             pred_baseline_mastery = float(
-                pred_event.payload.get(
-                    "observation_average_recent_mastery", 0.0
-                )
-                or 0.0
+                pred_event.payload.get("observation_average_recent_mastery", 0.0) or 0.0
             )
             outcome = self._evaluate_prediction(
                 predicted_signal=predicted_signal,

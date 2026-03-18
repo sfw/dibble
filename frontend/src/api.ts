@@ -1,4 +1,15 @@
 import type {
+  BulkUserCreateRequest,
+  BulkUserCreateResponse,
+  CreateInitialAdminRequest,
+  CreateInitialAdminResponse,
+  SetupConfigureRequest,
+  SetupConfigureResponse,
+  SetupStatus,
+  UserCreateRequest,
+  UserCreateResponse,
+  UserSummary,
+  UserUpdateRequest,
   Assignment,
   AssignmentCreate,
   AssignmentPage,
@@ -416,4 +427,126 @@ export function getLearnerMasteryHistory(config: FrontendConfig, studentId: stri
 
 export function getClassroomMasteryTrends(config: FrontendConfig, classroomId: string, days = 30) {
   return requestJson<ClassroomMasteryTrendsResponse>(config, `/api/teachers/classrooms/${classroomId}/mastery-trends?days=${days}`)
+}
+
+// ---------------------------------------------------------------------------
+// Setup
+// ---------------------------------------------------------------------------
+
+export async function getSetupStatus(baseUrl: string): Promise<SetupStatus> {
+  const response = await fetch(`${baseUrl}/api/setup/status`)
+  if (!response.ok) {
+    throw new Error(`Setup status request failed: ${response.status}`)
+  }
+  return (await response.json()) as SetupStatus
+}
+
+export async function postSetupConfigure(
+  baseUrl: string,
+  payload: SetupConfigureRequest,
+): Promise<SetupConfigureResponse> {
+  const response = await fetch(`${baseUrl}/api/setup/configure`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) {
+    throw new Error(`Setup configure request failed: ${response.status}`)
+  }
+  return (await response.json()) as SetupConfigureResponse
+}
+
+export async function postSetupAdmin(
+  baseUrl: string,
+  payload: CreateInitialAdminRequest,
+): Promise<CreateInitialAdminResponse> {
+  const response = await fetch(`${baseUrl}/api/setup/admin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) {
+    throw new Error(`Setup admin request failed: ${response.status}`)
+  }
+  return (await response.json()) as CreateInitialAdminResponse
+}
+
+// ---------------------------------------------------------------------------
+// User management
+// ---------------------------------------------------------------------------
+
+export async function listUsers(config: FrontendConfig): Promise<UserSummary[]> {
+  const response = await fetch(`${config.baseUrl}/api/users`, {
+    headers: buildHeaders(config, false),
+  })
+  if (!response.ok) throw new Error(`List users failed: ${response.status}`)
+  return (await response.json()) as UserSummary[]
+}
+
+export async function createUser(
+  config: FrontendConfig,
+  payload: UserCreateRequest,
+): Promise<UserCreateResponse> {
+  const response = await fetch(`${config.baseUrl}/api/users`, {
+    method: 'POST',
+    headers: buildHeaders(config),
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) throw new Error(`Create user failed: ${response.status}`)
+  return (await response.json()) as UserCreateResponse
+}
+
+export async function getUser(config: FrontendConfig, userId: string): Promise<UserSummary> {
+  const response = await fetch(`${config.baseUrl}/api/users/${userId}`, {
+    headers: buildHeaders(config, false),
+  })
+  if (!response.ok) throw new Error(`Get user failed: ${response.status}`)
+  return (await response.json()) as UserSummary
+}
+
+export async function updateUser(
+  config: FrontendConfig,
+  userId: string,
+  payload: UserUpdateRequest,
+): Promise<UserSummary> {
+  const response = await fetch(`${config.baseUrl}/api/users/${userId}`, {
+    method: 'PUT',
+    headers: buildHeaders(config),
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) throw new Error(`Update user failed: ${response.status}`)
+  return (await response.json()) as UserSummary
+}
+
+export async function deleteUser(config: FrontendConfig, userId: string): Promise<void> {
+  const response = await fetch(`${config.baseUrl}/api/users/${userId}`, {
+    method: 'DELETE',
+    headers: buildHeaders(config, false),
+  })
+  if (!response.ok) throw new Error(`Delete user failed: ${response.status}`)
+}
+
+export async function rotateUserKey(
+  config: FrontendConfig,
+  userId: string,
+): Promise<UserCreateResponse> {
+  const response = await fetch(`${config.baseUrl}/api/users/${userId}/rotate-key`, {
+    method: 'POST',
+    headers: buildHeaders(config, false),
+  })
+  if (!response.ok) throw new Error(`Rotate key failed: ${response.status}`)
+  return (await response.json()) as UserCreateResponse
+}
+
+export async function bulkCreateUsers(
+  config: FrontendConfig,
+  payload: BulkUserCreateRequest,
+): Promise<BulkUserCreateResponse> {
+  const response = await fetch(`${config.baseUrl}/api/users/bulk`, {
+    method: 'POST',
+    headers: buildHeaders(config),
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) throw new Error(`Bulk create users failed: ${response.status}`)
+  return (await response.json()) as BulkUserCreateResponse
 }

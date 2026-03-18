@@ -182,6 +182,22 @@ CREATE TABLE IF NOT EXISTS predictive_warm_queue (
 """
 
 
+USER_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS users (
+    user_id TEXT PRIMARY KEY,
+    display_name TEXT,
+    role TEXT NOT NULL,
+    api_key_hash TEXT UNIQUE,
+    passphrase_hash TEXT UNIQUE,
+    learner_id TEXT,
+    teacher_id TEXT,
+    classroom_ids TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+"""
+
+
 def ensure_database(database_path: str) -> None:
     path = Path(database_path)
     if path.parent != Path("."):
@@ -204,6 +220,7 @@ def ensure_database(database_path: str) -> None:
         connection.execute(ASSIGNMENT_TABLE_SQL)
         connection.execute(MASTERY_SNAPSHOT_TABLE_SQL)
         connection.execute(PREDICTIVE_WARM_QUEUE_TABLE_SQL)
+        connection.execute(USER_TABLE_SQL)
         _ensure_sqlite_columns(
             connection,
             table_name="generated_content",

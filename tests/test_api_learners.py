@@ -60,7 +60,9 @@ def test_healthcheck(client):
     response = client.get("/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    data = response.json()
+    assert data["status"] == "ok"
+    assert "configured" in data
 
 
 def test_profile_round_trip_and_summary(client, student_id):

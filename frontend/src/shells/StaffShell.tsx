@@ -1,5 +1,56 @@
-import App from '../App'
+import { NavLink, Outlet } from 'react-router'
+import { LogOut, Settings, Users, Wrench } from 'lucide-react'
+import { useAuthContext } from '../contexts/AuthContext'
+
+const navItems = [
+  { to: '/staff', icon: Wrench, label: 'Workbench', end: true },
+  { to: '/staff/users', icon: Users, label: 'Users' },
+]
 
 export function StaffShell() {
-  return <App />
+  const auth = useAuthContext()
+
+  return (
+    <div className="flex min-h-screen flex-col bg-slate-50">
+      <header className="flex items-center gap-6 border-b bg-white px-6 py-3 shadow-sm">
+        <NavLink to="/staff" className="flex items-center gap-2 text-lg font-semibold tracking-tight text-amber-700">
+          <Settings className="h-5 w-5" />
+          Dibble
+        </NavLink>
+        <nav className="flex items-center gap-1">
+          {navItems.map(({ to, icon: Icon, label, end }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              className={({ isActive }) =>
+                `flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-amber-50 text-amber-700'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`
+              }
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="ml-auto flex items-center gap-3">
+          {auth.identity?.display_name && (
+            <span className="text-sm text-muted-foreground">{auth.identity.display_name}</span>
+          )}
+          <button
+            onClick={() => void auth.logout().then(() => window.location.assign('/login'))}
+            className="flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
+      </header>
+      <main className="flex-1 p-6">
+        <Outlet />
+      </main>
+    </div>
+  )
 }

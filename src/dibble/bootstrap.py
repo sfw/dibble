@@ -4,11 +4,13 @@ from dataclasses import dataclass
 
 from dibble.config import Settings
 from dibble.plugins.contracts import RouterPlugin
+from dibble.services.setup_config import SetupConfigService
 from dibble.plugins.loader import build_generation_plugins
 from dibble.services.assignment_store import SQLiteAssignmentStore
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.auth import AuthService
 from dibble.services.auth_sessions import SQLiteAuthSessionStore
+from dibble.services.user_store import SQLiteUserStore
 from dibble.services.calibrated_router import CalibratedRouter
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.cross_signal_consistency import CrossSignalConsistencyService
@@ -85,6 +87,7 @@ from dibble.services.protocols import (
     ObservationStore,
     ProfileStore,
     SocraticSessionStore,
+    UserStore,
 )
 from dibble.services.remediation_planner import RemediationPlanner
 from dibble.services.remediation_session_store import SQLiteRemediationSessionStore
@@ -166,6 +169,8 @@ class ApplicationServices:
     learner_state_prediction_signal_service: LearnerStatePredictionSignalService
     within_session_adaptation_service: WithinSessionAdaptationService
     router_plugin: RouterPlugin
+    user_store: UserStore
+    setup_config_service: SetupConfigService
 
 
 def build_application_services(settings: Settings) -> ApplicationServices:
@@ -186,9 +191,11 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         settings.database_path
     )
     provider_health_store = SQLiteProviderHealthStore(settings.database_path)
+    user_store = SQLiteUserStore(settings.database_path)
     auth_service = AuthService.from_settings(
         settings,
         session_store=SQLiteAuthSessionStore(settings.database_path),
+        user_store=user_store,
     )
     plugins = build_generation_plugins(settings, curriculum_store=curriculum_store)
     learner_strategy_signal_service = LearnerStrategySignalService(
@@ -475,4 +482,6 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         learner_state_prediction_signal_service=learner_state_prediction_signal_service,
         within_session_adaptation_service=within_session_adaptation_service,
         router_plugin=router_plugin,
+        user_store=user_store,
+        setup_config_service=SetupConfigService(settings, user_store=user_store),
     )
