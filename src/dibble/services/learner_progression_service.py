@@ -59,6 +59,7 @@ class LearnerProgressionService:
     knowledge_component_store: KnowledgeComponentStore
     learner_flow_service: LearnerFlowService
     ordinary_mastery_signal_service: object | None = None
+    quality_gate_signal_service: object | None = None
 
     def build_for_student(
         self, *, student_id: UUID
@@ -111,6 +112,12 @@ class LearnerProgressionService:
             student_id=student_id, components=components
         )
 
+        # ADAPT-006: Compute the effective quality gate confidence once,
+        # adjusting for outcome feedback if the signal service is available.
+        effective_quality_gate_confidence = self._effective_quality_gate_confidence(
+            student_id=student_id
+        )
+
         entries = [
             self._resource_entry(
                 resource=resource,
@@ -125,6 +132,7 @@ class LearnerProgressionService:
                 kc_to_resource_ids=kc_to_resource_ids,
                 kc_trends=kc_trends,
                 kc_mastery_signals=kc_mastery_signals,
+                quality_gate_confidence=effective_quality_gate_confidence,
             )
             for resource in resources
         ]
@@ -215,6 +223,7 @@ class LearnerProgressionService:
         kc_to_resource_ids: dict[str, list[str]],
         kc_trends: dict[str, str] | None = None,
         kc_mastery_signals: dict[str, OrdinaryMasterySummary] | None = None,
+        quality_gate_confidence: float = MASTERY_QUALITY_GATE_CONFIDENCE,
     ) -> ResourcePlanningEntry:
         required_kc_ids = list(resource.knowledge_component_ids)
 
@@ -251,10 +260,12 @@ class LearnerProgressionService:
         )
         # ADAPT-006: Check mastery quality — even when raw scores pass, a
         # resource is not truly mastered if the learner's ordinary mastery
-        # profile shows support_dependent or fragile signals.
+        # profile shows support_dependent or fragile signals.  The confidence
+        # threshold is adjusted by quality gate outcome feedback.
         mastery_quality = self._mastery_quality(
             kc_ids=required_kc_ids,
             kc_mastery_signals=kc_mastery_signals or {},
+            confidence_threshold=quality_gate_confidence,
         )
 
         if current_flow_aligned:
@@ -601,6 +612,27 @@ class LearnerProgressionService:
 
     # --- ORCH-001 + ADAPT-006: Mastery profile helpers ---
 
+    def _effective_quality_gate_confidence(self, *, student_id: UUID) -> float:
+        """Return the quality gate confidence threshold, adjusted by outcome
+        feedback when available.
+
+        ADAPT-006: The quality gate signal service aggregates recent gate
+        outcomes and produces a bounded confidence adjustment.  A positive
+        adjustment means the gate has been too aggressive (raise threshold to
+        gate less), a negative adjustment means the gate has been helping
+        (lower threshold to gate more readily).
+        """
+        base = MASTERY_QUALITY_GATE_CONFIDENCE
+        if self.quality_gate_signal_service is None:
+            return base
+        try:
+            signal = self.quality_gate_signal_service.signal_for_student(
+                student_id=student_id
+            )
+            return max(0.15, min(0.7, base + signal.confidence_threshold_adjustment))
+        except Exception:
+            return base
+
     def _kc_mastery_profiles(
         self,
         *,
@@ -634,12 +666,15 @@ class LearnerProgressionService:
         *,
         kc_ids: list[str],
         kc_mastery_signals: dict[str, OrdinaryMasterySummary],
+        confidence_threshold: float = MASTERY_QUALITY_GATE_CONFIDENCE,
     ) -> str | None:
         """Return the worst mastery quality signal across a resource's KCs,
         or None if all KCs are healthy or have insufficient data.
 
         ADAPT-006: A resource is not truly mastered if any required KC shows
-        support_dependent or fragile evidence with sufficient confidence."""
+        support_dependent or fragile evidence with sufficient confidence.
+        The confidence threshold is adjusted by quality gate outcome feedback
+        when available."""
         worst: str | None = None
         for kc_id in kc_ids:
             summary = kc_mastery_signals.get(kc_id)
@@ -647,7 +682,7 @@ class LearnerProgressionService:
                 continue
             if (
                 summary.signal in MASTERY_QUALITY_GATE_SIGNALS
-                and summary.confidence >= MASTERY_QUALITY_GATE_CONFIDENCE
+                and summary.confidence >= confidence_threshold
             ):
                 if summary.signal == "support_dependent":
                     return "support_dependent"

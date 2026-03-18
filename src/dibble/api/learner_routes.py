@@ -343,6 +343,44 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 detail="Learner profile not found.",
                 code="learner_profile_not_found",
             )
+
+        # ADAPT-006 + ORCH-001: Record resource state transitions and evaluate
+        # quality gate outcomes as a side-effect of progression reads.
+        all_resources = [
+            *(progression.ready_resources or []),
+            *(progression.blocked_resources or []),
+        ]
+        if progression.current_resource is not None:
+            all_resources.append(progression.current_resource)
+        if progression.next_resource is not None:
+            all_resources.append(progression.next_resource)
+        if all_resources:
+            transitions = (
+                services.resource_state_transition_tracker.detect_transitions(
+                    student_id=str(student_id),
+                    current_resources=all_resources,
+                )
+            )
+            if transitions:
+                services.resource_state_transition_tracker.record_transitions(
+                    transitions
+                )
+
+            # Evaluate quality gate outcomes using current resource mastery.
+            resource_mastery = {
+                r.resource_id: r.mastery_ratio for r in all_resources
+            }
+            gate_outcomes = (
+                services.mastery_quality_gate_outcome_tracker.evaluate_gate_outcomes(
+                    student_id=str(student_id),
+                    current_resource_mastery=resource_mastery,
+                )
+            )
+            if gate_outcomes:
+                services.mastery_quality_gate_outcome_tracker.record_outcomes(
+                    gate_outcomes
+                )
+
         return progression
 
     @router.get(
