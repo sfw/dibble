@@ -73,8 +73,16 @@ class SocraticProfileUpdater:
                 lo_mastery_updates={},
             )
 
-        target_kc_ids = session.target_kc_ids if session is not None and session.target_kc_ids else request.target_kc_ids
-        target_lo_ids = session.target_lo_ids if session is not None and session.target_lo_ids else request.target_lo_ids
+        target_kc_ids = (
+            session.target_kc_ids
+            if session is not None and session.target_kc_ids
+            else request.target_kc_ids
+        )
+        target_lo_ids = (
+            session.target_lo_ids
+            if session is not None and session.target_lo_ids
+            else request.target_lo_ids
+        )
         if not target_kc_ids and not target_lo_ids:
             return SocraticProfileUpdateResult(
                 profile=profile,
@@ -83,7 +91,9 @@ class SocraticProfileUpdater:
                 lo_mastery_updates={},
             )
 
-        evidence_weight = self._evidence_weight(response.evaluation.evidence_strength, response.evaluation.evidence_score)
+        evidence_weight = self._evidence_weight(
+            response.evaluation.evidence_strength, response.evaluation.evidence_score
+        )
         new_kc_mastery = dict(profile.knowledge_state.kc_mastery)
         new_lo_mastery = dict(profile.knowledge_state.lo_mastery)
 
@@ -114,7 +124,9 @@ class SocraticProfileUpdater:
         )
 
         metacognitive_weight = min(0.65, evidence_weight + 0.1)
-        confidence_alignment = response.evaluation.evidence_dimensions.confidence_alignment
+        confidence_alignment = (
+            response.evaluation.evidence_dimensions.confidence_alignment
+        )
         self_monitoring_signal = _clamp(
             (response.evaluation.evidence_dimensions.reasoning_signal * 0.6)
             + (response.evaluation.evidence_dimensions.progression_signal * 0.4)
@@ -167,10 +179,14 @@ class SocraticProfileUpdater:
             kc_mastery_updates=kc_updates,
             lo_mastery_updates=lo_updates,
             propagated_kc_mastery_updates=(
-                migration_result.kc_mastery_updates if migration_result is not None else {}
+                migration_result.kc_mastery_updates
+                if migration_result is not None
+                else {}
             ),
             propagated_lo_mastery_updates=(
-                migration_result.lo_mastery_updates if migration_result is not None else {}
+                migration_result.lo_mastery_updates
+                if migration_result is not None
+                else {}
             ),
             confidence_calibration=updated_profile.metacognitive_state.confidence_calibration,
             self_monitoring=updated_profile.metacognitive_state.self_monitoring,
@@ -205,7 +221,9 @@ class SocraticProfileUpdater:
             updates[target_id] = rounded
         return updates
 
-    def _evidence_weight(self, strength: SocraticEvidenceStrength, evidence_score: float) -> float:
+    def _evidence_weight(
+        self, strength: SocraticEvidenceStrength, evidence_score: float
+    ) -> float:
         base_weight = {
             SocraticEvidenceStrength.insufficient: 0.2,
             SocraticEvidenceStrength.emerging: 0.38,
@@ -214,8 +232,15 @@ class SocraticProfileUpdater:
         return min(0.72, base_weight + (evidence_score * 0.12))
 
     def _target_help_score(self, response: SocraticAssessmentResponse) -> float:
-        if response.evaluation.evidence_strength == SocraticEvidenceStrength.demonstrated:
-            return 0.1 if response.evaluation.evidence_dimensions.confidence_alignment >= 0.7 else 0.25
+        if (
+            response.evaluation.evidence_strength
+            == SocraticEvidenceStrength.demonstrated
+        ):
+            return (
+                0.1
+                if response.evaluation.evidence_dimensions.confidence_alignment >= 0.7
+                else 0.25
+            )
         if response.evaluation.evidence_strength == SocraticEvidenceStrength.emerging:
             return 0.45
         if response.evaluation.evidence_dimensions.misconception_risk >= 0.45:

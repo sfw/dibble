@@ -7,7 +7,9 @@ from dibble.services.learning_run_summary_recorder import LearningRunSummaryReco
 from dibble.storage import ensure_database
 
 
-def test_learning_run_summary_recorder_records_summary_for_observation_trigger(tmp_path):
+def test_learning_run_summary_recorder_records_summary_for_observation_trigger(
+    tmp_path,
+):
     database_path = str(tmp_path / "learning-run-summary-recorder.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)

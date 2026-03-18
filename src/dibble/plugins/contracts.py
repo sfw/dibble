@@ -14,7 +14,9 @@ from dibble.models.profile import LearnerProfile
 
 
 class RouterPlugin(Protocol):
-    def route(self, profile: LearnerProfile, request: GenerationRequest) -> AdaptiveRouteDecision: ...
+    def route(
+        self, profile: LearnerProfile, request: GenerationRequest
+    ) -> AdaptiveRouteDecision: ...
 
 
 class RetrieverPlugin(Protocol):

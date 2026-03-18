@@ -1,7 +1,10 @@
 from uuid import uuid4
 
 from dibble.services.audit_store import SQLiteAuditStore
-from dibble.services.learning_trait_profiles import LearningTraitProfileRecorder, LearnerTraitProfileSignalService
+from dibble.services.learning_trait_profiles import (
+    LearningTraitProfileRecorder,
+    LearnerTraitProfileSignalService,
+)
 from dibble.storage import ensure_database
 
 
@@ -12,7 +15,9 @@ def test_learning_trait_profile_recorder_compacts_recent_observations(tmp_path):
     student_id = str(uuid4())
     recorder = LearningTraitProfileRecorder(audit_store=audit_store)
     observation_events = []
-    for index, session_id in enumerate(["session-1", "session-1", "session-2", "session-2"], start=1):
+    for index, session_id in enumerate(
+        ["session-1", "session-1", "session-2", "session-2"], start=1
+    ):
         observation_events.append(
             audit_store.append(
                 event_type="learner.observe",
@@ -45,7 +50,9 @@ def test_learning_trait_profile_recorder_compacts_recent_observations(tmp_path):
         },
     )
 
-    recorded = recorder.record_from_observation_events(observation_events=[observation_events[-1]])
+    recorded = recorder.record_from_observation_events(
+        observation_events=[observation_events[-1]]
+    )
 
     assert len(recorded) == 1
     event = recorded[0]
@@ -84,7 +91,9 @@ def test_learner_trait_profile_signal_service_returns_latest_profile(tmp_path):
         },
     )
 
-    summary = LearnerTraitProfileSignalService(audit_store=audit_store).latest_for_student(student_id=student_id)
+    summary = LearnerTraitProfileSignalService(
+        audit_store=audit_store
+    ).latest_for_student(student_id=student_id)
 
     assert summary.source == "trait_profile"
     assert summary.signal == "stable"

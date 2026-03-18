@@ -81,8 +81,12 @@ class OpenAICompatibleEmbedder:
             raise EmbeddingError("Embedding response did not include any vectors.")
 
         embedding = data[0].get("embedding")
-        if not isinstance(embedding, list) or not all(isinstance(value, (int, float)) for value in embedding):
-            raise EmbeddingError("Embedding response did not include a valid numeric vector.")
+        if not isinstance(embedding, list) or not all(
+            isinstance(value, (int, float)) for value in embedding
+        ):
+            raise EmbeddingError(
+                "Embedding response did not include a valid numeric vector."
+            )
 
         return [float(value) for value in embedding]
 
@@ -99,4 +103,6 @@ def build_embedder(settings: Settings) -> Embedder:
     if settings.embedding_allow_local_fallback:
         return LocalHashEmbedder(dimensions=settings.embedding_dimensions)
 
-    raise EmbeddingError("No embedding provider is configured and local fallback is disabled.")
+    raise EmbeddingError(
+        "No embedding provider is configured and local fallback is disabled."
+    )

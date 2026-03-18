@@ -26,7 +26,11 @@ class KcSequencePlanner:
     ) -> KcSequenceSummary:
         strategy = strategy_summary or LearnerStrategySummary()
         targets = _unique(target_kc_ids)
-        prerequisites = [kc_id for kc_id in _unique(prerequisite_kc_ids or []) if kc_id not in targets]
+        prerequisites = [
+            kc_id
+            for kc_id in _unique(prerequisite_kc_ids or [])
+            if kc_id not in targets
+        ]
         repair_targets = _unique(repair_target_kc_ids or []) or list(targets)
         bridge_kc_ids = self._bridge_kc_ids(
             target_kc_ids=targets,
@@ -34,7 +38,9 @@ class KcSequencePlanner:
             repair_target_kc_ids=repair_targets,
         )
 
-        if self._should_attempt_transfer(strategy=strategy, prerequisites=prerequisites):
+        if self._should_attempt_transfer(
+            strategy=strategy, prerequisites=prerequisites
+        ):
             return KcSequenceSummary(
                 action="attempt_transfer",
                 primary_kc_id=targets[0] if targets else None,
@@ -47,17 +53,27 @@ class KcSequencePlanner:
                 ),
             )
 
-        if self._should_rebuild_prerequisite(strategy=strategy, prerequisites=prerequisites):
+        if self._should_rebuild_prerequisite(
+            strategy=strategy, prerequisites=prerequisites
+        ):
             repair_phase_targets = [
-                kc_id for kc_id in repair_targets if kc_id not in prerequisites and kc_id not in bridge_kc_ids
+                kc_id
+                for kc_id in repair_targets
+                if kc_id not in prerequisites and kc_id not in bridge_kc_ids
             ]
-            ordered = _unique([*prerequisites, *repair_phase_targets, *bridge_kc_ids, *targets])
+            ordered = _unique(
+                [*prerequisites, *repair_phase_targets, *bridge_kc_ids, *targets]
+            )
             return KcSequenceSummary(
                 action="rebuild_prerequisite_first",
                 primary_kc_id=ordered[0] if ordered else None,
                 ordered_kc_ids=ordered,
                 bridge_kc_ids=bridge_kc_ids,
-                deferred_kc_ids=[kc_id for kc_id in targets if kc_id not in prerequisites and kc_id not in bridge_kc_ids],
+                deferred_kc_ids=[
+                    kc_id
+                    for kc_id in targets
+                    if kc_id not in prerequisites and kc_id not in bridge_kc_ids
+                ],
                 rationale=self._sequence_rationale(
                     strategy_rationale=strategy.rationale,
                     fallback="Recent strategy signals suggest rebuilding the prerequisite KC before returning to the target.",
@@ -65,10 +81,20 @@ class KcSequencePlanner:
                 ),
             )
 
-        lead_targets = [kc_id for kc_id in repair_targets if kc_id not in targets] or list(targets) or list(repair_targets)
-        bridge_kc_ids = bridge_kc_ids if lead_targets and lead_targets[0] not in targets else []
+        lead_targets = (
+            [kc_id for kc_id in repair_targets if kc_id not in targets]
+            or list(targets)
+            or list(repair_targets)
+        )
+        bridge_kc_ids = (
+            bridge_kc_ids if lead_targets and lead_targets[0] not in targets else []
+        )
         ordered = _unique([*lead_targets, *bridge_kc_ids, *targets])
-        action = "hold_repair_target" if lead_targets and lead_targets[0] not in targets else "hold_target"
+        action = (
+            "hold_repair_target"
+            if lead_targets and lead_targets[0] not in targets
+            else "hold_target"
+        )
         fallback_rationale = (
             "Recent strategy signals suggest staying on the current repair KC before moving back into transfer."
             if action == "hold_repair_target"
@@ -84,7 +110,11 @@ class KcSequencePlanner:
             primary_kc_id=ordered[0] if ordered else None,
             ordered_kc_ids=ordered,
             bridge_kc_ids=bridge_kc_ids,
-            deferred_kc_ids=[kc_id for kc_id in targets if kc_id not in lead_targets and kc_id not in bridge_kc_ids],
+            deferred_kc_ids=[
+                kc_id
+                for kc_id in targets
+                if kc_id not in lead_targets and kc_id not in bridge_kc_ids
+            ],
             rationale=rationale,
         )
 
@@ -97,7 +127,8 @@ class KcSequencePlanner:
         if prerequisites:
             return False
         return strategy.recommended_next_action == "check_transfer_readiness" or (
-            strategy.support_bias > 0 and strategy.trajectory_state in {"accelerating", "consolidating"}
+            strategy.support_bias > 0
+            and strategy.trajectory_state in {"accelerating", "consolidating"}
         )
 
     def _should_rebuild_prerequisite(

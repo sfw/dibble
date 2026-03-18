@@ -12,14 +12,19 @@ from dibble.models.profile import (
     SignalLevel,
 )
 from dibble.services.learning_state_profiles import LearnerStateSignalService
-from dibble.services.state_calibration import discriminate_current_evidence, summarize_observations
+from dibble.services.state_calibration import (
+    discriminate_current_evidence,
+    summarize_observations,
+)
 
 
 @dataclass(slots=True)
 class LearnerStateInferenceService:
     state_profile_signal_service: LearnerStateSignalService | None = None
 
-    def infer(self, *, student_id: UUID, observations: list[LearnerObservation]) -> InferredLearnerState:
+    def infer(
+        self, *, student_id: UUID, observations: list[LearnerObservation]
+    ) -> InferredLearnerState:
         if not observations:
             return InferredLearnerState(
                 student_id=student_id,
@@ -53,7 +58,9 @@ class LearnerStateInferenceService:
             calibrated.normalized_switch_pressure,
             calibrated.normalized_response_time,
         )
-        confidence_calibration = max(0.0, 1.0 - abs(calibrated.avg_confidence - calibrated.performance_estimate))
+        confidence_calibration = max(
+            0.0, 1.0 - abs(calibrated.avg_confidence - calibrated.performance_estimate)
+        )
         help_seeking_effectiveness = max(
             0.0,
             min(
@@ -93,15 +100,30 @@ class LearnerStateInferenceService:
             + (calibrated.normalized_switch_pressure * 0.08)
             + (calibrated.normalized_hint_pressure * 0.06),
         )
-        germane_load = min(1.0, 0.25 + (calibrated.completion_rate * 0.35) + (calibrated.avg_confidence * 0.15))
+        germane_load = min(
+            1.0,
+            0.25
+            + (calibrated.completion_rate * 0.35)
+            + (calibrated.avg_confidence * 0.15),
+        )
         total_load = min(
             1.0,
             (intrinsic_load * 0.45)
             + (extraneous_load * 0.35)
             + (germane_load * 0.20)
-            + (0.1 if frustration == SignalLevel.high else 0.05 if frustration == SignalLevel.medium else 0.0),
+            + (
+                0.1
+                if frustration == SignalLevel.high
+                else 0.05
+                if frustration == SignalLevel.medium
+                else 0.0
+            ),
         )
-        capacity_utilization = min(1.0, total_load + (0.1 if frustration in {SignalLevel.medium, SignalLevel.high} else 0.0))
+        capacity_utilization = min(
+            1.0,
+            total_load
+            + (0.1 if frustration in {SignalLevel.medium, SignalLevel.high} else 0.0),
+        )
 
         inferred = InferredLearnerState(
             student_id=student_id,
@@ -147,7 +169,9 @@ class LearnerStateInferenceService:
             )
         return inferred
 
-    def _frustration_level(self, avg_errors: float, avg_hints: float, avg_pauses: float) -> SignalLevel:
+    def _frustration_level(
+        self, avg_errors: float, avg_hints: float, avg_pauses: float
+    ) -> SignalLevel:
         score = (avg_errors * 0.5) + (avg_hints * 0.3) + (avg_pauses * 0.2)
         if score >= 1.35:
             return SignalLevel.high
@@ -157,8 +181,14 @@ class LearnerStateInferenceService:
             return SignalLevel.low
         return SignalLevel.none
 
-    def _confusion_level(self, avg_errors: float, avg_hints: float, avg_response_time: float) -> SignalLevel:
-        score = (avg_errors * 0.45) + (avg_hints * 0.35) + min(avg_response_time * 0.25, 0.4)
+    def _confusion_level(
+        self, avg_errors: float, avg_hints: float, avg_response_time: float
+    ) -> SignalLevel:
+        score = (
+            (avg_errors * 0.45)
+            + (avg_hints * 0.35)
+            + min(avg_response_time * 0.25, 0.4)
+        )
         if score >= 1.3:
             return SignalLevel.high
         if score >= 0.7:
@@ -174,7 +204,12 @@ class LearnerStateInferenceService:
         avg_switches: float,
         avg_response_time: float,
     ) -> SignalLevel:
-        score = (completion_rate * 0.6) - (avg_pauses * 0.16) - (avg_switches * 0.1) - min(avg_response_time * 0.15, 0.2)
+        score = (
+            (completion_rate * 0.6)
+            - (avg_pauses * 0.16)
+            - (avg_switches * 0.1)
+            - min(avg_response_time * 0.15, 0.2)
+        )
         if score >= 0.55:
             return SignalLevel.high
         if score >= 0.2:
@@ -183,8 +218,12 @@ class LearnerStateInferenceService:
             return SignalLevel.low
         return SignalLevel.none
 
-    def _help_seeking_level(self, avg_hints: float, avg_errors: float, avg_confidence: float) -> SignalLevel:
-        score = (avg_hints * 0.45) + (avg_errors * 0.15) + ((1.0 - avg_confidence) * 0.4)
+    def _help_seeking_level(
+        self, avg_hints: float, avg_errors: float, avg_confidence: float
+    ) -> SignalLevel:
+        score = (
+            (avg_hints * 0.45) + (avg_errors * 0.15) + ((1.0 - avg_confidence) * 0.4)
+        )
         if score >= 1.25:
             return SignalLevel.high
         if score >= 0.7:
@@ -204,26 +243,42 @@ class LearnerStateInferenceService:
     ) -> bool:
         if durable_profile.source == "insufficient":
             return False
-        if durable_profile.confidence < 0.6 or durable_profile.matched_session_count < 2:
+        if (
+            durable_profile.confidence < 0.6
+            or durable_profile.matched_session_count < 2
+        ):
             return False
         if observation_count < 2 and durable_profile.confidence < 0.72:
             return False
         performance_gap = (
-            abs((durable_profile.average_run_outcome_score or performance_estimate) - performance_estimate)
+            abs(
+                (durable_profile.average_run_outcome_score or performance_estimate)
+                - performance_estimate
+            )
             if durable_profile.average_run_outcome_score is not None
             else 0.0
         )
-        contradictions = _state_profile_contradictions(inferred=inferred, durable_profile=durable_profile)
+        contradictions = _state_profile_contradictions(
+            inferred=inferred, durable_profile=durable_profile
+        )
         if performance_gap > 0.38 and durable_profile.confidence < 0.82:
             return False
-        if max(
-            durable_profile.affective_reliability,
-            durable_profile.load_reliability,
-            durable_profile.metacognitive_reliability,
-        ) < 0.44:
+        if (
+            max(
+                durable_profile.affective_reliability,
+                durable_profile.load_reliability,
+                durable_profile.metacognitive_reliability,
+            )
+            < 0.44
+        ):
             return False
-        contradiction_limit = 0.42 if durable_profile.signal == "independence_ready" else 0.68
-        if contradictions.overall >= contradiction_limit and evidence.current_reliability >= 0.7:
+        contradiction_limit = (
+            0.42 if durable_profile.signal == "independence_ready" else 0.68
+        )
+        if (
+            contradictions.overall >= contradiction_limit
+            and evidence.current_reliability >= 0.7
+        ):
             return False
         if contradictions.overall >= 0.58 and durable_profile.confidence < 0.86:
             return False
@@ -242,9 +297,18 @@ class LearnerStateInferenceService:
         durable_profile: LearnerStateProfileSummary,
         evidence: "_StateEvidence",
     ) -> InferredLearnerState:
-        contradictions = _state_profile_contradictions(inferred=inferred, durable_profile=durable_profile)
-        weight = 0.12 + (durable_profile.confidence * 0.16) + (durable_profile.recovery_stability * 0.1)
-        if durable_profile.overload_risk >= 0.7 and inferred.cognitive_load.total_load >= 0.55:
+        contradictions = _state_profile_contradictions(
+            inferred=inferred, durable_profile=durable_profile
+        )
+        weight = (
+            0.12
+            + (durable_profile.confidence * 0.16)
+            + (durable_profile.recovery_stability * 0.1)
+        )
+        if (
+            durable_profile.overload_risk >= 0.7
+            and inferred.cognitive_load.total_load >= 0.55
+        ):
             weight += 0.06
         if (
             evidence.current_reliability >= 0.58
@@ -309,13 +373,20 @@ class LearnerStateInferenceService:
                 "cognitive_load": inferred.cognitive_load.model_copy(
                     update={
                         "total_load": round(
-                            _blend(inferred.cognitive_load.total_load, durable_profile.total_load, load_weight),
+                            _blend(
+                                inferred.cognitive_load.total_load,
+                                durable_profile.total_load,
+                                load_weight,
+                            ),
                             2,
                         ),
                         "capacity_utilization": round(
                             _blend(
                                 inferred.cognitive_load.capacity_utilization,
-                                max(durable_profile.total_load, durable_profile.overload_risk),
+                                max(
+                                    durable_profile.total_load,
+                                    durable_profile.overload_risk,
+                                ),
                                 min(0.5, load_weight + 0.06),
                             ),
                             2,
@@ -336,11 +407,15 @@ class LearnerStateInferenceService:
                             inferred.metacognitive_state.help_seeking,
                             durable_profile.help_seeking,
                             min(
-                                0.58 if durable_profile.signal == "support_needed" and durable_profile.overload_risk >= 0.7 else 0.45,
+                                0.58
+                                if durable_profile.signal == "support_needed"
+                                and durable_profile.overload_risk >= 0.7
+                                else 0.45,
                                 metacognitive_weight
                                 + (
                                     0.12
-                                    if durable_profile.signal == "support_needed" and durable_profile.overload_risk >= 0.7
+                                    if durable_profile.signal == "support_needed"
+                                    and durable_profile.overload_risk >= 0.7
                                     else 0.04
                                 ),
                             ),
@@ -363,7 +438,9 @@ def _blend(current: float, durable: float, weight: float) -> float:
     return (current * (1.0 - weight)) + (durable * weight)
 
 
-def _blend_signal(current: SignalLevel, durable: SignalLevel, weight: float) -> SignalLevel:
+def _blend_signal(
+    current: SignalLevel, durable: SignalLevel, weight: float
+) -> SignalLevel:
     numeric = _blend(_signal_value(current), _signal_value(durable), weight)
     if numeric >= 0.8:
         return SignalLevel.high
@@ -391,12 +468,15 @@ class _StateContradictions:
 
 def _state_evidence(observations: list[LearnerObservation]) -> _StateEvidence:
     if not observations:
-        return _StateEvidence(current_reliability=0.0, task_diversity=0.0, support_intensity=0.0)
+        return _StateEvidence(
+            current_reliability=0.0, task_diversity=0.0, support_intensity=0.0
+        )
     task_types = {observation.task_type.value for observation in observations}
     support_map = {"low": 0.0, "medium": 0.5, "high": 1.0}
-    support_intensity = sum(support_map.get(observation.support_level.value, 0.5) for observation in observations) / len(
-        observations
-    )
+    support_intensity = sum(
+        support_map.get(observation.support_level.value, 0.5)
+        for observation in observations
+    ) / len(observations)
     current_reliability = min(
         1.0,
         0.18 + (len(observations) * 0.12) + (min(len(task_types), 3) * 0.08),
@@ -414,21 +494,36 @@ def _state_profile_contradictions(
     durable_profile: LearnerStateProfileSummary,
 ) -> _StateContradictions:
     overload_gap = abs(inferred.cognitive_load.total_load - durable_profile.total_load)
-    utilization_gap = abs(inferred.cognitive_load.capacity_utilization - max(durable_profile.total_load, durable_profile.overload_risk))
-    confidence_gap = abs(
-        inferred.metacognitive_state.confidence_calibration - durable_profile.confidence_calibration
+    utilization_gap = abs(
+        inferred.cognitive_load.capacity_utilization
+        - max(durable_profile.total_load, durable_profile.overload_risk)
     )
-    monitoring_gap = abs(inferred.metacognitive_state.self_monitoring - durable_profile.self_monitoring)
+    confidence_gap = abs(
+        inferred.metacognitive_state.confidence_calibration
+        - durable_profile.confidence_calibration
+    )
+    monitoring_gap = abs(
+        inferred.metacognitive_state.self_monitoring - durable_profile.self_monitoring
+    )
     engagement_gap = abs(
-        _signal_value(inferred.affective_state.engagement) - _signal_value(durable_profile.engagement)
+        _signal_value(inferred.affective_state.engagement)
+        - _signal_value(durable_profile.engagement)
     )
     frustration_gap = abs(
-        _signal_value(inferred.affective_state.frustration) - _signal_value(durable_profile.frustration)
+        _signal_value(inferred.affective_state.frustration)
+        - _signal_value(durable_profile.frustration)
     )
     help_gap = abs(
-        _signal_value(inferred.metacognitive_state.help_seeking) - _signal_value(durable_profile.help_seeking)
+        _signal_value(inferred.metacognitive_state.help_seeking)
+        - _signal_value(durable_profile.help_seeking)
     )
-    affective = round(min(1.0, (engagement_gap * 0.45) + (frustration_gap * 0.45) + (confidence_gap * 0.1)), 2)
+    affective = round(
+        min(
+            1.0,
+            (engagement_gap * 0.45) + (frustration_gap * 0.45) + (confidence_gap * 0.1),
+        ),
+        2,
+    )
     load = round(min(1.0, (overload_gap * 0.7) + (utilization_gap * 0.3)), 2)
     metacognitive = round(
         min(
@@ -441,7 +536,9 @@ def _state_profile_contradictions(
         affective=affective,
         load=load,
         metacognitive=metacognitive,
-        overall=round(min(1.0, (affective * 0.28) + (load * 0.4) + (metacognitive * 0.32)), 2),
+        overall=round(
+            min(1.0, (affective * 0.28) + (load * 0.4) + (metacognitive * 0.32)), 2
+        ),
     )
 
 

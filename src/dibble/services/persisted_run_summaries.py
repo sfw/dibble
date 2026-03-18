@@ -23,7 +23,8 @@ class PersistedRunSummaryResolver:
         matched_events = [
             event
             for event in summary_events
-            if event.event_type == "learning.run.summary" and self._matches_generation(event, generation_event)
+            if event.event_type == "learning.run.summary"
+            and self._matches_generation(event, generation_event)
         ]
         if not matched_events:
             return None
@@ -41,19 +42,33 @@ class PersistedRunSummaryResolver:
             event_id=selected_event.event_id,
             summary=GenerationRunSummary(
                 run_outcome_score=float(selected_event.payload["run_summary_score"]),
-                calibration_signal=str(selected_event.payload.get("run_calibration_signal", "insufficient")),
-                calibration_confidence=float(selected_event.payload.get("run_calibration_confidence", 0.0)),
-                direct_source_count=int(selected_event.payload.get("run_direct_source_count", 0)),
+                calibration_signal=str(
+                    selected_event.payload.get("run_calibration_signal", "insufficient")
+                ),
+                calibration_confidence=float(
+                    selected_event.payload.get("run_calibration_confidence", 0.0)
+                ),
+                direct_source_count=int(
+                    selected_event.payload.get("run_direct_source_count", 0)
+                ),
                 event_count=int(selected_event.payload.get("run_event_count", 0)),
             ),
         )
 
-    def _matches_generation(self, summary_event: AuditEvent, generation_event: AuditEvent) -> bool:
+    def _matches_generation(
+        self, summary_event: AuditEvent, generation_event: AuditEvent
+    ) -> bool:
         if summary_event.student_id != generation_event.student_id:
             return False
-        if summary_event.payload.get("source_generation_event_id") == generation_event.event_id:
+        if (
+            summary_event.payload.get("source_generation_event_id")
+            == generation_event.event_id
+        ):
             return True
         generation_id = generation_event.payload.get("generation_id")
-        if generation_id and summary_event.payload.get("generation_id") == generation_id:
+        if (
+            generation_id
+            and summary_event.payload.get("generation_id") == generation_id
+        ):
             return True
         return False

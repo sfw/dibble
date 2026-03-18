@@ -23,7 +23,9 @@ class LearnerGenerationHistoryEntry(BaseModel):
     intervention_type: str | None = None
     rationale: str | None = None
     next_step: LearnerFlowNextStep = Field(default_factory=LearnerFlowNextStep)
-    continue_action: LearnerContinueAction = Field(default_factory=LearnerContinueAction)
+    continue_action: LearnerContinueAction = Field(
+        default_factory=LearnerContinueAction
+    )
     created_at: datetime
 
 
@@ -40,7 +42,9 @@ class LearnerSocraticSessionHistoryEntry(BaseModel):
     latest_evidence_strength: str = "insufficient"
     rationale: str | None = None
     next_step: LearnerFlowNextStep = Field(default_factory=LearnerFlowNextStep)
-    continue_action: LearnerContinueAction = Field(default_factory=LearnerContinueAction)
+    continue_action: LearnerContinueAction = Field(
+        default_factory=LearnerContinueAction
+    )
     created_at: datetime
     updated_at: datetime
 
@@ -58,7 +62,9 @@ class LearnerRemediationSessionHistoryEntry(BaseModel):
     progression_decision: str = "advance"
     progression_rationale: str | None = None
     next_step: LearnerFlowNextStep = Field(default_factory=LearnerFlowNextStep)
-    continue_action: LearnerContinueAction = Field(default_factory=LearnerContinueAction)
+    continue_action: LearnerContinueAction = Field(
+        default_factory=LearnerContinueAction
+    )
     created_at: datetime
     updated_at: datetime
 

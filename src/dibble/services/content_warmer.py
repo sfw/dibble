@@ -40,7 +40,9 @@ class ContentWarmer:
                 knowledge_component_store=self.knowledge_component_store,
             )
             calibrated_request = (
-                self.generation_mode_calibrator.calibrate_request(request=enriched_request)
+                self.generation_mode_calibrator.calibrate_request(
+                    request=enriched_request
+                )
                 if self.generation_mode_calibrator is not None
                 else enriched_request
             )

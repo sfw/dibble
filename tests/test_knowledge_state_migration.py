@@ -56,7 +56,9 @@ def test_knowledge_state_migrator_lifts_prerequisites_and_recomputes_lo_mastery(
     )
 
     assert result.kc_mastery_updates["KC-1"] > 0.45
-    assert result.lo_mastery_updates["LO-1"] >= round((kc_mastery["KC-1"] + kc_mastery["KC-2"]) / 2, 2)
+    assert result.lo_mastery_updates["LO-1"] >= round(
+        (kc_mastery["KC-1"] + kc_mastery["KC-2"]) / 2, 2
+    )
 
 
 def test_knowledge_state_migrator_dampens_dependents_after_weak_evidence():
@@ -87,7 +89,12 @@ def test_knowledge_state_migrator_backfills_missing_kcs_from_lo_mastery():
     store = StubKnowledgeComponentStore(
         [
             _build_component("KC-1", parent_lo_id="LO-1", difficulty=0.32),
-            _build_component("KC-2", parent_lo_id="LO-1", prerequisite_kc_ids=["KC-1"], difficulty=0.58),
+            _build_component(
+                "KC-2",
+                parent_lo_id="LO-1",
+                prerequisite_kc_ids=["KC-1"],
+                difficulty=0.58,
+            ),
         ]
     )
     migrator = KnowledgeStateMigrator(knowledge_component_store=store)
@@ -111,8 +118,18 @@ def test_knowledge_state_migrator_decays_prerequisite_lift_by_graph_distance():
     store = StubKnowledgeComponentStore(
         [
             _build_component("KC-1", parent_lo_id="LO-1", difficulty=0.28),
-            _build_component("KC-2", parent_lo_id="LO-1", prerequisite_kc_ids=["KC-1"], difficulty=0.42),
-            _build_component("KC-3", parent_lo_id="LO-2", prerequisite_kc_ids=["KC-2"], difficulty=0.57),
+            _build_component(
+                "KC-2",
+                parent_lo_id="LO-1",
+                prerequisite_kc_ids=["KC-1"],
+                difficulty=0.42,
+            ),
+            _build_component(
+                "KC-3",
+                parent_lo_id="LO-2",
+                prerequisite_kc_ids=["KC-2"],
+                difficulty=0.57,
+            ),
         ]
     )
     migrator = KnowledgeStateMigrator(knowledge_component_store=store)
@@ -129,7 +146,10 @@ def test_knowledge_state_migrator_decays_prerequisite_lift_by_graph_distance():
 
     assert result.kc_mastery_updates["KC-2"] > 0.48
     assert result.kc_mastery_updates["KC-1"] > 0.42
-    assert result.kc_mastery_updates["KC-2"] - 0.48 > result.kc_mastery_updates["KC-1"] - 0.42
+    assert (
+        result.kc_mastery_updates["KC-2"] - 0.48
+        > result.kc_mastery_updates["KC-1"] - 0.42
+    )
 
 
 def _build_component(

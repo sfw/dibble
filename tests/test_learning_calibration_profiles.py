@@ -4,12 +4,16 @@ from uuid import uuid4
 
 from dibble.models.generation import GenerationRequest
 from dibble.services.audit_store import SQLiteAuditStore
-from dibble.services.learning_calibration_profiles import LearningCalibrationProfileRecorder
+from dibble.services.learning_calibration_profiles import (
+    LearningCalibrationProfileRecorder,
+)
 from dibble.services.router_calibration_signals import RouterCalibrationSignalService
 from dibble.storage import ensure_database
 
 
-def test_learning_calibration_profile_recorder_compacts_matching_run_summaries(tmp_path):
+def test_learning_calibration_profile_recorder_compacts_matching_run_summaries(
+    tmp_path,
+):
     database_path = str(tmp_path / "learning-calibration-profile-recorder.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -53,14 +57,18 @@ def test_learning_calibration_profile_recorder_compacts_matching_run_summaries(t
     assert len(recorded) == 1
     profile_event = recorded[0]
     assert profile_event.event_type == "learning.calibration.profile"
-    assert profile_event.payload["source_run_summary_event_id"] == anchor_summary.event_id
+    assert (
+        profile_event.payload["source_run_summary_event_id"] == anchor_summary.event_id
+    )
     assert profile_event.payload["matched_run_count"] == 2
     assert profile_event.payload["matched_session_count"] == 2
     assert profile_event.payload["profile_signal"] == "positive"
     assert profile_event.payload["average_run_outcome_score"] >= 0.84
 
 
-def test_router_calibration_signal_service_prefers_cross_session_profile_events(tmp_path):
+def test_router_calibration_signal_service_prefers_cross_session_profile_events(
+    tmp_path,
+):
     database_path = str(tmp_path / "router-calibration-profile-events.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)

@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from dibble.models.generation import ContentIntent, ContentWarmResult, GeneratedContent, GenerationRequest, RequestedContentType
+from dibble.models.generation import (
+    ContentIntent,
+    ContentWarmResult,
+    GeneratedContent,
+    GenerationRequest,
+    RequestedContentType,
+)
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.predictive_next_step_planner import PredictiveNextStepPlanner
 
@@ -23,16 +29,22 @@ class PredictiveWarmOutcome:
 @dataclass(slots=True)
 class PredictiveContentWarmer:
     content_warmer: ContentWarmer
-    next_step_planner: PredictiveNextStepPlanner = field(default_factory=PredictiveNextStepPlanner)
+    next_step_planner: PredictiveNextStepPlanner = field(
+        default_factory=PredictiveNextStepPlanner
+    )
 
-    def warm_follow_ups(self, generated_content: GeneratedContent) -> PredictiveWarmOutcome | None:
+    def warm_follow_ups(
+        self, generated_content: GeneratedContent
+    ) -> PredictiveWarmOutcome | None:
         plan = self.plan_follow_ups(generated_content)
         if not plan.requests:
             return None
         result = self.content_warmer.warm(plan.requests)
         return PredictiveWarmOutcome(plan=plan, result=result)
 
-    def plan_follow_ups(self, generated_content: GeneratedContent) -> PredictiveWarmPlan:
+    def plan_follow_ups(
+        self, generated_content: GeneratedContent
+    ) -> PredictiveWarmPlan:
         request_context = generated_content.request_context
         if bool(request_context.get("is_predictive_warm")):
             return PredictiveWarmPlan(requests=[], content_types=[], reasons=[])
@@ -40,7 +52,9 @@ class PredictiveContentWarmer:
         target_kc_ids = _string_list(request_context.get("target_kc_ids"))
         target_lo_ids = _string_list(request_context.get("target_lo_ids"))
         curriculum_context = _string_list(request_context.get("curriculum_context"))
-        learning_session_id = _string_or_none(request_context.get("learning_session_id"))
+        learning_session_id = _string_or_none(
+            request_context.get("learning_session_id")
+        )
         requested_types = self.next_step_planner.plan(generated_content)
         requests = [
             GenerationRequest(
@@ -63,8 +77,14 @@ class PredictiveContentWarmer:
         ]
         return PredictiveWarmPlan(
             requests=requests,
-            content_types=[item.requested_content_type.value for item in requests if item.requested_content_type is not None],
-            reasons=[item.warm_reason for item in requests if item.warm_reason is not None],
+            content_types=[
+                item.requested_content_type.value
+                for item in requests
+                if item.requested_content_type is not None
+            ],
+            reasons=[
+                item.warm_reason for item in requests if item.warm_reason is not None
+            ],
         )
 
     def _target_kc_ids_for_follow_up(
@@ -76,12 +96,25 @@ class PredictiveContentWarmer:
     ) -> list[str]:
         progression = request_context.get("progression")
         if isinstance(progression, dict):
-            progression_action = str(progression.get("action", "stay_on_requested_target"))
+            progression_action = str(
+                progression.get("action", "stay_on_requested_target")
+            )
             target_stage = str(progression.get("target_stage", "target"))
-            applied_target_kc_ids = _string_list(progression.get("applied_target_kc_ids"))
-            transfer_target_kc_ids = _string_list(progression.get("transfer_target_kc_ids"))
-            if predicted_type == RequestedContentType.assessment_probe and progression_action == "attempt_transfer":
-                return transfer_target_kc_ids or applied_target_kc_ids or default_target_kc_ids
+            applied_target_kc_ids = _string_list(
+                progression.get("applied_target_kc_ids")
+            )
+            transfer_target_kc_ids = _string_list(
+                progression.get("transfer_target_kc_ids")
+            )
+            if (
+                predicted_type == RequestedContentType.assessment_probe
+                and progression_action == "attempt_transfer"
+            ):
+                return (
+                    transfer_target_kc_ids
+                    or applied_target_kc_ids
+                    or default_target_kc_ids
+                )
             if predicted_type in {
                 RequestedContentType.practice_problem,
                 RequestedContentType.worked_example,
@@ -94,13 +127,21 @@ class PredictiveContentWarmer:
         action = str(sequencing.get("action", "monitor"))
         ordered_kc_ids = _string_list(sequencing.get("ordered_kc_ids"))
         deferred_kc_ids = _string_list(sequencing.get("deferred_kc_ids"))
-        if predicted_type == RequestedContentType.assessment_probe and action == "attempt_transfer":
+        if (
+            predicted_type == RequestedContentType.assessment_probe
+            and action == "attempt_transfer"
+        ):
             return deferred_kc_ids or default_target_kc_ids
         if predicted_type in {
             RequestedContentType.practice_problem,
             RequestedContentType.worked_example,
             RequestedContentType.remedial_micro_module,
-        } and action in {"rebuild_prerequisite_first", "hold_repair_target", "hold_bridge_target", "hold_target"}:
+        } and action in {
+            "rebuild_prerequisite_first",
+            "hold_repair_target",
+            "hold_bridge_target",
+            "hold_target",
+        }:
             return ordered_kc_ids[:1] or default_target_kc_ids
         return default_target_kc_ids
 

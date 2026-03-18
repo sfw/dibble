@@ -13,7 +13,9 @@ from dibble.models.teacher_classroom import (
     TeacherLearnerInterventionSummary,
 )
 from dibble.services.learner_summary_service import LearnerSummaryService
-from dibble.services.teacher_intervention_actions import TeacherInterventionActionService
+from dibble.services.teacher_intervention_actions import (
+    TeacherInterventionActionService,
+)
 
 
 @dataclass(slots=True)
@@ -30,12 +32,18 @@ class TeacherClassroomService:
             except ValueError:
                 missing_student_ids.append(student_id)
                 continue
-            summary = self.learner_summary_service.build_for_student(student_id=parsed_student_id)
+            summary = self.learner_summary_service.build_for_student(
+                student_id=parsed_student_id
+            )
             if summary is None:
                 missing_student_ids.append(student_id)
                 continue
-            intervention = self.teacher_intervention_action_service.build_for_student(student_id=parsed_student_id)
-            attention_reasons = self._attention_reasons(summary=summary, intervention=intervention)
+            intervention = self.teacher_intervention_action_service.build_for_student(
+                student_id=parsed_student_id
+            )
+            attention_reasons = self._attention_reasons(
+                summary=summary, intervention=intervention
+            )
             attention_level = self._attention_level(attention_reasons)
             learners.append(
                 TeacherLearnerCard(
@@ -52,7 +60,9 @@ class TeacherClassroomService:
                         recommended_action_kind=intervention.proposed_action.kind,
                         option_count=len(intervention.available_options),
                         latest_decision_status=(
-                            intervention.latest_decision.status if intervention.latest_decision is not None else None
+                            intervention.latest_decision.status
+                            if intervention.latest_decision is not None
+                            else None
                         ),
                     ),
                     attention_level=attention_level,
@@ -66,7 +76,11 @@ class TeacherClassroomService:
 
         learners.sort(
             key=lambda learner: (
-                0 if learner.attention_level == "high" else 1 if learner.attention_level == "medium" else 2,
+                0
+                if learner.attention_level == "high"
+                else 1
+                if learner.attention_level == "medium"
+                else 2,
                 learner.student_id,
             )
         )
@@ -81,7 +95,9 @@ class TeacherClassroomService:
             learners=learners,
         )
 
-    def list_classrooms(self, classrooms: list[Classroom]) -> list[TeacherClassroomOverview]:
+    def list_classrooms(
+        self, classrooms: list[Classroom]
+    ) -> list[TeacherClassroomOverview]:
         overviews: list[TeacherClassroomOverview] = []
         for classroom in classrooms:
             read_model = self.build_classroom(classroom)
@@ -103,16 +119,23 @@ class TeacherClassroomService:
         learners: list[TeacherLearnerCard],
         missing_student_ids: list[str],
     ) -> dict[str, object]:
-        active_flow_count = sum(1 for learner in learners if learner.current_flow.status != "idle")
+        active_flow_count = sum(
+            1 for learner in learners if learner.current_flow.status != "idle"
+        )
         intervention_available_count = sum(
             1
             for learner in learners
-            if learner.intervention.proposal_status == TeacherInterventionProposalStatus.available
+            if learner.intervention.proposal_status
+            == TeacherInterventionProposalStatus.available
         )
         blocked_progression_count = sum(
-            1 for learner in learners if learner.curriculum_progression.status == "blocked_on_prerequisites"
+            1
+            for learner in learners
+            if learner.curriculum_progression.status == "blocked_on_prerequisites"
         )
-        attention_needed_count = sum(1 for learner in learners if learner.attention_level != "normal")
+        attention_needed_count = sum(
+            1 for learner in learners if learner.attention_level != "normal"
+        )
         return {
             "classroom_id": classroom.classroom_id,
             "title": classroom.title,

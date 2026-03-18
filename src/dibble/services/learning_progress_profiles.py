@@ -37,21 +37,39 @@ class LearningProgressProfileBuilder:
         summary_event: AuditEvent,
         summary_events: list[AuditEvent],
     ) -> LearningProgressProfileSnapshot | None:
-        matched_events = self._matched_summary_events(summary_event=summary_event, summary_events=summary_events)
+        matched_events = self._matched_summary_events(
+            summary_event=summary_event, summary_events=summary_events
+        )
         if not matched_events:
             return None
 
-        outcome_scores = [float(event.payload.get("run_summary_score", 0.0)) for event in matched_events]
-        confidence_scores = [float(event.payload.get("run_calibration_confidence", 0.0)) for event in matched_events]
+        outcome_scores = [
+            float(event.payload.get("run_summary_score", 0.0))
+            for event in matched_events
+        ]
+        confidence_scores = [
+            float(event.payload.get("run_calibration_confidence", 0.0))
+            for event in matched_events
+        ]
         average_run_outcome_score = round(sum(outcome_scores) / len(outcome_scores), 2)
-        average_run_confidence = round(sum(confidence_scores) / len(confidence_scores), 2)
+        average_run_confidence = round(
+            sum(confidence_scores) / len(confidence_scores), 2
+        )
         positive_run_rate = round(
-            sum(1 for event in matched_events if event.payload.get("run_calibration_signal") == "positive")
+            sum(
+                1
+                for event in matched_events
+                if event.payload.get("run_calibration_signal") == "positive"
+            )
             / len(matched_events),
             2,
         )
         negative_run_rate = round(
-            sum(1 for event in matched_events if event.payload.get("run_calibration_signal") == "negative")
+            sum(
+                1
+                for event in matched_events
+                if event.payload.get("run_calibration_signal") == "negative"
+            )
             / len(matched_events),
             2,
         )
@@ -60,23 +78,37 @@ class LearningProgressProfileBuilder:
             for event in matched_events
             if event.payload.get("learning_session_id")
         }
-        matched_session_count = len(session_ids) if session_ids else min(1, len(matched_events))
+        matched_session_count = (
+            len(session_ids) if session_ids else min(1, len(matched_events))
+        )
 
         recent_events = matched_events[: self.recent_window_size]
         prior_events = matched_events[self.recent_window_size :]
         recent_average = round(
-            sum(float(event.payload.get("run_summary_score", 0.0)) for event in recent_events) / len(recent_events),
+            sum(
+                float(event.payload.get("run_summary_score", 0.0))
+                for event in recent_events
+            )
+            / len(recent_events),
             2,
         )
         prior_average = (
             round(
-                sum(float(event.payload.get("run_summary_score", 0.0)) for event in prior_events) / len(prior_events),
+                sum(
+                    float(event.payload.get("run_summary_score", 0.0))
+                    for event in prior_events
+                )
+                / len(prior_events),
                 2,
             )
             if prior_events
             else None
         )
-        progress_delta = round(recent_average - prior_average, 2) if prior_average is not None else 0.0
+        progress_delta = (
+            round(recent_average - prior_average, 2)
+            if prior_average is not None
+            else 0.0
+        )
 
         return LearningProgressProfileSnapshot(
             average_run_outcome_score=average_run_outcome_score,
@@ -102,15 +134,27 @@ class LearningProgressProfileBuilder:
         summary_event: AuditEvent,
         summary_events: list[AuditEvent],
     ) -> list[AuditEvent]:
-        recent_cutoff = summary_event.created_at - timedelta(days=max(1, self.recency_window_days))
+        recent_cutoff = summary_event.created_at - timedelta(
+            days=max(1, self.recency_window_days)
+        )
         scored_matches: list[tuple[int, float, AuditEvent]] = []
         for event in summary_events:
-            if event.event_type != "learning.run.summary" or event.student_id != summary_event.student_id:
+            if (
+                event.event_type != "learning.run.summary"
+                or event.student_id != summary_event.student_id
+            ):
                 continue
-            if event.created_at < recent_cutoff or event.created_at > summary_event.created_at:
+            if (
+                event.created_at < recent_cutoff
+                or event.created_at > summary_event.created_at
+            ):
                 continue
-            match_tier = self._summary_match_tier(anchor=summary_event.payload, candidate=event.payload)
-            match_score = self._summary_match_score(anchor=summary_event.payload, candidate=event.payload)
+            match_tier = self._summary_match_tier(
+                anchor=summary_event.payload, candidate=event.payload
+            )
+            match_score = self._summary_match_score(
+                anchor=summary_event.payload, candidate=event.payload
+            )
             if match_tier <= 0 or match_score <= 0.0:
                 continue
             scored_matches.append((match_tier, match_score, event))
@@ -121,33 +165,71 @@ class LearningProgressProfileBuilder:
         for tier, match_score, event in scored_matches:
             if tier != strongest_tier:
                 continue
-            generation_id = str(event.payload.get("generation_id") or event.payload.get("source_generation_event_id"))
+            generation_id = str(
+                event.payload.get("generation_id")
+                or event.payload.get("source_generation_event_id")
+            )
             current = latest_by_generation.get(generation_id)
-            if current is None or (event.created_at, match_score) > (current[1].created_at, current[0]):
+            if current is None or (event.created_at, match_score) > (
+                current[1].created_at,
+                current[0],
+            ):
                 latest_by_generation[generation_id] = (match_score, event)
         matched = list(latest_by_generation.values())
         matched.sort(key=lambda item: item[1].created_at, reverse=True)
         return [event for _, event in matched[: self.max_matched_runs]]
 
-    def _summary_match_score(self, *, anchor: dict[str, object], candidate: dict[str, object]) -> float:
+    def _summary_match_score(
+        self, *, anchor: dict[str, object], candidate: dict[str, object]
+    ) -> float:
         score = 0.0
-        score += self._overlap_score(anchor.get("target_kc_ids"), candidate.get("target_kc_ids")) * 3.0
-        score += self._overlap_score(anchor.get("target_lo_ids"), candidate.get("target_lo_ids")) * 2.0
+        score += (
+            self._overlap_score(
+                anchor.get("target_kc_ids"), candidate.get("target_kc_ids")
+            )
+            * 3.0
+        )
+        score += (
+            self._overlap_score(
+                anchor.get("target_lo_ids"), candidate.get("target_lo_ids")
+            )
+            * 2.0
+        )
         if anchor.get("intent") and candidate.get("intent") == anchor.get("intent"):
             score += 1.0
-        if anchor.get("content_type") and candidate.get("content_type") == anchor.get("content_type"):
+        if anchor.get("content_type") and candidate.get("content_type") == anchor.get(
+            "content_type"
+        ):
             score += 0.75
-        if not anchor.get("target_kc_ids") and not anchor.get("target_lo_ids") and anchor.get("intent"):
+        if (
+            not anchor.get("target_kc_ids")
+            and not anchor.get("target_lo_ids")
+            and anchor.get("intent")
+        ):
             if candidate.get("intent") == anchor.get("intent"):
                 score += 0.25
         return score
 
-    def _summary_match_tier(self, *, anchor: dict[str, object], candidate: dict[str, object]) -> int:
-        if self._overlap_score(anchor.get("target_kc_ids"), candidate.get("target_kc_ids")) > 0.0:
+    def _summary_match_tier(
+        self, *, anchor: dict[str, object], candidate: dict[str, object]
+    ) -> int:
+        if (
+            self._overlap_score(
+                anchor.get("target_kc_ids"), candidate.get("target_kc_ids")
+            )
+            > 0.0
+        ):
             return 3
-        if self._overlap_score(anchor.get("target_lo_ids"), candidate.get("target_lo_ids")) > 0.0:
+        if (
+            self._overlap_score(
+                anchor.get("target_lo_ids"), candidate.get("target_lo_ids")
+            )
+            > 0.0
+        ):
             return 3
-        if anchor.get("content_type") and candidate.get("content_type") == anchor.get("content_type"):
+        if anchor.get("content_type") and candidate.get("content_type") == anchor.get(
+            "content_type"
+        ):
             return 2
         if anchor.get("intent") and candidate.get("intent") == anchor.get("intent"):
             return 1
@@ -175,26 +257,39 @@ class LearningProgressProfileBuilder:
 
     def _overlap_score(self, left: object, right: object) -> float:
         left_values = {str(item) for item in left} if isinstance(left, list) else set()
-        right_values = {str(item) for item in right} if isinstance(right, list) else set()
+        right_values = (
+            {str(item) for item in right} if isinstance(right, list) else set()
+        )
         if not left_values or not right_values:
             return 0.0
-        return len(left_values & right_values) / max(len(left_values), len(right_values))
+        return len(left_values & right_values) / max(
+            len(left_values), len(right_values)
+        )
 
 
 @dataclass(slots=True)
 class LearningProgressProfileRecorder:
     audit_store: AuditStore
-    progress_builder: LearningProgressProfileBuilder = field(default_factory=LearningProgressProfileBuilder)
+    progress_builder: LearningProgressProfileBuilder = field(
+        default_factory=LearningProgressProfileBuilder
+    )
     max_events: int = 1000
 
-    def record_from_summary_events(self, *, summary_events: list[AuditEvent]) -> list[AuditEvent]:
+    def record_from_summary_events(
+        self, *, summary_events: list[AuditEvent]
+    ) -> list[AuditEvent]:
         if not summary_events:
             return []
         events = self.audit_store.list(limit=self.max_events)
-        all_summary_events = [event for event in events if event.event_type == "learning.run.summary"]
+        all_summary_events = [
+            event for event in events if event.event_type == "learning.run.summary"
+        ]
         recorded: list[AuditEvent] = []
         for summary_event in summary_events:
-            if summary_event.student_id is None or summary_event.event_type != "learning.run.summary":
+            if (
+                summary_event.student_id is None
+                or summary_event.event_type != "learning.run.summary"
+            ):
                 continue
             snapshot = self.progress_builder.build_from_summary_event(
                 summary_event=summary_event,
@@ -241,17 +336,26 @@ class LearningProgressProfileResolver:
         profile_events: list[AuditEvent],
         request: GenerationRequest,
     ) -> list[AuditEvent]:
-        recent_cutoff = datetime.now(timezone.utc) - timedelta(days=max(1, self.recency_window_days))
+        recent_cutoff = datetime.now(timezone.utc) - timedelta(
+            days=max(1, self.recency_window_days)
+        )
         scored_matches: list[tuple[int, float, AuditEvent]] = []
         for event in profile_events:
             if event.event_type != "learning.progress.profile":
                 continue
             if event.created_at < recent_cutoff:
                 continue
-            if int(event.payload.get("matched_session_count", 0)) < self.minimum_session_count:
+            if (
+                int(event.payload.get("matched_session_count", 0))
+                < self.minimum_session_count
+            ):
                 continue
-            match_tier = self._request_match_tier(request=request, payload=event.payload)
-            match_score = self._request_match_score(request=request, payload=event.payload)
+            match_tier = self._request_match_tier(
+                request=request, payload=event.payload
+            )
+            match_score = self._request_match_score(
+                request=request, payload=event.payload
+            )
             if match_tier <= 0 or match_score <= 0.0:
                 continue
             scored_matches.append((match_tier, match_score, event))
@@ -265,34 +369,71 @@ class LearningProgressProfileResolver:
             context_key = (
                 event.payload.get("intent"),
                 event.payload.get("content_type"),
-                tuple(str(item) for item in event.payload.get("target_kc_ids", []) if item is not None),
-                tuple(str(item) for item in event.payload.get("target_lo_ids", []) if item is not None),
+                tuple(
+                    str(item)
+                    for item in event.payload.get("target_kc_ids", [])
+                    if item is not None
+                ),
+                tuple(
+                    str(item)
+                    for item in event.payload.get("target_lo_ids", [])
+                    if item is not None
+                ),
             )
             current = latest_by_context.get(context_key)
-            if current is None or (match_score, event.created_at) > (current[0], current[1].created_at):
+            if current is None or (match_score, event.created_at) > (
+                current[0],
+                current[1].created_at,
+            ):
                 latest_by_context[context_key] = (match_score, event)
         matched = list(latest_by_context.values())
         matched.sort(key=lambda item: (item[0], item[1].created_at), reverse=True)
         return [event for _, event in matched[: self.max_matched_profiles]]
 
-    def _request_match_score(self, *, request: GenerationRequest, payload: dict[str, object]) -> float:
+    def _request_match_score(
+        self, *, request: GenerationRequest, payload: dict[str, object]
+    ) -> float:
         score = 0.0
-        score += self._overlap_score(request.target_kc_ids, payload.get("target_kc_ids")) * 3.0
-        score += self._overlap_score(request.target_lo_ids, payload.get("target_lo_ids")) * 2.0
-        if request.requested_content_type and payload.get("content_type") == request.requested_content_type.value:
+        score += (
+            self._overlap_score(request.target_kc_ids, payload.get("target_kc_ids"))
+            * 3.0
+        )
+        score += (
+            self._overlap_score(request.target_lo_ids, payload.get("target_lo_ids"))
+            * 2.0
+        )
+        if (
+            request.requested_content_type
+            and payload.get("content_type") == request.requested_content_type.value
+        ):
             score += 0.75
         if payload.get("intent") == request.intent.value:
             score += 1.0
-        if not request.target_kc_ids and not request.target_lo_ids and payload.get("intent") == request.intent.value:
+        if (
+            not request.target_kc_ids
+            and not request.target_lo_ids
+            and payload.get("intent") == request.intent.value
+        ):
             score += 0.25
         return score
 
-    def _request_match_tier(self, *, request: GenerationRequest, payload: dict[str, object]) -> int:
-        if self._overlap_score(request.target_kc_ids, payload.get("target_kc_ids")) > 0.0:
+    def _request_match_tier(
+        self, *, request: GenerationRequest, payload: dict[str, object]
+    ) -> int:
+        if (
+            self._overlap_score(request.target_kc_ids, payload.get("target_kc_ids"))
+            > 0.0
+        ):
             return 3
-        if self._overlap_score(request.target_lo_ids, payload.get("target_lo_ids")) > 0.0:
+        if (
+            self._overlap_score(request.target_lo_ids, payload.get("target_lo_ids"))
+            > 0.0
+        ):
             return 3
-        if request.requested_content_type and payload.get("content_type") == request.requested_content_type.value:
+        if (
+            request.requested_content_type
+            and payload.get("content_type") == request.requested_content_type.value
+        ):
             return 2
         if payload.get("intent") == request.intent.value:
             return 1
@@ -300,7 +441,11 @@ class LearningProgressProfileResolver:
 
     def _overlap_score(self, left: object, right: object) -> float:
         left_values = {str(item) for item in left} if isinstance(left, list) else set()
-        right_values = {str(item) for item in right} if isinstance(right, list) else set()
+        right_values = (
+            {str(item) for item in right} if isinstance(right, list) else set()
+        )
         if not left_values or not right_values:
             return 0.0
-        return len(left_values & right_values) / max(len(left_values), len(right_values))
+        return len(left_values & right_values) / max(
+            len(left_values), len(right_values)
+        )

@@ -19,7 +19,14 @@ from dibble.services.socratic_profile_update import SocraticProfileUpdater
 from tests.support import build_profile
 
 
-def build_assessment_response(student_id, *, evidence_strength, evidence_score, inferred_mastery, confidence_alignment):
+def build_assessment_response(
+    student_id,
+    *,
+    evidence_strength,
+    evidence_score,
+    inferred_mastery,
+    confidence_alignment,
+):
     return SocraticAssessmentResponse(
         session_id="session-1",
         student_id=student_id,
@@ -93,12 +100,20 @@ def test_socratic_profile_updater_updates_mastery_and_metacognition():
     assert result.kc_mastery_updates["KC-1"] > 0.84
     assert result.profile.metacognitive_state.confidence_calibration > 0.3
     assert result.profile.metacognitive_state.self_monitoring > 0.35
-    assert result.profile.metacognitive_state.help_seeking in {SignalLevel.none, SignalLevel.low, SignalLevel.medium}
+    assert result.profile.metacognitive_state.help_seeking in {
+        SignalLevel.none,
+        SignalLevel.low,
+        SignalLevel.medium,
+    }
 
 
 def test_socratic_profile_updater_uses_session_targets_on_followup_turns():
     student_id = uuid4()
-    profile = LearnerProfile.model_validate(build_profile(student_id, kc_mastery={"KC-1": 0.45}, frustration="low", total_load=0.2))
+    profile = LearnerProfile.model_validate(
+        build_profile(
+            student_id, kc_mastery={"KC-1": 0.45}, frustration="low", total_load=0.2
+        )
+    )
     updater = SocraticProfileUpdater()
 
     result = updater.apply(
@@ -142,7 +157,9 @@ def test_socratic_profile_updater_skips_updates_without_learner_response():
             inferred_mastery=0.0,
             confidence_alignment=0.5,
         ),
-        SocraticAssessmentSession(session_id="session-1", student_id=student_id, target_kc_ids=["KC-1"]),
+        SocraticAssessmentSession(
+            session_id="session-1", student_id=student_id, target_kc_ids=["KC-1"]
+        ),
     )
 
     assert result.applied is False
@@ -206,7 +223,9 @@ def test_socratic_profile_updater_propagates_mastery_through_kc_graph():
         )
     )
     updater = SocraticProfileUpdater(
-        knowledge_state_migrator=KnowledgeStateMigrator(knowledge_component_store=StubKnowledgeComponentStore())
+        knowledge_state_migrator=KnowledgeStateMigrator(
+            knowledge_component_store=StubKnowledgeComponentStore()
+        )
     )
 
     result = updater.apply(
@@ -303,7 +322,9 @@ def test_socratic_profile_updater_backfills_kc_mastery_from_lo_only_updates():
         }
     )
     updater = SocraticProfileUpdater(
-        knowledge_state_migrator=KnowledgeStateMigrator(knowledge_component_store=StubKnowledgeComponentStore())
+        knowledge_state_migrator=KnowledgeStateMigrator(
+            knowledge_component_store=StubKnowledgeComponentStore()
+        )
     )
 
     result = updater.apply(

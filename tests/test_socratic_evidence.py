@@ -43,7 +43,10 @@ def test_socratic_evidence_scores_grounded_reasoning_as_demonstrated():
         target_lo_ids=["LO-1"],
         curriculum_context=["Equivalent fractions"],
         conversation_history=[
-            SocraticMessage(role=SocraticMessageRole.tutor, text="How do you know 1/2 and 2/4 are equal?")
+            SocraticMessage(
+                role=SocraticMessageRole.tutor,
+                text="How do you know 1/2 and 2/4 are equal?",
+            )
         ],
     )
 
@@ -109,7 +112,9 @@ def test_socratic_evidence_tracks_progress_against_recent_turns():
         target_kc_ids=["KC-1"],
         curriculum_context=["Equivalent fractions"],
         conversation_history=[
-            SocraticMessage(role=SocraticMessageRole.tutor, text="What makes these fractions equal?")
+            SocraticMessage(
+                role=SocraticMessageRole.tutor, text="What makes these fractions equal?"
+            )
         ],
         turns=[
             SocraticTurnRecord(

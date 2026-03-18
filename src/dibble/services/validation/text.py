@@ -54,7 +54,9 @@ def salient_grounding_terms(grounding: list[GroundingReference]) -> set[str]:
     terms: set[str] = set()
 
     for reference in grounding:
-        terms.update(term.lower() for term in reference.matched_terms if len(term.strip()) >= 3)
+        terms.update(
+            term.lower() for term in reference.matched_terms if len(term.strip()) >= 3
+        )
         terms.update(_salient_title_words(reference.title))
         if reference.excerpt:
             terms.update(_salient_excerpt_words(reference.excerpt))
@@ -94,9 +96,13 @@ def curriculum_alignment_score(text: str, grounding: list[GroundingReference]) -
     token_score = (token_hits / token_total) if token_total else 0.0
 
     matched_phrase_bonus = 0.0
-    matched_terms = [term.lower() for reference in grounding for term in reference.matched_terms]
+    matched_terms = [
+        term.lower() for reference in grounding for term in reference.matched_terms
+    ]
     if matched_terms:
-        matched_hits = sum(1 for term in matched_terms if term and term in normalized_text)
+        matched_hits = sum(
+            1 for term in matched_terms if term and term in normalized_text
+        )
         matched_phrase_bonus = matched_hits / len(matched_terms)
 
     score = (exact_score * 0.5) + (token_score * 0.35) + (matched_phrase_bonus * 0.15)

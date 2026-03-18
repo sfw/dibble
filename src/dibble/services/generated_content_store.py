@@ -59,13 +59,17 @@ class SQLiteGeneratedContentStore:
                     content.response.model_dump_json(),
                     content.quality.model_dump_json(),
                     content.created_at.isoformat(),
-                    content.expires_at.isoformat() if content.expires_at is not None else None,
+                    content.expires_at.isoformat()
+                    if content.expires_at is not None
+                    else None,
                 ),
             )
             connection.commit()
         return content
 
-    def get_fresh(self, *, cache_key: str, now: datetime | None = None) -> GeneratedContent | None:
+    def get_fresh(
+        self, *, cache_key: str, now: datetime | None = None
+    ) -> GeneratedContent | None:
         with sqlite3.connect(self.database_path) as connection:
             row = connection.execute(
                 """
@@ -128,7 +132,9 @@ class SQLiteGeneratedContentStore:
                     content.response.model_dump_json(),
                     content.quality.model_dump_json(),
                     content.created_at.isoformat(),
-                    content.expires_at.isoformat() if content.expires_at is not None else None,
+                    content.expires_at.isoformat()
+                    if content.expires_at is not None
+                    else None,
                     content.generation_id,
                 ),
             )
@@ -310,7 +316,10 @@ def _matches_predictive_invalidation(
     request_context = json.loads(request_context_json)
     if not bool(request_context.get("is_predictive_warm")):
         return False
-    if learning_session_id is not None and request_context.get("learning_session_id") != learning_session_id:
+    if (
+        learning_session_id is not None
+        and request_context.get("learning_session_id") != learning_session_id
+    ):
         return False
 
     content_target_kc_ids = _string_list(request_context.get("target_kc_ids"))

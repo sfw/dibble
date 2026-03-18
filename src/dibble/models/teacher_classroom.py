@@ -18,7 +18,9 @@ from dibble.models.teacher_actions import (
 
 class TeacherLearnerInterventionSummary(BaseModel):
     action_key: str = "idle"
-    proposal_status: TeacherInterventionProposalStatus = TeacherInterventionProposalStatus.unavailable
+    proposal_status: TeacherInterventionProposalStatus = (
+        TeacherInterventionProposalStatus.unavailable
+    )
     recommended_action_kind: ContinueActionKind = ContinueActionKind.idle
     option_count: int = Field(default=0, ge=0)
     latest_decision_status: TeacherInterventionDecisionStatus | None = None
@@ -32,7 +34,9 @@ class TeacherLearnerCard(BaseModel):
     current_flow: LearnerFlowSummary
     curriculum_progression: LearnerCurriculumProgressionSummary
     recent_activity: RecentLearnerActivity
-    intervention: TeacherLearnerInterventionSummary = Field(default_factory=TeacherLearnerInterventionSummary)
+    intervention: TeacherLearnerInterventionSummary = Field(
+        default_factory=TeacherLearnerInterventionSummary
+    )
     attention_level: str = "normal"
     triage_section: str = "on_track"
     attention_reasons: list[str] = Field(default_factory=list)

@@ -8,7 +8,9 @@ from dibble.models.remediation import KcSequenceSummary
 from dibble.services.kc_sequence_planner import KcSequencePlanner
 from dibble.services.misconception_detector import MisconceptionDetector
 from dibble.services.protocols import KnowledgeComponentStore
-from dibble.services.remediation_module_blueprints import RemediationModuleBlueprintBuilder
+from dibble.services.remediation_module_blueprints import (
+    RemediationModuleBlueprintBuilder,
+)
 from dibble.services.workflow_rationale import combine_rationales
 
 
@@ -32,7 +34,9 @@ class RemediationPlanner:
     ) -> None:
         self.knowledge_component_store = knowledge_component_store
         self.misconception_detector = misconception_detector
-        self.module_blueprint_builder = module_blueprint_builder or RemediationModuleBlueprintBuilder()
+        self.module_blueprint_builder = (
+            module_blueprint_builder or RemediationModuleBlueprintBuilder()
+        )
         self.kc_sequence_planner = kc_sequence_planner or KcSequencePlanner(
             knowledge_component_store=knowledge_component_store
         )
@@ -56,17 +60,18 @@ class RemediationPlanner:
         primary_misconception_signals = [
             signal
             for signal in signals
-            if signal.category == "known_misconception" and signal.misconception_id is not None and signal.primary_for_kc
+            if signal.category == "known_misconception"
+            and signal.misconception_id is not None
+            and signal.primary_for_kc
         ]
         prerequisite_gaps = [
-            signal.kc_id
-            for signal in signals
-            if signal.category == "prerequisite_gap"
+            signal.kc_id for signal in signals if signal.category == "prerequisite_gap"
         ]
         recurring_profile_signals = [
             signal
             for signal in primary_misconception_signals
-            if signal.source == "profile" and signal.recurrence_signal in {"recurring", "relapsing"}
+            if signal.source == "profile"
+            and signal.recurrence_signal in {"recurring", "relapsing"}
         ]
         misconception_repair_targets = [
             kc_id
@@ -96,15 +101,18 @@ class RemediationPlanner:
                 primary_signal=selected_signal,
                 prerequisite_gaps=prerequisite_gaps,
             )
-            rationale = combine_rationales(
-                rationale,
-                self._misconception_selection_rationale(
-                    target_kc_id=target_kc_id,
-                    primary_signal=selected_signal,
-                    signals=signals,
-                    prerequisite_gaps=prerequisite_gaps,
-                ),
-            ) or rationale
+            rationale = (
+                combine_rationales(
+                    rationale,
+                    self._misconception_selection_rationale(
+                        target_kc_id=target_kc_id,
+                        primary_signal=selected_signal,
+                        signals=signals,
+                        prerequisite_gaps=prerequisite_gaps,
+                    ),
+                )
+                or rationale
+            )
         elif matched_misconceptions:
             selected_signal = matched_misconceptions[0]
             rationale = self._misconception_path_rationale(
@@ -112,15 +120,18 @@ class RemediationPlanner:
                 primary_signal=selected_signal,
                 prerequisite_gaps=prerequisite_gaps,
             )
-            rationale = combine_rationales(
-                rationale,
-                self._misconception_selection_rationale(
-                    target_kc_id=target_kc_id,
-                    primary_signal=selected_signal,
-                    signals=signals,
-                    prerequisite_gaps=prerequisite_gaps,
-                ),
-            ) or rationale
+            rationale = (
+                combine_rationales(
+                    rationale,
+                    self._misconception_selection_rationale(
+                        target_kc_id=target_kc_id,
+                        primary_signal=selected_signal,
+                        signals=signals,
+                        prerequisite_gaps=prerequisite_gaps,
+                    ),
+                )
+                or rationale
+            )
         elif prerequisite_gaps:
             prerequisite_names = [
                 self.knowledge_component_store.get(kc_id).name
@@ -139,14 +150,21 @@ class RemediationPlanner:
         else:
             rationale = "Misconception signals did not reveal a stronger prerequisite target, so remediation should reinforce the requested component."
         if kc_sequence.action != "monitor":
-            rationale = combine_rationales(
-                rationale,
-                (
-                    f"Sequence the next KC focus as {kc_sequence.action.replace('_', ' ')}"
-                    + (f" on {kc_sequence.primary_kc_id}." if kc_sequence.primary_kc_id is not None else ".")
-                ),
-                kc_sequence.rationale,
-            ) or rationale
+            rationale = (
+                combine_rationales(
+                    rationale,
+                    (
+                        f"Sequence the next KC focus as {kc_sequence.action.replace('_', ' ')}"
+                        + (
+                            f" on {kc_sequence.primary_kc_id}."
+                            if kc_sequence.primary_kc_id is not None
+                            else "."
+                        )
+                    ),
+                    kc_sequence.rationale,
+                )
+                or rationale
+            )
 
         return RemediationPlan(
             focus_kc_ids=focus_kc_ids,
@@ -170,20 +188,25 @@ class RemediationPlanner:
         prerequisite_gaps: list[str],
     ) -> str:
         target_label = self._kc_label(target_kc_id)
-        signal_label = primary_signal.misconception_id or primary_signal.category.replace("_", " ")
+        signal_label = (
+            primary_signal.misconception_id or primary_signal.category.replace("_", " ")
+        )
         signal_kc_label = self._kc_label(primary_signal.kc_id)
         repair_targets = primary_signal.recommended_kc_ids or [primary_signal.kc_id]
-        repair_target_labels = ", ".join(self._kc_label(kc_id) for kc_id in repair_targets)
+        repair_target_labels = ", ".join(
+            self._kc_label(kc_id) for kc_id in repair_targets
+        )
         evidence_fragment = (
             f" with evidence on {', '.join(primary_signal.evidence_terms[:3])}"
             if primary_signal.evidence_terms
             else ""
         )
         recurrence_fragment = ""
-        if primary_signal.recurrence_signal in {"recurring", "relapsing"} and primary_signal.recurrence_session_count > 0:
-            recurrence_fragment = (
-                f"; it has been {primary_signal.recurrence_signal} across {primary_signal.recurrence_session_count} sessions"
-            )
+        if (
+            primary_signal.recurrence_signal in {"recurring", "relapsing"}
+            and primary_signal.recurrence_session_count > 0
+        ):
+            recurrence_fragment = f"; it has been {primary_signal.recurrence_signal} across {primary_signal.recurrence_session_count} sessions"
         source_fragment = (
             "Durable misconception history"
             if primary_signal.source == "profile"
@@ -219,7 +242,9 @@ class RemediationPlanner:
             prerequisite_gaps=prerequisite_gaps,
         )
         if rationale is None:
-            competing_count = sum(1 for signal in signals if signal is not primary_signal)
+            competing_count = sum(
+                1 for signal in signals if signal is not primary_signal
+            )
             if competing_count > 0:
                 rationale = (
                     f"This misconception path outranked {competing_count} adjacent candidate(s) for {self._kc_label(target_kc_id)}, "
@@ -287,7 +312,10 @@ class RemediationPlanner:
                 "rather than a generic target confusion read."
             )
         if alternative_signal.category == "known_misconception":
-            alternative_label = alternative_signal.misconception_id or alternative_signal.category.replace("_", " ")
+            alternative_label = (
+                alternative_signal.misconception_id
+                or alternative_signal.category.replace("_", " ")
+            )
             return (
                 f"This path beat the adjacent misconception path {alternative_label} on {alternative_focus} "
                 f"({alternative_signal.confidence:.2f} confidence), so the backend is choosing one inspectable repair target "

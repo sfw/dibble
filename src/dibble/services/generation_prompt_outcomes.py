@@ -3,9 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from dibble.models.telemetry import AuditEvent
-from dibble.services.generation_outcome_metrics import score_assessment_event, score_observation_event
+from dibble.services.generation_outcome_metrics import (
+    score_assessment_event,
+    score_observation_event,
+)
 from dibble.services.generation_run_summaries import GenerationRunSummaryBuilder
-from dibble.services.generation_trace_linker import GenerationTraceLinker, LinkedTraceEvent
+from dibble.services.generation_trace_linker import (
+    GenerationTraceLinker,
+    LinkedTraceEvent,
+)
 from dibble.services.learning_session_outcomes import LearningSessionOutcomeScorer
 from dibble.services.persisted_run_summaries import PersistedRunSummaryResolver
 
@@ -46,7 +52,9 @@ class GenerationPromptOutcomeSample:
                 if score is not None
             ]
             downstream_score = (
-                round(sum(downstream_scores) / len(downstream_scores), 2) if downstream_scores else None
+                round(sum(downstream_scores) / len(downstream_scores), 2)
+                if downstream_scores
+                else None
             )
         if downstream_score is None:
             return self.quality_score
@@ -57,8 +65,12 @@ class GenerationPromptOutcomeSample:
 class GenerationPromptOutcomeScorer:
     observation_window_minutes: int = 30
     max_trace_events: int = 3
-    run_summary_builder: GenerationRunSummaryBuilder = field(default_factory=GenerationRunSummaryBuilder)
-    persisted_run_summary_resolver: PersistedRunSummaryResolver = field(default_factory=PersistedRunSummaryResolver)
+    run_summary_builder: GenerationRunSummaryBuilder = field(
+        default_factory=GenerationRunSummaryBuilder
+    )
+    persisted_run_summary_resolver: PersistedRunSummaryResolver = field(
+        default_factory=PersistedRunSummaryResolver
+    )
 
     def score(
         self,
@@ -105,11 +117,17 @@ class GenerationPromptOutcomeScorer:
             linked_assessments=linked_assessments,
             session_outcome=session_outcome,
         )
-        persisted_run_summary = self.persisted_run_summary_resolver.resolve_for_generation(
-            generation_event=generation_event,
-            summary_events=candidate_run_summaries or [],
+        persisted_run_summary = (
+            self.persisted_run_summary_resolver.resolve_for_generation(
+                generation_event=generation_event,
+                summary_events=candidate_run_summaries or [],
+            )
         )
-        selected_run_summary = persisted_run_summary.summary if persisted_run_summary is not None else run_summary
+        selected_run_summary = (
+            persisted_run_summary.summary
+            if persisted_run_summary is not None
+            else run_summary
+        )
         return GenerationPromptOutcomeSample(
             variant=variant,
             prompt_template_name=prompt_template_name,
@@ -131,9 +149,13 @@ class GenerationPromptOutcomeScorer:
             run_summary_source=(
                 "persisted"
                 if persisted_run_summary is not None
-                else "derived" if run_summary.run_outcome_score is not None else "insufficient"
+                else "derived"
+                if run_summary.run_outcome_score is not None
+                else "insufficient"
             ),
-            run_summary_event_id=persisted_run_summary.event_id if persisted_run_summary is not None else None,
+            run_summary_event_id=persisted_run_summary.event_id
+            if persisted_run_summary is not None
+            else None,
         )
 
     def _aggregate_trace_score(
@@ -142,4 +164,6 @@ class GenerationPromptOutcomeScorer:
         linked_events: list[LinkedTraceEvent],
         event_scorer,
     ) -> float | None:
-        return self.run_summary_builder.trace_score(linked_events=linked_events, event_scorer=event_scorer)
+        return self.run_summary_builder.trace_score(
+            linked_events=linked_events, event_scorer=event_scorer
+        )

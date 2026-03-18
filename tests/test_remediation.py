@@ -52,7 +52,11 @@ def test_misconception_detector_prefers_low_mastery_prerequisites(tmp_path):
     database_path = str(tmp_path / "misconceptions.db")
     ensure_database(database_path)
     kc_store = SQLiteKnowledgeComponentStore(database_path)
-    kc_store.upsert(KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1", name="Identify numerator and denominator")))
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component("KC-1", name="Identify numerator and denominator")
+        )
+    )
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
             build_knowledge_component(
@@ -62,7 +66,9 @@ def test_misconception_detector_prefers_low_mastery_prerequisites(tmp_path):
             )
         )
     )
-    profile = LearnerProfile.model_validate(build_profile(uuid4(), kc_mastery={"KC-1": 0.2, "KC-2": 0.55}))
+    profile = LearnerProfile.model_validate(
+        build_profile(uuid4(), kc_mastery={"KC-1": 0.2, "KC-2": 0.55})
+    )
     detector = MisconceptionDetector(kc_store)
 
     signals = detector.detect(
@@ -91,7 +97,12 @@ def test_misconception_detector_matches_catalogued_misconception_patterns(tmp_pa
                         "misconception_id": "fraction-whole-number-bias",
                         "label": "Treats numerator and denominator like unrelated whole numbers",
                         "description": "The learner compares fraction parts separately instead of the overall amount.",
-                        "trigger_terms": ["numerator", "denominator", "whole number", "separately"],
+                        "trigger_terms": [
+                            "numerator",
+                            "denominator",
+                            "whole number",
+                            "separately",
+                        ],
                         "prerequisite_kc_ids": ["KC-1"],
                         "remediation_hint": "Use one visual model to compare the whole fraction amount before naming each part.",
                     }
@@ -99,7 +110,9 @@ def test_misconception_detector_matches_catalogued_misconception_patterns(tmp_pa
             )
         )
     )
-    profile = LearnerProfile.model_validate(build_profile(uuid4(), kc_mastery={"KC-2": 0.42}))
+    profile = LearnerProfile.model_validate(
+        build_profile(uuid4(), kc_mastery={"KC-2": 0.42})
+    )
     detector = MisconceptionDetector(kc_store)
 
     signals = detector.detect(
@@ -130,14 +143,20 @@ def test_misconception_detector_matches_alias_terms_for_catalogued_patterns(tmp_
                         "misconception_id": "fraction-part-role-swap",
                         "label": "Swaps numerator and denominator roles",
                         "description": "The learner treats the top and bottom numbers as interchangeable.",
-                        "trigger_terms": ["numerator", "denominator", "interchangeable"],
+                        "trigger_terms": [
+                            "numerator",
+                            "denominator",
+                            "interchangeable",
+                        ],
                         "prerequisite_kc_ids": ["KC-1"],
                     }
                 ],
             )
         )
     )
-    profile = LearnerProfile.model_validate(build_profile(uuid4(), kc_mastery={"KC-2": 0.46}))
+    profile = LearnerProfile.model_validate(
+        build_profile(uuid4(), kc_mastery={"KC-2": 0.46})
+    )
     detector = MisconceptionDetector(kc_store)
 
     signals = detector.detect(
@@ -151,13 +170,19 @@ def test_misconception_detector_matches_alias_terms_for_catalogued_patterns(tmp_
     assert set(signals[0].evidence_terms) >= {"top", "bottom", "swap"}
 
 
-def test_misconception_detector_uses_recent_behavioral_struggle_to_reinforce_prerequisite_gap(tmp_path):
+def test_misconception_detector_uses_recent_behavioral_struggle_to_reinforce_prerequisite_gap(
+    tmp_path,
+):
     database_path = str(tmp_path / "misconceptions-behavioral-prereq.db")
     ensure_database(database_path)
     kc_store = SQLiteKnowledgeComponentStore(database_path)
     observation_store = SQLiteObservationStore(database_path)
     student_id = uuid4()
-    kc_store.upsert(KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1", name="Identify numerator and denominator")))
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component("KC-1", name="Identify numerator and denominator")
+        )
+    )
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
             build_knowledge_component(
@@ -189,7 +214,9 @@ def test_misconception_detector_uses_recent_behavioral_struggle_to_reinforce_pre
         response_time_ms=28000,
         modality_switches=1,
     )
-    profile = LearnerProfile.model_validate(build_profile(student_id, kc_mastery={"KC-1": 0.62, "KC-2": 0.6}))
+    profile = LearnerProfile.model_validate(
+        build_profile(student_id, kc_mastery={"KC-1": 0.62, "KC-2": 0.6})
+    )
     detector = MisconceptionDetector(kc_store, observation_store=observation_store)
 
     signals = detector.detect(
@@ -200,17 +227,23 @@ def test_misconception_detector_uses_recent_behavioral_struggle_to_reinforce_pre
     )
 
     prerequisite_signal = next(
-        signal for signal in signals if signal.kc_id == "KC-1" and signal.category == "prerequisite_gap"
+        signal
+        for signal in signals
+        if signal.kc_id == "KC-1" and signal.category == "prerequisite_gap"
     )
     target_signal = next(
-        signal for signal in signals if signal.kc_id == "KC-2" and signal.category == "target_concept_confusion"
+        signal
+        for signal in signals
+        if signal.kc_id == "KC-2" and signal.category == "target_concept_confusion"
     )
     assert prerequisite_signal.confidence > target_signal.confidence
     assert "Recent observations on KC-1" in prerequisite_signal.rationale
     assert "support-heavy attempts" in prerequisite_signal.rationale
 
 
-def test_misconception_detector_adapts_prerequisite_threshold_to_behavioral_struggle(tmp_path):
+def test_misconception_detector_adapts_prerequisite_threshold_to_behavioral_struggle(
+    tmp_path,
+):
     """ADAPT-003: When a prerequisite KC has recent behavioral struggle
     (2+ struggles, 0 successes), the prerequisite gap detection threshold
     should rise from 0.75 to 0.82, so borderline prerequisites that the
@@ -220,7 +253,11 @@ def test_misconception_detector_adapts_prerequisite_threshold_to_behavioral_stru
     kc_store = SQLiteKnowledgeComponentStore(database_path)
     observation_store = SQLiteObservationStore(database_path)
     student_id = uuid4()
-    kc_store.upsert(KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1", name="Identify numerator and denominator")))
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component("KC-1", name="Identify numerator and denominator")
+        )
+    )
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
             build_knowledge_component(
@@ -254,7 +291,9 @@ def test_misconception_detector_adapts_prerequisite_threshold_to_behavioral_stru
         confidence=0.40,
         response_time_ms=28000,
     )
-    profile = LearnerProfile.model_validate(build_profile(student_id, kc_mastery={"KC-1": 0.78, "KC-2": 0.6}))
+    profile = LearnerProfile.model_validate(
+        build_profile(student_id, kc_mastery={"KC-1": 0.78, "KC-2": 0.6})
+    )
     detector = MisconceptionDetector(kc_store, observation_store=observation_store)
 
     signals = detector.detect(
@@ -265,12 +304,16 @@ def test_misconception_detector_adapts_prerequisite_threshold_to_behavioral_stru
     )
 
     # Should detect a prerequisite gap even though mastery is above 0.75
-    prerequisite_signals = [s for s in signals if s.kc_id == "KC-1" and s.category == "prerequisite_gap"]
+    prerequisite_signals = [
+        s for s in signals if s.kc_id == "KC-1" and s.category == "prerequisite_gap"
+    ]
     assert len(prerequisite_signals) == 1
     assert prerequisite_signals[0].confidence > 0.4
 
 
-def test_misconception_detector_relaxes_prerequisite_threshold_for_recent_successes(tmp_path):
+def test_misconception_detector_relaxes_prerequisite_threshold_for_recent_successes(
+    tmp_path,
+):
     """ADAPT-003: When a prerequisite KC has recent low-support successes
     (2+ successes, 0 struggles), the threshold should lower from 0.75 to
     0.68, so a prerequisite the learner is recovering on is less likely
@@ -280,7 +323,11 @@ def test_misconception_detector_relaxes_prerequisite_threshold_for_recent_succes
     kc_store = SQLiteKnowledgeComponentStore(database_path)
     observation_store = SQLiteObservationStore(database_path)
     student_id = uuid4()
-    kc_store.upsert(KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1", name="Identify numerator and denominator")))
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component("KC-1", name="Identify numerator and denominator")
+        )
+    )
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
             build_knowledge_component(
@@ -314,7 +361,9 @@ def test_misconception_detector_relaxes_prerequisite_threshold_for_recent_succes
         confidence=0.80,
         response_time_ms=10000,
     )
-    profile = LearnerProfile.model_validate(build_profile(student_id, kc_mastery={"KC-1": 0.70, "KC-2": 0.6}))
+    profile = LearnerProfile.model_validate(
+        build_profile(student_id, kc_mastery={"KC-1": 0.70, "KC-2": 0.6})
+    )
     detector = MisconceptionDetector(kc_store, observation_store=observation_store)
 
     signals = detector.detect(
@@ -327,7 +376,9 @@ def test_misconception_detector_relaxes_prerequisite_threshold_for_recent_succes
     # The prerequisite gap on KC-1 may still appear because of text
     # overlap on "fractions", but its confidence should be lower than it
     # would be without the behavioral success evidence tempering it.
-    prerequisite_signals = [s for s in signals if s.kc_id == "KC-1" and s.category == "prerequisite_gap"]
+    prerequisite_signals = [
+        s for s in signals if s.kc_id == "KC-1" and s.category == "prerequisite_gap"
+    ]
     # With 2 low-support successes, the behavioral evidence lowers the
     # confidence adjustment by -0.05, and the threshold drops from 0.75
     # to 0.68 so the mastery gap itself is much smaller.  The signal
@@ -336,13 +387,19 @@ def test_misconception_detector_relaxes_prerequisite_threshold_for_recent_succes
         assert signal.confidence < 0.65
 
 
-def test_misconception_detector_uses_repair_target_behavioral_evidence_for_catalog_match(tmp_path):
+def test_misconception_detector_uses_repair_target_behavioral_evidence_for_catalog_match(
+    tmp_path,
+):
     database_path = str(tmp_path / "misconceptions-behavioral-catalog.db")
     ensure_database(database_path)
     kc_store = SQLiteKnowledgeComponentStore(database_path)
     observation_store = SQLiteObservationStore(database_path)
     student_id = uuid4()
-    kc_store.upsert(KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1", name="Compare whole fraction amounts")))
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component("KC-1", name="Compare whole fraction amounts")
+        )
+    )
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
             build_knowledge_component(
@@ -353,7 +410,12 @@ def test_misconception_detector_uses_repair_target_behavioral_evidence_for_catal
                         "misconception_id": "fraction-whole-number-bias",
                         "label": "Treats numerator and denominator like unrelated whole numbers",
                         "description": "The learner compares fraction parts separately instead of the overall amount.",
-                        "trigger_terms": ["numerator", "denominator", "whole number", "separately"],
+                        "trigger_terms": [
+                            "numerator",
+                            "denominator",
+                            "whole number",
+                            "separately",
+                        ],
                         "prerequisite_kc_ids": ["KC-1"],
                         "remediation_hint": "Use one visual model to compare the whole amount before naming each part.",
                     }
@@ -383,9 +445,13 @@ def test_misconception_detector_uses_repair_target_behavioral_evidence_for_catal
         response_time_ms=30000,
         modality_switches=1,
     )
-    profile = LearnerProfile.model_validate(build_profile(student_id, kc_mastery={"KC-2": 0.58}))
+    profile = LearnerProfile.model_validate(
+        build_profile(student_id, kc_mastery={"KC-2": 0.58})
+    )
     baseline_detector = MisconceptionDetector(kc_store)
-    behavioral_detector = MisconceptionDetector(kc_store, observation_store=observation_store)
+    behavioral_detector = MisconceptionDetector(
+        kc_store, observation_store=observation_store
+    )
 
     baseline_signal = next(
         signal
@@ -416,7 +482,11 @@ def test_remediation_planner_uses_misconception_signals_to_order_focus(tmp_path)
     database_path = str(tmp_path / "remediation-plan.db")
     ensure_database(database_path)
     kc_store = SQLiteKnowledgeComponentStore(database_path)
-    kc_store.upsert(KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1", name="Identify numerator and denominator")))
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component("KC-1", name="Identify numerator and denominator")
+        )
+    )
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
             build_knowledge_component(
@@ -426,7 +496,9 @@ def test_remediation_planner_uses_misconception_signals_to_order_focus(tmp_path)
             )
         )
     )
-    profile = LearnerProfile.model_validate(build_profile(uuid4(), kc_mastery={"KC-1": 0.3, "KC-2": 0.6}))
+    profile = LearnerProfile.model_validate(
+        build_profile(uuid4(), kc_mastery={"KC-1": 0.3, "KC-2": 0.6})
+    )
     planner = RemediationPlanner(kc_store, MisconceptionDetector(kc_store))
 
     plan = planner.plan(
@@ -442,11 +514,17 @@ def test_remediation_planner_uses_misconception_signals_to_order_focus(tmp_path)
     assert "prerequisite knowledge components" in plan.rationale
 
 
-def test_misconception_detector_weights_nearby_prerequisites_above_deeper_links(tmp_path):
+def test_misconception_detector_weights_nearby_prerequisites_above_deeper_links(
+    tmp_path,
+):
     database_path = str(tmp_path / "misconceptions-prereq-depth.db")
     ensure_database(database_path)
     kc_store = SQLiteKnowledgeComponentStore(database_path)
-    kc_store.upsert(KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1", name="Understand fraction language")))
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component("KC-1", name="Understand fraction language")
+        )
+    )
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
             build_knowledge_component(
@@ -465,7 +543,9 @@ def test_misconception_detector_weights_nearby_prerequisites_above_deeper_links(
             )
         )
     )
-    profile = LearnerProfile.model_validate(build_profile(uuid4(), kc_mastery={"KC-1": 0.2, "KC-2": 0.24, "KC-3": 0.55}))
+    profile = LearnerProfile.model_validate(
+        build_profile(uuid4(), kc_mastery={"KC-1": 0.2, "KC-2": 0.24, "KC-3": 0.55})
+    )
     detector = MisconceptionDetector(kc_store)
 
     signals = detector.detect(
@@ -475,12 +555,16 @@ def test_misconception_detector_weights_nearby_prerequisites_above_deeper_links(
         curriculum_context=["Equivalent fractions"],
     )
 
-    prerequisite_signals = [signal for signal in signals if signal.category == "prerequisite_gap"]
+    prerequisite_signals = [
+        signal for signal in signals if signal.category == "prerequisite_gap"
+    ]
     assert [signal.kc_id for signal in prerequisite_signals[:2]] == ["KC-2", "KC-1"]
     assert "depth-1 prerequisite" in prerequisite_signals[0].rationale
 
 
-def test_remediation_planner_builds_structured_blueprint_for_known_misconceptions(tmp_path):
+def test_remediation_planner_builds_structured_blueprint_for_known_misconceptions(
+    tmp_path,
+):
     database_path = str(tmp_path / "remediation-blueprint.db")
     ensure_database(database_path)
     kc_store = SQLiteKnowledgeComponentStore(database_path)
@@ -511,7 +595,9 @@ def test_remediation_planner_builds_structured_blueprint_for_known_misconception
             )
         )
     )
-    profile = LearnerProfile.model_validate(build_profile(uuid4(), kc_mastery={"KC-1": 0.3, "KC-2": 0.52}))
+    profile = LearnerProfile.model_validate(
+        build_profile(uuid4(), kc_mastery={"KC-1": 0.3, "KC-2": 0.52})
+    )
     planner = RemediationPlanner(kc_store, MisconceptionDetector(kc_store))
 
     plan = planner.plan(
@@ -528,15 +614,24 @@ def test_remediation_planner_builds_structured_blueprint_for_known_misconception
     )
     assert catalog_signal.source == "catalog"
     assert plan.module_blueprint["trigger"] == "misconception_detected"
-    assert plan.module_blueprint["primary_misconception_id"] == "fraction-part-role-swap"
+    assert (
+        plan.module_blueprint["primary_misconception_id"] == "fraction-part-role-swap"
+    )
     assert plan.module_blueprint["repair_target_kc_ids"] == ["KC-1"]
     assert plan.module_blueprint["sequence_action"] == "rebuild_prerequisite_first"
-    assert [step["phase"] for step in plan.module_blueprint["steps"]] == ["step_back", "repair", "return"]
+    assert [step["phase"] for step in plan.module_blueprint["steps"]] == [
+        "step_back",
+        "repair",
+        "return",
+    ]
     assert "fraction-part-role-swap" in plan.rationale
     assert "numerator" in plan.rationale
     assert "Identify numerator and denominator" in plan.rationale
     assert "Generate equivalent fractions" in plan.rationale
-    assert "broader prerequisite-gap signal on Identify numerator and denominator" in plan.rationale
+    assert (
+        "broader prerequisite-gap signal on Identify numerator and denominator"
+        in plan.rationale
+    )
     assert "instead of defaulting to a generic step-back" in plan.rationale
 
 
@@ -558,7 +653,9 @@ def test_remediation_planner_can_hold_target_before_prerequisite_step_back(tmp_p
             )
         )
     )
-    profile = LearnerProfile.model_validate(build_profile(uuid4(), kc_mastery={"KC-1": 0.35, "KC-2": 0.54}))
+    profile = LearnerProfile.model_validate(
+        build_profile(uuid4(), kc_mastery={"KC-1": 0.35, "KC-2": 0.54})
+    )
     planner = RemediationPlanner(kc_store, MisconceptionDetector(kc_store))
 
     plan = planner.plan(
@@ -585,7 +682,11 @@ def test_remediation_planner_adds_same_lo_bridge_between_repair_and_return(tmp_p
     database_path = str(tmp_path / "remediation-bridge.db")
     ensure_database(database_path)
     kc_store = SQLiteKnowledgeComponentStore(database_path)
-    kc_store.upsert(KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1", name="Identify numerator and denominator")))
+    kc_store.upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component("KC-1", name="Identify numerator and denominator")
+        )
+    )
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
             build_knowledge_component(
@@ -616,7 +717,9 @@ def test_remediation_planner_adds_same_lo_bridge_between_repair_and_return(tmp_p
             )
         )
     )
-    profile = LearnerProfile.model_validate(build_profile(uuid4(), kc_mastery={"KC-1": 0.28, "KC-2": 0.5, "KC-3": 0.44}))
+    profile = LearnerProfile.model_validate(
+        build_profile(uuid4(), kc_mastery={"KC-1": 0.28, "KC-2": 0.5, "KC-3": 0.44})
+    )
     planner = RemediationPlanner(kc_store, MisconceptionDetector(kc_store))
 
     plan = planner.plan(
@@ -629,7 +732,12 @@ def test_remediation_planner_adds_same_lo_bridge_between_repair_and_return(tmp_p
     assert plan.focus_kc_ids == ["KC-1", "KC-2", "KC-3"]
     assert plan.kc_sequence.bridge_kc_ids == ["KC-2"]
     assert plan.module_blueprint["bridge_target_kc_ids"] == ["KC-2"]
-    assert [step["phase"] for step in plan.module_blueprint["steps"]] == ["step_back", "repair", "bridge", "return"]
+    assert [step["phase"] for step in plan.module_blueprint["steps"]] == [
+        "step_back",
+        "repair",
+        "bridge",
+        "return",
+    ]
     assert "nearby bridge KC(s) KC-2" in (plan.kc_sequence.rationale or "")
 
 
@@ -697,10 +805,17 @@ def test_remediation_planner_can_bridge_through_curated_taxonomy_neighbor(tmp_pa
     assert plan.focus_kc_ids == ["KC-1", "KC-2", "KC-3"]
     assert plan.kc_sequence.bridge_kc_ids == ["KC-2"]
     assert plan.module_blueprint["bridge_target_kc_ids"] == ["KC-2"]
-    assert [step["phase"] for step in plan.module_blueprint["steps"]] == ["step_back", "repair", "bridge", "return"]
+    assert [step["phase"] for step in plan.module_blueprint["steps"]] == [
+        "step_back",
+        "repair",
+        "bridge",
+        "return",
+    ]
 
 
-def test_misconception_detector_uses_profile_signals_to_reinforce_prior_patterns(tmp_path):
+def test_misconception_detector_uses_profile_signals_to_reinforce_prior_patterns(
+    tmp_path,
+):
     from dibble.services.audit_store import SQLiteAuditStore
 
     database_path = str(tmp_path / "misconception-profile-detector.db")
@@ -764,7 +879,9 @@ def test_misconception_detector_uses_profile_signals_to_reinforce_prior_patterns
             "remediation_hint": "Use one visual model to compare the whole amount.",
         },
     )
-    profile = LearnerProfile.model_validate(build_profile(student_id, kc_mastery={"KC-2": 0.42}))
+    profile = LearnerProfile.model_validate(
+        build_profile(student_id, kc_mastery={"KC-2": 0.42})
+    )
     detector = MisconceptionDetector(
         kc_store,
         audit_store=audit_store,
@@ -824,7 +941,9 @@ def test_remediation_planner_prioritizes_recurring_profile_patterns(tmp_path):
             "remediation_hint": "Use one visual model to compare the whole amount.",
         },
     )
-    profile = LearnerProfile.model_validate(build_profile(student_id, kc_mastery={"KC-1": 0.4, "KC-2": 0.48}))
+    profile = LearnerProfile.model_validate(
+        build_profile(student_id, kc_mastery={"KC-1": 0.4, "KC-2": 0.48})
+    )
     planner = RemediationPlanner(
         kc_store,
         MisconceptionDetector(
@@ -847,7 +966,10 @@ def test_remediation_planner_prioritizes_recurring_profile_patterns(tmp_path):
     assert "relapsing" in plan.rationale
     assert "Identify numerator and denominator" in plan.rationale
     assert "Selected as the primary misconception for KC-2" in plan.rationale
-    assert "Sequence the next KC focus as rebuild prerequisite first on KC-1." in plan.rationale
+    assert (
+        "Sequence the next KC focus as rebuild prerequisite first on KC-1."
+        in plan.rationale
+    )
     assert plan.kc_sequence.rationale in plan.rationale
     assert plan.module_blueprint["primary_misconception_source"] == "profile"
     assert plan.module_blueprint["primary_recurrence_signal"] == "relapsing"

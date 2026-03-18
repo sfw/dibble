@@ -60,7 +60,11 @@ class GenerationTraceLinker:
         for event in events:
             if event.student_id != generation_event.student_id:
                 continue
-            if not (generation_event.created_at <= event.created_at <= generation_event.created_at + window):
+            if not (
+                generation_event.created_at
+                <= event.created_at
+                <= generation_event.created_at + window
+            ):
                 continue
             match_score = float(match_scorer(generation_event, event))
             if match_score <= 0.0:
@@ -79,14 +83,19 @@ class GenerationTraceLinker:
             strongest_matches = [
                 item
                 for item in linked
-                if item.link_tier == strongest_tier and item.match_score >= self.minimum_match_score
+                if item.link_tier == strongest_tier
+                and item.match_score >= self.minimum_match_score
             ]
             if strongest_matches:
                 linked = strongest_matches
-        linked.sort(key=lambda item: (item.match_score, item.event.created_at), reverse=True)
+        linked.sort(
+            key=lambda item: (item.match_score, item.event.created_at), reverse=True
+        )
         return linked[: self.max_events_per_trace]
 
-    def _observation_link_tier(self, generation_event: AuditEvent, observation_event: AuditEvent) -> int:
+    def _observation_link_tier(
+        self, generation_event: AuditEvent, observation_event: AuditEvent
+    ) -> int:
         generation_payload = generation_event.payload
         observation_payload = observation_event.payload
 
@@ -95,23 +104,40 @@ class GenerationTraceLinker:
             return 3
 
         learning_session_id = generation_payload.get("learning_session_id")
-        if learning_session_id and observation_payload.get("learning_session_id") == learning_session_id:
+        if (
+            learning_session_id
+            and observation_payload.get("learning_session_id") == learning_session_id
+        ):
             return 2
 
         content_type = generation_payload.get("content_type")
         expected_task_type = self._expected_task_type(content_type)
         if (
-            (content_type and observation_payload.get("observed_content_type") == content_type)
-            or (expected_task_type and observation_payload.get("task_type") == expected_task_type)
-            or self._overlap_score(generation_payload.get("target_kc_ids"), observation_payload.get("target_kc_ids"))
+            (
+                content_type
+                and observation_payload.get("observed_content_type") == content_type
+            )
+            or (
+                expected_task_type
+                and observation_payload.get("task_type") == expected_task_type
+            )
+            or self._overlap_score(
+                generation_payload.get("target_kc_ids"),
+                observation_payload.get("target_kc_ids"),
+            )
             > 0.0
-            or self._overlap_score(generation_payload.get("target_lo_ids"), observation_payload.get("target_lo_ids"))
+            or self._overlap_score(
+                generation_payload.get("target_lo_ids"),
+                observation_payload.get("target_lo_ids"),
+            )
             > 0.0
         ):
             return 1
         return 0
 
-    def _assessment_link_tier(self, generation_event: AuditEvent, assessment_event: AuditEvent) -> int:
+    def _assessment_link_tier(
+        self, generation_event: AuditEvent, assessment_event: AuditEvent
+    ) -> int:
         generation_payload = generation_event.payload
         assessment_payload = assessment_event.payload
 
@@ -120,18 +146,30 @@ class GenerationTraceLinker:
             return 3
 
         learning_session_id = generation_payload.get("learning_session_id")
-        if learning_session_id and assessment_payload.get("learning_session_id") == learning_session_id:
+        if (
+            learning_session_id
+            and assessment_payload.get("learning_session_id") == learning_session_id
+        ):
             return 2
 
         if (
-            self._overlap_score(generation_payload.get("target_kc_ids"), assessment_payload.get("target_kc_ids")) > 0.0
-            or self._overlap_score(generation_payload.get("target_lo_ids"), assessment_payload.get("target_lo_ids"))
+            self._overlap_score(
+                generation_payload.get("target_kc_ids"),
+                assessment_payload.get("target_kc_ids"),
+            )
+            > 0.0
+            or self._overlap_score(
+                generation_payload.get("target_lo_ids"),
+                assessment_payload.get("target_lo_ids"),
+            )
             > 0.0
         ):
             return 1
         return 0
 
-    def _observation_match_score(self, generation_event: AuditEvent, observation_event: AuditEvent) -> float:
+    def _observation_match_score(
+        self, generation_event: AuditEvent, observation_event: AuditEvent
+    ) -> float:
         generation_payload = generation_event.payload
         observation_payload = observation_event.payload
         score = 0.0
@@ -141,15 +179,24 @@ class GenerationTraceLinker:
             score += 5.0
 
         learning_session_id = generation_payload.get("learning_session_id")
-        if learning_session_id and observation_payload.get("learning_session_id") == learning_session_id:
+        if (
+            learning_session_id
+            and observation_payload.get("learning_session_id") == learning_session_id
+        ):
             score += 3.0
 
         content_type = generation_payload.get("content_type")
-        if content_type and observation_payload.get("observed_content_type") == content_type:
+        if (
+            content_type
+            and observation_payload.get("observed_content_type") == content_type
+        ):
             score += 1.5
 
         expected_task_type = self._expected_task_type(content_type)
-        if expected_task_type and observation_payload.get("task_type") == expected_task_type:
+        if (
+            expected_task_type
+            and observation_payload.get("task_type") == expected_task_type
+        ):
             score += 1.0
 
         kc_overlap = self._overlap_score(
@@ -163,11 +210,18 @@ class GenerationTraceLinker:
         score += kc_overlap * 1.2
         score += lo_overlap * 0.8
 
-        time_delta_seconds = (observation_event.created_at - generation_event.created_at).total_seconds()
-        score += max(0.0, 1.0 - (time_delta_seconds / max(60.0, self.event_window_minutes * 60.0)))
+        time_delta_seconds = (
+            observation_event.created_at - generation_event.created_at
+        ).total_seconds()
+        score += max(
+            0.0,
+            1.0 - (time_delta_seconds / max(60.0, self.event_window_minutes * 60.0)),
+        )
         return score
 
-    def _assessment_match_score(self, generation_event: AuditEvent, assessment_event: AuditEvent) -> float:
+    def _assessment_match_score(
+        self, generation_event: AuditEvent, assessment_event: AuditEvent
+    ) -> float:
         generation_payload = generation_event.payload
         assessment_payload = assessment_event.payload
         score = 0.0
@@ -177,7 +231,10 @@ class GenerationTraceLinker:
             score += 4.0
 
         learning_session_id = generation_payload.get("learning_session_id")
-        if learning_session_id and assessment_payload.get("learning_session_id") == learning_session_id:
+        if (
+            learning_session_id
+            and assessment_payload.get("learning_session_id") == learning_session_id
+        ):
             score += 3.0
 
         kc_overlap = self._overlap_score(
@@ -191,8 +248,13 @@ class GenerationTraceLinker:
         score += kc_overlap * 1.4
         score += lo_overlap * 1.0
 
-        time_delta_seconds = (assessment_event.created_at - generation_event.created_at).total_seconds()
-        score += max(0.0, 1.0 - (time_delta_seconds / max(60.0, self.event_window_minutes * 60.0)))
+        time_delta_seconds = (
+            assessment_event.created_at - generation_event.created_at
+        ).total_seconds()
+        score += max(
+            0.0,
+            1.0 - (time_delta_seconds / max(60.0, self.event_window_minutes * 60.0)),
+        )
         return score
 
     def _expected_task_type(self, content_type: object) -> str | None:
@@ -207,7 +269,11 @@ class GenerationTraceLinker:
 
     def _overlap_score(self, left: object, right: object) -> float:
         left_values = {str(item) for item in left} if isinstance(left, list) else set()
-        right_values = {str(item) for item in right} if isinstance(right, list) else set()
+        right_values = (
+            {str(item) for item in right} if isinstance(right, list) else set()
+        )
         if not left_values or not right_values:
             return 0.0
-        return len(left_values & right_values) / max(len(left_values), len(right_values))
+        return len(left_values & right_values) / max(
+            len(left_values), len(right_values)
+        )

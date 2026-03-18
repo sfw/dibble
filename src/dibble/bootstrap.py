@@ -300,6 +300,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         curriculum_store=curriculum_store,
         knowledge_component_store=knowledge_component_store,
         learner_flow_service=learner_flow_service,
+        ordinary_mastery_signal_service=ordinary_mastery_signal_service,
     )
     learner_summary_service = LearnerSummaryService(
         profile_store=profile_store,

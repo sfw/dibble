@@ -4,7 +4,10 @@ from dataclasses import dataclass
 from datetime import timedelta
 
 from dibble.models.telemetry import AuditEvent
-from dibble.services.generation_outcome_metrics import score_assessment_event, score_observation_event
+from dibble.services.generation_outcome_metrics import (
+    score_assessment_event,
+    score_observation_event,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,7 +43,9 @@ class LearningSessionOutcomeScorer:
                 if event.event_id != generation_event.event_id
                 and event.student_id == generation_event.student_id
                 and event.payload.get("learning_session_id") == learning_session_id
-                and generation_event.created_at < event.created_at <= generation_event.created_at + window
+                and generation_event.created_at
+                < event.created_at
+                <= generation_event.created_at + window
             ],
             key=lambda event: event.created_at,
         )
@@ -65,14 +70,26 @@ class LearningSessionOutcomeScorer:
         )
         downstream_scores = []
         if observations:
-            downstream_scores.append(sum(score_observation_event(event) for event in observations) / len(observations))
+            downstream_scores.append(
+                sum(score_observation_event(event) for event in observations)
+                / len(observations)
+            )
         if assessments:
-            downstream_scores.append(sum(score_assessment_event(event) for event in assessments) / len(assessments))
+            downstream_scores.append(
+                sum(score_assessment_event(event) for event in assessments)
+                / len(assessments)
+            )
         if not downstream_scores:
-            return LearningSessionOutcome(subsequent_generation_count=len(subsequent_generations))
-        outcome_event_ids = tuple(dict.fromkeys([event.event_id for event in observations + assessments]))
+            return LearningSessionOutcome(
+                subsequent_generation_count=len(subsequent_generations)
+            )
+        outcome_event_ids = tuple(
+            dict.fromkeys([event.event_id for event in observations + assessments])
+        )
         return LearningSessionOutcome(
-            session_outcome_score=round(sum(downstream_scores) / len(downstream_scores), 2),
+            session_outcome_score=round(
+                sum(downstream_scores) / len(downstream_scores), 2
+            ),
             subsequent_generation_count=len(subsequent_generations),
             outcome_event_count=len(observations) + len(assessments),
             outcome_event_ids=outcome_event_ids,

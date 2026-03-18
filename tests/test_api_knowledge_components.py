@@ -37,7 +37,10 @@ def test_knowledge_component_round_trip_and_prerequisites(client):
     assert prerequisites_response.status_code == 200
     assert {item["kc_id"] for item in list_response.json()} == {"KC-1", "KC-2"}
     kc_one = next(item for item in list_response.json() if item["kc_id"] == "KC-1")
-    assert kc_one["common_misconceptions"][0]["misconception_id"] == "fraction-part-role-swap"
+    assert (
+        kc_one["common_misconceptions"][0]["misconception_id"]
+        == "fraction-part-role-swap"
+    )
     assert kc_one["concept_family"] == "fraction-sense"
     assert kc_one["taxonomy_cluster_id"] == "fractions-core"
     assert kc_one["nearby_kc_ids"] == ["KC-2"]

@@ -4,7 +4,13 @@ from tests.support import build_profile
 def test_decide_endpoint_exposes_router_calibration_summary(client, student_id):
     client.put(
         f"/api/learners/{student_id}/profile",
-        json=build_profile(student_id, frustration="low", total_load=0.2, kc_mastery={"KC-1": 0.25}, engagement="medium"),
+        json=build_profile(
+            student_id,
+            frustration="low",
+            total_load=0.2,
+            kc_mastery={"KC-1": 0.25},
+            engagement="medium",
+        ),
     )
 
     response = client.post(

@@ -92,7 +92,11 @@ class GroundingPassageSelector:
         normalized = _WHITESPACE_PATTERN.sub(" ", body).strip()
         if not normalized:
             return []
-        sentences = [sentence.strip() for sentence in _SENTENCE_SPLIT_PATTERN.split(normalized) if sentence.strip()]
+        sentences = [
+            sentence.strip()
+            for sentence in _SENTENCE_SPLIT_PATTERN.split(normalized)
+            if sentence.strip()
+        ]
         if not sentences:
             return [normalized]
 

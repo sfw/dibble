@@ -19,7 +19,12 @@ from dibble.models.generation import (
     GroundingReference,
 )
 from dibble.models.profile import LearnerProfile
-from dibble.plugins.contracts import ProviderPlugin, RetrieverPlugin, RouterPlugin, ValidatorPlugin
+from dibble.plugins.contracts import (
+    ProviderPlugin,
+    RetrieverPlugin,
+    RouterPlugin,
+    ValidatorPlugin,
+)
 from dibble.services.content_moderation import ContentModerationService
 from dibble.services.generation_modes import build_generation_mode_plan
 from dibble.services.protocols import GeneratedContentStore
@@ -46,7 +51,9 @@ class GenerationEngine:
         self.cache_ttl_seconds = max(0, cache_ttl_seconds)
         self.time_provider = time_provider
 
-    def generate(self, profile: LearnerProfile, request: GenerationRequest) -> GenerationResponse:
+    def generate(
+        self, profile: LearnerProfile, request: GenerationRequest
+    ) -> GenerationResponse:
         grounding = self.retriever.retrieve(profile, request)
         route = self.router.route(profile, request)
         cache_key = self._cache_key(profile, request, route, grounding)
@@ -94,19 +101,25 @@ class GenerationEngine:
                     replacement_block_count=len(blocks),
                 )
                 route.delivery_mode = DeliveryMode.static_fallback
-        response = self._build_response(profile, request, route, grounding, blocks, moderation=moderation)
+        response = self._build_response(
+            profile, request, route, grounding, blocks, moderation=moderation
+        )
         content = self._build_generated_content(
             profile=profile,
             request=request,
             response=response,
             moderation=moderation,
             cache_hit=False,
-            generation_latency_ms=int(round((self.time_provider() - started_at) * 1000)),
+            generation_latency_ms=int(
+                round((self.time_provider() - started_at) * 1000)
+            ),
         )
         self._store_generated_content(cache_key=cache_key, content=content)
         return content.response
 
-    def stream_generate(self, profile: LearnerProfile, request: GenerationRequest) -> Iterator[GenerationStreamEvent]:
+    def stream_generate(
+        self, profile: LearnerProfile, request: GenerationRequest
+    ) -> Iterator[GenerationStreamEvent]:
         grounding = self.retriever.retrieve(profile, request)
         route = self.router.route(profile, request)
         cache_key = self._cache_key(profile, request, route, grounding)
@@ -159,7 +172,9 @@ class GenerationEngine:
                 route=route,
                 grounding=grounding,
             )
-            yield self._moderation_event(profile=profile, route=route, moderation=moderation)
+            yield self._moderation_event(
+                profile=profile, route=route, moderation=moderation
+            )
         else:
             yield GenerationStreamEvent(
                 event="start",
@@ -168,10 +183,14 @@ class GenerationEngine:
                 grounding=grounding,
             )
             block_buffers: dict[int, GeneratedBlock] = {}
-            for chunk in self.provider.stream_generate(profile, request, route, grounding):
+            for chunk in self.provider.stream_generate(
+                profile, request, route, grounding
+            ):
                 current = block_buffers.get(chunk.block_index)
                 if current is None:
-                    current = GeneratedBlock(kind=chunk.kind, title=chunk.title, body="")
+                    current = GeneratedBlock(
+                        kind=chunk.kind, title=chunk.title, body=""
+                    )
                     block_buffers[chunk.block_index] = current
                 current.body += chunk.body_delta
             blocks = [block_buffers[index] for index in sorted(block_buffers)]
@@ -194,7 +213,9 @@ class GenerationEngine:
                     replacement_block_count=len(blocks),
                 )
                 route.delivery_mode = DeliveryMode.static_fallback
-                yield self._moderation_event(profile=profile, route=route, moderation=moderation)
+                yield self._moderation_event(
+                    profile=profile, route=route, moderation=moderation
+                )
 
         for chunk in self._stream_cached_blocks(blocks):
             yield GenerationStreamEvent(
@@ -203,14 +224,18 @@ class GenerationEngine:
                 chunk=chunk,
             )
 
-        response = self._build_response(profile, request, route, grounding, blocks, moderation=moderation)
+        response = self._build_response(
+            profile, request, route, grounding, blocks, moderation=moderation
+        )
         content = self._build_generated_content(
             profile=profile,
             request=request,
             response=response,
             moderation=moderation,
             cache_hit=False,
-            generation_latency_ms=int(round((self.time_provider() - started_at) * 1000)),
+            generation_latency_ms=int(
+                round((self.time_provider() - started_at) * 1000)
+            ),
         )
         self._store_generated_content(cache_key=cache_key, content=content)
         yield GenerationStreamEvent(
@@ -281,7 +306,11 @@ class GenerationEngine:
             }
         )
         created_at = datetime.now(timezone.utc)
-        expires_at = created_at + timedelta(seconds=self.cache_ttl_seconds) if self.cache_ttl_seconds > 0 else None
+        expires_at = (
+            created_at + timedelta(seconds=self.cache_ttl_seconds)
+            if self.cache_ttl_seconds > 0
+            else None
+        )
         return GeneratedContent(
             generation_id=generation_id,
             student_id=profile.student_id,
@@ -300,16 +329,29 @@ class GenerationEngine:
         if cached is None:
             return None
         cached_quality = cached.quality.model_copy(update={"cache_hit": True})
-        cached_response = cached.response.model_copy(update={"generation_metadata": cached_quality})
-        return cached.model_copy(update={"quality": cached_quality, "response": cached_response})
+        cached_response = cached.response.model_copy(
+            update={"generation_metadata": cached_quality}
+        )
+        return cached.model_copy(
+            update={"quality": cached_quality, "response": cached_response}
+        )
 
-    def _store_generated_content(self, *, cache_key: str, content: GeneratedContent) -> None:
+    def _store_generated_content(
+        self, *, cache_key: str, content: GeneratedContent
+    ) -> None:
         if self.generated_content_store is None or self.cache_ttl_seconds <= 0:
             return
         self.generated_content_store.upsert(cache_key=cache_key, content=content)
 
-    def _cache_key(self, profile: LearnerProfile, request: GenerationRequest, route, grounding) -> str:
-        ignored_request_keys = {"learning_session_id", "predictive_warm", "warm_reason", "source_generation_id"}
+    def _cache_key(
+        self, profile: LearnerProfile, request: GenerationRequest, route, grounding
+    ) -> str:
+        ignored_request_keys = {
+            "learning_session_id",
+            "predictive_warm",
+            "warm_reason",
+            "source_generation_id",
+        }
         payload = {
             "profile": profile.model_dump(mode="json"),
             "request": {
@@ -323,7 +365,9 @@ class GenerationEngine:
         serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return sha256(serialized.encode("utf-8")).hexdigest()
 
-    def _quality_score(self, response: GenerationResponse, *, moderation: ModerationResult) -> float:
+    def _quality_score(
+        self, response: GenerationResponse, *, moderation: ModerationResult
+    ) -> float:
         base_score = 1.0
         base_score -= min(len(response.validation_issues) * 0.15, 0.6)
         if not response.grounding:

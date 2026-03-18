@@ -10,7 +10,9 @@ class SQLiteObservationStore:
     def __init__(self, database_path: str) -> None:
         self.database_path = database_path
 
-    def append(self, *, student_id: str, observation: LearnerObservationCreate) -> LearnerObservation:
+    def append(
+        self, *, student_id: str, observation: LearnerObservationCreate
+    ) -> LearnerObservation:
         persisted = LearnerObservation(
             observation_id=str(uuid4()),
             student_id=student_id,
@@ -32,7 +34,9 @@ class SQLiteObservationStore:
             connection.commit()
         return persisted
 
-    def list_recent(self, *, student_id: str, limit: int = 20) -> list[LearnerObservation]:
+    def list_recent(
+        self, *, student_id: str, limit: int = 20
+    ) -> list[LearnerObservation]:
         with sqlite3.connect(self.database_path) as connection:
             rows = connection.execute(
                 """

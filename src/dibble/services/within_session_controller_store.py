@@ -9,7 +9,9 @@ class SQLiteWithinSessionControllerStore:
     def __init__(self, database_path: str) -> None:
         self.database_path = database_path
 
-    def upsert(self, session: WithinSessionControllerState) -> WithinSessionControllerState:
+    def upsert(
+        self, session: WithinSessionControllerState
+    ) -> WithinSessionControllerState:
         with sqlite3.connect(self.database_path) as connection:
             connection.execute(
                 """

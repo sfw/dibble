@@ -21,14 +21,23 @@ def test_generation_response_populates_text_artifacts_from_blocks():
             reasons=["test"],
         ),
         blocks=[
-            GeneratedBlock(kind="summary", title="Learning focus", body="Equivalent fractions name the same amount."),
-            GeneratedBlock(kind="instruction", title="Try it", body="Explain why 1/2 equals 2/4."),
+            GeneratedBlock(
+                kind="summary",
+                title="Learning focus",
+                body="Equivalent fractions name the same amount.",
+            ),
+            GeneratedBlock(
+                kind="instruction", title="Try it", body="Explain why 1/2 equals 2/4."
+            ),
         ],
         curriculum_context=["Equivalent fractions"],
         safety_notes=[],
     )
 
-    assert [artifact["artifact_type"] for artifact in response.model_dump(mode="json")["artifacts"]] == ["text", "text"]
+    assert [
+        artifact["artifact_type"]
+        for artifact in response.model_dump(mode="json")["artifacts"]
+    ] == ["text", "text"]
     assert response.artifacts[0].role == "summary"
     assert response.artifacts[0].text == "Equivalent fractions name the same amount."
     assert response.artifacts[1].sequence_index == 1
@@ -69,4 +78,6 @@ def test_generated_content_backfills_text_artifacts_for_legacy_payloads():
     assert len(content.response.artifacts) == 1
     assert content.response.artifacts[0].artifact_type == "text"
     assert content.response.artifacts[0].title == "Legacy summary"
-    assert content.response.artifacts[0].text == "Older stored payloads only had blocks."
+    assert (
+        content.response.artifacts[0].text == "Older stored payloads only had blocks."
+    )

@@ -4,7 +4,10 @@ from dataclasses import dataclass
 
 from dibble.models.assessment import SocraticEvidenceStrength
 from dibble.models.curriculum import KnowledgeComponent
-from dibble.services.knowledge_component_graph import KnowledgeComponentGraph, KnowledgeComponentRelation
+from dibble.services.knowledge_component_graph import (
+    KnowledgeComponentGraph,
+    KnowledgeComponentRelation,
+)
 from dibble.services.protocols import KnowledgeComponentStore
 
 
@@ -41,7 +44,9 @@ class KnowledgeStateMigrator:
         evidence_strength: SocraticEvidenceStrength,
     ) -> KnowledgeStateMigrationResult:
         if not direct_kc_updates and not direct_lo_updates:
-            return KnowledgeStateMigrationResult(kc_mastery_updates={}, lo_mastery_updates={})
+            return KnowledgeStateMigrationResult(
+                kc_mastery_updates={}, lo_mastery_updates={}
+            )
 
         all_components = self.knowledge_component_store.list()
         graph = KnowledgeComponentGraph(
@@ -94,15 +99,12 @@ class KnowledgeStateMigrator:
         for propagated_kc_id, propagated_mastery in propagated_kc_updates.items():
             kc_mastery[propagated_kc_id] = propagated_mastery
 
-        affected_lo_ids = {
-            lo_id
-            for lo_id in direct_lo_updates
-            if lo_id is not None
-        }
+        affected_lo_ids = {lo_id for lo_id in direct_lo_updates if lo_id is not None}
         affected_lo_ids.update(
             component.parent_lo_id
             for component in all_components
-            if component.kc_id in {*direct_kc_updates.keys(), *propagated_kc_updates.keys()}
+            if component.kc_id
+            in {*direct_kc_updates.keys(), *propagated_kc_updates.keys()}
         )
         propagated_lo_updates = self._recompute_lo_mastery(
             kc_mastery=kc_mastery,
@@ -124,7 +126,10 @@ class KnowledgeStateMigrator:
         updated_mastery: float,
         evidence_strength: SocraticEvidenceStrength,
     ) -> dict[str, float]:
-        if evidence_strength != SocraticEvidenceStrength.demonstrated or updated_mastery < 0.7:
+        if (
+            evidence_strength != SocraticEvidenceStrength.demonstrated
+            or updated_mastery < 0.7
+        ):
             return {}
         propagated: dict[str, float] = {}
         for relation in graph.prerequisites_for(component.kc_id):
@@ -202,7 +207,10 @@ class KnowledgeStateMigrator:
                 if prior is None:
                     rounded = estimated
                 else:
-                    rounded = round(_clamp(_blend(prior, estimated, self.lo_to_kc_backfill_weight)), 2)
+                    rounded = round(
+                        _clamp(_blend(prior, estimated, self.lo_to_kc_backfill_weight)),
+                        2,
+                    )
                     if abs(rounded - prior) < 0.01:
                         continue
                 kc_mastery[component.kc_id] = rounded
@@ -219,7 +227,9 @@ class KnowledgeStateMigrator:
     ) -> dict[str, float]:
         propagated_lo_updates: dict[str, float] = {}
         for lo_id in affected_lo_ids:
-            updated_value = graph.weighted_lo_mastery(lo_id=lo_id, kc_mastery=kc_mastery)
+            updated_value = graph.weighted_lo_mastery(
+                lo_id=lo_id, kc_mastery=kc_mastery
+            )
             if updated_value is None:
                 continue
             lo_mastery[lo_id] = updated_value
@@ -233,7 +243,13 @@ class KnowledgeStateMigrator:
         relation: KnowledgeComponentRelation,
         polarity: str,
     ) -> float:
-        depth_decay = self.prerequisite_depth_decay if polarity == "positive" else self.dependent_depth_decay
+        depth_decay = (
+            self.prerequisite_depth_decay
+            if polarity == "positive"
+            else self.dependent_depth_decay
+        )
         complexity_factor = 1.0 + min(0.18, relation.component.difficulty * 0.18)
-        distance_factor = max(0.45, relation.path_weight) * (depth_decay ** max(0, relation.depth - 1))
+        distance_factor = max(0.45, relation.path_weight) * (
+            depth_decay ** max(0, relation.depth - 1)
+        )
         return _clamp(base * complexity_factor * distance_factor, lower=0.12, upper=0.5)

@@ -5,9 +5,16 @@ from datetime import datetime, timezone
 
 from dibble.models.assessment import SocraticEvidenceStrength
 from dibble.models.generation import GenerationRequest
-from dibble.models.observations import LearnerObservation, ObservationSupportLevel, ObservationTaskType
+from dibble.models.observations import (
+    LearnerObservation,
+    ObservationSupportLevel,
+    ObservationTaskType,
+)
 from dibble.models.profile import LearnerProfile, OrdinaryMasterySummary
-from dibble.models.remediation import RemediationWorkflowSession, RemediationWorkflowStep
+from dibble.models.remediation import (
+    RemediationWorkflowSession,
+    RemediationWorkflowStep,
+)
 from dibble.services.knowledge_state_migration import KnowledgeStateMigrator
 from dibble.services.ordinary_mastery_profiles import OrdinaryMasterySignalService
 from dibble.services.recency import recency_weight
@@ -99,13 +106,19 @@ class ObservationProfileUpdater:
             )
 
         inferred_mastery = self._infer_observed_mastery(observation)
-        evidence_strength = self._evidence_strength(observation=observation, inferred_mastery=inferred_mastery)
-        durable_mastery = self._durable_mastery_summary(profile=profile, observation=observation)
+        evidence_strength = self._evidence_strength(
+            observation=observation, inferred_mastery=inferred_mastery
+        )
+        durable_mastery = self._durable_mastery_summary(
+            profile=profile, observation=observation
+        )
         supporting_observations = self._supporting_observations(
             observation=observation,
             observations=recent_observations or [observation],
         )
-        observation_scores = [self._infer_observed_mastery(item) for item in supporting_observations]
+        observation_scores = [
+            self._infer_observed_mastery(item) for item in supporting_observations
+        ]
         average_recent_mastery = (
             round(sum(observation_scores) / len(observation_scores), 2)
             if observation_scores
@@ -118,8 +131,12 @@ class ObservationProfileUpdater:
             linkage_source=linkage_source,
             matched_observation_count=len(supporting_observations),
             average_recent_mastery=average_recent_mastery,
-            low_support_success_count=self._low_support_success_count(supporting_observations),
-            repeated_high_support_success_count=self._repeated_high_support_success_count(supporting_observations),
+            low_support_success_count=self._low_support_success_count(
+                supporting_observations
+            ),
+            repeated_high_support_success_count=self._repeated_high_support_success_count(
+                supporting_observations
+            ),
             durable_mastery=durable_mastery,
         )
         new_kc_mastery = dict(profile.knowledge_state.kc_mastery)
@@ -150,16 +167,21 @@ class ObservationProfileUpdater:
             if self.knowledge_state_migrator is not None
             else None
         )
+        now = datetime.now(timezone.utc)
+        new_kc_last_practiced = dict(profile.knowledge_state.kc_last_practiced)
+        for kc_id in kc_updates:
+            new_kc_last_practiced[kc_id] = now
         updated_profile = profile.model_copy(
             update={
                 "knowledge_state": profile.knowledge_state.model_copy(
                     update={
                         "kc_mastery": new_kc_mastery,
                         "lo_mastery": new_lo_mastery,
-                        "last_updated": datetime.now(timezone.utc),
+                        "kc_last_practiced": new_kc_last_practiced,
+                        "last_updated": now,
                     }
                 ),
-                "updated_at": datetime.now(timezone.utc),
+                "updated_at": now,
             }
         )
         return ObservationProfileUpdateResult(
@@ -176,8 +198,16 @@ class ObservationProfileUpdater:
             ),
             kc_mastery_updates=kc_updates,
             lo_mastery_updates=lo_updates,
-            propagated_kc_mastery_updates=(migration_result.kc_mastery_updates if migration_result is not None else {}),
-            propagated_lo_mastery_updates=(migration_result.lo_mastery_updates if migration_result is not None else {}),
+            propagated_kc_mastery_updates=(
+                migration_result.kc_mastery_updates
+                if migration_result is not None
+                else {}
+            ),
+            propagated_lo_mastery_updates=(
+                migration_result.lo_mastery_updates
+                if migration_result is not None
+                else {}
+            ),
             durable_mastery_signal=durable_mastery.signal,
             durable_mastery_source=durable_mastery.source,
             durable_mastery_confidence=durable_mastery.confidence,
@@ -202,7 +232,9 @@ class ObservationProfileUpdater:
         session_sequence_action: str = "monitor",
         session_rationale: str | None = None,
     ) -> ProgressionEvidenceDecision:
-        if request.learning_session_id is None or (not request.target_kc_ids and not request.target_lo_ids):
+        if request.learning_session_id is None or (
+            not request.target_kc_ids and not request.target_lo_ids
+        ):
             return ProgressionEvidenceDecision()
 
         matched_observations = self._matching_progression_observations(
@@ -216,13 +248,17 @@ class ObservationProfileUpdater:
         if not matched_observations and not matched_assessments:
             return ProgressionEvidenceDecision()
 
-        observation_scores = [self._infer_observed_mastery(item) for item in matched_observations]
+        observation_scores = [
+            self._infer_observed_mastery(item) for item in matched_observations
+        ]
         average_observed_mastery = (
             round(sum(observation_scores) / len(observation_scores), 2)
             if observation_scores
             else None
         )
-        assessment_scores = [self._assessment_mastery_score(payload) for payload in matched_assessments]
+        assessment_scores = [
+            self._assessment_mastery_score(payload) for payload in matched_assessments
+        ]
         average_assessment_mastery = (
             round(sum(assessment_scores) / len(assessment_scores), 2)
             if assessment_scores
@@ -233,21 +269,33 @@ class ObservationProfileUpdater:
             for payload, score in zip(matched_assessments, assessment_scores)
         )
         low_support_success_count = sum(
-            1 for observation, score in zip(matched_observations, observation_scores) if self._is_low_support_success(observation, score)
+            1
+            for observation, score in zip(matched_observations, observation_scores)
+            if self._is_low_support_success(observation, score)
         )
-        repeated_high_support_success_count = self._repeated_high_support_success_count(matched_observations)
-        hold_decision = self._progression_hold_decision(session_sequence_action=session_sequence_action)
+        repeated_high_support_success_count = self._repeated_high_support_success_count(
+            matched_observations
+        )
+        hold_decision = self._progression_hold_decision(
+            session_sequence_action=session_sequence_action
+        )
         session_transfer = session_sequence_action == "attempt_transfer"
-        stage_requires_stronger_transfer = hold_decision in {"hold_repair_target", "hold_bridge_target"}
+        stage_requires_stronger_transfer = hold_decision in {
+            "hold_repair_target",
+            "hold_bridge_target",
+        }
         confidence = self._evidence_confidence(
             matched_observation_count=len(matched_observations),
             matched_assessment_count=len(matched_assessments),
         )
-        observation_transfer_threshold = 0.72 if stage_requires_stronger_transfer else 0.66
+        observation_transfer_threshold = (
+            0.72 if stage_requires_stronger_transfer else 0.66
+        )
         transfer_ready = strong_assessment or (
             average_observed_mastery is not None
             and average_observed_mastery >= observation_transfer_threshold
-            and low_support_success_count >= (2 if stage_requires_stronger_transfer else 1)
+            and low_support_success_count
+            >= (2 if stage_requires_stronger_transfer else 1)
         )
 
         if transfer_ready or (
@@ -280,8 +328,10 @@ class ObservationProfileUpdater:
                 target_kc_ids=request.target_kc_ids,
             )
 
-        weak_observation_signal = average_observed_mastery is not None and average_observed_mastery < (
-            0.62 if stage_requires_stronger_transfer else 0.58
+        weak_observation_signal = (
+            average_observed_mastery is not None
+            and average_observed_mastery
+            < (0.62 if stage_requires_stronger_transfer else 0.58)
         )
         weak_assessment_signal = bool(matched_assessments) and not strong_assessment
         if (
@@ -328,7 +378,11 @@ class ObservationProfileUpdater:
         observations: list[LearnerObservation],
     ) -> RemediationProgressDecision:
         current_index = session.current_step_index
-        if current_index is None or current_index <= 0 or current_index >= len(session.steps):
+        if (
+            current_index is None
+            or current_index <= 0
+            or current_index >= len(session.steps)
+        ):
             return RemediationProgressDecision()
 
         current_step = session.steps[current_index]
@@ -344,7 +398,10 @@ class ObservationProfileUpdater:
         if not matched_observations:
             return RemediationProgressDecision()
 
-        scores = [self._infer_observed_mastery(observation) for observation in matched_observations[:3]]
+        scores = [
+            self._infer_observed_mastery(observation)
+            for observation in matched_observations[:3]
+        ]
         average_score = round(sum(scores) / len(scores), 2) if scores else None
         evidence_confidence = self._evidence_confidence(
             matched_observation_count=len(matched_observations),
@@ -359,14 +416,20 @@ class ObservationProfileUpdater:
             1
             for observation, score in zip(matched_observations, scores)
             if observation.completed
-            and observation.support_level in {ObservationSupportLevel.low, ObservationSupportLevel.medium}
+            and observation.support_level
+            in {ObservationSupportLevel.low, ObservationSupportLevel.medium}
             and observation.error_count <= 1
             and observation.hints_used <= 1
             and score >= 0.62
         )
-        repeated_high_support_success_count = self._repeated_high_support_success_count(matched_observations)
+        repeated_high_support_success_count = self._repeated_high_support_success_count(
+            matched_observations
+        )
         strongest_evidence = max(
-            (self._evidence_strength(observation=observation, inferred_mastery=score) for observation, score in zip(matched_observations, scores)),
+            (
+                self._evidence_strength(observation=observation, inferred_mastery=score)
+                for observation, score in zip(matched_observations, scores)
+            ),
             default=SocraticEvidenceStrength.insufficient,
             key=self._evidence_rank,
         )
@@ -379,7 +442,11 @@ class ObservationProfileUpdater:
             medium_or_low_support_success_count=medium_or_low_support_success_count,
             repeated_high_support_success_count=repeated_high_support_success_count,
         ):
-            decision = "hold_repair_target" if prior_step.phase != "bridge" else "hold_bridge_target"
+            decision = (
+                "hold_repair_target"
+                if prior_step.phase != "bridge"
+                else "hold_bridge_target"
+            )
             rationale = self._remediation_hold_rationale(
                 current_step=session.steps[current_index],
                 prior_step=prior_step,
@@ -414,7 +481,10 @@ class ObservationProfileUpdater:
         )
 
     def _writeback_linkage_source(self, observation: LearnerObservation) -> str | None:
-        if observation.task_type not in {ObservationTaskType.practice, ObservationTaskType.remediation}:
+        if observation.task_type not in {
+            ObservationTaskType.practice,
+            ObservationTaskType.remediation,
+        }:
             return None
         if not observation.target_kc_ids and not observation.target_lo_ids:
             return None
@@ -423,7 +493,8 @@ class ObservationProfileUpdater:
         if observation.learning_session_id is not None:
             return "session_linked"
         if (
-            observation.observed_content_type in {"practice_problem", "remedial_micro_module"}
+            observation.observed_content_type
+            in {"practice_problem", "remedial_micro_module"}
             and observation.completed
             and observation.support_level != ObservationSupportLevel.high
             and observation.error_count <= 2
@@ -444,12 +515,21 @@ class ObservationProfileUpdater:
         error_penalty = min(0.24, observation.error_count * 0.06)
         pause_penalty = min(0.1, observation.pause_count * 0.02)
         pace_adjustment = self._pace_adjustment(observation)
-        score = 0.16 + completion_signal + confidence_signal + support_signal + pace_adjustment
+        score = (
+            0.16
+            + completion_signal
+            + confidence_signal
+            + support_signal
+            + pace_adjustment
+        )
         score -= hint_penalty + error_penalty + pause_penalty
         return round(_clamp(score, lower=0.05, upper=0.95), 2)
 
     def _pace_adjustment(self, observation: LearnerObservation) -> float:
-        if observation.expected_duration_ms is None or observation.expected_duration_ms <= 0:
+        if (
+            observation.expected_duration_ms is None
+            or observation.expected_duration_ms <= 0
+        ):
             return 0.0
         ratio = observation.response_time_ms / observation.expected_duration_ms
         if ratio <= 0.9:
@@ -475,7 +555,11 @@ class ObservationProfileUpdater:
             and inferred_mastery >= 0.68
         ):
             return SocraticEvidenceStrength.demonstrated
-        if observation.completed and observation.error_count <= 2 and inferred_mastery >= 0.42:
+        if (
+            observation.completed
+            and observation.error_count <= 2
+            and inferred_mastery >= 0.42
+        ):
             return SocraticEvidenceStrength.emerging
         return SocraticEvidenceStrength.insufficient
 
@@ -510,38 +594,74 @@ class ObservationProfileUpdater:
         completion_bonus = 0.04 if observation.completed else 0.0
         confidence_bonus = max(0.0, observation.confidence - 0.5) * 0.06
         mastery_bonus = max(0.0, inferred_mastery - 0.6) * 0.08
-        consistency_bonus = 0.04 if (
-            matched_observation_count >= 2
-            and average_recent_mastery is not None
-            and average_recent_mastery >= 0.62
-        ) else 0.0
-        support_dependence_penalty = 0.04 if repeated_high_support_success_count >= 2 else 0.0
-        independent_consistency_bonus = 0.05 if (
-            low_support_success_count >= 2
-            and matched_observation_count >= 2
-            and average_recent_mastery is not None
-            and average_recent_mastery >= 0.68
-        ) else 0.0
-        if repeated_high_support_success_count >= 1 and observation.support_level == ObservationSupportLevel.high:
+        consistency_bonus = (
+            0.04
+            if (
+                matched_observation_count >= 2
+                and average_recent_mastery is not None
+                and average_recent_mastery >= 0.62
+            )
+            else 0.0
+        )
+        support_dependence_penalty = (
+            0.04 if repeated_high_support_success_count >= 2 else 0.0
+        )
+        independent_consistency_bonus = (
+            0.05
+            if (
+                low_support_success_count >= 2
+                and matched_observation_count >= 2
+                and average_recent_mastery is not None
+                and average_recent_mastery >= 0.68
+            )
+            else 0.0
+        )
+        if (
+            repeated_high_support_success_count >= 1
+            and observation.support_level == ObservationSupportLevel.high
+        ):
             support_dependence_penalty += 0.02
         durable_adjustment = 0.0
         if durable_mastery.signal == "durable_mastery":
-            durable_adjustment += 0.04 if observation.support_level == ObservationSupportLevel.low else 0.01
+            durable_adjustment += (
+                0.04
+                if observation.support_level == ObservationSupportLevel.low
+                else 0.01
+            )
         elif durable_mastery.signal == "emerging_mastery":
-            durable_adjustment += 0.02 if observation.support_level != ObservationSupportLevel.high else 0.0
+            durable_adjustment += (
+                0.02
+                if observation.support_level != ObservationSupportLevel.high
+                else 0.0
+            )
         elif durable_mastery.signal == "support_dependent":
-            durable_adjustment -= 0.04 if observation.support_level == ObservationSupportLevel.high else 0.02
-        elif durable_mastery.signal == "fragile" and observation.support_level != ObservationSupportLevel.low:
+            durable_adjustment -= (
+                0.04
+                if observation.support_level == ObservationSupportLevel.high
+                else 0.02
+            )
+        elif (
+            durable_mastery.signal == "fragile"
+            and observation.support_level != ObservationSupportLevel.low
+        ):
             durable_adjustment -= 0.03
-        if durable_mastery.low_support_success_rate >= 0.6 and observation.support_level == ObservationSupportLevel.low:
+        if (
+            durable_mastery.low_support_success_rate >= 0.6
+            and observation.support_level == ObservationSupportLevel.low
+        ):
             durable_adjustment += 0.01
-        if durable_mastery.high_support_dependency_rate >= 0.6 and observation.support_level == ObservationSupportLevel.high:
+        if (
+            durable_mastery.high_support_dependency_rate >= 0.6
+            and observation.support_level == ObservationSupportLevel.high
+        ):
             durable_adjustment -= 0.02
         durable_adjustment *= 0.6 + (durable_mastery.confidence * 0.4)
         # Apply recency factor: recent observations get full weight, older
         # ones are discounted smoothly so that stale evidence fades without
         # disappearing entirely.
-        recency_factor = recency_weight(observation.created_at, datetime.now(timezone.utc))
+        recency_factor = recency_weight(
+            observation.created_at, datetime.now(timezone.utc)
+        )
         return round(
             _clamp(
                 (
@@ -607,9 +727,15 @@ class ObservationProfileUpdater:
         for observation in observations:
             if observation.learning_session_id != session.session_id:
                 continue
-            if observation.task_type not in {ObservationTaskType.practice, ObservationTaskType.remediation}:
+            if observation.task_type not in {
+                ObservationTaskType.practice,
+                ObservationTaskType.remediation,
+            }:
                 continue
-            if step.generated_content_id is not None and observation.generation_id == step.generated_content_id:
+            if (
+                step.generated_content_id is not None
+                and observation.generation_id == step.generated_content_id
+            ):
                 matches.append(observation)
                 continue
             if set(observation.target_kc_ids).intersection(step.target_kc_ids):
@@ -625,7 +751,8 @@ class ObservationProfileUpdater:
         matches = [
             item
             for item in observations
-            if item.task_type in {ObservationTaskType.practice, ObservationTaskType.remediation}
+            if item.task_type
+            in {ObservationTaskType.practice, ObservationTaskType.remediation}
             and self._targets_overlap(
                 target_kc_ids=observation.target_kc_ids,
                 observed_kc_ids=item.target_kc_ids,
@@ -645,7 +772,8 @@ class ObservationProfileUpdater:
         matches = [
             observation
             for observation in observations
-            if observation.task_type in {ObservationTaskType.practice, ObservationTaskType.remediation}
+            if observation.task_type
+            in {ObservationTaskType.practice, ObservationTaskType.remediation}
             and observation.learning_session_id == request.learning_session_id
             and self._targets_overlap(
                 target_kc_ids=request.target_kc_ids,
@@ -675,10 +803,18 @@ class ObservationProfileUpdater:
         ]
         return matches[:2]
 
-    def _shares_link(self, *, anchor: LearnerObservation, candidate: LearnerObservation) -> bool:
-        if anchor.learning_session_id is not None and candidate.learning_session_id == anchor.learning_session_id:
+    def _shares_link(
+        self, *, anchor: LearnerObservation, candidate: LearnerObservation
+    ) -> bool:
+        if (
+            anchor.learning_session_id is not None
+            and candidate.learning_session_id == anchor.learning_session_id
+        ):
             return True
-        if anchor.generation_id is not None and candidate.generation_id == anchor.generation_id:
+        if (
+            anchor.generation_id is not None
+            and candidate.generation_id == anchor.generation_id
+        ):
             return True
         return False
 
@@ -696,7 +832,9 @@ class ObservationProfileUpdater:
             return True
         return False
 
-    def _repeated_high_support_success_count(self, observations: list[LearnerObservation]) -> int:
+    def _repeated_high_support_success_count(
+        self, observations: list[LearnerObservation]
+    ) -> int:
         return sum(
             1
             for observation in observations
@@ -715,7 +853,9 @@ class ObservationProfileUpdater:
             )
         )
 
-    def _is_low_support_success(self, observation: LearnerObservation, score: float) -> bool:
+    def _is_low_support_success(
+        self, observation: LearnerObservation, score: float
+    ) -> bool:
         return (
             observation.completed
             and observation.support_level == ObservationSupportLevel.low
@@ -810,7 +950,11 @@ class ObservationProfileUpdater:
         return "Recent remediation evidence was strong enough to allow the workflow to advance."
 
     def _progression_hold_decision(self, *, session_sequence_action: str) -> str | None:
-        if session_sequence_action in {"hold_target", "hold_repair_target", "hold_bridge_target"}:
+        if session_sequence_action in {
+            "hold_target",
+            "hold_repair_target",
+            "hold_bridge_target",
+        }:
             return session_sequence_action
         return None
 
@@ -864,13 +1008,22 @@ class ObservationProfileUpdater:
             return round(_clamp(float(evidence_score)), 2)
         return 0.0
 
-    def _assessment_is_transfer_ready(self, payload: dict[str, object], *, score: float) -> bool:
+    def _assessment_is_transfer_ready(
+        self, payload: dict[str, object], *, score: float
+    ) -> bool:
         evidence_strength = str(payload.get("evidence_strength", "insufficient"))
         return evidence_strength == "demonstrated" or score >= 0.72
 
-    def _evidence_confidence(self, *, matched_observation_count: int, matched_assessment_count: int) -> float:
+    def _evidence_confidence(
+        self, *, matched_observation_count: int, matched_assessment_count: int
+    ) -> float:
         return round(
-            min(0.9, 0.28 + (matched_observation_count * 0.14) + (matched_assessment_count * 0.2)),
+            min(
+                0.9,
+                0.28
+                + (matched_observation_count * 0.14)
+                + (matched_assessment_count * 0.2),
+            ),
             2,
         )
 

@@ -34,14 +34,24 @@ class LearnerSummaryService:
         profile = self.profile_store.get(student_id)
         if profile is None:
             return None
-        events = [event for event in self.audit_store.list(limit=self.max_events) if event.student_id == student_id]
+        events = [
+            event
+            for event in self.audit_store.list(limit=self.max_events)
+            if event.student_id == student_id
+        ]
         return ProfileSummary.from_profile(
             profile,
             calibration=self._latest_calibration(events),
             progress=self._latest_progress(events),
-            strategy=self.strategy_signal_service.latest_for_student(student_id=student_id),
-            state_profile=self.state_signal_service.latest_for_student(student_id=student_id),
-            trait_profile=self.trait_profile_signal_service.latest_for_student(student_id=student_id),
+            strategy=self.strategy_signal_service.latest_for_student(
+                student_id=student_id
+            ),
+            state_profile=self.state_signal_service.latest_for_student(
+                student_id=student_id
+            ),
+            trait_profile=self.trait_profile_signal_service.latest_for_student(
+                student_id=student_id
+            ),
             recent_activity=self._recent_activity(events),
             current_flow=(
                 self.learner_flow_service.build_for_student(student_id=student_id)
@@ -49,60 +59,113 @@ class LearnerSummaryService:
                 else LearnerFlowSummary()
             ),
             curriculum_progression=(
-                self.learner_progression_service.build_for_student(student_id=student_id)
+                self.learner_progression_service.build_for_student(
+                    student_id=student_id
+                )
                 if self.learner_progression_service is not None
                 else LearnerCurriculumProgressionSummary()
             ),
         )
 
     def _latest_calibration(self, events) -> LearnerCalibrationSummary:
-        profile_event = next((event for event in events if event.event_type == "learning.calibration.profile"), None)
+        profile_event = next(
+            (
+                event
+                for event in events
+                if event.event_type == "learning.calibration.profile"
+            ),
+            None,
+        )
         if profile_event is not None:
             return LearnerCalibrationSummary(
                 signal=str(profile_event.payload.get("profile_signal", "insufficient")),
                 source="profile",
-                average_run_outcome_score=self._maybe_float(profile_event.payload.get("average_run_outcome_score")),
-                confidence=float(profile_event.payload.get("average_run_confidence", 0.0)),
-                matched_run_count=int(profile_event.payload.get("matched_run_count", 0)),
-                matched_session_count=int(profile_event.payload.get("matched_session_count", 0)),
+                average_run_outcome_score=self._maybe_float(
+                    profile_event.payload.get("average_run_outcome_score")
+                ),
+                confidence=float(
+                    profile_event.payload.get("average_run_confidence", 0.0)
+                ),
+                matched_run_count=int(
+                    profile_event.payload.get("matched_run_count", 0)
+                ),
+                matched_session_count=int(
+                    profile_event.payload.get("matched_session_count", 0)
+                ),
                 intent=self._maybe_str(profile_event.payload.get("intent")),
                 content_type=self._maybe_str(profile_event.payload.get("content_type")),
-                target_kc_ids=self._string_list(profile_event.payload.get("target_kc_ids")),
-                target_lo_ids=self._string_list(profile_event.payload.get("target_lo_ids")),
+                target_kc_ids=self._string_list(
+                    profile_event.payload.get("target_kc_ids")
+                ),
+                target_lo_ids=self._string_list(
+                    profile_event.payload.get("target_lo_ids")
+                ),
                 updated_at=profile_event.created_at,
             )
 
-        summary_event = next((event for event in events if event.event_type == "learning.run.summary"), None)
+        summary_event = next(
+            (event for event in events if event.event_type == "learning.run.summary"),
+            None,
+        )
         if summary_event is not None:
             return LearnerCalibrationSummary(
-                signal=str(summary_event.payload.get("run_calibration_signal", "insufficient")),
+                signal=str(
+                    summary_event.payload.get("run_calibration_signal", "insufficient")
+                ),
                 source="run_summary",
-                average_run_outcome_score=self._maybe_float(summary_event.payload.get("run_summary_score")),
-                confidence=float(summary_event.payload.get("run_calibration_confidence", 0.0)),
-                matched_run_count=max(1, int(summary_event.payload.get("run_event_count", 0))),
-                matched_session_count=1 if summary_event.payload.get("learning_session_id") else 0,
+                average_run_outcome_score=self._maybe_float(
+                    summary_event.payload.get("run_summary_score")
+                ),
+                confidence=float(
+                    summary_event.payload.get("run_calibration_confidence", 0.0)
+                ),
+                matched_run_count=max(
+                    1, int(summary_event.payload.get("run_event_count", 0))
+                ),
+                matched_session_count=1
+                if summary_event.payload.get("learning_session_id")
+                else 0,
                 intent=self._maybe_str(summary_event.payload.get("intent")),
                 content_type=self._maybe_str(summary_event.payload.get("content_type")),
-                target_kc_ids=self._string_list(summary_event.payload.get("target_kc_ids")),
-                target_lo_ids=self._string_list(summary_event.payload.get("target_lo_ids")),
+                target_kc_ids=self._string_list(
+                    summary_event.payload.get("target_kc_ids")
+                ),
+                target_lo_ids=self._string_list(
+                    summary_event.payload.get("target_lo_ids")
+                ),
                 updated_at=summary_event.created_at,
             )
 
         return LearnerCalibrationSummary()
 
     def _latest_progress(self, events) -> LearnerProgressSummary:
-        progress_event = next((event for event in events if event.event_type == "learning.progress.profile"), None)
+        progress_event = next(
+            (
+                event
+                for event in events
+                if event.event_type == "learning.progress.profile"
+            ),
+            None,
+        )
         if progress_event is None:
             return LearnerProgressSummary()
         return LearnerProgressSummary(
             signal=str(progress_event.payload.get("progress_signal", "insufficient")),
             source="profile",
-            average_run_outcome_score=self._maybe_float(progress_event.payload.get("average_run_outcome_score")),
+            average_run_outcome_score=self._maybe_float(
+                progress_event.payload.get("average_run_outcome_score")
+            ),
             confidence=float(progress_event.payload.get("average_run_confidence", 0.0)),
             matched_run_count=int(progress_event.payload.get("matched_run_count", 0)),
-            matched_session_count=int(progress_event.payload.get("matched_session_count", 0)),
-            positive_run_rate=float(progress_event.payload.get("positive_run_rate", 0.0)),
-            negative_run_rate=float(progress_event.payload.get("negative_run_rate", 0.0)),
+            matched_session_count=int(
+                progress_event.payload.get("matched_session_count", 0)
+            ),
+            positive_run_rate=float(
+                progress_event.payload.get("positive_run_rate", 0.0)
+            ),
+            negative_run_rate=float(
+                progress_event.payload.get("negative_run_rate", 0.0)
+            ),
             recent_average_run_outcome_score=self._maybe_float(
                 progress_event.payload.get("recent_average_run_outcome_score")
             ),
@@ -112,12 +175,21 @@ class LearnerSummaryService:
             progress_delta=float(progress_event.payload.get("progress_delta", 0.0)),
             updated_at=progress_event.created_at,
         )
+
     def _recent_activity(self, events) -> RecentLearnerActivity:
         return RecentLearnerActivity(
-            generation_count=sum(1 for event in events if event.event_type == "content.generate"),
-            observation_count=sum(1 for event in events if event.event_type == "learner.observe"),
-            socratic_assessment_count=sum(1 for event in events if event.event_type == "assessment.socratic"),
-            last_learning_session_id=self._latest_payload_value(events, "learning_session_id"),
+            generation_count=sum(
+                1 for event in events if event.event_type == "content.generate"
+            ),
+            observation_count=sum(
+                1 for event in events if event.event_type == "learner.observe"
+            ),
+            socratic_assessment_count=sum(
+                1 for event in events if event.event_type == "assessment.socratic"
+            ),
+            last_learning_session_id=self._latest_payload_value(
+                events, "learning_session_id"
+            ),
             last_generation_id=self._latest_payload_value(events, "generation_id"),
             last_event_at=events[0].created_at if events else None,
         )

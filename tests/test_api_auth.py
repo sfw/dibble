@@ -22,7 +22,9 @@ def test_auth_can_protect_api_endpoints(tmp_path, student_id):
             headers={"X-API-Key": "secret-key"},
             json=build_profile(student_id),
         )
-        audit_response = client.get("/api/audit/events", headers={"X-API-Key": "secret-key"})
+        audit_response = client.get(
+            "/api/audit/events", headers={"X-API-Key": "secret-key"}
+        )
 
     assert health_response.status_code == 200
     assert_machine_readable_error(
@@ -62,8 +64,12 @@ def test_auth_exposes_identity_and_rbac(tmp_path, student_id):
             headers={"X-API-Key": "editor-key"},
             json=build_profile(student_id),
         )
-        forbidden_audit = client.get("/api/audit/events", headers={"X-API-Key": "editor-key"})
-        allowed_audit = client.get("/api/audit/events", headers={"X-API-Key": "admin-key"})
+        forbidden_audit = client.get(
+            "/api/audit/events", headers={"X-API-Key": "editor-key"}
+        )
+        allowed_audit = client.get(
+            "/api/audit/events", headers={"X-API-Key": "admin-key"}
+        )
 
     assert me_response.status_code == 200
     assert me_response.json()["principal_id"] == "viewer-user"
@@ -95,10 +101,14 @@ def test_auth_can_issue_and_accept_bearer_tokens(tmp_path):
     app = create_app(settings)
 
     with TestClient(app) as client:
-        token_response = client.post("/api/auth/token", headers={"X-API-Key": "editor-key"})
+        token_response = client.post(
+            "/api/auth/token", headers={"X-API-Key": "editor-key"}
+        )
         me_response = client.get(
             "/api/auth/me",
-            headers={"Authorization": f"Bearer {token_response.json()['access_token']}"},
+            headers={
+                "Authorization": f"Bearer {token_response.json()['access_token']}"
+            },
         )
 
     assert token_response.status_code == 200
@@ -109,7 +119,9 @@ def test_auth_can_issue_and_accept_bearer_tokens(tmp_path):
     assert me_response.json()["principal_id"] == "editor-user"
 
 
-def test_bearer_token_forbidden_response_preserves_identity_and_error_contract(tmp_path, student_id):
+def test_bearer_token_forbidden_response_preserves_identity_and_error_contract(
+    tmp_path, student_id
+):
     settings = Settings(
         database_path=str(tmp_path / "dibble-bearer-rbac.db"),
         auth_enabled=True,
@@ -123,13 +135,17 @@ def test_bearer_token_forbidden_response_preserves_identity_and_error_contract(t
     app = create_app(settings)
 
     with TestClient(app) as client:
-        viewer_token = client.post("/api/auth/token", headers={"X-API-Key": "viewer-key"}).json()["access_token"]
+        viewer_token = client.post(
+            "/api/auth/token", headers={"X-API-Key": "viewer-key"}
+        ).json()["access_token"]
         forbidden_write = client.put(
             f"/api/learners/{student_id}/profile",
             headers={"Authorization": f"Bearer {viewer_token}"},
             json=build_profile(student_id),
         )
-        audit_response = client.get("/api/audit/events", headers={"X-API-Key": "admin-key"})
+        audit_response = client.get(
+            "/api/audit/events", headers={"X-API-Key": "admin-key"}
+        )
 
     assert_machine_readable_error(
         forbidden_write,
@@ -156,7 +172,9 @@ def test_refresh_rotates_tokens_and_old_refresh_token_stops_working(tmp_path):
     app = create_app(settings)
 
     with TestClient(app) as client:
-        issued = client.post("/api/auth/token", headers={"X-API-Key": "editor-key"}).json()
+        issued = client.post(
+            "/api/auth/token", headers={"X-API-Key": "editor-key"}
+        ).json()
         refreshed = client.post(
             "/api/auth/token/refresh",
             json={"refresh_token": issued["refresh_token"]},
@@ -189,7 +207,9 @@ def test_revocation_invalidates_existing_bearer_session(tmp_path):
     app = create_app(settings)
 
     with TestClient(app) as client:
-        issued = client.post("/api/auth/token", headers={"X-API-Key": "editor-key"}).json()
+        issued = client.post(
+            "/api/auth/token", headers={"X-API-Key": "editor-key"}
+        ).json()
         revoke = client.post(
             "/api/auth/token/revoke",
             headers={"Authorization": f"Bearer {issued['access_token']}"},
@@ -270,7 +290,9 @@ def test_learner_role_can_read_but_not_write(tmp_path, student_id):
     app = create_app(settings)
 
     with TestClient(app) as client:
-        read_response = client.get("/api/learners", headers={"X-API-Key": "learner-key"})
+        read_response = client.get(
+            "/api/learners", headers={"X-API-Key": "learner-key"}
+        )
         write_response = client.put(
             f"/api/learners/{student_id}/profile",
             headers={"X-API-Key": "learner-key"},
@@ -289,14 +311,14 @@ def test_teacher_role_can_read_and_write(tmp_path, student_id):
     settings = Settings(
         database_path=str(tmp_path / "dibble-teacher-rbac.db"),
         auth_enabled=True,
-        auth_principals=(
-            "teacher-key:teacher-1:teacher:T-100:Ms. Smith:CLS-A",
-        ),
+        auth_principals=("teacher-key:teacher-1:teacher:T-100:Ms. Smith:CLS-A",),
     )
     app = create_app(settings)
 
     with TestClient(app) as client:
-        read_response = client.get("/api/learners", headers={"X-API-Key": "teacher-key"})
+        read_response = client.get(
+            "/api/learners", headers={"X-API-Key": "teacher-key"}
+        )
         write_response = client.put(
             f"/api/learners/{student_id}/profile",
             headers={"X-API-Key": "teacher-key"},
@@ -311,16 +333,16 @@ def test_bearer_token_preserves_entity_bindings(tmp_path, student_id):
     settings = Settings(
         database_path=str(tmp_path / "dibble-learner-bearer.db"),
         auth_enabled=True,
-        auth_principals=(
-            f"learner-key:learner-1:learner:{student_id}:Alice Student",
-        ),
+        auth_principals=(f"learner-key:learner-1:learner:{student_id}:Alice Student",),
         auth_token_secret="super-secret",
         auth_token_ttl_seconds=900,
     )
     app = create_app(settings)
 
     with TestClient(app) as client:
-        token_response = client.post("/api/auth/token", headers={"X-API-Key": "learner-key"})
+        token_response = client.post(
+            "/api/auth/token", headers={"X-API-Key": "learner-key"}
+        )
         access_token = token_response.json()["access_token"]
         me_response = client.get(
             "/api/auth/me",
@@ -343,16 +365,16 @@ def test_refresh_preserves_entity_bindings(tmp_path, student_id):
     settings = Settings(
         database_path=str(tmp_path / "dibble-learner-refresh.db"),
         auth_enabled=True,
-        auth_principals=(
-            f"learner-key:learner-1:learner:{student_id}:Alice",
-        ),
+        auth_principals=(f"learner-key:learner-1:learner:{student_id}:Alice",),
         auth_token_secret="super-secret",
         auth_token_ttl_seconds=900,
     )
     app = create_app(settings)
 
     with TestClient(app) as client:
-        issued = client.post("/api/auth/token", headers={"X-API-Key": "learner-key"}).json()
+        issued = client.post(
+            "/api/auth/token", headers={"X-API-Key": "learner-key"}
+        ).json()
         refreshed = client.post(
             "/api/auth/token/refresh",
             json={"refresh_token": issued["refresh_token"]},
@@ -377,8 +399,12 @@ def test_existing_roles_still_work_without_entity_binding(tmp_path, student_id):
     app = create_app(settings)
 
     with TestClient(app) as client:
-        viewer_me = client.get("/api/auth/me", headers={"X-API-Key": "viewer-key"}).json()
-        editor_me = client.get("/api/auth/me", headers={"X-API-Key": "editor-key"}).json()
+        viewer_me = client.get(
+            "/api/auth/me", headers={"X-API-Key": "viewer-key"}
+        ).json()
+        editor_me = client.get(
+            "/api/auth/me", headers={"X-API-Key": "editor-key"}
+        ).json()
         admin_me = client.get("/api/auth/me", headers={"X-API-Key": "admin-key"}).json()
 
     assert viewer_me["role"] == "viewer"

@@ -7,13 +7,19 @@ from dibble.services.learning_state_profiles import LearnerStateSignalService
 from dibble.services.learning_trait_profiles import LearnerTraitProfileSignalService
 from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
 from dibble.services.router_calibration_signals import RouterCalibrationSignalService
-from dibble.services.socratic_conversation_signals import SocraticConversationSignalService
+from dibble.services.socratic_conversation_signals import (
+    SocraticConversationSignalService,
+)
 from dibble.services.within_session_adaptation import WithinSessionAdaptationService
-from dibble.services.within_session_controller_store import SQLiteWithinSessionControllerStore
+from dibble.services.within_session_controller_store import (
+    SQLiteWithinSessionControllerStore,
+)
 from dibble.storage import ensure_database
 
 
-def test_generation_mode_calibrator_raises_independence_for_strong_positive_profile_signal(tmp_path):
+def test_generation_mode_calibrator_raises_independence_for_strong_positive_profile_signal(
+    tmp_path,
+):
     database_path = str(tmp_path / "generation-mode-positive.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -46,9 +52,13 @@ def test_generation_mode_calibrator_raises_independence_for_strong_positive_prof
         }
     )
     calibrator = GenerationModeCalibrator(
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
-        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(
+            audit_store=audit_store
+        ),
     )
 
     calibrated_request = calibrator.calibrate_request(request=request)
@@ -91,9 +101,13 @@ def test_generation_mode_calibrator_adds_support_for_negative_run_summary(tmp_pa
         }
     )
     calibrator = GenerationModeCalibrator(
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
-        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(
+            audit_store=audit_store
+        ),
     )
 
     calibrated_request = calibrator.calibrate_request(request=request)
@@ -140,9 +154,13 @@ def test_generation_mode_calibrator_uses_improving_progress_profile(tmp_path):
         }
     )
     calibrator = GenerationModeCalibrator(
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
-        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(
+            audit_store=audit_store
+        ),
     )
 
     calibrated_request = calibrator.calibrate_request(request=request)
@@ -153,7 +171,9 @@ def test_generation_mode_calibrator_uses_improving_progress_profile(tmp_path):
     assert calibrated_request.mode_calibration.support_bias == 1
 
 
-def test_generation_mode_calibrator_can_use_strategy_profile_without_run_calibration(tmp_path):
+def test_generation_mode_calibrator_can_use_strategy_profile_without_run_calibration(
+    tmp_path,
+):
     database_path = str(tmp_path / "generation-mode-strategy-profile.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -192,9 +212,13 @@ def test_generation_mode_calibrator_can_use_strategy_profile_without_run_calibra
         }
     )
     calibrator = GenerationModeCalibrator(
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
-        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(
+            audit_store=audit_store
+        ),
     )
 
     calibrated_request = calibrator.calibrate_request(request=request)
@@ -205,12 +229,17 @@ def test_generation_mode_calibrator_can_use_strategy_profile_without_run_calibra
     assert calibrated_request.mode_calibration.support_bias == -1
     assert calibrated_request.mode_calibration.strategy_signal == "support_intensive"
     assert calibrated_request.mode_calibration.strategy_trajectory_state == "relapsing"
-    assert calibrated_request.mode_calibration.strategy_recommended_next_action == "rebuild_prerequisite"
+    assert (
+        calibrated_request.mode_calibration.strategy_recommended_next_action
+        == "rebuild_prerequisite"
+    )
     assert calibrated_request.mode_calibration.strategy_sequence_action == "hold_target"
     assert calibrated_request.mode_calibration.strategy_sequence_kc_ids == ["KC-1"]
 
 
-def test_generation_mode_calibrator_exposes_transfer_sequence_for_independence_ready_strategy(tmp_path):
+def test_generation_mode_calibrator_exposes_transfer_sequence_for_independence_ready_strategy(
+    tmp_path,
+):
     database_path = str(tmp_path / "generation-mode-strategy-sequencing.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -248,19 +277,28 @@ def test_generation_mode_calibrator_exposes_transfer_sequence_for_independence_r
         }
     )
     calibrator = GenerationModeCalibrator(
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
-        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(
+            audit_store=audit_store
+        ),
     )
 
     calibrated_request = calibrator.calibrate_request(request=request)
 
     assert calibrated_request.mode_calibration is not None
-    assert calibrated_request.mode_calibration.strategy_sequence_action == "attempt_transfer"
+    assert (
+        calibrated_request.mode_calibration.strategy_sequence_action
+        == "attempt_transfer"
+    )
     assert calibrated_request.mode_calibration.strategy_sequence_primary_kc_id == "KC-2"
 
 
-def test_generation_mode_calibrator_uses_durable_state_profile_when_other_signals_are_sparse(tmp_path):
+def test_generation_mode_calibrator_uses_durable_state_profile_when_other_signals_are_sparse(
+    tmp_path,
+):
     database_path = str(tmp_path / "generation-mode-state-profile.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -295,11 +333,17 @@ def test_generation_mode_calibrator_uses_durable_state_profile_when_other_signal
         }
     )
     calibrator = GenerationModeCalibrator(
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
-        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(
+            audit_store=audit_store
+        ),
         state_signal_service=LearnerStateSignalService(audit_store=audit_store),
-        trait_profile_signal_service=LearnerTraitProfileSignalService(audit_store=audit_store),
+        trait_profile_signal_service=LearnerTraitProfileSignalService(
+            audit_store=audit_store
+        ),
     )
 
     calibrated_request = calibrator.calibrate_request(request=request)
@@ -340,11 +384,17 @@ def test_generation_mode_calibrator_surfaces_trait_profile_release_readiness(tmp
         }
     )
     calibrator = GenerationModeCalibrator(
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
-        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(
+            audit_store=audit_store
+        ),
         state_signal_service=LearnerStateSignalService(audit_store=audit_store),
-        trait_profile_signal_service=LearnerTraitProfileSignalService(audit_store=audit_store),
+        trait_profile_signal_service=LearnerTraitProfileSignalService(
+            audit_store=audit_store
+        ),
     )
 
     calibrated_request = calibrator.calibrate_request(request=request)
@@ -355,7 +405,9 @@ def test_generation_mode_calibrator_surfaces_trait_profile_release_readiness(tmp
     assert calibrated_request.mode_calibration.trait_profile_challenge_tolerance == 0.74
 
 
-def test_generation_mode_calibrator_uses_same_session_observation_to_raise_support(tmp_path):
+def test_generation_mode_calibrator_uses_same_session_observation_to_raise_support(
+    tmp_path,
+):
     database_path = str(tmp_path / "generation-mode-session-negative.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -387,9 +439,13 @@ def test_generation_mode_calibrator_uses_same_session_observation_to_raise_suppo
         }
     )
     calibrator = GenerationModeCalibrator(
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
-        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(
+            audit_store=audit_store
+        ),
     )
 
     calibrated_request = calibrator.calibrate_request(request=request)
@@ -402,7 +458,9 @@ def test_generation_mode_calibrator_uses_same_session_observation_to_raise_suppo
     assert calibrated_request.mode_calibration.sequence_action == "hold_target"
 
 
-def test_generation_mode_calibrator_uses_same_session_assessment_to_attempt_transfer(tmp_path):
+def test_generation_mode_calibrator_uses_same_session_assessment_to_attempt_transfer(
+    tmp_path,
+):
     database_path = str(tmp_path / "generation-mode-session-positive.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -430,9 +488,13 @@ def test_generation_mode_calibrator_uses_same_session_assessment_to_attempt_tran
         }
     )
     calibrator = GenerationModeCalibrator(
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
-        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(
+            audit_store=audit_store
+        ),
     )
 
     calibrated_request = calibrator.calibrate_request(request=request)
@@ -444,10 +506,15 @@ def test_generation_mode_calibrator_uses_same_session_assessment_to_attempt_tran
     assert calibrated_request.mode_calibration.session_signal == "positive"
     assert calibrated_request.mode_calibration.sequence_action == "attempt_transfer"
     assert calibrated_request.mode_calibration.session_latest_next_action == "advance"
-    assert calibrated_request.mode_calibration.socratic_steering_action == "verify_transfer"
+    assert (
+        calibrated_request.mode_calibration.socratic_steering_action
+        == "verify_transfer"
+    )
 
 
-def test_generation_mode_calibrator_uses_persisted_session_controller_metadata(tmp_path):
+def test_generation_mode_calibrator_uses_persisted_session_controller_metadata(
+    tmp_path,
+):
     database_path = str(tmp_path / "generation-mode-session-controller.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -474,7 +541,9 @@ def test_generation_mode_calibrator_uses_persisted_session_controller_metadata(t
         student_id=str(student_id),
         payload=observation_payload,
     )
-    service.record_observation_event(student_id=student_id, event_payload=observation_payload)
+    service.record_observation_event(
+        student_id=student_id, event_payload=observation_payload
+    )
 
     request = GenerationRequest.model_validate(
         {
@@ -486,7 +555,9 @@ def test_generation_mode_calibrator_uses_persisted_session_controller_metadata(t
         }
     )
     calibrator = GenerationModeCalibrator(
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
         within_session_adaptation_service=service,
     )
@@ -537,12 +608,20 @@ def test_generation_mode_calibrator_carries_session_arc_loop_metadata(tmp_path):
             student_id=str(student_id),
             payload=observation_payload,
         )
-        service.record_observation_event(student_id=student_id, event_payload=observation_payload)
-    service.record_generation_step(request=request, content_type="practice_problem", generation_id="gen-1")
-    service.record_generation_step(request=request, content_type="practice_problem", generation_id="gen-2")
+        service.record_observation_event(
+            student_id=student_id, event_payload=observation_payload
+        )
+    service.record_generation_step(
+        request=request, content_type="practice_problem", generation_id="gen-1"
+    )
+    service.record_generation_step(
+        request=request, content_type="practice_problem", generation_id="gen-2"
+    )
 
     calibrator = GenerationModeCalibrator(
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
         within_session_adaptation_service=service,
     )
@@ -585,21 +664,36 @@ def test_generation_mode_calibrator_carries_recent_socratic_prompt_metadata(tmp_
         }
     )
     calibrator = GenerationModeCalibrator(
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
-        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(
+            audit_store=audit_store
+        ),
     )
 
     calibrated_request = calibrator.calibrate_request(request=request)
 
     assert calibrated_request.mode_calibration is not None
-    assert calibrated_request.mode_calibration.session_latest_prompt_style == "scaffolded_step_back"
+    assert (
+        calibrated_request.mode_calibration.session_latest_prompt_style
+        == "scaffolded_step_back"
+    )
     assert calibrated_request.mode_calibration.session_latest_next_action == "step_back"
-    assert calibrated_request.mode_calibration.session_latest_evidence_strength == "insufficient"
-    assert calibrated_request.mode_calibration.socratic_steering_action == "repair_then_model"
+    assert (
+        calibrated_request.mode_calibration.session_latest_evidence_strength
+        == "insufficient"
+    )
+    assert (
+        calibrated_request.mode_calibration.socratic_steering_action
+        == "repair_then_model"
+    )
 
 
-def test_generation_mode_calibrator_prefers_explicit_socratic_steering_action_over_prompt_style_inference(tmp_path):
+def test_generation_mode_calibrator_prefers_explicit_socratic_steering_action_over_prompt_style_inference(
+    tmp_path,
+):
     database_path = str(tmp_path / "generation-mode-session-explicit-steering.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -628,19 +722,27 @@ def test_generation_mode_calibrator_prefers_explicit_socratic_steering_action_ov
         }
     )
     calibrator = GenerationModeCalibrator(
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
-        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(
+            audit_store=audit_store
+        ),
     )
 
     calibrated_request = calibrator.calibrate_request(request=request)
 
     assert calibrated_request.mode_calibration is not None
-    assert calibrated_request.mode_calibration.session_latest_prompt_style == "diagnostic"
+    assert (
+        calibrated_request.mode_calibration.session_latest_prompt_style == "diagnostic"
+    )
     assert calibrated_request.mode_calibration.socratic_steering_action == "open_probe"
 
 
-def test_generation_mode_calibrator_carries_current_evidence_guardrail_from_session_observations(tmp_path):
+def test_generation_mode_calibrator_carries_current_evidence_guardrail_from_session_observations(
+    tmp_path,
+):
     database_path = str(tmp_path / "generation-mode-session-current-evidence.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -675,20 +777,29 @@ def test_generation_mode_calibrator_carries_current_evidence_guardrail_from_sess
         }
     )
     calibrator = GenerationModeCalibrator(
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
-        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(
+            audit_store=audit_store
+        ),
     )
 
     calibrated_request = calibrator.calibrate_request(request=request)
 
     assert calibrated_request.mode_calibration is not None
-    assert calibrated_request.mode_calibration.current_evidence_signal == "support_dependence"
+    assert (
+        calibrated_request.mode_calibration.current_evidence_signal
+        == "support_dependence"
+    )
     assert calibrated_request.mode_calibration.current_evidence_confidence == 0.78
     assert calibrated_request.mode_calibration.support_bias == -1
 
 
-def test_generation_mode_calibrator_can_use_durable_socratic_history_when_session_is_sparse(tmp_path):
+def test_generation_mode_calibrator_can_use_durable_socratic_history_when_session_is_sparse(
+    tmp_path,
+):
     database_path = str(tmp_path / "generation-mode-durable-socratic.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -723,10 +834,16 @@ def test_generation_mode_calibrator_can_use_durable_socratic_history_when_sessio
         }
     )
     calibrator = GenerationModeCalibrator(
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
-        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
-        socratic_conversation_signal_service=SocraticConversationSignalService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(
+            audit_store=audit_store
+        ),
+        socratic_conversation_signal_service=SocraticConversationSignalService(
+            audit_store=audit_store
+        ),
     )
 
     calibrated_request = calibrator.calibrate_request(request=request)
@@ -735,5 +852,10 @@ def test_generation_mode_calibrator_can_use_durable_socratic_history_when_sessio
     assert calibrated_request.mode_calibration.source == "socratic_assessment_history"
     assert calibrated_request.mode_calibration.signal == "positive"
     assert calibrated_request.mode_calibration.support_bias == 1
-    assert calibrated_request.mode_calibration.socratic_profile_signal == "independent_check"
-    assert calibrated_request.mode_calibration.socratic_profile_transfer_readiness >= 0.75
+    assert (
+        calibrated_request.mode_calibration.socratic_profile_signal
+        == "independent_check"
+    )
+    assert (
+        calibrated_request.mode_calibration.socratic_profile_transfer_readiness >= 0.75
+    )

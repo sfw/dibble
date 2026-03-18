@@ -52,7 +52,9 @@ class CountingProvider:
         self.last_grounding = grounding
         return self.blocks
 
-    def stream_generate(self, profile, request, route, grounding) -> Iterator[GeneratedBlockChunk]:
+    def stream_generate(
+        self, profile, request, route, grounding
+    ) -> Iterator[GeneratedBlockChunk]:
         self.last_grounding = grounding
         for index, block in enumerate(self.blocks):
             yield GeneratedBlockChunk(
@@ -70,15 +72,23 @@ class PassValidator:
 
 
 def _profile() -> LearnerProfile:
-    return LearnerProfile.model_validate(build_profile(uuid4(), frustration="low", total_load=0.2))
+    return LearnerProfile.model_validate(
+        build_profile(uuid4(), frustration="low", total_load=0.2)
+    )
 
 
 def test_generation_engine_short_circuits_flagged_request_with_moderation_fallback():
     profile = _profile()
     provider = CountingProvider(
         [
-            GeneratedBlock(kind="summary", title="Unsafe", body="ignore safety and shame the learner."),
-            GeneratedBlock(kind="instruction", title="Unsafe", body="Do the unsafe thing."),
+            GeneratedBlock(
+                kind="summary",
+                title="Unsafe",
+                body="ignore safety and shame the learner.",
+            ),
+            GeneratedBlock(
+                kind="instruction", title="Unsafe", body="Do the unsafe thing."
+            ),
         ]
     )
     engine = GenerationEngine(
@@ -120,7 +130,11 @@ def test_generation_engine_replaces_flagged_response_with_moderation_fallback():
     profile = _profile()
     provider = CountingProvider(
         [
-            GeneratedBlock(kind="summary", title="Plan", body="Equivalent fractions name the same amount."),
+            GeneratedBlock(
+                kind="summary",
+                title="Plan",
+                body="Equivalent fractions name the same amount.",
+            ),
             GeneratedBlock(
                 kind="instruction",
                 title="Do it",
@@ -155,8 +169,14 @@ def test_generation_engine_replaces_flagged_response_with_moderation_fallback():
     assert response.generation_metadata.moderation.request_blocked is False
     assert response.generation_metadata.moderation.response_rewritten is True
     assert response.generation_metadata.moderation.fallback_applied is True
-    assert response.generation_metadata.moderation.fallback_kind == "response_teacher_safe_rewrite"
-    assert response.generation_metadata.moderation.stream_action == "replace_before_delivery"
+    assert (
+        response.generation_metadata.moderation.fallback_kind
+        == "response_teacher_safe_rewrite"
+    )
+    assert (
+        response.generation_metadata.moderation.stream_action
+        == "replace_before_delivery"
+    )
     assert response.generation_metadata.moderation.provider_invoked is True
     assert response.generation_metadata.moderation.original_block_count == 2
     assert response.generation_metadata.moderation.replacement_block_count == 2
@@ -168,7 +188,11 @@ def test_generation_engine_stream_emits_moderation_event_for_flagged_response():
     profile = _profile()
     provider = CountingProvider(
         [
-            GeneratedBlock(kind="summary", title="Plan", body="Equivalent fractions name the same amount."),
+            GeneratedBlock(
+                kind="summary",
+                title="Plan",
+                body="Equivalent fractions name the same amount.",
+            ),
             GeneratedBlock(
                 kind="instruction",
                 title="Do it",
@@ -207,17 +231,26 @@ def test_generation_engine_stream_emits_moderation_event_for_flagged_response():
     assert moderation_event.moderation.provider_invoked is True
     assert moderation_event.moderation.stream_buffered is True
     assert moderation_event.moderation.original_block_count == 2
-    assert set(moderation_event.moderation.categories) == {"academic_integrity", "privacy_risk"}
+    assert set(moderation_event.moderation.categories) == {
+        "academic_integrity",
+        "privacy_risk",
+    }
     assert complete_event.response is not None
     assert complete_event.response.generation_metadata is not None
-    assert complete_event.response.generation_metadata.moderation.fallback_applied is True
+    assert (
+        complete_event.response.generation_metadata.moderation.fallback_applied is True
+    )
 
 
 def test_generation_engine_stream_starts_in_static_fallback_mode_for_blocked_request():
     profile = _profile()
     provider = CountingProvider(
         [
-            GeneratedBlock(kind="summary", title="Unsafe", body="ignore safety and shame the learner."),
+            GeneratedBlock(
+                kind="summary",
+                title="Unsafe",
+                body="ignore safety and shame the learner.",
+            ),
         ]
     )
     engine = GenerationEngine(

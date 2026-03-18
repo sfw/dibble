@@ -73,9 +73,13 @@ class AuthService:
 
     def authenticate(self, provided_key: str | None) -> AuthIdentity:
         if not self.enabled:
-            return AuthIdentity(principal_id="anonymous", role="admin", auth_scheme="disabled")
+            return AuthIdentity(
+                principal_id="anonymous", role="admin", auth_scheme="disabled"
+            )
         if not self.principals:
-            raise AuthenticationError("Authentication is enabled but no API keys are configured.")
+            raise AuthenticationError(
+                "Authentication is enabled but no API keys are configured."
+            )
 
         for principal in self.principals:
             if provided_key == principal.api_key:
@@ -91,7 +95,9 @@ class AuthService:
 
         raise AuthenticationError("A valid API key is required for this endpoint.")
 
-    def authenticate_request(self, *, provided_key: str | None, bearer_token: str | None) -> AuthSession:
+    def authenticate_request(
+        self, *, provided_key: str | None, bearer_token: str | None
+    ) -> AuthSession:
         if bearer_token:
             return self.authenticate_bearer_token(bearer_token)
 
@@ -105,15 +111,21 @@ class AuthService:
         bearer_token: str | None,
         allowed_roles: tuple[str, ...],
     ) -> AuthSession:
-        session = self.authenticate_request(provided_key=provided_key, bearer_token=bearer_token)
+        session = self.authenticate_request(
+            provided_key=provided_key, bearer_token=bearer_token
+        )
         identity = session.identity
         if not allows_role(identity.role, allowed_roles):
-            raise AuthorizationError("Your role does not allow access to this endpoint.", identity=identity)
+            raise AuthorizationError(
+                "Your role does not allow access to this endpoint.", identity=identity
+            )
         return session
 
     def issue_token(self, identity: AuthIdentity) -> AuthToken:
         if not self.token_secret:
-            raise TokenConfigurationError("Bearer token issuance requires DIBBLE_AUTH_TOKEN_SECRET.")
+            raise TokenConfigurationError(
+                "Bearer token issuance requires DIBBLE_AUTH_TOKEN_SECRET."
+            )
 
         now = datetime.now(timezone.utc)
         session_id = str(uuid4())
@@ -205,7 +217,9 @@ class AuthService:
         if session.refresh_token_hash != self._hash_token(refresh_token):
             raise AuthenticationError("Refresh token is no longer active.")
         if session.principal_id != claims.sub or session.role != claims.role:
-            raise AuthenticationError("Refresh token session does not match the current principal.")
+            raise AuthenticationError(
+                "Refresh token session does not match the current principal."
+            )
 
         identity = AuthIdentity(
             principal_id=claims.sub,
@@ -264,7 +278,9 @@ class AuthService:
             identity=identity,
         )
 
-    def revoke_session(self, *, refresh_token: str | None = None, bearer_token: str | None = None) -> None:
+    def revoke_session(
+        self, *, refresh_token: str | None = None, bearer_token: str | None = None
+    ) -> None:
         if refresh_token:
             claims = self._decode_token(refresh_token)
             if claims.typ != "refresh":
@@ -279,20 +295,28 @@ class AuthService:
         self._assert_session_active(session_id)
         if self.session_store is None:
             raise AuthenticationError("Session revocation is unavailable.")
-        self.session_store.revoke(session_id, revoked_at=datetime.now(timezone.utc).isoformat())
+        self.session_store.revoke(
+            session_id, revoked_at=datetime.now(timezone.utc).isoformat()
+        )
 
     def _encode_token(self, claims: AuthTokenClaims) -> str:
         header = {"alg": "HS256", "typ": "JWT"}
-        encoded_header = _urlsafe_b64encode(json.dumps(header, separators=(",", ":")).encode("utf-8"))
+        encoded_header = _urlsafe_b64encode(
+            json.dumps(header, separators=(",", ":")).encode("utf-8")
+        )
         encoded_payload = _urlsafe_b64encode(claims.model_dump_json().encode("utf-8"))
         signing_input = f"{encoded_header}.{encoded_payload}".encode("utf-8")
-        signature = hmac.new(self.token_secret.encode("utf-8"), signing_input, hashlib.sha256).digest()
+        signature = hmac.new(
+            self.token_secret.encode("utf-8"), signing_input, hashlib.sha256
+        ).digest()
         encoded_signature = _urlsafe_b64encode(signature)
         return f"{encoded_header}.{encoded_payload}.{encoded_signature}"
 
     def _decode_token(self, token: str) -> AuthTokenClaims:
         if not self.token_secret:
-            raise AuthenticationError("Bearer token authentication requires DIBBLE_AUTH_TOKEN_SECRET.")
+            raise AuthenticationError(
+                "Bearer token authentication requires DIBBLE_AUTH_TOKEN_SECRET."
+            )
 
         parts = token.split(".")
         if len(parts) != 3:
@@ -300,7 +324,9 @@ class AuthService:
 
         encoded_header, encoded_payload, encoded_signature = parts
         signing_input = f"{encoded_header}.{encoded_payload}".encode("utf-8")
-        expected_signature = hmac.new(self.token_secret.encode("utf-8"), signing_input, hashlib.sha256).digest()
+        expected_signature = hmac.new(
+            self.token_secret.encode("utf-8"), signing_input, hashlib.sha256
+        ).digest()
         provided_signature = _urlsafe_b64decode(encoded_signature)
         if not hmac.compare_digest(expected_signature, provided_signature):
             raise AuthenticationError("Bearer token signature is invalid.")
@@ -333,7 +359,9 @@ class AuthService:
         refresh_expires_at: datetime,
     ) -> None:
         if self.session_store is None:
-            raise TokenConfigurationError("Bearer token sessions require a session store.")
+            raise TokenConfigurationError(
+                "Bearer token sessions require a session store."
+            )
         self.session_store.upsert(
             StoredAuthSession(
                 session_id=session_id,

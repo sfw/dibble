@@ -95,7 +95,10 @@ def test_predictive_next_step_planner_adds_assessment_after_improving_remediatio
 
     plan = PredictiveNextStepPlanner().plan(generated_content)
 
-    assert [content_type.value for content_type, _ in plan] == ["practice_problem", "assessment_probe"]
+    assert [content_type.value for content_type, _ in plan] == [
+        "practice_problem",
+        "assessment_probe",
+    ]
 
 
 def test_predictive_next_step_planner_describes_bridge_hold_after_remediation():
@@ -353,7 +356,9 @@ def _build_generated_content(
         reasons=["test"],
         calibration=route_calibration,
     )
-    metadata = GenerationMetadata(quality_score=0.8, validation_passed=True, grounding_count=1)
+    metadata = GenerationMetadata(
+        quality_score=0.8, validation_passed=True, grounding_count=1
+    )
     response = GenerationResponse(
         student_id=student_id,
         route=route,

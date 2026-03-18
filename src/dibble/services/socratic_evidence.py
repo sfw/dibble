@@ -66,7 +66,9 @@ class SocraticEvidenceScorer:
         lexical_alignment = self._lexical_alignment(matched_terms, expected_terms)
         reasoning_signal = self._reasoning_signal(response_text, learner_terms)
         understanding_signal = (lexical_alignment * 0.62) + (reasoning_signal * 0.38)
-        confidence_alignment = self._confidence_alignment(request.learner_confidence, understanding_signal)
+        confidence_alignment = self._confidence_alignment(
+            request.learner_confidence, understanding_signal
+        )
         progression_signal = self._progression_signal(session, understanding_signal)
         misconception_risk = self._misconception_risk(
             response_text=response_text,
@@ -98,7 +100,11 @@ class SocraticEvidenceScorer:
             progression_signal=progression_signal,
         )
         inferred_mastery = round(
-            _clamp((understanding_signal * 0.7) + (confidence_alignment * 0.1) + (progression_signal * 0.2)),
+            _clamp(
+                (understanding_signal * 0.7)
+                + (confidence_alignment * 0.1)
+                + (progression_signal * 0.2)
+            ),
             2,
         )
 
@@ -140,19 +146,23 @@ class SocraticEvidenceScorer:
             context_tokens.update(salient_tokens(value))
 
         for resource in self.curriculum_store.list():
-            matches_target = bool(set(resource.knowledge_component_ids) & set(session_kc_ids)) or bool(
-                set(resource.learning_objective_ids) & set(session_lo_ids)
-            )
+            matches_target = bool(
+                set(resource.knowledge_component_ids) & set(session_kc_ids)
+            ) or bool(set(resource.learning_objective_ids) & set(session_lo_ids))
             resource_terms = set(salient_tokens(resource.title))
             resource_terms.update(salient_tokens(resource.body))
             resource_terms.update(token.lower() for token in resource.tags)
-            matches_context = bool(resource_terms & context_tokens) if context_tokens else False
+            matches_context = (
+                bool(resource_terms & context_tokens) if context_tokens else False
+            )
             if matches_target or matches_context:
                 expected_terms.update(resource_terms)
 
         return expected_terms
 
-    def _lexical_alignment(self, matched_terms: list[str], expected_terms: set[str]) -> float:
+    def _lexical_alignment(
+        self, matched_terms: list[str], expected_terms: set[str]
+    ) -> float:
         expected_count = max(4, min(len(expected_terms), 6))
         return _clamp(len(matched_terms) / expected_count)
 
@@ -161,15 +171,21 @@ class SocraticEvidenceScorer:
         explanation_density = min(len(learner_terms), 18) / 18
         return _clamp((cue_hits * 0.34) + (explanation_density * 0.32))
 
-    def _confidence_alignment(self, confidence: float | None, understanding_signal: float) -> float:
+    def _confidence_alignment(
+        self, confidence: float | None, understanding_signal: float
+    ) -> float:
         if confidence is None:
             return 0.75
         return _clamp(1.0 - abs(confidence - understanding_signal))
 
-    def _progression_signal(self, session: SocraticAssessmentSession, understanding_signal: float) -> float:
+    def _progression_signal(
+        self, session: SocraticAssessmentSession, understanding_signal: float
+    ) -> float:
         if not session.turns:
             return 0.5
-        prior_mastery = sum(turn.evaluation.inferred_mastery for turn in session.turns[-2:]) / min(len(session.turns), 2)
+        prior_mastery = sum(
+            turn.evaluation.inferred_mastery for turn in session.turns[-2:]
+        ) / min(len(session.turns), 2)
         return _clamp(0.5 + ((understanding_signal - prior_mastery) * 0.8))
 
     def _misconception_risk(
@@ -211,11 +227,15 @@ class SocraticEvidenceScorer:
         confidence_alignment: float,
         progression_signal: float,
     ) -> SocraticNextAction:
-        if evidence_strength == SocraticEvidenceStrength.demonstrated and confidence_alignment >= 0.4:
-            return SocraticNextAction.advance
         if (
-            evidence_strength == SocraticEvidenceStrength.insufficient
-            and (misconception_risk >= 0.45 or evidence_score < 0.3 or progression_signal < 0.45)
+            evidence_strength == SocraticEvidenceStrength.demonstrated
+            and confidence_alignment >= 0.4
+        ):
+            return SocraticNextAction.advance
+        if evidence_strength == SocraticEvidenceStrength.insufficient and (
+            misconception_risk >= 0.45
+            or evidence_score < 0.3
+            or progression_signal < 0.45
         ):
             return SocraticNextAction.step_back
         return SocraticNextAction.clarify
@@ -232,20 +252,14 @@ class SocraticEvidenceScorer:
     ) -> str:
         if evidence_strength == SocraticEvidenceStrength.demonstrated:
             if progression_signal > 0.55:
-                return (
-                    "The learner used grounded concept language, explained causal reasoning, and improved on the recent turn."
-                )
+                return "The learner used grounded concept language, explained causal reasoning, and improved on the recent turn."
             return "The learner used grounded concept language and explained their reasoning clearly enough to test transfer."
         if evidence_strength == SocraticEvidenceStrength.emerging:
             if confidence_alignment < 0.4:
-                return (
-                    "The learner showed some relevant reasoning, but the confidence signal is misaligned enough that a clarifying follow-up is safer."
-                )
+                return "The learner showed some relevant reasoning, but the confidence signal is misaligned enough that a clarifying follow-up is safer."
             return "The learner showed partial grounding or reasoning, but still needs a clarifying follow-up before advancing."
         if misconception_risk >= 0.45:
-            return (
-                "The learner response stayed thin or uncertain, which raises misconception risk and suggests stepping back to a prerequisite idea."
-            )
+            return "The learner response stayed thin or uncertain, which raises misconception risk and suggests stepping back to a prerequisite idea."
         if lexical_alignment < 0.25 and reasoning_signal < 0.25:
             return "The learner response did not yet show enough grounded concept language or reasoning to demonstrate understanding."
         return "The learner needs another supported follow-up before the system can trust this understanding signal."

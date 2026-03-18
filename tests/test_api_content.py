@@ -5,7 +5,9 @@ from dibble.app import create_app
 from dibble.config import Settings
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.within_session_adaptation import WithinSessionAdaptationService
-from dibble.services.within_session_controller_store import SQLiteWithinSessionControllerStore
+from dibble.services.within_session_controller_store import (
+    SQLiteWithinSessionControllerStore,
+)
 from tests.support import (
     assert_machine_readable_error,
     build_curriculum_resource,
@@ -43,7 +45,9 @@ def test_generation_uses_grounding_and_step_back_route(client, student_id):
     assert payload["quality"]["prompt_template_variant"] == "baseline"
 
 
-def test_generation_endpoint_returns_generated_content_and_cache_hit(client, student_id):
+def test_generation_endpoint_returns_generated_content_and_cache_hit(
+    client, student_id
+):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
 
@@ -69,7 +73,10 @@ def test_generation_endpoint_returns_generated_content_and_cache_hit(client, stu
 
 
 def test_generated_content_can_be_reloaded_by_generation_id(client, student_id):
-    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, frustration="low", total_load=0.2),
+    )
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
 
     for confidence, hints_used in [(0.62, 3), (0.58, 2)]:
@@ -113,16 +120,32 @@ def test_generated_content_can_be_reloaded_by_generation_id(client, student_id):
     assert payload["generation_id"] == generation_id
     assert payload["request_context"]["progression"]["action"] == "hold_target"
     assert payload["workflow_summary"]["progression_action"] == "hold_target"
-    assert payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
+    assert (
+        payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
+    )
     assert len(payload["response"]["artifacts"]) == len(payload["response"]["blocks"])
-    assert all(artifact["artifact_type"] == "text" for artifact in payload["response"]["artifacts"])
-    assert payload["response"]["artifacts"][0]["role"] == payload["response"]["blocks"][0]["kind"]
-    assert payload["response"]["artifacts"][0]["text"] == payload["response"]["blocks"][0]["body"]
+    assert all(
+        artifact["artifact_type"] == "text"
+        for artifact in payload["response"]["artifacts"]
+    )
+    assert (
+        payload["response"]["artifacts"][0]["role"]
+        == payload["response"]["blocks"][0]["kind"]
+    )
+    assert (
+        payload["response"]["artifacts"][0]["text"]
+        == payload["response"]["blocks"][0]["body"]
+    )
 
 
-def test_generation_endpoint_preserves_strategy_hold_target_as_workflow_action(client, student_id, app_settings):
+def test_generation_endpoint_preserves_strategy_hold_target_as_workflow_action(
+    client, student_id, app_settings
+):
     audit_store = SQLiteAuditStore(app_settings.database_path)
-    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, frustration="low", total_load=0.2),
+    )
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
     audit_store.append(
         event_type="learning.strategy.profile",
@@ -166,17 +189,24 @@ def test_generation_endpoint_preserves_strategy_hold_target_as_workflow_action(c
         "Recent strategy signals suggest staying on the target KC until the learner stabilizes. "
         "The backend is holding the current target instead of assigning transfer yet."
     )
-    assert payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
+    assert (
+        payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
+    )
 
 
-def test_generation_endpoint_preserves_bridge_hold_as_workflow_action(client, student_id, app_settings):
+def test_generation_endpoint_preserves_bridge_hold_as_workflow_action(
+    client, student_id, app_settings
+):
     audit_store = SQLiteAuditStore(app_settings.database_path)
     controller_store = SQLiteWithinSessionControllerStore(app_settings.database_path)
     adaptation_service = WithinSessionAdaptationService(
         audit_store=audit_store,
         controller_store=controller_store,
     )
-    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, frustration="low", total_load=0.2),
+    )
     client.put("/api/knowledge-components/KC-1", json=build_knowledge_component("KC-1"))
     client.put(
         "/api/knowledge-components/KC-2",
@@ -214,7 +244,9 @@ def test_generation_endpoint_preserves_bridge_hold_as_workflow_action(client, st
         student_id=str(student_id),
         payload=negative_observation,
     )
-    adaptation_service.record_observation_event(student_id=student_id, event_payload=negative_observation)
+    adaptation_service.record_observation_event(
+        student_id=student_id, event_payload=negative_observation
+    )
 
     recovery_payload = {
         "learning_session_id": "session-bridge-flow",
@@ -231,7 +263,9 @@ def test_generation_endpoint_preserves_bridge_hold_as_workflow_action(client, st
             student_id=str(student_id),
             payload=recovery_payload,
         )
-        adaptation_service.record_assessment_event(student_id=student_id, event_payload=recovery_payload)
+        adaptation_service.record_assessment_event(
+            student_id=student_id, event_payload=recovery_payload
+        )
 
     response = client.post(
         "/api/problems/generate",
@@ -247,13 +281,20 @@ def test_generation_endpoint_preserves_bridge_hold_as_workflow_action(client, st
     assert response.status_code == 200
     payload = response.json()
     assert payload["request_context"]["session_adaptation"]["phase"] == "bridge"
-    assert payload["request_context"]["session_adaptation"]["sequence_action"] == "hold_bridge_target"
+    assert (
+        payload["request_context"]["session_adaptation"]["sequence_action"]
+        == "hold_bridge_target"
+    )
     assert payload["request_context"]["progression"]["action"] == "hold_bridge_target"
     assert payload["request_context"]["progression"]["target_stage"] == "bridge"
-    assert payload["request_context"]["progression"]["applied_target_kc_ids"] == ["KC-2"]
+    assert payload["request_context"]["progression"]["applied_target_kc_ids"] == [
+        "KC-2"
+    ]
     assert payload["workflow_summary"]["progression_action"] == "hold_bridge_target"
     assert payload["workflow_summary"]["target_stage"] == "bridge"
-    assert payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
+    assert (
+        payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
+    )
     assert payload["workflow_summary"]["next_step"]["target_stage"] == "bridge"
     assert payload["workflow_summary"]["next_step"]["target_kc_ids"] == ["KC-2"]
     assert payload["workflow_summary"]["continue_action"]["target_stage"] == "bridge"
@@ -318,7 +359,9 @@ def test_content_warm_endpoint_primes_generation_cache(client, student_id):
         "curriculum_context": ["Equivalent fractions"],
     }
 
-    warm_response = client.post("/api/content/warm", json={"requests": [request_payload]})
+    warm_response = client.post(
+        "/api/content/warm", json={"requests": [request_payload]}
+    )
     generated_response = client.post("/api/content/generate", json=request_payload)
 
     assert warm_response.status_code == 200
@@ -327,7 +370,9 @@ def test_content_warm_endpoint_primes_generation_cache(client, student_id):
     assert generated_response.json()["quality"]["cache_hit"] is True
 
 
-def test_generation_cache_reuses_predictive_warm_entries_for_real_requests(client, student_id):
+def test_generation_cache_reuses_predictive_warm_entries_for_real_requests(
+    client, student_id
+):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
 
@@ -368,7 +413,10 @@ def test_generation_cache_reuses_predictive_warm_entries_for_real_requests(clien
 
 
 def test_generation_endpoint_predictively_warms_follow_up_content(client, student_id):
-    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, frustration="low", total_load=0.2),
+    )
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
 
     worked_example_response = client.post(
@@ -412,15 +460,27 @@ def test_generation_endpoint_predictively_warms_follow_up_content(client, studen
         event
         for event in audit_response.json()
         if event["event_type"] == "content.warm.predictive"
-        and event["payload"]["predicted_content_types"] == ["practice_problem", "assessment_probe"]
+        and event["payload"]["predicted_content_types"]
+        == ["practice_problem", "assessment_probe"]
     )
-    assert predictive_event["payload"]["source_generation_id"] == worked_example_response.json()["generation_id"]
+    assert (
+        predictive_event["payload"]["source_generation_id"]
+        == worked_example_response.json()["generation_id"]
+    )
     assert predictive_event["payload"]["predicted_request_count"] == 2
-    assert predictive_event["payload"]["predicted_content_types"] == ["practice_problem", "assessment_probe"]
+    assert predictive_event["payload"]["predicted_content_types"] == [
+        "practice_problem",
+        "assessment_probe",
+    ]
 
 
-def test_generation_endpoint_holds_target_when_recent_same_session_evidence_is_support_heavy(client, student_id):
-    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+def test_generation_endpoint_holds_target_when_recent_same_session_evidence_is_support_heavy(
+    client, student_id
+):
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, frustration="low", total_load=0.2),
+    )
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
 
     for hints_used, confidence in [(3, 0.62), (2, 0.58)]:
@@ -462,11 +522,23 @@ def test_generation_endpoint_holds_target_when_recent_same_session_evidence_is_s
     assert payload["workflow_summary"]["flow_type"] == "lesson"
     assert payload["workflow_summary"]["progression_action"] == "hold_target"
     assert payload["workflow_summary"]["target_stage"] == "target"
-    assert payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
+    assert (
+        payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
+    )
     assert payload["workflow_summary"]["next_step"]["target_kc_ids"] == ["KC-1"]
-    assert payload["workflow_summary"]["continue_action"]["kind"] == "generate_follow_up"
-    assert payload["workflow_summary"]["continue_action"]["endpoint"] == "/api/content/generate"
-    assert payload["workflow_summary"]["continue_action"]["request_payload"]["requested_content_type"] == "practice_problem"
+    assert (
+        payload["workflow_summary"]["continue_action"]["kind"] == "generate_follow_up"
+    )
+    assert (
+        payload["workflow_summary"]["continue_action"]["endpoint"]
+        == "/api/content/generate"
+    )
+    assert (
+        payload["workflow_summary"]["continue_action"]["request_payload"][
+            "requested_content_type"
+        ]
+        == "practice_problem"
+    )
 
     predictive_event = next(
         event
@@ -474,14 +546,19 @@ def test_generation_endpoint_holds_target_when_recent_same_session_evidence_is_s
         if event["event_type"] == "content.warm.predictive"
         and event["payload"]["source_generation_id"] == payload["generation_id"]
     )
-    assert predictive_event["payload"]["predicted_content_types"] == ["practice_problem"]
+    assert predictive_event["payload"]["predicted_content_types"] == [
+        "practice_problem"
+    ]
 
 
 def test_generation_endpoint_uses_durable_ordinary_mastery_to_hold_assessment_request(
     client, student_id, app_settings
 ):
     audit_store = SQLiteAuditStore(app_settings.database_path)
-    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, frustration="low", total_load=0.2),
+    )
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
     audit_store.append(
         event_type="learning.ordinary_mastery.profile",
@@ -515,13 +592,24 @@ def test_generation_endpoint_uses_durable_ordinary_mastery_to_hold_assessment_re
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["request_context"]["progression"]["action"] == "hold_target_before_assessment"
-    assert payload["request_context"]["progression"]["ordinary_mastery_signal"] == "support_dependent"
-    assert payload["request_context"]["progression"]["ordinary_mastery_confidence"] == 0.81
+    assert (
+        payload["request_context"]["progression"]["action"]
+        == "hold_target_before_assessment"
+    )
+    assert (
+        payload["request_context"]["progression"]["ordinary_mastery_signal"]
+        == "support_dependent"
+    )
+    assert (
+        payload["request_context"]["progression"]["ordinary_mastery_confidence"] == 0.81
+    )
     assert payload["request_context"]["progression"]["ordinary_mastery_rationale"] == (
         "Ordinary practice is still too support-heavy for transfer."
     )
-    assert payload["workflow_summary"]["progression_action"] == "hold_target_before_assessment"
+    assert (
+        payload["workflow_summary"]["progression_action"]
+        == "hold_target_before_assessment"
+    )
     assert payload["workflow_summary"]["rationale"] == (
         "Ordinary practice is still too support-heavy for transfer. "
         "Keep the learner on target practice instead of assigning a transfer check yet. "
@@ -530,7 +618,9 @@ def test_generation_endpoint_uses_durable_ordinary_mastery_to_hold_assessment_re
         "high-support dependency rate 0.80; 5 matched observation(s); "
         "across 3 sessions."
     )
-    assert payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
+    assert (
+        payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
+    )
 
 
 def test_predictive_warm_process_endpoint_drains_pending_queue(tmp_path, student_id):
@@ -541,7 +631,10 @@ def test_predictive_warm_process_endpoint_drains_pending_queue(tmp_path, student
     app = create_app(settings)
 
     with TestClient(app) as client:
-        client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+        client.put(
+            f"/api/learners/{student_id}/profile",
+            json=build_profile(student_id, frustration="low", total_load=0.2),
+        )
         client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
 
         worked_example_response = client.post(
@@ -578,7 +671,10 @@ def test_generation_mastery_gate_holds_assessment_request_on_practice_when_evide
     client,
     student_id,
 ):
-    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, frustration="low", total_load=0.2),
+    )
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
 
     for confidence, hints_used, errors in [(0.62, 3, 0), (0.58, 2, 1)]:
@@ -619,31 +715,66 @@ def test_generation_mastery_gate_holds_assessment_request_on_practice_when_evide
     assert response.status_code == 200
     payload = response.json()
     assert payload["content_type"] == "practice_problem"
-    assert payload["request_context"]["progression"]["action"] == "hold_target_before_assessment"
+    assert (
+        payload["request_context"]["progression"]["action"]
+        == "hold_target_before_assessment"
+    )
     assert payload["request_context"]["progression"]["target_stage"] == "target"
     assert payload["request_context"]["progression"]["target_redirect_applied"] is False
-    assert payload["request_context"]["progression"]["transfer_target_kc_ids"] == ["KC-1"]
+    assert payload["request_context"]["progression"]["transfer_target_kc_ids"] == [
+        "KC-1"
+    ]
     assert payload["request_context"]["progression"]["mastery_gate_applied"] is True
-    assert payload["request_context"]["progression"]["requested_content_type"] == "assessment_probe"
-    assert payload["request_context"]["progression"]["applied_content_type"] == "practice_problem"
-    assert payload["workflow_summary"]["progression_action"] == "hold_target_before_assessment"
-    assert "Same-session evidence confidence 0.56" in payload["workflow_summary"]["rationale"]
+    assert (
+        payload["request_context"]["progression"]["requested_content_type"]
+        == "assessment_probe"
+    )
+    assert (
+        payload["request_context"]["progression"]["applied_content_type"]
+        == "practice_problem"
+    )
+    assert (
+        payload["workflow_summary"]["progression_action"]
+        == "hold_target_before_assessment"
+    )
+    assert (
+        "Same-session evidence confidence 0.56"
+        in payload["workflow_summary"]["rationale"]
+    )
     assert "2 observation(s)" in payload["workflow_summary"]["rationale"]
     assert "average observed mastery 0.64" in payload["workflow_summary"]["rationale"]
-    assert payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
+    assert (
+        payload["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
+    )
 
-    generation_event = next(event for event in audit_response.json() if event["event_type"] == "content.generate")
-    assert generation_event["payload"]["progression_action"] == "hold_target_before_assessment"
+    generation_event = next(
+        event
+        for event in audit_response.json()
+        if event["event_type"] == "content.generate"
+    )
+    assert (
+        generation_event["payload"]["progression_action"]
+        == "hold_target_before_assessment"
+    )
     assert generation_event["payload"]["progression_target_stage"] == "target"
     assert generation_event["payload"]["progression_target_redirect_applied"] is False
     assert generation_event["payload"]["progression_transfer_target_kc_ids"] == ["KC-1"]
     assert generation_event["payload"]["progression_mastery_gate_applied"] is True
-    assert generation_event["payload"]["progression_requested_content_type"] == "assessment_probe"
-    assert generation_event["payload"]["progression_applied_content_type"] == "practice_problem"
+    assert (
+        generation_event["payload"]["progression_requested_content_type"]
+        == "assessment_probe"
+    )
+    assert (
+        generation_event["payload"]["progression_applied_content_type"]
+        == "practice_problem"
+    )
 
 
 def test_generation_uses_within_session_observation_adaptation(client, student_id):
-    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, frustration="low", total_load=0.2),
+    )
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
     observe_response = client.post(
         f"/api/learners/{student_id}/observations",
@@ -676,29 +807,60 @@ def test_generation_uses_within_session_observation_adaptation(client, student_i
     assert generate_response.status_code == 200
     payload = generate_response.json()
     assert payload["request_context"]["session_adaptation"]["signal"] == "negative"
-    assert payload["request_context"]["session_adaptation"]["source"] == "session_controller"
-    assert payload["request_context"]["session_adaptation"]["sequence_action"] == "hold_target"
+    assert (
+        payload["request_context"]["session_adaptation"]["source"]
+        == "session_controller"
+    )
+    assert (
+        payload["request_context"]["session_adaptation"]["sequence_action"]
+        == "hold_target"
+    )
     assert payload["request_context"]["session_adaptation"]["phase"] == "stabilize"
     assert payload["request_context"]["session_adaptation"]["support_step_budget"] == 1
-    assert payload["request_context"]["session_adaptation"]["support_steps_remaining"] == 0
-    assert payload["request_context"]["session_adaptation"]["arc_action"] == "model_repair"
+    assert (
+        payload["request_context"]["session_adaptation"]["support_steps_remaining"] == 0
+    )
+    assert (
+        payload["request_context"]["session_adaptation"]["arc_action"] == "model_repair"
+    )
     assert payload["request_context"]["session_adaptation"]["generated_step_count"] == 1
-    assert payload["request_context"]["mode_calibration"]["source"] == "session_controller"
-    assert payload["request_context"]["mode_calibration"]["session_signal"] == "negative"
-    assert payload["request_context"]["mode_calibration"]["session_phase"] == "stabilize"
-    assert payload["request_context"]["mode_calibration"]["session_support_steps_remaining"] == 0
-    assert payload["request_context"]["mode_calibration"]["session_generated_step_count"] == 1
+    assert (
+        payload["request_context"]["mode_calibration"]["source"] == "session_controller"
+    )
+    assert (
+        payload["request_context"]["mode_calibration"]["session_signal"] == "negative"
+    )
+    assert (
+        payload["request_context"]["mode_calibration"]["session_phase"] == "stabilize"
+    )
+    assert (
+        payload["request_context"]["mode_calibration"][
+            "session_support_steps_remaining"
+        ]
+        == 0
+    )
+    assert (
+        payload["request_context"]["mode_calibration"]["session_generated_step_count"]
+        == 1
+    )
     assert payload["request_context"]["difficulty_band"] == "support"
-    assert any("Same-session adaptation was negative" in reason for reason in payload["response"]["route"]["reasons"])
+    assert any(
+        "Same-session adaptation was negative" in reason
+        for reason in payload["response"]["route"]["reasons"]
+    )
 
 
-def test_negative_practice_generation_predictively_warms_remediation_after_relapse(client, student_id, app_settings):
+def test_negative_practice_generation_predictively_warms_remediation_after_relapse(
+    client, student_id, app_settings
+):
     from dibble.services.audit_store import SQLiteAuditStore
 
     audit_store = SQLiteAuditStore(app_settings.database_path)
     client.put(
         f"/api/learners/{student_id}/profile",
-        json=build_profile(student_id, frustration="low", total_load=0.2, kc_mastery={"KC-1": 0.45}),
+        json=build_profile(
+            student_id, frustration="low", total_load=0.2, kc_mastery={"KC-1": 0.45}
+        ),
     )
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
     audit_store.append(
@@ -752,12 +914,17 @@ def test_negative_practice_generation_predictively_warms_remediation_after_relap
         event
         for event in audit_response.json()
         if event["event_type"] == "content.warm.predictive"
-        and event["payload"]["source_generation_id"] == practice_response.json()["generation_id"]
+        and event["payload"]["source_generation_id"]
+        == practice_response.json()["generation_id"]
     )
-    assert predictive_event["payload"]["predicted_content_types"] == ["remedial_micro_module"]
+    assert predictive_event["payload"]["predicted_content_types"] == [
+        "remedial_micro_module"
+    ]
 
 
-def test_remedial_trigger_returns_remedial_generated_content(client, student_id, app_settings):
+def test_remedial_trigger_returns_remedial_generated_content(
+    client, student_id, app_settings
+):
     from dibble.services.audit_store import SQLiteAuditStore
 
     audit_store = SQLiteAuditStore(app_settings.database_path)
@@ -784,7 +951,9 @@ def test_remedial_trigger_returns_remedial_generated_content(client, student_id,
     )
     client.put(
         "/api/knowledge-components/KC-1",
-        json=build_knowledge_component("KC-1", name="Identify numerator and denominator"),
+        json=build_knowledge_component(
+            "KC-1", name="Identify numerator and denominator"
+        ),
     )
     client.put(
         "/api/knowledge-components/KC-2",
@@ -797,7 +966,12 @@ def test_remedial_trigger_returns_remedial_generated_content(client, student_id,
                     "misconception_id": "fraction-whole-number-bias",
                     "label": "Treats fraction parts like unrelated whole numbers",
                     "description": "The learner compares numerator and denominator separately instead of the whole amount.",
-                    "trigger_terms": ["different amounts", "numerator", "denominator", "whole number"],
+                    "trigger_terms": [
+                        "different amounts",
+                        "numerator",
+                        "denominator",
+                        "whole number",
+                    ],
                     "prerequisite_kc_ids": ["KC-1"],
                     "remediation_hint": "Use one visual model to compare the total amount before naming the parts.",
                 }
@@ -818,8 +992,14 @@ def test_remedial_trigger_returns_remedial_generated_content(client, student_id,
     assert response.status_code == 200
     payload = response.json()
     signals = payload["request_context"]["misconception_signals"]
-    prerequisite_signal = next(signal for signal in signals if signal["category"] == "prerequisite_gap")
-    catalog_signal = next(signal for signal in signals if signal.get("misconception_id") == "fraction-whole-number-bias")
+    prerequisite_signal = next(
+        signal for signal in signals if signal["category"] == "prerequisite_gap"
+    )
+    catalog_signal = next(
+        signal
+        for signal in signals
+        if signal.get("misconception_id") == "fraction-whole-number-bias"
+    )
     assert payload["content_type"] == "remedial_micro_module"
     assert payload["response"]["route"]["intervention_type"] == "step_back"
     assert payload["quality"]["validation_passed"] is True
@@ -831,47 +1011,95 @@ def test_remedial_trigger_returns_remedial_generated_content(client, student_id,
     assert catalog_signal["primary_for_kc"] is True
     assert catalog_signal["disambiguation_score"] > 0
     assert catalog_signal["disambiguation_rationale"] is not None
-    assert "fraction-whole-number-bias" in payload["request_context"]["remediation_rationale"]
-    assert "Identify numerator and denominator" in payload["request_context"]["remediation_rationale"]
-    assert "Generate equivalent fractions" in payload["request_context"]["remediation_rationale"]
-    assert "broader prerequisite-gap signal on Identify numerator and denominator" in payload["request_context"][
-        "remediation_rationale"
-    ]
-    assert payload["request_context"]["remediation_blueprint"]["trigger"] == "misconception_detected"
-    assert payload["request_context"]["remediation_blueprint"]["primary_misconception_id"] == "fraction-whole-number-bias"
-    assert payload["request_context"]["sequencing"]["action"] == "rebuild_prerequisite_first"
+    assert (
+        "fraction-whole-number-bias"
+        in payload["request_context"]["remediation_rationale"]
+    )
+    assert (
+        "Identify numerator and denominator"
+        in payload["request_context"]["remediation_rationale"]
+    )
+    assert (
+        "Generate equivalent fractions"
+        in payload["request_context"]["remediation_rationale"]
+    )
+    assert (
+        "broader prerequisite-gap signal on Identify numerator and denominator"
+        in payload["request_context"]["remediation_rationale"]
+    )
+    assert (
+        payload["request_context"]["remediation_blueprint"]["trigger"]
+        == "misconception_detected"
+    )
+    assert (
+        payload["request_context"]["remediation_blueprint"]["primary_misconception_id"]
+        == "fraction-whole-number-bias"
+    )
+    assert (
+        payload["request_context"]["sequencing"]["action"]
+        == "rebuild_prerequisite_first"
+    )
     assert payload["request_context"]["sequencing"]["primary_kc_id"] == "KC-1"
-    assert [step["phase"] for step in payload["request_context"]["remediation_blueprint"]["steps"]] == [
+    assert [
+        step["phase"]
+        for step in payload["request_context"]["remediation_blueprint"]["steps"]
+    ] == [
         "step_back",
         "repair",
         "return",
     ]
-    assert payload["request_context"]["remediation_workflow"]["executed_phase"] == "step_back"
+    assert (
+        payload["request_context"]["remediation_workflow"]["executed_phase"]
+        == "step_back"
+    )
     assert payload["request_context"]["remediation_workflow"]["next_phase"] == "repair"
-    assert payload["request_context"]["remediation_workflow"]["completed_step_count"] == 1
-    assert payload["request_context"]["learner_strategy"]["signal"] == "support_intensive"
-    assert payload["request_context"]["learner_strategy"]["recovery_focus"] == "prerequisite_rebuild"
+    assert (
+        payload["request_context"]["remediation_workflow"]["completed_step_count"] == 1
+    )
+    assert (
+        payload["request_context"]["learner_strategy"]["signal"] == "support_intensive"
+    )
+    assert (
+        payload["request_context"]["learner_strategy"]["recovery_focus"]
+        == "prerequisite_rebuild"
+    )
     assert payload["workflow_summary"]["flow_type"] == "remediation"
     assert payload["workflow_summary"]["delivered_phase"] == "step_back"
-    assert payload["workflow_summary"]["rationale"] == payload["workflow_summary"]["next_step"]["rationale"]
+    assert (
+        payload["workflow_summary"]["rationale"]
+        == payload["workflow_summary"]["next_step"]["rationale"]
+    )
     assert "fraction-whole-number-bias" in payload["workflow_summary"]["rationale"]
     assert "Current repair step:" in payload["workflow_summary"]["rationale"]
     assert payload["workflow_summary"]["next_step"]["action"] == "repair"
-    assert payload["workflow_summary"]["next_step"]["content_type"] == "remedial_micro_module"
+    assert (
+        payload["workflow_summary"]["next_step"]["content_type"]
+        == "remedial_micro_module"
+    )
 
     audit_response = client.get("/api/audit/events")
     assert audit_response.status_code == 200
     remediation_event = next(
-        event for event in audit_response.json() if event["event_type"] == "remediation.trigger"
+        event
+        for event in audit_response.json()
+        if event["event_type"] == "remediation.trigger"
     )
-    assert remediation_event["payload"]["remediation_session_id"] == payload["request_context"]["remediation_session_id"]
+    assert (
+        remediation_event["payload"]["remediation_session_id"]
+        == payload["request_context"]["remediation_session_id"]
+    )
 
 
-def test_generation_endpoint_rebuilds_prerequisite_before_requested_target(client, student_id, app_settings):
+def test_generation_endpoint_rebuilds_prerequisite_before_requested_target(
+    client, student_id, app_settings
+):
     from dibble.services.audit_store import SQLiteAuditStore
 
     audit_store = SQLiteAuditStore(app_settings.database_path)
-    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, frustration="low", total_load=0.2),
+    )
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
     client.put(
         "/api/knowledge-components/KC-1",
@@ -920,17 +1148,29 @@ def test_generation_endpoint_rebuilds_prerequisite_before_requested_target(clien
     assert response.status_code == 200
     payload = response.json()
 
-    assert payload["request_context"]["progression"]["action"] == "rebuild_prerequisite_first"
-    assert payload["request_context"]["progression"]["requested_target_kc_ids"] == ["KC-2"]
-    assert payload["request_context"]["progression"]["applied_target_kc_ids"] == ["KC-1"]
+    assert (
+        payload["request_context"]["progression"]["action"]
+        == "rebuild_prerequisite_first"
+    )
+    assert payload["request_context"]["progression"]["requested_target_kc_ids"] == [
+        "KC-2"
+    ]
+    assert payload["request_context"]["progression"]["applied_target_kc_ids"] == [
+        "KC-1"
+    ]
     assert "KC-1" in payload["response"]["blocks"][0]["body"]
 
 
-def test_generation_endpoint_uses_repair_target_ordinary_mastery_to_hold_backend_redirect(client, student_id, app_settings):
+def test_generation_endpoint_uses_repair_target_ordinary_mastery_to_hold_backend_redirect(
+    client, student_id, app_settings
+):
     from dibble.services.audit_store import SQLiteAuditStore
 
     audit_store = SQLiteAuditStore(app_settings.database_path)
-    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, frustration="low", total_load=0.2),
+    )
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
     client.put(
         "/api/knowledge-components/KC-1",
@@ -997,9 +1237,17 @@ def test_generation_endpoint_uses_repair_target_ordinary_mastery_to_hold_backend
     payload = response.json()
 
     assert payload["request_context"]["progression"]["action"] == "hold_repair_target"
-    assert payload["request_context"]["progression"]["source"] == "ordinary_mastery_profile"
-    assert payload["request_context"]["progression"]["applied_target_kc_ids"] == ["KC-1"]
-    assert payload["request_context"]["progression"]["ordinary_mastery_signal"] == "support_dependent"
+    assert (
+        payload["request_context"]["progression"]["source"]
+        == "ordinary_mastery_profile"
+    )
+    assert payload["request_context"]["progression"]["applied_target_kc_ids"] == [
+        "KC-1"
+    ]
+    assert (
+        payload["request_context"]["progression"]["ordinary_mastery_signal"]
+        == "support_dependent"
+    )
     assert payload["workflow_summary"]["progression_action"] == "hold_repair_target"
     assert payload["workflow_summary"]["target_stage"] == "repair"
     assert payload["workflow_summary"]["rationale"] == (
@@ -1010,7 +1258,10 @@ def test_generation_endpoint_uses_repair_target_ordinary_mastery_to_hold_backend
         "high-support dependency rate 0.80; 5 matched observation(s); "
         "across 3 sessions."
     )
-    assert payload["workflow_summary"]["next_step"]["content_type"] == "remedial_micro_module"
+    assert (
+        payload["workflow_summary"]["next_step"]["content_type"]
+        == "remedial_micro_module"
+    )
 
 
 def test_remedial_trigger_records_and_reuses_misconception_profiles(client, student_id):
@@ -1018,7 +1269,9 @@ def test_remedial_trigger_records_and_reuses_misconception_profiles(client, stud
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
     client.put(
         "/api/knowledge-components/KC-1",
-        json=build_knowledge_component("KC-1", name="Identify numerator and denominator"),
+        json=build_knowledge_component(
+            "KC-1", name="Identify numerator and denominator"
+        ),
     )
     client.put(
         "/api/knowledge-components/KC-2",
@@ -1031,7 +1284,12 @@ def test_remedial_trigger_records_and_reuses_misconception_profiles(client, stud
                     "misconception_id": "fraction-whole-number-bias",
                     "label": "Treats fraction parts like unrelated whole numbers",
                     "description": "The learner compares numerator and denominator separately instead of the whole amount.",
-                    "trigger_terms": ["numerator", "denominator", "whole number", "fraction"],
+                    "trigger_terms": [
+                        "numerator",
+                        "denominator",
+                        "whole number",
+                        "fraction",
+                    ],
                     "prerequisite_kc_ids": ["KC-1"],
                     "remediation_hint": "Use one visual model to compare the total amount before naming the parts.",
                 }
@@ -1063,16 +1321,24 @@ def test_remedial_trigger_records_and_reuses_misconception_profiles(client, stud
     assert second_response.status_code == 200
 
     second_signals = second_response.json()["request_context"]["misconception_signals"]
-    profile_signal = next(signal for signal in second_signals if signal["source"] == "profile")
+    profile_signal = next(
+        signal for signal in second_signals if signal["source"] == "profile"
+    )
     assert profile_signal["recurrence_signal"] in {"recurring", "relapsing"}
     assert profile_signal["recurrence_count"] >= 1
     assert profile_signal["recurrence_session_count"] >= 1
     profile_event = next(
-        event for event in audit_response.json() if event["event_type"] == "learning.misconception.profile"
+        event
+        for event in audit_response.json()
+        if event["event_type"] == "learning.misconception.profile"
     )
     assert profile_event["payload"]["target_kc_id"] == "KC-2"
     assert profile_event["payload"]["matched_signal_count"] >= 1
-    assert profile_event["payload"]["recurrence_signal"] in {"tentative", "recurring", "relapsing"}
+    assert profile_event["payload"]["recurrence_signal"] in {
+        "tentative",
+        "recurring",
+        "relapsing",
+    }
 
 
 def test_remediation_session_endpoints_advance_multi_step_workflow(client, student_id):
@@ -1080,7 +1346,9 @@ def test_remediation_session_endpoints_advance_multi_step_workflow(client, stude
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
     client.put(
         "/api/knowledge-components/KC-1",
-        json=build_knowledge_component("KC-1", name="Identify numerator and denominator"),
+        json=build_knowledge_component(
+            "KC-1", name="Identify numerator and denominator"
+        ),
     )
     client.put(
         "/api/knowledge-components/KC-2",
@@ -1093,7 +1361,12 @@ def test_remediation_session_endpoints_advance_multi_step_workflow(client, stude
                     "misconception_id": "fraction-whole-number-bias",
                     "label": "Treats fraction parts like unrelated whole numbers",
                     "description": "The learner compares numerator and denominator separately instead of the whole amount.",
-                    "trigger_terms": ["numerator", "denominator", "whole number", "fraction"],
+                    "trigger_terms": [
+                        "numerator",
+                        "denominator",
+                        "whole number",
+                        "fraction",
+                    ],
                     "prerequisite_kc_ids": ["KC-1"],
                     "remediation_hint": "Use one visual model to compare the total amount before naming the parts.",
                 }
@@ -1112,7 +1385,9 @@ def test_remediation_session_endpoints_advance_multi_step_workflow(client, stude
     )
     assert trigger_response.status_code == 200
 
-    remediation_session_id = trigger_response.json()["request_context"]["remediation_session_id"]
+    remediation_session_id = trigger_response.json()["request_context"][
+        "remediation_session_id"
+    ]
     session_response = client.get(f"/api/remedial/sessions/{remediation_session_id}")
     assert session_response.status_code == 200
     session_payload = session_response.json()
@@ -1122,14 +1397,25 @@ def test_remediation_session_endpoints_advance_multi_step_workflow(client, stude
         "Building foundations",
         "Trying it yourself",
     ]
-    assert [step["status"] for step in session_payload["steps"]] == ["completed", "active", "pending"]
+    assert [step["status"] for step in session_payload["steps"]] == [
+        "completed",
+        "active",
+        "pending",
+    ]
     assert session_payload["summary"]["status"] == "in_progress"
     assert session_payload["summary"]["current_phase"] == "repair"
     assert session_payload["summary"]["progression_decision"] == "advance"
-    assert session_payload["summary"]["next_step"]["content_type"] == "remedial_micro_module"
+    assert (
+        session_payload["summary"]["next_step"]["content_type"]
+        == "remedial_micro_module"
+    )
     assert session_payload["summary"]["next_step"]["target_kc_ids"] == ["KC-1"]
-    assert session_payload["summary"]["continue_action"]["kind"] == "advance_remediation"
-    assert session_payload["summary"]["continue_action"]["endpoint"].endswith("/advance")
+    assert (
+        session_payload["summary"]["continue_action"]["kind"] == "advance_remediation"
+    )
+    assert session_payload["summary"]["continue_action"]["endpoint"].endswith(
+        "/advance"
+    )
 
     repair_response = client.post(
         f"/api/remedial/sessions/{remediation_session_id}/advance",
@@ -1140,16 +1426,39 @@ def test_remediation_session_endpoints_advance_multi_step_workflow(client, stude
     assert repair_payload["executed_phase"] == "repair"
     assert repair_payload["content"]["content_type"] == "remedial_micro_module"
     assert repair_payload["session"]["current_step_index"] == 2
-    assert [step["status"] for step in repair_payload["session"]["steps"]] == ["completed", "completed", "active"]
-    assert repair_payload["content"]["request_context"]["remediation_workflow"]["next_phase"] == "return"
+    assert [step["status"] for step in repair_payload["session"]["steps"]] == [
+        "completed",
+        "completed",
+        "active",
+    ]
+    assert (
+        repair_payload["content"]["request_context"]["remediation_workflow"][
+            "next_phase"
+        ]
+        == "return"
+    )
     assert repair_payload["session"]["summary"]["current_phase"] == "return"
-    assert repair_payload["session"]["summary"]["next_step"]["content_type"] == "practice_problem"
-    assert repair_payload["session"]["summary"]["next_step"]["target_stage"] == "transfer"
-    assert repair_payload["session"]["summary"]["continue_action"]["kind"] == "advance_remediation"
+    assert (
+        repair_payload["session"]["summary"]["next_step"]["content_type"]
+        == "practice_problem"
+    )
+    assert (
+        repair_payload["session"]["summary"]["next_step"]["target_stage"] == "transfer"
+    )
+    assert (
+        repair_payload["session"]["summary"]["continue_action"]["kind"]
+        == "advance_remediation"
+    )
     assert repair_payload["content"]["workflow_summary"]["flow_type"] == "remediation"
     assert repair_payload["content"]["workflow_summary"]["delivered_phase"] == "repair"
-    assert repair_payload["content"]["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
-    assert repair_payload["content"]["workflow_summary"]["continue_action"]["kind"] == "advance_remediation"
+    assert (
+        repair_payload["content"]["workflow_summary"]["next_step"]["content_type"]
+        == "practice_problem"
+    )
+    assert (
+        repair_payload["content"]["workflow_summary"]["continue_action"]["kind"]
+        == "advance_remediation"
+    )
 
     return_response = client.post(
         f"/api/remedial/sessions/{remediation_session_id}/advance",
@@ -1165,30 +1474,60 @@ def test_remediation_session_endpoints_advance_multi_step_workflow(client, stude
         "completed",
         "completed",
     ]
-    assert return_payload["content"]["request_context"]["remediation_workflow"]["status"] == "complete"
-    assert return_payload["content"]["request_context"]["remediation_workflow"]["next_phase"] is None
+    assert (
+        return_payload["content"]["request_context"]["remediation_workflow"]["status"]
+        == "complete"
+    )
+    assert (
+        return_payload["content"]["request_context"]["remediation_workflow"][
+            "next_phase"
+        ]
+        is None
+    )
     assert return_payload["session"]["summary"]["status"] == "complete"
     assert return_payload["session"]["summary"]["next_step"]["action"] == "complete"
     assert return_payload["session"]["summary"]["next_step"]["content_type"] is None
-    assert return_payload["session"]["summary"]["continue_action"]["kind"] == "generate_follow_up"
-    assert return_payload["session"]["summary"]["continue_action"]["generation_id"] == return_payload["content"][
-        "generation_id"
-    ]
-    assert return_payload["session"]["summary"]["continue_action"]["learning_session_id"] == remediation_session_id
-    assert return_payload["session"]["summary"]["continue_action"]["request_payload"]["learning_session_id"] == (
-        remediation_session_id
+    assert (
+        return_payload["session"]["summary"]["continue_action"]["kind"]
+        == "generate_follow_up"
     )
-    assert return_payload["session"]["summary"]["continue_action"]["request_payload"]["source_generation_id"] == (
-        return_payload["content"]["generation_id"]
+    assert (
+        return_payload["session"]["summary"]["continue_action"]["generation_id"]
+        == return_payload["content"]["generation_id"]
     )
-    assert return_payload["session"]["summary"]["continue_action"]["request_payload"]["requested_content_type"] == "practice_problem"
+    assert (
+        return_payload["session"]["summary"]["continue_action"]["learning_session_id"]
+        == remediation_session_id
+    )
+    assert return_payload["session"]["summary"]["continue_action"]["request_payload"][
+        "learning_session_id"
+    ] == (remediation_session_id)
+    assert (
+        return_payload["session"]["summary"]["continue_action"]["request_payload"][
+            "source_generation_id"
+        ]
+        == (return_payload["content"]["generation_id"])
+    )
+    assert (
+        return_payload["session"]["summary"]["continue_action"]["request_payload"][
+            "requested_content_type"
+        ]
+        == "practice_problem"
+    )
     assert return_payload["content"]["workflow_summary"]["flow_type"] == "remediation"
     assert return_payload["content"]["workflow_summary"]["delivered_phase"] == "return"
-    assert return_payload["content"]["workflow_summary"]["next_step"]["action"] == "complete"
-    assert return_payload["content"]["workflow_summary"]["continue_action"]["kind"] == "generate_follow_up"
-    assert return_payload["content"]["workflow_summary"]["continue_action"] == return_payload["session"]["summary"][
-        "continue_action"
-    ]
+    assert (
+        return_payload["content"]["workflow_summary"]["next_step"]["action"]
+        == "complete"
+    )
+    assert (
+        return_payload["content"]["workflow_summary"]["continue_action"]["kind"]
+        == "generate_follow_up"
+    )
+    assert (
+        return_payload["content"]["workflow_summary"]["continue_action"]
+        == return_payload["session"]["summary"]["continue_action"]
+    )
 
     completed_response = client.post(
         f"/api/remedial/sessions/{remediation_session_id}/advance",
@@ -1201,12 +1540,16 @@ def test_remediation_session_endpoints_advance_multi_step_workflow(client, stude
     )
 
 
-def test_remediation_session_holds_return_when_recent_repair_evidence_is_weak(client, student_id):
+def test_remediation_session_holds_return_when_recent_repair_evidence_is_weak(
+    client, student_id
+):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
     client.put(
         "/api/knowledge-components/KC-1",
-        json=build_knowledge_component("KC-1", name="Identify numerator and denominator"),
+        json=build_knowledge_component(
+            "KC-1", name="Identify numerator and denominator"
+        ),
     )
     client.put(
         "/api/knowledge-components/KC-2",
@@ -1219,7 +1562,12 @@ def test_remediation_session_holds_return_when_recent_repair_evidence_is_weak(cl
                     "misconception_id": "fraction-whole-number-bias",
                     "label": "Treats fraction parts like unrelated whole numbers",
                     "description": "The learner compares numerator and denominator separately instead of the whole amount.",
-                    "trigger_terms": ["numerator", "denominator", "whole number", "fraction"],
+                    "trigger_terms": [
+                        "numerator",
+                        "denominator",
+                        "whole number",
+                        "fraction",
+                    ],
                     "prerequisite_kc_ids": ["KC-1"],
                     "remediation_hint": "Use one visual model to compare the total amount before naming the parts.",
                 }
@@ -1237,7 +1585,9 @@ def test_remediation_session_holds_return_when_recent_repair_evidence_is_weak(cl
         },
     )
     assert trigger_response.status_code == 200
-    remediation_session_id = trigger_response.json()["request_context"]["remediation_session_id"]
+    remediation_session_id = trigger_response.json()["request_context"][
+        "remediation_session_id"
+    ]
 
     repair_response = client.post(
         f"/api/remedial/sessions/{remediation_session_id}/advance",
@@ -1284,31 +1634,88 @@ def test_remediation_session_holds_return_when_recent_repair_evidence_is_weak(cl
     assert held_payload["session"]["progression_evidence_observation_count"] == 1
     assert held_payload["session"]["progression_evidence_confidence"] > 0.0
     assert held_payload["session"]["progression_average_observed_mastery"] is not None
-    assert held_payload["content"]["request_context"]["remediation_workflow"]["progression_decision"] == "hold_repair_target"
-    assert held_payload["content"]["request_context"]["remediation_workflow"]["progression_evidence_observation_count"] == 1
-    assert held_payload["content"]["request_context"]["remediation_workflow"]["progression_evidence_confidence"] > 0.0
-    assert held_payload["content"]["request_context"]["remediation_workflow"]["next_phase"] == "return"
+    assert (
+        held_payload["content"]["request_context"]["remediation_workflow"][
+            "progression_decision"
+        ]
+        == "hold_repair_target"
+    )
+    assert (
+        held_payload["content"]["request_context"]["remediation_workflow"][
+            "progression_evidence_observation_count"
+        ]
+        == 1
+    )
+    assert (
+        held_payload["content"]["request_context"]["remediation_workflow"][
+            "progression_evidence_confidence"
+        ]
+        > 0.0
+    )
+    assert (
+        held_payload["content"]["request_context"]["remediation_workflow"]["next_phase"]
+        == "return"
+    )
     assert held_payload["session"]["summary"]["status"] == "held"
-    assert held_payload["session"]["summary"]["progression_decision"] == "hold_repair_target"
-    assert held_payload["session"]["summary"]["progression_evidence_observation_count"] == 1
-    assert held_payload["session"]["summary"]["progression_average_observed_mastery"] is not None
-    assert held_payload["session"]["summary"]["next_step"]["action"] == "hold_repair_target"
-    assert held_payload["session"]["summary"]["next_step"]["content_type"] == "remedial_micro_module"
+    assert (
+        held_payload["session"]["summary"]["progression_decision"]
+        == "hold_repair_target"
+    )
+    assert (
+        held_payload["session"]["summary"]["progression_evidence_observation_count"]
+        == 1
+    )
+    assert (
+        held_payload["session"]["summary"]["progression_average_observed_mastery"]
+        is not None
+    )
+    assert (
+        held_payload["session"]["summary"]["next_step"]["action"]
+        == "hold_repair_target"
+    )
+    assert (
+        held_payload["session"]["summary"]["next_step"]["content_type"]
+        == "remedial_micro_module"
+    )
     assert held_payload["session"]["summary"]["next_step"]["target_stage"] == "repair"
     assert held_payload["session"]["summary"]["next_step"]["target_kc_ids"] == ["KC-1"]
-    assert held_payload["session"]["summary"]["continue_action"]["target_stage"] == "repair"
-    assert held_payload["session"]["summary"]["continue_action"]["target_kc_ids"] == ["KC-1"]
+    assert (
+        held_payload["session"]["summary"]["continue_action"]["target_stage"]
+        == "repair"
+    )
+    assert held_payload["session"]["summary"]["continue_action"]["target_kc_ids"] == [
+        "KC-1"
+    ]
     assert held_payload["content"]["workflow_summary"]["flow_type"] == "remediation"
-    assert held_payload["content"]["workflow_summary"]["next_step"]["action"] == "hold_repair_target"
-    assert held_payload["content"]["workflow_summary"]["next_step"]["content_type"] == "remedial_micro_module"
-    assert held_payload["content"]["workflow_summary"]["next_step"]["target_stage"] == "repair"
-    assert held_payload["content"]["workflow_summary"]["next_step"]["target_kc_ids"] == ["KC-1"]
-    assert held_payload["content"]["workflow_summary"]["continue_action"]["target_stage"] == "repair"
-    assert held_payload["content"]["workflow_summary"]["continue_action"]["target_kc_ids"] == ["KC-1"]
+    assert (
+        held_payload["content"]["workflow_summary"]["next_step"]["action"]
+        == "hold_repair_target"
+    )
+    assert (
+        held_payload["content"]["workflow_summary"]["next_step"]["content_type"]
+        == "remedial_micro_module"
+    )
+    assert (
+        held_payload["content"]["workflow_summary"]["next_step"]["target_stage"]
+        == "repair"
+    )
+    assert held_payload["content"]["workflow_summary"]["next_step"][
+        "target_kc_ids"
+    ] == ["KC-1"]
+    assert (
+        held_payload["content"]["workflow_summary"]["continue_action"]["target_stage"]
+        == "repair"
+    )
+    assert held_payload["content"]["workflow_summary"]["continue_action"][
+        "target_kc_ids"
+    ] == ["KC-1"]
 
 
 def test_explanations_and_problems_endpoints_specialize_generation(client, student_id):
-    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, frustration="low", total_load=0.2),
+    )
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
 
     explanation_response = client.post(
@@ -1335,10 +1742,14 @@ def test_explanations_and_problems_endpoints_specialize_generation(client, stude
     problem_payload = problem_response.json()
     assert explanation_payload["content_type"] == "micro_explanation"
     assert problem_payload["content_type"] == "practice_problem"
-    assert any(block["kind"] == "practice" for block in problem_payload["response"]["blocks"])
+    assert any(
+        block["kind"] == "practice" for block in problem_payload["response"]["blocks"]
+    )
 
 
-def test_generation_endpoint_auto_selects_worked_example_when_metacognitive_signals_require_modeling(client, student_id):
+def test_generation_endpoint_auto_selects_worked_example_when_metacognitive_signals_require_modeling(
+    client, student_id
+):
     client.put(
         f"/api/learners/{student_id}/profile",
         json=build_profile(
@@ -1370,13 +1781,21 @@ def test_generation_endpoint_auto_selects_worked_example_when_metacognitive_sign
     assert payload["request_context"]["requested_content_type"] is None
     assert payload["request_context"]["selected_content_type"] == "worked_example"
     assert "selection_rationale" in payload["request_context"]
-    assert any(block["kind"] == "worked_example" for block in payload["response"]["blocks"])
+    assert any(
+        block["kind"] == "worked_example" for block in payload["response"]["blocks"]
+    )
 
 
 def test_decide_endpoint_returns_router_decision(client, student_id):
     client.put(
         f"/api/learners/{student_id}/profile",
-        json=build_profile(student_id, frustration="low", total_load=0.2, kc_mastery={"KC-1": 0.25}, engagement="medium"),
+        json=build_profile(
+            student_id,
+            frustration="low",
+            total_load=0.2,
+            kc_mastery={"KC-1": 0.25},
+            engagement="medium",
+        ),
     )
 
     response = client.post(
@@ -1395,7 +1814,13 @@ def test_decide_endpoint_returns_router_decision(client, student_id):
 def test_content_endpoints_write_audit_events(client, student_id):
     client.put(
         f"/api/learners/{student_id}/profile",
-        json=build_profile(student_id, frustration="low", total_load=0.2, kc_mastery={"KC-1": 0.25}, engagement="medium"),
+        json=build_profile(
+            student_id,
+            frustration="low",
+            total_load=0.2,
+            kc_mastery={"KC-1": 0.25},
+            engagement="medium",
+        ),
     )
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
 
@@ -1522,19 +1947,31 @@ def test_stream_generation_endpoint_emits_sse_events_and_audits(client, student_
     assert any(event["event"] == "delta" for event in events)
     assert events[-1]["event"] == "complete"
     assert events[-1]["data"]["workflow_summary"]["flow_type"] == "lesson"
-    assert events[-1]["data"]["workflow_summary"]["delivered_content_type"] == "remedial_micro_module"
+    assert (
+        events[-1]["data"]["workflow_summary"]["delivered_content_type"]
+        == "remedial_micro_module"
+    )
     assert events[-1]["data"]["response"]["route"]["delivery_mode"] == "generated"
     assert events[-1]["data"]["response"]["grounding"][0]["resource_id"] == "CURR-1"
     assert events[-1]["data"]["response"]["artifacts"][0]["artifact_type"] == "text"
     assert events[-1]["data"]["response"]["artifacts"][0]["role"] == "summary"
 
-    stream_audit = next(event for event in audit_response.json() if event["event_type"] == "content.generate.stream")
+    stream_audit = next(
+        event
+        for event in audit_response.json()
+        if event["event_type"] == "content.generate.stream"
+    )
     assert stream_audit["payload"]["generated_block_count"] == 2
     assert stream_audit["payload"]["workflow_flow_type"] == "lesson"
 
 
-def test_stream_generation_applies_mastery_gate_and_exposes_workflow_summary(client, student_id):
-    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+def test_stream_generation_applies_mastery_gate_and_exposes_workflow_summary(
+    client, student_id
+):
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, frustration="low", total_load=0.2),
+    )
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
 
     for confidence, hints_used, errors in [(0.62, 3, 0), (0.58, 2, 1)]:
@@ -1578,18 +2015,37 @@ def test_stream_generation_applies_mastery_gate_and_exposes_workflow_summary(cli
 
     assert response.status_code == 200
     assert events[-1]["event"] == "complete"
-    assert complete_event["workflow_summary"]["progression_action"] == "hold_target_before_assessment"
-    assert complete_event["workflow_summary"]["next_step"]["content_type"] == "practice_problem"
+    assert (
+        complete_event["workflow_summary"]["progression_action"]
+        == "hold_target_before_assessment"
+    )
+    assert (
+        complete_event["workflow_summary"]["next_step"]["content_type"]
+        == "practice_problem"
+    )
     assert complete_event["workflow_summary"]["next_step"]["target_kc_ids"] == ["KC-1"]
     assert complete_event["response"]["route"]["delivery_mode"] == "generated"
 
-    stream_audit = next(event for event in audit_response.json() if event["event_type"] == "content.generate.stream")
-    assert stream_audit["payload"]["progression_action"] == "hold_target_before_assessment"
-    assert stream_audit["payload"]["workflow_next_step_content_type"] == "practice_problem"
+    stream_audit = next(
+        event
+        for event in audit_response.json()
+        if event["event_type"] == "content.generate.stream"
+    )
+    assert (
+        stream_audit["payload"]["progression_action"] == "hold_target_before_assessment"
+    )
+    assert (
+        stream_audit["payload"]["workflow_next_step_content_type"] == "practice_problem"
+    )
 
 
-def test_stream_generation_hydrates_target_kc_hints_for_practice_content(client, student_id):
-    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+def test_stream_generation_hydrates_target_kc_hints_for_practice_content(
+    client, student_id
+):
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, frustration="low", total_load=0.2),
+    )
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
     client.put(
         "/api/knowledge-components/KC-1",
@@ -1629,7 +2085,9 @@ def test_stream_generation_hydrates_target_kc_hints_for_practice_content(client,
     assert "Whole-number bias" in complete_response["blocks"][1]["body"]
 
 
-def test_stream_generation_emits_explicit_moderation_event_for_flagged_request(client, student_id):
+def test_stream_generation_emits_explicit_moderation_event_for_flagged_request(
+    client, student_id
+):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
 
@@ -1657,19 +2115,41 @@ def test_stream_generation_emits_explicit_moderation_event_for_flagged_request(c
     assert moderation_event["data"]["moderation"]["blocked"] is True
     assert moderation_event["data"]["moderation"]["request_blocked"] is True
     assert moderation_event["data"]["moderation"]["provider_invoked"] is False
-    assert moderation_event["data"]["moderation"]["fallback_kind"] == "request_safe_reset"
-    assert moderation_event["data"]["moderation"]["stream_action"] == "emit_fallback_only"
-    assert set(moderation_event["data"]["moderation"]["categories"]) == {"unsafe_instruction", "academic_integrity", "privacy_risk"}
+    assert (
+        moderation_event["data"]["moderation"]["fallback_kind"] == "request_safe_reset"
+    )
+    assert (
+        moderation_event["data"]["moderation"]["stream_action"] == "emit_fallback_only"
+    )
+    assert set(moderation_event["data"]["moderation"]["categories"]) == {
+        "unsafe_instruction",
+        "academic_integrity",
+        "privacy_risk",
+    }
     assert "home address" in moderation_event["data"]["moderation"]["matched_terms"]
     assert complete_event["event"] == "complete"
-    assert complete_event["data"]["response"]["route"]["delivery_mode"] == "static_fallback"
-    assert complete_event["data"]["response"]["generation_metadata"]["moderation"]["fallback_applied"] is True
+    assert (
+        complete_event["data"]["response"]["route"]["delivery_mode"]
+        == "static_fallback"
+    )
+    assert (
+        complete_event["data"]["response"]["generation_metadata"]["moderation"][
+            "fallback_applied"
+        ]
+        is True
+    )
 
 
 def test_generation_falls_back_when_no_curriculum_grounding(client, student_id):
     client.put(
         f"/api/learners/{student_id}/profile",
-        json=build_profile(student_id, frustration="low", total_load=0.3, kc_mastery={"KC-9": 0.6}, engagement="low"),
+        json=build_profile(
+            student_id,
+            frustration="low",
+            total_load=0.3,
+            kc_mastery={"KC-9": 0.6},
+            engagement="low",
+        ),
     )
 
     response = client.post(
@@ -1690,7 +2170,9 @@ def test_generation_falls_back_when_no_curriculum_grounding(client, student_id):
     ]
 
 
-def test_generation_endpoint_returns_moderation_metadata_for_flagged_request(client, student_id):
+def test_generation_endpoint_returns_moderation_metadata_for_flagged_request(
+    client, student_id
+):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
 
@@ -1720,8 +2202,14 @@ def test_generation_endpoint_returns_moderation_metadata_for_flagged_request(cli
     assert payload["quality"]["moderation"]["provider_invoked"] is False
     assert payload["quality"]["moderation"]["original_block_count"] == 0
     assert payload["quality"]["moderation"]["replacement_block_count"] == 2
-    assert set(payload["quality"]["moderation"]["matched_terms"]) == {"ignore safety", "shame"}
-    assert set(payload["quality"]["moderation"]["categories"]) == {"unsafe_instruction", "abusive_tone"}
+    assert set(payload["quality"]["moderation"]["matched_terms"]) == {
+        "ignore safety",
+        "shame",
+    }
+    assert set(payload["quality"]["moderation"]["categories"]) == {
+        "unsafe_instruction",
+        "abusive_tone",
+    }
     assert payload["quality"]["moderation"]["matches"][0]["severity"] == "block"
     assert payload["response"]["blocks"][0]["title"] == "Safe learning reset"
     assert (
@@ -1729,15 +2217,28 @@ def test_generation_endpoint_returns_moderation_metadata_for_flagged_request(cli
         == "Moderation blocked the unsafe request before provider generation and returned a teacher-safe reset."
     )
 
-    generation_event = next(event for event in audit_response.json() if event["event_type"] == "content.generate")
-    moderation_event = next(event for event in audit_response.json() if event["event_type"] == "content.moderation")
+    generation_event = next(
+        event
+        for event in audit_response.json()
+        if event["event_type"] == "content.generate"
+    )
+    moderation_event = next(
+        event
+        for event in audit_response.json()
+        if event["event_type"] == "content.moderation"
+    )
     assert generation_event["payload"]["moderation_status"] == "flagged"
     assert generation_event["payload"]["moderation_stage"] == "request"
     assert generation_event["payload"]["moderation_decision"] == "block_request"
-    assert generation_event["payload"]["moderation_matched_terms"] == ["ignore safety", "shame"]
+    assert generation_event["payload"]["moderation_matched_terms"] == [
+        "ignore safety",
+        "shame",
+    ]
     assert generation_event["payload"]["moderation_request_blocked"] is True
     assert generation_event["payload"]["moderation_fallback_applied"] is True
-    assert generation_event["payload"]["moderation_fallback_kind"] == "request_safe_reset"
+    assert (
+        generation_event["payload"]["moderation_fallback_kind"] == "request_safe_reset"
+    )
     assert generation_event["payload"]["moderation_provider_invoked"] is False
     assert moderation_event["payload"]["blocked"] is True
     assert moderation_event["payload"]["request_blocked"] is True

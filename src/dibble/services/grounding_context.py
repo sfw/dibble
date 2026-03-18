@@ -9,7 +9,9 @@ _SENTENCE_SPLIT_PATTERN = re.compile(r"(?<=[.!?])\s+")
 _WHITESPACE_PATTERN = re.compile(r"\s+")
 
 
-def normalize_grounding_references(grounding: list[GroundingReference | str]) -> list[GroundingReference]:
+def normalize_grounding_references(
+    grounding: list[GroundingReference | str],
+) -> list[GroundingReference]:
     normalized: list[GroundingReference] = []
     for index, item in enumerate(grounding):
         if isinstance(item, GroundingReference):
@@ -35,7 +37,11 @@ def extract_grounding_excerpt(
     normalized = _normalize_whitespace(body)
     if not normalized:
         return None
-    sentences = [sentence.strip() for sentence in _SENTENCE_SPLIT_PATTERN.split(normalized) if sentence.strip()]
+    sentences = [
+        sentence.strip()
+        for sentence in _SENTENCE_SPLIT_PATTERN.split(normalized)
+        if sentence.strip()
+    ]
     if not sentences:
         return _truncate(normalized, max_chars)
 
@@ -45,7 +51,9 @@ def extract_grounding_excerpt(
         for sentence in sentences
         if any(term in sentence.lower() for term in lowered_terms)
     ]
-    ordered_sentences = prioritized + [sentence for sentence in sentences if sentence not in prioritized]
+    ordered_sentences = prioritized + [
+        sentence for sentence in sentences if sentence not in prioritized
+    ]
     excerpt = _join_sentences_with_cap(ordered_sentences, max_chars=max_chars)
     return excerpt or _truncate(normalized, max_chars)
 
@@ -75,7 +83,9 @@ def render_grounding_context(
     return " || ".join(fragments)
 
 
-def summarize_grounding_titles(grounding: list[GroundingReference | str], *, max_items: int = 2) -> str:
+def summarize_grounding_titles(
+    grounding: list[GroundingReference | str], *, max_items: int = 2
+) -> str:
     normalized_grounding = normalize_grounding_references(grounding)
     if not normalized_grounding:
         return "the current curriculum context"

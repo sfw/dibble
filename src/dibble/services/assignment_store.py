@@ -46,7 +46,9 @@ class SQLiteAssignmentStore:
             return None
         return Assignment.model_validate_json(row[0])
 
-    def list_for_student(self, *, student_id: str, limit: int = 20, offset: int = 0) -> list[Assignment]:
+    def list_for_student(
+        self, *, student_id: str, limit: int = 20, offset: int = 0
+    ) -> list[Assignment]:
         with sqlite3.connect(self.database_path) as connection:
             rows = connection.execute(
                 """
@@ -68,7 +70,9 @@ class SQLiteAssignmentStore:
             ).fetchone()
         return row[0] if row else 0
 
-    def list_for_classroom(self, *, classroom_id: str, limit: int = 50, offset: int = 0) -> list[Assignment]:
+    def list_for_classroom(
+        self, *, classroom_id: str, limit: int = 50, offset: int = 0
+    ) -> list[Assignment]:
         with sqlite3.connect(self.database_path) as connection:
             rows = connection.execute(
                 """
@@ -82,7 +86,9 @@ class SQLiteAssignmentStore:
             ).fetchall()
         return [Assignment.model_validate_json(row[0]) for row in rows]
 
-    def list_for_teacher(self, *, teacher_id: str, limit: int = 50, offset: int = 0) -> list[Assignment]:
+    def list_for_teacher(
+        self, *, teacher_id: str, limit: int = 50, offset: int = 0
+    ) -> list[Assignment]:
         with sqlite3.connect(self.database_path) as connection:
             rows = connection.execute(
                 """

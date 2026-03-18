@@ -27,7 +27,9 @@ def _build_with_supported_kwargs(factory: Callable[..., Any], **kwargs: Any) -> 
     return factory(**supported_kwargs)
 
 
-def build_generation_plugins(settings: Settings, *, curriculum_store: Any) -> GenerationPlugins:
+def build_generation_plugins(
+    settings: Settings, *, curriculum_store: Any
+) -> GenerationPlugins:
     router_factory: Callable[[], Any] = load_object(settings.router_plugin)
     retriever_factory: Callable[..., Any] = load_object(settings.retriever_plugin)
     provider_factory: Callable[..., Any] = load_object(settings.provider_plugin)

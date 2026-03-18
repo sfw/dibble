@@ -45,7 +45,9 @@ class SQLiteEmbeddingStore:
             indexed_at=row[4],
         )
 
-    def upsert(self, *, resource_id: str, vector: list[float], source_updated_at: str) -> StoredEmbedding:
+    def upsert(
+        self, *, resource_id: str, vector: list[float], source_updated_at: str
+    ) -> StoredEmbedding:
         stored = StoredEmbedding(
             resource_id=resource_id,
             vector=vector,
@@ -83,7 +85,9 @@ class InMemoryEmbeddingStore:
     def get(self, resource_id: str) -> StoredEmbedding | None:
         return self._items.get(resource_id)
 
-    def upsert(self, *, resource_id: str, vector: list[float], source_updated_at: str) -> StoredEmbedding:
+    def upsert(
+        self, *, resource_id: str, vector: list[float], source_updated_at: str
+    ) -> StoredEmbedding:
         stored = StoredEmbedding(
             resource_id=resource_id,
             vector=list(vector),

@@ -19,7 +19,9 @@ def score_observation_event(observation_event: AuditEvent) -> float:
     engagement_score = signal_score(payload.get("engagement"), positive=True)
     frustration_score = signal_score(payload.get("frustration"), positive=False)
     load_score = 1.0 - min(max(float(payload.get("total_load", 0.5)), 0.0), 1.0)
-    confidence_score = min(max(float(payload.get("confidence_calibration", 0.5)), 0.0), 1.0)
+    confidence_score = min(
+        max(float(payload.get("confidence_calibration", 0.5)), 0.0), 1.0
+    )
     help_seeking_score = signal_score(payload.get("help_seeking"), positive=False)
     return (
         (engagement_score * 0.22)
@@ -39,4 +41,6 @@ def score_assessment_event(assessment_event: AuditEvent) -> float:
         "emerging": 0.6,
         "demonstrated": 1.0,
     }.get(str(payload.get("evidence_strength")), 0.5)
-    return (evidence_score * 0.55) + (strength_score * 0.3) + (profile_update_score * 0.15)
+    return (
+        (evidence_score * 0.55) + (strength_score * 0.3) + (profile_update_score * 0.15)
+    )

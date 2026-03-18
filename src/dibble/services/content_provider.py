@@ -11,7 +11,10 @@ from dibble.models.generation import (
 )
 from dibble.models.profile import LearnerProfile
 from dibble.services.generation_modes import build_generation_mode_plan
-from dibble.services.grounding_context import summarize_grounding_excerpts, summarize_grounding_titles
+from dibble.services.grounding_context import (
+    summarize_grounding_excerpts,
+    summarize_grounding_titles,
+)
 from dibble.services.streaming import iter_block_chunks
 
 
@@ -30,9 +33,13 @@ class MockLLMProvider:
         grounding: list[GroundingReference],
     ) -> list[GeneratedBlock]:
         plan = build_generation_mode_plan(profile, request, route)
-        focus = ", ".join(request.target_kc_ids or request.target_lo_ids or ["current lesson"])
+        focus = ", ".join(
+            request.target_kc_ids or request.target_lo_ids or ["current lesson"]
+        )
         grounding_summary = summarize_grounding_titles(grounding)
-        grounding_excerpt = summarize_grounding_excerpts(grounding, max_items=1, max_chars=72)
+        grounding_excerpt = summarize_grounding_excerpts(
+            grounding, max_items=1, max_chars=72
+        )
         prompt_fragment = request.learner_prompt or "Use a supportive, concise tone."
         instruction_close = self._instruction_close(
             pace_preference=profile.learning_preferences.pace_preference.value,
@@ -80,15 +87,29 @@ class MockLLMProvider:
         instruction_close: str,
     ) -> list[GeneratedBlock]:
         if plan.content_type.value == "practice_problem":
-            distractor_focus = str(plan.request_context.get("practice_distractor_focus", "a clear structural contrast"))
+            distractor_focus = str(
+                plan.request_context.get(
+                    "practice_distractor_focus", "a clear structural contrast"
+                )
+            )
             distractor_family = str(
-                plan.request_context.get("practice_distractor_family", "single_structural_contrast")
+                plan.request_context.get(
+                    "practice_distractor_family", "single_structural_contrast"
+                )
             )
             support_intensity = str(
-                plan.request_context.get("practice_distractor_support_intensity", "moderate")
+                plan.request_context.get(
+                    "practice_distractor_support_intensity", "moderate"
+                )
             )
-            distractor_blueprint = plan.request_context.get("practice_distractor_blueprint") or []
-            blueprint_entry = distractor_blueprint[0] if isinstance(distractor_blueprint, list) and distractor_blueprint else {}
+            distractor_blueprint = (
+                plan.request_context.get("practice_distractor_blueprint") or []
+            )
+            blueprint_entry = (
+                distractor_blueprint[0]
+                if isinstance(distractor_blueprint, list) and distractor_blueprint
+                else {}
+            )
             blueprint_text = (
                 f"Lead with {blueprint_entry.get('slot', 'main_contrast')} and repair via {blueprint_entry.get('repair_cue', 'the corrected move')}."
                 if isinstance(blueprint_entry, dict)
@@ -118,18 +139,36 @@ class MockLLMProvider:
         if plan.content_type.value == "worked_example":
             fading = str(plan.request_context["fading_strategy"])
             release_stage = str(
-                plan.request_context.get("worked_example_release_stage", "completion_then_justify")
+                plan.request_context.get(
+                    "worked_example_release_stage", "completion_then_justify"
+                )
             )
             release_transition = str(
-                plan.request_context.get("worked_example_release_transition", "worked step -> learner step")
+                plan.request_context.get(
+                    "worked_example_release_transition", "worked step -> learner step"
+                )
             )
-            visible_roles = ", ".join(plan.request_context.get("worked_example_visible_step_roles", []))
-            hidden_step_role = str(plan.request_context.get("worked_example_hidden_step_role", "the next step"))
-            transfer_move = str(plan.request_context.get("worked_example_transfer_move", "a nearby application"))
-            transfer_plan = plan.request_context.get("worked_example_transfer_plan") or {}
+            visible_roles = ", ".join(
+                plan.request_context.get("worked_example_visible_step_roles", [])
+            )
+            hidden_step_role = str(
+                plan.request_context.get(
+                    "worked_example_hidden_step_role", "the next step"
+                )
+            )
+            transfer_move = str(
+                plan.request_context.get(
+                    "worked_example_transfer_move", "a nearby application"
+                )
+            )
+            transfer_plan = (
+                plan.request_context.get("worked_example_transfer_plan") or {}
+            )
             preserve = str(transfer_plan.get("preserve", "the same structure"))
             change = str(transfer_plan.get("change", transfer_move))
-            learner_owned_move = str(transfer_plan.get("learner_owned_move", hidden_step_role))
+            learner_owned_move = str(
+                transfer_plan.get("learner_owned_move", hidden_step_role)
+            )
             return [
                 GeneratedBlock(
                     kind="worked_example",

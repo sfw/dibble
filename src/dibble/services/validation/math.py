@@ -4,7 +4,9 @@ import re
 from dataclasses import dataclass
 
 
-_EQUATION_PATTERN = re.compile(r"(?P<left>\d+)\s*(?P<operator>[+\-*/xX])\s*(?P<right>\d+)\s*=\s*(?P<result>\d+)")
+_EQUATION_PATTERN = re.compile(
+    r"(?P<left>\d+)\s*(?P<operator>[+\-*/xX])\s*(?P<right>\d+)\s*=\s*(?P<result>\d+)"
+)
 
 
 @dataclass(frozen=True, slots=True)

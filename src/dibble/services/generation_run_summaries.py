@@ -4,7 +4,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from dibble.models.telemetry import AuditEvent
-from dibble.services.generation_outcome_metrics import score_assessment_event, score_observation_event
+from dibble.services.generation_outcome_metrics import (
+    score_assessment_event,
+    score_observation_event,
+)
 from dibble.services.generation_trace_linker import LinkedTraceEvent
 from dibble.services.learning_session_outcomes import LearningSessionOutcome
 
@@ -47,19 +50,29 @@ class GenerationRunSummaryBuilder:
             weighted_sources.append((session_outcome.session_outcome_score, 0.35))
             confidence_inputs.append(self._session_outcome_confidence(session_outcome))
 
-        event_ids = {linked_event.event.event_id for linked_event in linked_observations}
-        event_ids.update(linked_event.event.event_id for linked_event in linked_assessments)
+        event_ids = {
+            linked_event.event.event_id for linked_event in linked_observations
+        }
+        event_ids.update(
+            linked_event.event.event_id for linked_event in linked_assessments
+        )
         event_ids.update(session_outcome.outcome_event_ids)
         event_count = len(event_ids)
-        direct_source_count = sum(1 for score in (observation_score, assessment_score) if score is not None)
+        direct_source_count = sum(
+            1 for score in (observation_score, assessment_score) if score is not None
+        )
         if not weighted_sources:
             return GenerationRunSummary(event_count=event_count)
 
         weighted_total = sum(score * weight for score, weight in weighted_sources)
         total_weight = sum(weight for _, weight in weighted_sources)
-        run_outcome_score = round(weighted_total / total_weight, 2) if total_weight > 0.0 else None
+        run_outcome_score = (
+            round(weighted_total / total_weight, 2) if total_weight > 0.0 else None
+        )
         calibration_confidence = (
-            round(sum(confidence_inputs) / len(confidence_inputs), 2) if confidence_inputs else 0.0
+            round(sum(confidence_inputs) / len(confidence_inputs), 2)
+            if confidence_inputs
+            else 0.0
         )
         return GenerationRunSummary(
             run_outcome_score=run_outcome_score,
@@ -83,7 +96,9 @@ class GenerationRunSummaryBuilder:
         weighted_total = 0.0
         total_weight = 0.0
         for linked_event in linked_events:
-            weighted_total += event_scorer(linked_event.event) * linked_event.match_score
+            weighted_total += (
+                event_scorer(linked_event.event) * linked_event.match_score
+            )
             total_weight += linked_event.match_score
         if total_weight <= 0.0:
             return None
@@ -101,12 +116,18 @@ class GenerationRunSummaryBuilder:
                 3: 1.0,
             }.get(linked_event.link_tier, 0.4)
             match_confidence = min(1.0, linked_event.match_score / 5.0)
-            per_event_confidences.append((tier_confidence * 0.65) + (match_confidence * 0.35))
+            per_event_confidences.append(
+                (tier_confidence * 0.65) + (match_confidence * 0.35)
+            )
         trace_depth_bonus = min(1.0, len(linked_events) / 2.0)
-        average_event_confidence = sum(per_event_confidences) / len(per_event_confidences)
+        average_event_confidence = sum(per_event_confidences) / len(
+            per_event_confidences
+        )
         return round((average_event_confidence * 0.75) + (trace_depth_bonus * 0.25), 2)
 
-    def _session_outcome_confidence(self, session_outcome: LearningSessionOutcome) -> float:
+    def _session_outcome_confidence(
+        self, session_outcome: LearningSessionOutcome
+    ) -> float:
         if session_outcome.session_outcome_score is None:
             return 0.0
         generation_depth = min(1.0, session_outcome.subsequent_generation_count / 2.0)

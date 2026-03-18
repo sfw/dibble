@@ -41,7 +41,9 @@ def remediation_phase_display_label(phase: str) -> str | None:
     return labels.get(phase)
 
 
-def affective_support_message(*, frustration: str, engagement: str) -> dict[str, str] | None:
+def affective_support_message(
+    *, frustration: str, engagement: str
+) -> dict[str, str] | None:
     if frustration == "high":
         return {
             "kind": "break_suggestion",

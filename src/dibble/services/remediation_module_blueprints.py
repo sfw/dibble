@@ -30,13 +30,17 @@ class RemediationModuleBlueprintBuilder:
             (
                 signal
                 for signal in misconception_signals
-                if signal.primary_for_kc and signal.source in {"catalog", "profile"} and signal.misconception_id
+                if signal.primary_for_kc
+                and signal.source in {"catalog", "profile"}
+                and signal.misconception_id
             ),
             None,
         )
         repair_targets = []
         primary_signal = primary_profile_signal or primary_catalog_signal
-        prioritized_signals = [primary_signal] if primary_signal is not None else misconception_signals
+        prioritized_signals = (
+            [primary_signal] if primary_signal is not None else misconception_signals
+        )
         for signal in prioritized_signals:
             if signal is None:
                 continue
@@ -45,8 +49,13 @@ class RemediationModuleBlueprintBuilder:
                     repair_targets.append(kc_id)
         if not repair_targets:
             repair_targets.append(target_kc_id)
-        ordered_focus_kc_ids = kc_sequence.ordered_kc_ids or [*repair_targets, target_kc_id]
-        ordered_prerequisite_targets = [kc_id for kc_id in ordered_focus_kc_ids if kc_id in prerequisite_kc_ids]
+        ordered_focus_kc_ids = kc_sequence.ordered_kc_ids or [
+            *repair_targets,
+            target_kc_id,
+        ]
+        ordered_prerequisite_targets = [
+            kc_id for kc_id in ordered_focus_kc_ids if kc_id in prerequisite_kc_ids
+        ]
         ordered_repair_targets = [
             kc_id
             for kc_id in ordered_focus_kc_ids
@@ -55,7 +64,8 @@ class RemediationModuleBlueprintBuilder:
         ordered_bridge_targets = [
             kc_id
             for kc_id in ordered_focus_kc_ids
-            if kc_id in kc_sequence.bridge_kc_ids and kc_id not in ordered_repair_targets
+            if kc_id in kc_sequence.bridge_kc_ids
+            and kc_id not in ordered_repair_targets
         ] or list(kc_sequence.bridge_kc_ids)
 
         steps: list[dict[str, object]] = []
@@ -64,7 +74,8 @@ class RemediationModuleBlueprintBuilder:
                 {
                     "phase": "step_back",
                     "title": "Rebuild the prerequisite idea",
-                    "target_kc_ids": ordered_prerequisite_targets or prerequisite_kc_ids,
+                    "target_kc_ids": ordered_prerequisite_targets
+                    or prerequisite_kc_ids,
                     "support_level": "high",
                     "objective": "Reconnect the learner to the weaker prerequisite concept before returning to the target.",
                     "misconception_ids": [],
@@ -75,11 +86,15 @@ class RemediationModuleBlueprintBuilder:
             steps.append(
                 {
                     "phase": "repair",
-                    "title": "Address the specific misconception" if kc_sequence.action != "hold_target" else "Hold on the target reasoning",
+                    "title": "Address the specific misconception"
+                    if kc_sequence.action != "hold_target"
+                    else "Hold on the target reasoning",
                     "target_kc_ids": ordered_repair_targets,
                     "support_level": "high" if steps else "medium",
                     "objective": primary_signal.rationale,
-                    "misconception_ids": [primary_signal.misconception_id] if primary_signal.misconception_id else [],
+                    "misconception_ids": [primary_signal.misconception_id]
+                    if primary_signal.misconception_id
+                    else [],
                     "guidance": primary_signal.remediation_hint
                     or "Name the misconception explicitly, contrast it with the correct reasoning, and show one corrected example.",
                     "recurrence_signal": primary_signal.recurrence_signal,
@@ -100,9 +115,13 @@ class RemediationModuleBlueprintBuilder:
         steps.append(
             {
                 "phase": "return",
-                "title": "Attempt transfer on the target" if kc_sequence.action == "attempt_transfer" else "Bridge back to the target",
+                "title": "Attempt transfer on the target"
+                if kc_sequence.action == "attempt_transfer"
+                else "Bridge back to the target",
                 "target_kc_ids": kc_sequence.deferred_kc_ids or [target_kc_id],
-                "support_level": "low" if kc_sequence.action == "attempt_transfer" else ("medium" if steps else "low"),
+                "support_level": "low"
+                if kc_sequence.action == "attempt_transfer"
+                else ("medium" if steps else "low"),
                 "objective": (
                     "Check whether the learner can now transfer the corrected reasoning to the target knowledge component."
                     if kc_sequence.action == "attempt_transfer"
@@ -118,9 +137,15 @@ class RemediationModuleBlueprintBuilder:
         )
         return {
             "trigger": "misconception_detected",
-            "primary_misconception_id": primary_signal.misconception_id if primary_signal else None,
-            "primary_misconception_source": primary_signal.source if primary_signal else None,
-            "primary_recurrence_signal": primary_signal.recurrence_signal if primary_signal else "none",
+            "primary_misconception_id": primary_signal.misconception_id
+            if primary_signal
+            else None,
+            "primary_misconception_source": primary_signal.source
+            if primary_signal
+            else None,
+            "primary_recurrence_signal": primary_signal.recurrence_signal
+            if primary_signal
+            else "none",
             "repair_target_kc_ids": repair_targets,
             "sequence_action": kc_sequence.action,
             "sequence_primary_kc_id": kc_sequence.primary_kc_id,

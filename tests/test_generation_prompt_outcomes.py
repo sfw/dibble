@@ -45,7 +45,9 @@ def test_generation_prompt_outcome_scorer_uses_follow_up_observation(tmp_path):
     )
 
     scorer = GenerationPromptOutcomeScorer()
-    sample = scorer.score(generation_event=generation_event, candidate_observations=[observation_event])
+    sample = scorer.score(
+        generation_event=generation_event, candidate_observations=[observation_event]
+    )
 
     assert sample.downstream_observation_score is not None
     assert sample.downstream_observation_score > 0.7
@@ -55,7 +57,9 @@ def test_generation_prompt_outcome_scorer_uses_follow_up_observation(tmp_path):
     assert sample.composite_score > sample.quality_score
 
 
-def test_generation_prompt_outcome_scorer_returns_none_without_follow_up_observation(tmp_path):
+def test_generation_prompt_outcome_scorer_returns_none_without_follow_up_observation(
+    tmp_path,
+):
     database_path = str(tmp_path / "generation-outcomes-none.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -73,7 +77,9 @@ def test_generation_prompt_outcome_scorer_returns_none_without_follow_up_observa
         },
     )
 
-    sample = GenerationPromptOutcomeScorer().score(generation_event=generation_event, candidate_observations=[])
+    sample = GenerationPromptOutcomeScorer().score(
+        generation_event=generation_event, candidate_observations=[]
+    )
 
     assert sample.downstream_observation_score is None
     assert sample.downstream_assessment_score is None
@@ -82,7 +88,9 @@ def test_generation_prompt_outcome_scorer_returns_none_without_follow_up_observa
     assert sample.composite_score == 0.81
 
 
-def test_generation_prompt_outcome_scorer_prefers_exact_generation_link_over_closest_time(tmp_path):
+def test_generation_prompt_outcome_scorer_prefers_exact_generation_link_over_closest_time(
+    tmp_path,
+):
     database_path = str(tmp_path / "generation-outcomes-linked.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -145,7 +153,9 @@ def test_generation_prompt_outcome_scorer_prefers_exact_generation_link_over_clo
     assert sample.run_calibration_signal == "positive"
 
 
-def test_generation_prompt_outcome_scorer_prefers_same_learning_session_when_generation_id_missing(tmp_path):
+def test_generation_prompt_outcome_scorer_prefers_same_learning_session_when_generation_id_missing(
+    tmp_path,
+):
     database_path = str(tmp_path / "generation-outcomes-session.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -208,7 +218,9 @@ def test_generation_prompt_outcome_scorer_prefers_same_learning_session_when_gen
     assert sample.run_summary_score is not None
 
 
-def test_generation_prompt_outcome_scorer_uses_same_session_socratic_assessment(tmp_path):
+def test_generation_prompt_outcome_scorer_uses_same_session_socratic_assessment(
+    tmp_path,
+):
     database_path = str(tmp_path / "generation-outcomes-assessment.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -254,7 +266,9 @@ def test_generation_prompt_outcome_scorer_uses_same_session_socratic_assessment(
     assert sample.composite_score > sample.quality_score
 
 
-def test_generation_prompt_outcome_scorer_aggregates_multi_event_session_trace(tmp_path):
+def test_generation_prompt_outcome_scorer_aggregates_multi_event_session_trace(
+    tmp_path,
+):
     database_path = str(tmp_path / "generation-outcomes-trace.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -428,7 +442,9 @@ def test_generation_prompt_outcome_scorer_uses_later_same_session_run_outcome(tm
     assert sample.composite_score > sample.quality_score
 
 
-def test_generation_prompt_outcome_scorer_prefers_persisted_run_summary_for_matching_generation(tmp_path):
+def test_generation_prompt_outcome_scorer_prefers_persisted_run_summary_for_matching_generation(
+    tmp_path,
+):
     database_path = str(tmp_path / "generation-outcomes-persisted-summary.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)

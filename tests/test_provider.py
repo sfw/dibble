@@ -85,7 +85,9 @@ class FakeClient:
         self.complete_calls = 0
         self.stream_calls = 0
 
-    def complete(self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2):
+    def complete(
+        self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2
+    ):
         self.complete_calls += 1
         if self.clock is not None:
             self.clock["value"] += self.duration_seconds
@@ -98,7 +100,9 @@ class FakeClient:
 
         return Result(self.content or "")
 
-    def stream_complete(self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2):
+    def stream_complete(
+        self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2
+    ):
         self.stream_calls += 1
         if self.clock is not None:
             self.clock["value"] += self.duration_seconds
@@ -130,7 +134,9 @@ def test_prompt_builder_mentions_grounding_and_preferences(
     assert prompts.template_variant == "baseline"
 
 
-def test_prompt_builder_includes_distractor_and_fade_plans(sample_profile, sample_route, sample_grounding):
+def test_prompt_builder_includes_distractor_and_fade_plans(
+    sample_profile, sample_route, sample_grounding
+):
     prompts = build_generation_prompts(
         sample_profile,
         GenerationRequest(
@@ -160,7 +166,9 @@ def test_prompt_builder_includes_distractor_and_fade_plans(sample_profile, sampl
     assert "Worked example fade plan: none" in prompts.user_prompt
 
 
-def test_prompt_builder_includes_worked_example_transfer_plan(sample_profile, sample_route, sample_grounding):
+def test_prompt_builder_includes_worked_example_transfer_plan(
+    sample_profile, sample_route, sample_grounding
+):
     prompts = build_generation_prompts(
         sample_profile,
         GenerationRequest(
@@ -183,7 +191,9 @@ def test_prompt_builder_includes_worked_example_transfer_plan(sample_profile, sa
     assert "learner_owned_move=" in prompts.user_prompt
 
 
-def test_prompt_builder_includes_reliability_plan(sample_profile, sample_route, sample_grounding):
+def test_prompt_builder_includes_reliability_plan(
+    sample_profile, sample_route, sample_grounding
+):
     prompts = build_generation_prompts(
         sample_profile,
         GenerationRequest(
@@ -226,8 +236,11 @@ def test_provider_uses_llm_output_when_response_is_valid(
     sample_grounding,
 ):
     provider = LLMOrchestrationProvider(
-        clients=[("primary", FakeClient(
-            """
+        clients=[
+            (
+                "primary",
+                FakeClient(
+                    """
             {
               "blocks": [
                 {"kind": "summary", "title": "Focus", "body": "Equivalent fractions name the same amount."},
@@ -235,7 +248,9 @@ def test_provider_uses_llm_output_when_response_is_valid(
               ]
             }
             """
-        ))],
+                ),
+            )
+        ],
         fallback_provider=MockLLMProvider(),
     )
 
@@ -248,7 +263,9 @@ def test_provider_uses_llm_output_when_response_is_valid(
 
     assert [block.kind for block in blocks] == ["summary", "instruction"]
     assert blocks[0].title == "Focus"
-    assert provider.last_used_descriptor["prompt_template_name"].startswith("remedial_micro_module.")
+    assert provider.last_used_descriptor["prompt_template_name"].startswith(
+        "remedial_micro_module."
+    )
     assert provider.last_used_descriptor["prompt_template_variant"] == "baseline"
 
 
@@ -336,13 +353,18 @@ def test_provider_streams_upstream_ndjson_chunks(
     sample_grounding,
 ):
     provider = LLMOrchestrationProvider(
-        clients=[("primary", FakeClient(
-            stream_parts=[
-                '{"block_index":0,"kind":"summary","title":"Focus","body_delta":"Equivalent fractions ","done":false}\n',
-                '{"block_index":0,"kind":"summary","title":"Focus","body_delta":"name the same amount.","done":true}\n',
-                '{"block_index":1,"kind":"instruction","title":"Try it","body_delta":"Compare 1/2 and 2/4.","done":true}\n',
-            ]
-        ))],
+        clients=[
+            (
+                "primary",
+                FakeClient(
+                    stream_parts=[
+                        '{"block_index":0,"kind":"summary","title":"Focus","body_delta":"Equivalent fractions ","done":false}\n',
+                        '{"block_index":0,"kind":"summary","title":"Focus","body_delta":"name the same amount.","done":true}\n',
+                        '{"block_index":1,"kind":"instruction","title":"Try it","body_delta":"Compare 1/2 and 2/4.","done":true}\n',
+                    ]
+                ),
+            )
+        ],
         fallback_provider=MockLLMProvider(),
     )
 
@@ -375,7 +397,9 @@ def test_plugin_loader_passes_settings_to_provider_factory(tmp_path):
     assert plugins.provider.clients
 
 
-def test_provider_fails_over_to_secondary_client(sample_profile, sample_request, sample_route, sample_grounding):
+def test_provider_fails_over_to_secondary_client(
+    sample_profile, sample_request, sample_route, sample_grounding
+):
     provider = LLMOrchestrationProvider(
         clients=[
             ("primary", FakeClient(error=LLMClientError("primary boom"))),
@@ -542,8 +566,12 @@ def test_provider_round_robin_balances_healthy_clients(
         selection_strategy="round_robin",
     )
 
-    first = provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
-    second = provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
+    first = provider.generate(
+        sample_profile, sample_request, sample_route, sample_grounding
+    )
+    second = provider.generate(
+        sample_profile, sample_request, sample_route, sample_grounding
+    )
 
     assert first[0].title == "Primary"
     assert second[0].title == "Secondary"
@@ -589,9 +617,15 @@ def test_provider_latency_aware_prefers_faster_healthy_client(
         time_provider=lambda: clock["value"],
     )
 
-    first = provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
-    second = provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
-    third = provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
+    first = provider.generate(
+        sample_profile, sample_request, sample_route, sample_grounding
+    )
+    second = provider.generate(
+        sample_profile, sample_request, sample_route, sample_grounding
+    )
+    third = provider.generate(
+        sample_profile, sample_request, sample_route, sample_grounding
+    )
 
     assert first[0].title == "Primary"
     assert second[0].title == "Secondary"
@@ -644,7 +678,9 @@ def test_provider_hydrates_latency_history_from_health_store(
         health_store=health_store,
     )
 
-    warm_provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
+    warm_provider.generate(
+        sample_profile, sample_request, sample_route, sample_grounding
+    )
 
     fresh_primary = FakeClient(
         """
@@ -678,7 +714,9 @@ def test_provider_hydrates_latency_history_from_health_store(
         health_store=health_store,
     )
 
-    blocks = hydrated_provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
+    blocks = hydrated_provider.generate(
+        sample_profile, sample_request, sample_route, sample_grounding
+    )
 
     assert blocks[0].title == "Secondary"
     assert fresh_primary.complete_calls == 0
@@ -720,7 +758,9 @@ def test_provider_hydrates_open_circuit_from_health_store(
         health_store=health_store,
     )
 
-    warm_provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
+    warm_provider.generate(
+        sample_profile, sample_request, sample_route, sample_grounding
+    )
 
     fresh_primary = FakeClient(error=LLMClientError("primary still down"))
     fresh_secondary = FakeClient(
@@ -742,7 +782,9 @@ def test_provider_hydrates_open_circuit_from_health_store(
         health_store=health_store,
     )
 
-    blocks = hydrated_provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
+    blocks = hydrated_provider.generate(
+        sample_profile, sample_request, sample_route, sample_grounding
+    )
 
     assert blocks[0].title == "Secondary"
     assert fresh_primary.complete_calls == 0

@@ -127,9 +127,15 @@ class TelemetrySnapshot(BaseModel):
     fresh_generated_content_entries: int = 0
     provider_failure_events: int = 0
     provider_circuit_open_events: int = 0
-    moderation_category_counts: list[ModerationCategoryCount] = Field(default_factory=list)
+    moderation_category_counts: list[ModerationCategoryCount] = Field(
+        default_factory=list
+    )
     prompt_template_usages: list[PromptTemplateUsage] = Field(default_factory=list)
-    generation_prompt_performances: list[GenerationPromptPerformance] = Field(default_factory=list)
-    socratic_prompt_performances: list[SocraticPromptPerformance] = Field(default_factory=list)
+    generation_prompt_performances: list[GenerationPromptPerformance] = Field(
+        default_factory=list
+    )
+    socratic_prompt_performances: list[SocraticPromptPerformance] = Field(
+        default_factory=list
+    )
     provider_statuses: list[ProviderStatusSnapshot] = Field(default_factory=list)
     last_event_at: datetime | None = None

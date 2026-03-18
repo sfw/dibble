@@ -2,7 +2,10 @@ from uuid import uuid4
 
 from dibble.models.generation import GenerationRequest
 from dibble.services.audit_store import SQLiteAuditStore
-from dibble.services.learning_state_profiles import LearningStateProfileRecorder, LearnerStateSignalService
+from dibble.services.learning_state_profiles import (
+    LearningStateProfileRecorder,
+    LearnerStateSignalService,
+)
 from dibble.storage import ensure_database
 
 
@@ -67,7 +70,9 @@ def test_learning_state_profile_recorder_persists_durable_state_targets(tmp_path
     assert len(recorded) == 1
     profile_event = recorded[0]
     assert profile_event.event_type == "learning.state.profile"
-    assert profile_event.payload["source_run_summary_event_id"] == summary_event.event_id
+    assert (
+        profile_event.payload["source_run_summary_event_id"] == summary_event.event_id
+    )
     assert profile_event.payload["state_profile_signal"] == "independence_ready"
     assert profile_event.payload["engagement"] in {"medium", "high"}
     assert profile_event.payload["frustration"] in {"none", "low"}

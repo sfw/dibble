@@ -17,7 +17,11 @@ from dibble.models.assessment import (
     SocraticTurnRecord,
 )
 from dibble.models.generation import GenerationRequest, RequestedContentType
-from dibble.models.profile import LearnerContinueAction, LearnerFlowNextStep, LearnerProfile
+from dibble.models.profile import (
+    LearnerContinueAction,
+    LearnerFlowNextStep,
+    LearnerProfile,
+)
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.protocols import SocraticSessionStore
 from dibble.services.socratic_evidence import SocraticEvidenceScorer
@@ -32,7 +36,9 @@ class SocraticAssessmentService:
     evidence_scorer: SocraticEvidenceScorer
     turn_policy: SocraticTurnPolicy
 
-    def assess(self, profile: LearnerProfile, request: SocraticAssessmentRequest) -> SocraticAssessmentResponse:
+    def assess(
+        self, profile: LearnerProfile, request: SocraticAssessmentRequest
+    ) -> SocraticAssessmentResponse:
         session = self._load_or_create_session(request)
         evaluation = self.evidence_scorer.evaluate(session, request)
         conversation_history = self._merged_history(session, request)
@@ -58,7 +64,9 @@ class SocraticAssessmentService:
         generation_metadata = response.generation_metadata
         turn_id = str(uuid4())
         updated_history = list(conversation_history)
-        updated_history.append(SocraticMessage(role=SocraticMessageRole.tutor, text=prompt))
+        updated_history.append(
+            SocraticMessage(role=SocraticMessageRole.tutor, text=prompt)
+        )
         updated_session = session.model_copy(
             update={
                 "conversation_history": updated_history,
@@ -77,7 +85,9 @@ class SocraticAssessmentService:
                 "updated_at": datetime.now(timezone.utc),
             }
         )
-        updated_session = updated_session.model_copy(update={"summary": self._summary_for(updated_session)})
+        updated_session = updated_session.model_copy(
+            update={"summary": self._summary_for(updated_session)}
+        )
         self.session_store.upsert(updated_session)
 
         return SocraticAssessmentResponse(
@@ -102,7 +112,9 @@ class SocraticAssessmentService:
     def get_session(self, session_id: str) -> SocraticAssessmentSession | None:
         return self.session_store.get(session_id)
 
-    def _load_or_create_session(self, request: SocraticAssessmentRequest) -> SocraticAssessmentSession:
+    def _load_or_create_session(
+        self, request: SocraticAssessmentRequest
+    ) -> SocraticAssessmentSession:
         if request.session_id:
             session = self.session_store.get(request.session_id)
             if session is not None:
@@ -131,7 +143,11 @@ class SocraticAssessmentService:
         if request.conversation_history:
             history.extend(request.conversation_history)
         if request.learner_response:
-            history.append(SocraticMessage(role=SocraticMessageRole.learner, text=request.learner_response))
+            history.append(
+                SocraticMessage(
+                    role=SocraticMessageRole.learner, text=request.learner_response
+                )
+            )
         return history
 
     def _build_assessment_prompt(
@@ -143,7 +159,9 @@ class SocraticAssessmentService:
         policy_rationale: str,
         evaluation: SocraticAssessmentEvaluation,
     ) -> str:
-        history_text = " ".join(f"{item.role.value}: {item.text}" for item in conversation_history[-6:])
+        history_text = " ".join(
+            f"{item.role.value}: {item.text}" for item in conversation_history[-6:]
+        )
         confidence_text = (
             f" Learner confidence signal: {request.learner_confidence:.2f}."
             if request.learner_confidence is not None
@@ -189,7 +207,9 @@ class SocraticAssessmentService:
                 return f"{block.body.strip()} What do you notice?"
         return "What makes you think that?"
 
-    def _summary_for(self, session: SocraticAssessmentSession) -> SocraticSessionSummary:
+    def _summary_for(
+        self, session: SocraticAssessmentSession
+    ) -> SocraticSessionSummary:
         latest_turn = session.turns[-1] if session.turns else None
         if latest_turn is None:
             return SocraticSessionSummary(updated_at=session.updated_at)

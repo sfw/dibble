@@ -7,7 +7,11 @@ from dibble.models.profile import LearnerProfile
 from dibble.services.curriculum_store import SQLiteCurriculumStore
 from dibble.services.rag_retriever import RAGRetriever
 from dibble.services.retrieval.embedding_store import SQLiteEmbeddingStore
-from dibble.services.retrieval.embeddings import LocalHashEmbedder, OpenAICompatibleEmbedder, build_embedder
+from dibble.services.retrieval.embeddings import (
+    LocalHashEmbedder,
+    OpenAICompatibleEmbedder,
+    build_embedder,
+)
 from dibble.storage import ensure_database
 from tests.support import build_curriculum_resource, build_profile
 
@@ -43,8 +47,12 @@ def test_retriever_reuses_persisted_resource_embeddings(tmp_path):
     database_path = str(tmp_path / "embeddings-cache.db")
     ensure_database(database_path)
     store = SQLiteCurriculumStore(database_path)
-    resource = store.upsert(CurriculumResourceUpsert(**build_curriculum_resource("CURR-1")))
-    profile = LearnerProfile.model_validate(build_profile(uuid4(), frustration="low", total_load=0.2))
+    resource = store.upsert(
+        CurriculumResourceUpsert(**build_curriculum_resource("CURR-1"))
+    )
+    profile = LearnerProfile.model_validate(
+        build_profile(uuid4(), frustration="low", total_load=0.2)
+    )
     request = GenerationRequest(
         student_id=profile.student_id,
         curriculum_context=["Explain equivalent fractions with area models."],
@@ -66,8 +74,12 @@ def test_retriever_refreshes_embeddings_after_resource_update(tmp_path):
     database_path = str(tmp_path / "embeddings-refresh.db")
     ensure_database(database_path)
     store = SQLiteCurriculumStore(database_path)
-    resource = store.upsert(CurriculumResourceUpsert(**build_curriculum_resource("CURR-1")))
-    profile = LearnerProfile.model_validate(build_profile(uuid4(), frustration="low", total_load=0.2))
+    resource = store.upsert(
+        CurriculumResourceUpsert(**build_curriculum_resource("CURR-1"))
+    )
+    profile = LearnerProfile.model_validate(
+        build_profile(uuid4(), frustration="low", total_load=0.2)
+    )
     request = GenerationRequest(
         student_id=profile.student_id,
         curriculum_context=["Explain equivalent fractions with area models."],

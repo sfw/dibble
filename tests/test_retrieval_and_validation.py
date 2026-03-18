@@ -1,12 +1,19 @@
 from uuid import uuid4
 
 from dibble.models.curriculum import CurriculumResourceUpsert
-from dibble.models.generation import GeneratedBlock, GenerationRequest, GroundingReference
+from dibble.models.generation import (
+    GeneratedBlock,
+    GenerationRequest,
+    GroundingReference,
+)
 from dibble.models.profile import LearnerProfile
 from dibble.services.content_validator import ContentValidator
 from dibble.services.curriculum_store import SQLiteCurriculumStore
 from dibble.services.rag_retriever import RAGRetriever
-from dibble.services.validation.text import curriculum_alignment_score, grounding_coverage_score
+from dibble.services.validation.text import (
+    curriculum_alignment_score,
+    grounding_coverage_score,
+)
 from dibble.storage import ensure_database
 from tests.support import build_curriculum_resource, build_profile
 
@@ -26,7 +33,9 @@ def test_retriever_returns_best_grade_level_match(tmp_path):
         )
     )
     retriever = RAGRetriever(store)
-    profile = LearnerProfile.model_validate(build_profile(uuid4(), frustration="low", total_load=0.2))
+    profile = LearnerProfile.model_validate(
+        build_profile(uuid4(), frustration="low", total_load=0.2)
+    )
     request = GenerationRequest(
         student_id=profile.student_id,
         target_kc_ids=["KC-1"],
@@ -56,10 +65,14 @@ def test_retriever_matches_free_text_curriculum_context_without_exact_phrase(tmp
         )
     )
     retriever = RAGRetriever(store)
-    profile = LearnerProfile.model_validate(build_profile(uuid4(), frustration="low", total_load=0.2))
+    profile = LearnerProfile.model_validate(
+        build_profile(uuid4(), frustration="low", total_load=0.2)
+    )
     request = GenerationRequest(
         student_id=profile.student_id,
-        curriculum_context=["Use fraction models to show two fractions can have the same value."],
+        curriculum_context=[
+            "Use fraction models to show two fractions can have the same value."
+        ],
     )
 
     results = retriever.retrieve(profile, request)
@@ -85,11 +98,15 @@ def test_retriever_adds_deterministic_excerpt_from_matching_sentence(tmp_path):
         )
     )
     retriever = RAGRetriever(store)
-    profile = LearnerProfile.model_validate(build_profile(uuid4(), frustration="low", total_load=0.2))
+    profile = LearnerProfile.model_validate(
+        build_profile(uuid4(), frustration="low", total_load=0.2)
+    )
     request = GenerationRequest(
         student_id=profile.student_id,
         target_kc_ids=["KC-1"],
-        curriculum_context=["Use fraction models to show equivalent fractions have the same value."],
+        curriculum_context=[
+            "Use fraction models to show equivalent fractions have the same value."
+        ],
     )
 
     results = retriever.retrieve(profile, request)
@@ -116,18 +133,28 @@ def test_retriever_prefers_semantically_relevant_passage_over_leading_noise(tmp_
         )
     )
     retriever = RAGRetriever(store)
-    profile = LearnerProfile.model_validate(build_profile(uuid4(), frustration="low", total_load=0.2))
+    profile = LearnerProfile.model_validate(
+        build_profile(uuid4(), frustration="low", total_load=0.2)
+    )
     request = GenerationRequest(
         student_id=profile.student_id,
         target_kc_ids=["KC-1"],
-        curriculum_context=["Use area models and equal partitions to show fractions with the same value."],
+        curriculum_context=[
+            "Use area models and equal partitions to show fractions with the same value."
+        ],
     )
 
     results = retriever.retrieve(profile, request)
 
     assert results[0].excerpt is not None
-    assert "same region" in results[0].excerpt.lower() or "area model" in results[0].excerpt.lower()
-    assert "warm up by naming different classroom manipulatives" not in results[0].excerpt.lower()
+    assert (
+        "same region" in results[0].excerpt.lower()
+        or "area model" in results[0].excerpt.lower()
+    )
+    assert (
+        "warm up by naming different classroom manipulatives"
+        not in results[0].excerpt.lower()
+    )
 
 
 def test_retriever_uses_passage_signal_to_prefer_more_grounded_resource(tmp_path):
@@ -156,32 +183,51 @@ def test_retriever_uses_passage_signal_to_prefer_more_grounded_resource(tmp_path
         )
     )
     retriever = RAGRetriever(store)
-    profile = LearnerProfile.model_validate(build_profile(uuid4(), frustration="low", total_load=0.2))
+    profile = LearnerProfile.model_validate(
+        build_profile(uuid4(), frustration="low", total_load=0.2)
+    )
     request = GenerationRequest(
         student_id=profile.student_id,
-        curriculum_context=["Use equal partitions and area models to explain why fractions can name the same value."],
+        curriculum_context=[
+            "Use equal partitions and area models to explain why fractions can name the same value."
+        ],
     )
 
     results = retriever.retrieve(profile, request)
 
     assert results[0].resource_id == "CURR-NOISY"
     assert results[0].excerpt is not None
-    assert "equal partitions" in results[0].excerpt.lower() or "same region" in results[0].excerpt.lower()
+    assert (
+        "equal partitions" in results[0].excerpt.lower()
+        or "same region" in results[0].excerpt.lower()
+    )
 
 
 def test_validator_reports_missing_grounding():
     issues = ContentValidator().validate(
-        blocks=[GeneratedBlock(kind="instruction", title="Teach", body="Explain the concept.")],
+        blocks=[
+            GeneratedBlock(
+                kind="instruction", title="Teach", body="Explain the concept."
+            )
+        ],
         grounding=[],
     )
 
-    assert issues == ["No curriculum grounding was found; fallback or human review is recommended."]
+    assert issues == [
+        "No curriculum grounding was found; fallback or human review is recommended."
+    ]
 
 
 def test_validator_reports_missing_instruction_block():
     issues = ContentValidator().validate(
-        blocks=[GeneratedBlock(kind="summary", title="Overview", body="A short summary.")],
-        grounding=[GroundingReference(resource_id="CURR-1", title="Fractions", grade_level="5", score=2.0)],
+        blocks=[
+            GeneratedBlock(kind="summary", title="Overview", body="A short summary.")
+        ],
+        grounding=[
+            GroundingReference(
+                resource_id="CURR-1", title="Fractions", grade_level="5", score=2.0
+            )
+        ],
     )
 
     assert issues == ["Generated content is missing an instructional block."]
@@ -207,7 +253,9 @@ def test_validator_reports_missing_curriculum_alignment():
         ],
     )
 
-    assert issues == ["Generated content does not clearly reflect the retrieved curriculum grounding."]
+    assert issues == [
+        "Generated content does not clearly reflect the retrieved curriculum grounding."
+    ]
 
 
 def test_curriculum_alignment_score_prefers_grounded_language():
@@ -283,7 +331,9 @@ def test_validator_reports_instruction_grounding_gap_when_only_summary_is_ground
         ],
     )
 
-    assert issues == ["Instruction blocks do not clearly carry forward the retrieved curriculum language."]
+    assert issues == [
+        "Instruction blocks do not clearly carry forward the retrieved curriculum language."
+    ]
 
 
 def test_validator_reports_reading_level_accessibility_safety_and_math_issues():
@@ -318,7 +368,19 @@ def test_validator_reports_reading_level_accessibility_safety_and_math_issues():
         ],
     )
 
-    assert "Generated content may exceed the current reading-level heuristic for the target grade band." in issues
-    assert "Instruction content may be too dense for accessible scanning and chunking." in issues
-    assert "Generated content includes language that should trigger safety review before delivery." in issues
-    assert "Generated content includes a math statement that failed a basic arithmetic check." in issues
+    assert (
+        "Generated content may exceed the current reading-level heuristic for the target grade band."
+        in issues
+    )
+    assert (
+        "Instruction content may be too dense for accessible scanning and chunking."
+        in issues
+    )
+    assert (
+        "Generated content includes language that should trigger safety review before delivery."
+        in issues
+    )
+    assert (
+        "Generated content includes a math statement that failed a basic arithmetic check."
+        in issues
+    )

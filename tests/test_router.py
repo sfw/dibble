@@ -8,9 +8,17 @@ from tests.support import build_profile
 
 def test_router_returns_targeted_practice_for_low_mastery():
     profile = LearnerProfile.model_validate(
-        build_profile(uuid4(), frustration="low", total_load=0.2, kc_mastery={"KC-1": 0.2}, engagement="medium")
+        build_profile(
+            uuid4(),
+            frustration="low",
+            total_load=0.2,
+            kc_mastery={"KC-1": 0.2},
+            engagement="medium",
+        )
     )
-    request = GenerationRequest(student_id=profile.student_id, target_kc_ids=["KC-1"], intent="practice")
+    request = GenerationRequest(
+        student_id=profile.student_id, target_kc_ids=["KC-1"], intent="practice"
+    )
 
     decision = AdaptiveRouter().route(profile, request)
 
@@ -20,9 +28,17 @@ def test_router_returns_targeted_practice_for_low_mastery():
 
 def test_router_returns_stretch_for_high_mastery_and_high_engagement():
     profile = LearnerProfile.model_validate(
-        build_profile(uuid4(), frustration="low", total_load=0.2, kc_mastery={"KC-1": 0.95}, engagement="high")
+        build_profile(
+            uuid4(),
+            frustration="low",
+            total_load=0.2,
+            kc_mastery={"KC-1": 0.95},
+            engagement="high",
+        )
     )
-    request = GenerationRequest(student_id=profile.student_id, target_kc_ids=["KC-1"], intent="explanation")
+    request = GenerationRequest(
+        student_id=profile.student_id, target_kc_ids=["KC-1"], intent="explanation"
+    )
 
     decision = AdaptiveRouter().route(profile, request)
 
@@ -42,7 +58,9 @@ def test_router_holds_back_stretch_when_metacognitive_readiness_is_low():
             help_seeking="high",
         )
     )
-    request = GenerationRequest(student_id=profile.student_id, target_kc_ids=["KC-1"], intent="explanation")
+    request = GenerationRequest(
+        student_id=profile.student_id, target_kc_ids=["KC-1"], intent="explanation"
+    )
 
     decision = AdaptiveRouter().route(profile, request)
 
@@ -62,7 +80,9 @@ def test_router_excludes_stretch_when_explanation_readiness_floor_is_not_met():
             help_seeking="high",
         )
     )
-    request = GenerationRequest(student_id=profile.student_id, target_kc_ids=["KC-1"], intent="explanation")
+    request = GenerationRequest(
+        student_id=profile.student_id, target_kc_ids=["KC-1"], intent="explanation"
+    )
 
     decision = AdaptiveRouter().route(profile, request)
 

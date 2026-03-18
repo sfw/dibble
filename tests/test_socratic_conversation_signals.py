@@ -2,11 +2,15 @@ from uuid import uuid4
 
 from dibble.models.generation import GenerationRequest
 from dibble.services.audit_store import SQLiteAuditStore
-from dibble.services.socratic_conversation_signals import SocraticConversationSignalService
+from dibble.services.socratic_conversation_signals import (
+    SocraticConversationSignalService,
+)
 from dibble.storage import ensure_database
 
 
-def test_socratic_conversation_signal_service_detects_model_then_release_history(tmp_path):
+def test_socratic_conversation_signal_service_detects_model_then_release_history(
+    tmp_path,
+):
     database_path = str(tmp_path / "socratic-conversation-model.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)

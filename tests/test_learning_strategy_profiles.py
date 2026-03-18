@@ -60,7 +60,10 @@ def test_learning_strategy_profile_recorder_persists_support_intensive_signal(tm
     assert profile_event.payload["strategy_support_bias"] == -1
     assert profile_event.payload["strategy_recovery_focus"] == "prerequisite_rebuild"
     assert profile_event.payload["strategy_trajectory_state"] == "relapsing"
-    assert profile_event.payload["strategy_recommended_next_action"] == "rebuild_prerequisite"
+    assert (
+        profile_event.payload["strategy_recommended_next_action"]
+        == "rebuild_prerequisite"
+    )
     assert profile_event.payload["strategy_relapse_risk"] > 0.5
 
 
@@ -115,7 +118,9 @@ def test_learner_strategy_signal_service_prefers_matching_strategy_profile(tmp_p
     assert strategy.recommended_next_action == "check_transfer_readiness"
 
 
-def test_learner_strategy_signal_service_derives_plateau_from_progress_profiles(tmp_path):
+def test_learner_strategy_signal_service_derives_plateau_from_progress_profiles(
+    tmp_path,
+):
     database_path = str(tmp_path / "learner-strategy-plateau.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)

@@ -72,7 +72,11 @@ def test_teacher_classroom_read_model_packages_learner_cards_and_counts(client):
             classroom_id="CLASS-1",
             title="Grade 5 Fractions",
             teacher_label="Ms. Rivera",
-            student_ids=[str(active_student_id), str(blocked_student_id), "missing-student-id"],
+            student_ids=[
+                str(active_student_id),
+                str(blocked_student_id),
+                "missing-student-id",
+            ],
         ),
     )
     classroom_response = client.get("/api/teachers/classrooms/CLASS-1")
@@ -91,8 +95,16 @@ def test_teacher_classroom_read_model_packages_learner_cards_and_counts(client):
     list_payload = list_response.json()
     active_summary_payload = active_summary_response.json()
     blocked_summary_payload = blocked_summary_response.json()
-    active_card = next(card for card in classroom_payload["learners"] if card["student_id"] == str(active_student_id))
-    blocked_card = next(card for card in classroom_payload["learners"] if card["student_id"] == str(blocked_student_id))
+    active_card = next(
+        card
+        for card in classroom_payload["learners"]
+        if card["student_id"] == str(active_student_id)
+    )
+    blocked_card = next(
+        card
+        for card in classroom_payload["learners"]
+        if card["student_id"] == str(blocked_student_id)
+    )
 
     assert classroom_payload["classroom_id"] == "CLASS-1"
     assert classroom_payload["title"] == "Grade 5 Fractions"
@@ -106,26 +118,46 @@ def test_teacher_classroom_read_model_packages_learner_cards_and_counts(client):
 
     assert active_card["current_flow"]["flow_type"] == "lesson"
     assert active_card["intervention"]["proposal_status"] == "available"
-    assert active_card["intervention"]["recommended_action_kind"] == "generate_follow_up"
-    assert active_card["curriculum_progression"]["status"] in {"active_curriculum_focus", "ready_for_next_resource"}
+    assert (
+        active_card["intervention"]["recommended_action_kind"] == "generate_follow_up"
+    )
+    assert active_card["curriculum_progression"]["status"] in {
+        "active_curriculum_focus",
+        "ready_for_next_resource",
+    }
     assert active_card["attention_level"] == "medium"
     assert active_card["triage_section"] == "teacher_action"
     assert "teacher_intervention_available" in active_card["attention_reasons"]
     assert active_card["current_flow"] == active_summary_payload["current_flow"]
-    assert "current learner flow releases the active target" in active_card["curriculum_progression"]["rationale"]
-    assert active_card["curriculum_progression"] == active_summary_payload["curriculum_progression"]
+    assert (
+        "current learner flow releases the active target"
+        in active_card["curriculum_progression"]["rationale"]
+    )
+    assert (
+        active_card["curriculum_progression"]
+        == active_summary_payload["curriculum_progression"]
+    )
 
     assert blocked_card["current_flow"]["status"] == "idle"
-    assert blocked_card["curriculum_progression"]["status"] == "blocked_on_prerequisites"
-    assert blocked_card["curriculum_progression"]["blocked_resources"][0]["resource_id"] == "CURR-2"
-    assert "stays blocked instead of becoming the next curriculum focus" in blocked_card["curriculum_progression"][
-        "blocked_resources"
-    ][0]["rationale"]
+    assert (
+        blocked_card["curriculum_progression"]["status"] == "blocked_on_prerequisites"
+    )
+    assert (
+        blocked_card["curriculum_progression"]["blocked_resources"][0]["resource_id"]
+        == "CURR-2"
+    )
+    assert (
+        "stays blocked instead of becoming the next curriculum focus"
+        in blocked_card["curriculum_progression"]["blocked_resources"][0]["rationale"]
+    )
     assert blocked_card["attention_level"] == "medium"
     assert blocked_card["triage_section"] == "needs_attention"
     assert "blocked_on_prerequisites" in blocked_card["attention_reasons"]
     assert blocked_card["current_flow"] == blocked_summary_payload["current_flow"]
-    assert blocked_card["curriculum_progression"] == blocked_summary_payload["curriculum_progression"]
+    assert (
+        blocked_card["curriculum_progression"]
+        == blocked_summary_payload["curriculum_progression"]
+    )
 
     assert list_payload[0]["classroom_id"] == "CLASS-1"
     assert list_payload[0]["learner_count"] == 2
@@ -133,12 +165,16 @@ def test_teacher_classroom_read_model_packages_learner_cards_and_counts(client):
     assert list_payload[0]["intervention_available_count"] == 1
 
 
-def test_teacher_classroom_keeps_active_curriculum_rationale_aligned_with_current_flow(client):
+def test_teacher_classroom_keeps_active_curriculum_rationale_aligned_with_current_flow(
+    client,
+):
     student_id = uuid4()
 
     client.put(
         f"/api/learners/{student_id}/profile",
-        json=build_profile(student_id, frustration="low", total_load=0.2, kc_mastery={"KC-1": 0.32}),
+        json=build_profile(
+            student_id, frustration="low", total_load=0.2, kc_mastery={"KC-1": 0.32}
+        ),
     )
     client.put(
         "/api/knowledge-components/KC-1",
@@ -185,11 +221,18 @@ def test_teacher_classroom_keeps_active_curriculum_rationale_aligned_with_curren
     summary_payload = summary_response.json()
 
     assert learner_card["curriculum_progression"]["status"] == "active_curriculum_focus"
-    assert learner_card["curriculum_progression"]["rationale"] == learner_card["current_flow"]["rationale"]
-    assert learner_card["curriculum_progression"]["current_resource"]["rationale"] == learner_card["current_flow"][
-        "rationale"
-    ]
-    assert learner_card["curriculum_progression"] == summary_payload["curriculum_progression"]
+    assert (
+        learner_card["curriculum_progression"]["rationale"]
+        == learner_card["current_flow"]["rationale"]
+    )
+    assert (
+        learner_card["curriculum_progression"]["current_resource"]["rationale"]
+        == learner_card["current_flow"]["rationale"]
+    )
+    assert (
+        learner_card["curriculum_progression"]
+        == summary_payload["curriculum_progression"]
+    )
     assert learner_card["current_flow"] == summary_payload["current_flow"]
 
 
@@ -276,11 +319,26 @@ def test_teacher_classroom_preserves_deferred_target_next_resource_priority(clie
     learner_card = classroom_response.json()["learners"][0]
     summary_payload = summary_response.json()
 
-    assert learner_card["curriculum_progression"]["current_resource"]["resource_id"] == "CURR-1"
-    assert learner_card["curriculum_progression"]["next_resource"]["resource_id"] == "CURR-2"
-    assert learner_card["curriculum_progression"]["ready_resources"][0]["resource_id"] == "CURR-2"
-    assert learner_card["curriculum_progression"]["ready_resources"][1]["resource_id"] == "CURR-0"
-    assert learner_card["curriculum_progression"] == summary_payload["curriculum_progression"]
+    assert (
+        learner_card["curriculum_progression"]["current_resource"]["resource_id"]
+        == "CURR-1"
+    )
+    assert (
+        learner_card["curriculum_progression"]["next_resource"]["resource_id"]
+        == "CURR-2"
+    )
+    assert (
+        learner_card["curriculum_progression"]["ready_resources"][0]["resource_id"]
+        == "CURR-2"
+    )
+    assert (
+        learner_card["curriculum_progression"]["ready_resources"][1]["resource_id"]
+        == "CURR-0"
+    )
+    assert (
+        learner_card["curriculum_progression"]
+        == summary_payload["curriculum_progression"]
+    )
 
 
 def test_teacher_classroom_not_found_returns_machine_readable_error(client):

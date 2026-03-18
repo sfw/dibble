@@ -84,10 +84,12 @@ def test_remediation_workflow_coordinator_persists_and_advances_steps(tmp_path):
     assert session.summary.current_phase == "step_back"
     assert session.summary.next_step.content_type == "remedial_micro_module"
 
-    loaded_session, current_step, generation_request = coordinator.generation_request_for_current_step(
-        session_id=session.session_id,
-        learner_prompt="Keep it visual.",
-        curriculum_context=["Use a fraction bar."],
+    loaded_session, current_step, generation_request = (
+        coordinator.generation_request_for_current_step(
+            session_id=session.session_id,
+            learner_prompt="Keep it visual.",
+            curriculum_context=["Use a fraction bar."],
+        )
     )
 
     assert loaded_session.session_id == session.session_id
@@ -97,17 +99,32 @@ def test_remediation_workflow_coordinator_persists_and_advances_steps(tmp_path):
     assert generation_request.requested_content_type == "remedial_micro_module"
     assert "Keep it visual." in (generation_request.learner_prompt or "")
     assert "Use one simple example." in (generation_request.learner_prompt or "")
-    assert "Reconnect the prerequisite concept." in generation_request.curriculum_context
-    assert any("Learner strategy: support_intensive" in item for item in generation_request.curriculum_context)
-    assert any("Rebuild prerequisite understanding" in item for item in generation_request.curriculum_context)
-    assert any("KC sequencing: rebuild_prerequisite_first" in item for item in generation_request.curriculum_context)
+    assert (
+        "Reconnect the prerequisite concept." in generation_request.curriculum_context
+    )
+    assert any(
+        "Learner strategy: support_intensive" in item
+        for item in generation_request.curriculum_context
+    )
+    assert any(
+        "Rebuild prerequisite understanding" in item
+        for item in generation_request.curriculum_context
+    )
+    assert any(
+        "KC sequencing: rebuild_prerequisite_first" in item
+        for item in generation_request.curriculum_context
+    )
 
     updated_session = coordinator.complete_current_step(
         session_id=session.session_id,
         generation_id="gen-step-back",
     )
     assert updated_session.current_step_index == 1
-    assert [step.status for step in updated_session.steps] == ["completed", "active", "pending"]
+    assert [step.status for step in updated_session.steps] == [
+        "completed",
+        "active",
+        "pending",
+    ]
     assert updated_session.completed_generation_ids == ["gen-step-back"]
     assert updated_session.summary.current_phase == "repair"
     assert updated_session.summary.next_step.action == "repair"
@@ -126,7 +143,11 @@ def test_remediation_workflow_coordinator_persists_and_advances_steps(tmp_path):
         generation_id="gen-return",
     )
     assert updated_session.current_step_index is None
-    assert [step.status for step in updated_session.steps] == ["completed", "completed", "completed"]
+    assert [step.status for step in updated_session.steps] == [
+        "completed",
+        "completed",
+        "completed",
+    ]
     assert updated_session.completed_generation_ids == [
         "gen-step-back",
         "gen-repair",
@@ -204,12 +225,17 @@ def test_remediation_workflow_coordinator_carries_bridge_sequence_context(tmp_pa
         session_id=session.session_id,
         generation_id="gen-step-back",
     )
-    loaded_session, current_step, generation_request = coordinator.generation_request_for_current_step(
-        session_id=session.session_id,
-        learner_prompt="Keep it visual.",
+    loaded_session, current_step, generation_request = (
+        coordinator.generation_request_for_current_step(
+            session_id=session.session_id,
+            learner_prompt="Keep it visual.",
+        )
     )
 
     assert loaded_session.session_id == session.session_id
     assert current_step.phase == "bridge"
     assert current_step.recommended_content_type == "remedial_micro_module"
-    assert any("Bridge through nearby KC(s) KC-2" in item for item in generation_request.curriculum_context)
+    assert any(
+        "Bridge through nearby KC(s) KC-2" in item
+        for item in generation_request.curriculum_context
+    )

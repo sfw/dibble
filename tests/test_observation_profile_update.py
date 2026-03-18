@@ -58,9 +58,16 @@ class StubKnowledgeComponentStore:
 
 def test_observation_profile_updater_updates_linked_practice_mastery():
     student_id = uuid4()
-    profile = build_profile(student_id, frustration="low", total_load=0.2, kc_mastery={"KC-1": 0.3, "KC-2": 0.25})
+    profile = build_profile(
+        student_id,
+        frustration="low",
+        total_load=0.2,
+        kc_mastery={"KC-1": 0.3, "KC-2": 0.25},
+    )
     updater = ObservationProfileUpdater(
-        knowledge_state_migrator=KnowledgeStateMigrator(knowledge_component_store=StubKnowledgeComponentStore())
+        knowledge_state_migrator=KnowledgeStateMigrator(
+            knowledge_component_store=StubKnowledgeComponentStore()
+        )
     )
 
     result = updater.apply(
@@ -97,7 +104,9 @@ def test_observation_profile_updater_updates_linked_practice_mastery():
 
 def test_observation_profile_updater_uses_recent_linked_evidence_bundle():
     student_id = uuid4()
-    profile = build_profile(student_id, frustration="low", total_load=0.2, kc_mastery={"KC-2": 0.25})
+    profile = build_profile(
+        student_id, frustration="low", total_load=0.2, kc_mastery={"KC-2": 0.25}
+    )
     updater = ObservationProfileUpdater()
     recent_observations = [
         LearnerObservation.model_validate(
@@ -159,9 +168,16 @@ def test_observation_profile_updater_uses_recent_linked_evidence_bundle():
 
 def test_observation_profile_updater_updates_strong_target_scoped_practice_without_links():
     student_id = uuid4()
-    profile = build_profile(student_id, frustration="low", total_load=0.2, kc_mastery={"KC-1": 0.3, "KC-2": 0.25})
+    profile = build_profile(
+        student_id,
+        frustration="low",
+        total_load=0.2,
+        kc_mastery={"KC-1": 0.3, "KC-2": 0.25},
+    )
     updater = ObservationProfileUpdater(
-        knowledge_state_migrator=KnowledgeStateMigrator(knowledge_component_store=StubKnowledgeComponentStore())
+        knowledge_state_migrator=KnowledgeStateMigrator(
+            knowledge_component_store=StubKnowledgeComponentStore()
+        )
     )
 
     result = updater.apply(
@@ -192,7 +208,9 @@ def test_observation_profile_updater_updates_strong_target_scoped_practice_witho
     assert result.kc_mastery_updates["KC-2"] > 0.25
 
 
-def test_observation_profile_updater_uses_durable_mastery_signal_for_low_support_writeback(tmp_path):
+def test_observation_profile_updater_uses_durable_mastery_signal_for_low_support_writeback(
+    tmp_path,
+):
     database_path = str(tmp_path / "observation-ordinary-mastery.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -215,9 +233,13 @@ def test_observation_profile_updater_uses_durable_mastery_signal_for_low_support
         },
     )
     updater = ObservationProfileUpdater(
-        ordinary_mastery_signal_service=OrdinaryMasterySignalService(audit_store=audit_store)
+        ordinary_mastery_signal_service=OrdinaryMasterySignalService(
+            audit_store=audit_store
+        )
     )
-    profile = LearnerProfile.model_validate(build_profile(student_id, kc_mastery={"KC-2": 0.25}, frustration="low"))
+    profile = LearnerProfile.model_validate(
+        build_profile(student_id, kc_mastery={"KC-2": 0.25}, frustration="low")
+    )
 
     result = updater.apply(
         profile=profile,
@@ -320,7 +342,9 @@ def test_observation_profile_updater_holds_remediation_return_when_recent_eviden
         )
     ]
 
-    decision = updater.evaluate_remediation_progress(session=session, observations=observations)
+    decision = updater.evaluate_remediation_progress(
+        session=session, observations=observations
+    )
 
     assert decision.decision == "hold_repair_target"
     assert decision.hold_step_index == 1
@@ -412,7 +436,9 @@ def test_observation_profile_updater_holds_bridge_before_final_target_return_wit
         )
     ]
 
-    decision = updater.evaluate_remediation_progress(session=session, observations=observations)
+    decision = updater.evaluate_remediation_progress(
+        session=session, observations=observations
+    )
 
     assert decision.decision == "hold_bridge_target"
     assert decision.hold_step_index == 2
@@ -562,7 +588,9 @@ def test_mastery_writeback_saturation_dampens_upward_blend_for_high_prior_master
     ceiling instead of oscillating."""
     student_id = uuid4()
     # Start with high prior mastery
-    profile = build_profile(student_id, frustration="low", total_load=0.2, kc_mastery={"KC-2": 0.92})
+    profile = build_profile(
+        student_id, frustration="low", total_load=0.2, kc_mastery={"KC-2": 0.92}
+    )
     updater = ObservationProfileUpdater()
 
     result_high_prior = updater.apply(
@@ -591,7 +619,9 @@ def test_mastery_writeback_saturation_dampens_upward_blend_for_high_prior_master
     )
 
     # Now do the same update but with a moderate prior for comparison
-    profile_moderate = build_profile(student_id, frustration="low", total_load=0.2, kc_mastery={"KC-2": 0.60})
+    profile_moderate = build_profile(
+        student_id, frustration="low", total_load=0.2, kc_mastery={"KC-2": 0.60}
+    )
     result_moderate_prior = updater.apply(
         profile=LearnerProfile.model_validate(profile_moderate),
         observation=LearnerObservation.model_validate(
@@ -633,7 +663,9 @@ def test_mastery_writeback_saturation_does_not_affect_downward_correction():
     """DATA-004: Saturation only applies to upward blending. Downward correction
     (when inferred mastery is below prior) should not be dampened."""
     student_id = uuid4()
-    profile = build_profile(student_id, frustration="low", total_load=0.2, kc_mastery={"KC-2": 0.90})
+    profile = build_profile(
+        student_id, frustration="low", total_load=0.2, kc_mastery={"KC-2": 0.90}
+    )
     updater = ObservationProfileUpdater()
 
     # A poor observation should still be able to pull mastery down

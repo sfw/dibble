@@ -44,8 +44,18 @@ def test_kc_sequence_planner_inserts_same_lo_bridge_before_target_return():
         knowledge_component_store=_StubKnowledgeComponentStore(
             [
                 _build_component("KC-1", parent_lo_id="LO-1", difficulty=0.3),
-                _build_component("KC-2", parent_lo_id="LO-2", prerequisite_kc_ids=["KC-1"], difficulty=0.46),
-                _build_component("KC-3", parent_lo_id="LO-2", prerequisite_kc_ids=["KC-1"], difficulty=0.62),
+                _build_component(
+                    "KC-2",
+                    parent_lo_id="LO-2",
+                    prerequisite_kc_ids=["KC-1"],
+                    difficulty=0.46,
+                ),
+                _build_component(
+                    "KC-3",
+                    parent_lo_id="LO-2",
+                    prerequisite_kc_ids=["KC-1"],
+                    difficulty=0.62,
+                ),
             ]
         )
     )

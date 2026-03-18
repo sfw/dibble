@@ -90,7 +90,9 @@ class SQLiteProviderHealthStore:
             )
         return sorted(latest.values(), key=lambda item: item.provider_name)
 
-    def routing_snapshots(self, *, provider_names: list[str] | None = None, limit: int = 500) -> list[ProviderRoutingSnapshot]:
+    def routing_snapshots(
+        self, *, provider_names: list[str] | None = None, limit: int = 500
+    ) -> list[ProviderRoutingSnapshot]:
         events = self.list(limit=limit)
         allowed = set(provider_names) if provider_names is not None else None
         snapshots: dict[str, ProviderRoutingSnapshot] = {}
@@ -112,7 +114,9 @@ class SQLiteProviderHealthStore:
                 snapshot.failed_requests += 1
 
             average_latency = event.detail.get("average_latency_ms")
-            if snapshot.average_latency_ms is None and isinstance(average_latency, (int, float)):
+            if snapshot.average_latency_ms is None and isinstance(
+                average_latency, (int, float)
+            ):
                 snapshot.average_latency_ms = float(average_latency)
 
             if (
@@ -128,7 +132,8 @@ class SQLiteProviderHealthStore:
             recent_events = [
                 event
                 for event in events
-                if event.provider_name == provider_name and (allowed is None or provider_name in allowed)
+                if event.provider_name == provider_name
+                and (allowed is None or provider_name in allowed)
             ]
             for event in recent_events:
                 if event.status in {"success", "circuit_recovered"}:

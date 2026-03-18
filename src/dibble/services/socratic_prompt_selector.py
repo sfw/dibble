@@ -17,7 +17,9 @@ class SocraticPromptSelector:
             for event in self.audit_store.list(limit=self.max_events)
             if event.event_type == "assessment.socratic"
             and event.payload.get("prompt_template_name")
-            and str(event.payload.get("prompt_template_name")).startswith("assessment_probe.")
+            and str(event.payload.get("prompt_template_name")).startswith(
+                "assessment_probe."
+            )
             and event.payload.get("prompt_template_variant")
         ]
         if not events:
@@ -28,7 +30,9 @@ class SocraticPromptSelector:
         profile_update_counts: dict[str, int] = {}
         for event in events:
             variant = str(event.payload.get("prompt_template_variant"))
-            grouped.setdefault(variant, []).append(float(event.payload.get("evidence_score", 0.0)))
+            grouped.setdefault(variant, []).append(
+                float(event.payload.get("evidence_score", 0.0))
+            )
             demonstrated_counts[variant] = demonstrated_counts.get(variant, 0) + (
                 1 if event.payload.get("evidence_strength") == "demonstrated" else 0
             )
@@ -51,7 +55,9 @@ class SocraticPromptSelector:
             demonstrated_rate = demonstrated_counts.get(variant, 0) / event_count
             profile_update_rate = profile_update_counts.get(variant, 0) / event_count
             return (
-                average_evidence + (demonstrated_rate * 0.2) + (profile_update_rate * 0.1),
+                average_evidence
+                + (demonstrated_rate * 0.2)
+                + (profile_update_rate * 0.1),
                 average_evidence,
                 event_count,
             )

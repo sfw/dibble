@@ -9,7 +9,11 @@ from dibble.storage import ensure_database
 
 
 def test_prompt_manager_uses_override_variant():
-    manager = PromptManager(library_version="2.1", experiment_enabled=True, variant_override="guided_reflection")
+    manager = PromptManager(
+        library_version="2.1",
+        experiment_enabled=True,
+        variant_override="guided_reflection",
+    )
 
     selection = manager.select(
         student_id=UUID("00000000-0000-0000-0000-000000000123"),
@@ -149,7 +153,9 @@ def test_prompt_manager_can_adaptively_select_generation_variant(tmp_path):
     assert selection.template_name == "worked_example.guided_reflection"
 
 
-def test_prompt_manager_can_use_recent_socratic_steering_for_generation_variant(tmp_path):
+def test_prompt_manager_can_use_recent_socratic_steering_for_generation_variant(
+    tmp_path,
+):
     database_path = str(tmp_path / "prompt-manager-socratic-steering.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -178,7 +184,9 @@ def test_prompt_manager_can_use_recent_socratic_steering_for_generation_variant(
     assert selection.template_name == "practice_problem.guided_reflection"
 
 
-def test_prompt_manager_uses_guided_reflection_for_restate_then_apply_socratic_follow_up(tmp_path):
+def test_prompt_manager_uses_guided_reflection_for_restate_then_apply_socratic_follow_up(
+    tmp_path,
+):
     database_path = str(tmp_path / "prompt-manager-socratic-restate.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)

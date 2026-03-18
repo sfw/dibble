@@ -75,7 +75,9 @@ def build_generation_mode_plan(
         "target_kc_ids": request.target_kc_ids,
         "target_lo_ids": request.target_lo_ids,
         "curriculum_context": request.curriculum_context,
-        "requested_content_type": request.requested_content_type.value if request.requested_content_type else None,
+        "requested_content_type": request.requested_content_type.value
+        if request.requested_content_type
+        else None,
         "selected_content_type": content_type.value,
         "selection_mode": selection_mode,
     }
@@ -137,19 +139,33 @@ def build_generation_mode_plan(
             request_context["source_generation_id"] = request.source_generation_id
 
     if content_type == RequestedContentType.practice_problem:
-        progression = plan_practice_progression(profile=profile, request=request, mode_calibration=mode_calibration)
+        progression = plan_practice_progression(
+            profile=profile, request=request, mode_calibration=mode_calibration
+        )
         request_context["difficulty_band"] = progression.difficulty_band.value
-        request_context["difficulty_progression_action"] = progression.progression_action
+        request_context["difficulty_progression_action"] = (
+            progression.progression_action
+        )
         request_context["practice_distractor_style"] = progression.distractor_style
         request_context["practice_distractor_family"] = progression.distractor_family
-        request_context["practice_distractor_support_intensity"] = progression.distractor_support_intensity
+        request_context["practice_distractor_support_intensity"] = (
+            progression.distractor_support_intensity
+        )
         request_context["practice_distractor_focus"] = progression.distractor_focus
-        request_context["practice_distractor_blueprint"] = progression.distractor_blueprint
+        request_context["practice_distractor_blueprint"] = (
+            progression.distractor_blueprint
+        )
         request_context["practice_distractor_slots"] = progression.distractor_slots
         request_context["practice_answer_check_focus"] = progression.answer_check_focus
-        request_context["practice_distractor_misconception_ids"] = progression.target_misconception_ids
-        request_context["practice_distractor_remediation_hint"] = progression.remediation_anchor
-        request_context["practice_distractor_rationale"] = progression.distractor_rationale
+        request_context["practice_distractor_misconception_ids"] = (
+            progression.target_misconception_ids
+        )
+        request_context["practice_distractor_remediation_hint"] = (
+            progression.remediation_anchor
+        )
+        request_context["practice_distractor_rationale"] = (
+            progression.distractor_rationale
+        )
         request_context["mode_calibration_applied"] = progression.calibration_applied
         distractor_slots = "; ".join(progression.distractor_slots)
         blueprint_slots = "; ".join(
@@ -168,26 +184,42 @@ def build_generation_mode_plan(
             f"Distractor rationale: {progression.distractor_rationale}."
         )
         if progression.remediation_anchor is not None:
-            prompt_guidance = (
-                f"{prompt_guidance} If you include a hint, anchor it in this corrective move: {progression.remediation_anchor}."
-            )
-        prompt_guidance = _append_socratic_guidance(prompt_guidance, mode_calibration=mode_calibration)
+            prompt_guidance = f"{prompt_guidance} If you include a hint, anchor it in this corrective move: {progression.remediation_anchor}."
+        prompt_guidance = _append_socratic_guidance(
+            prompt_guidance, mode_calibration=mode_calibration
+        )
     elif content_type == RequestedContentType.worked_example:
-        progression = plan_worked_example_progression(profile=profile, request=request, mode_calibration=mode_calibration)
+        progression = plan_worked_example_progression(
+            profile=profile, request=request, mode_calibration=mode_calibration
+        )
         request_context["fading_strategy"] = progression.fading.value
-        request_context["worked_steps_visible"] = _worked_steps_visible(progression.fading)
-        request_context["worked_example_progression_action"] = progression.progression_action
+        request_context["worked_steps_visible"] = _worked_steps_visible(
+            progression.fading
+        )
+        request_context["worked_example_progression_action"] = (
+            progression.progression_action
+        )
         request_context["worked_example_fade_focus"] = progression.fade_focus
         request_context["worked_example_release_stage"] = progression.release_stage
-        request_context["worked_example_learner_release_intensity"] = progression.learner_release_intensity
-        request_context["worked_example_release_transition"] = progression.release_transition
-        request_context["worked_example_visible_step_roles"] = progression.visible_step_roles
-        request_context["worked_example_hidden_step_role"] = progression.hidden_step_role
+        request_context["worked_example_learner_release_intensity"] = (
+            progression.learner_release_intensity
+        )
+        request_context["worked_example_release_transition"] = (
+            progression.release_transition
+        )
+        request_context["worked_example_visible_step_roles"] = (
+            progression.visible_step_roles
+        )
+        request_context["worked_example_hidden_step_role"] = (
+            progression.hidden_step_role
+        )
         request_context["worked_example_transfer_move"] = progression.transfer_move
         request_context["worked_example_transfer_plan"] = progression.transfer_plan
         request_context["worked_example_step_outline"] = progression.step_outline
         request_context["worked_example_learner_release"] = progression.learner_release
-        request_context["worked_example_release_rationale"] = progression.release_rationale
+        request_context["worked_example_release_rationale"] = (
+            progression.release_rationale
+        )
         request_context["mode_calibration_applied"] = progression.calibration_applied
         prompt_guidance = _append_socratic_guidance(
             _worked_example_guidance(
@@ -207,16 +239,14 @@ def build_generation_mode_plan(
             mode_calibration=mode_calibration,
         )
     elif content_type == RequestedContentType.assessment_probe:
-        prompt_guidance = (
-            "Generate a short diagnostic probe that reveals learner understanding without giving away the full answer."
-        )
+        prompt_guidance = "Generate a short diagnostic probe that reveals learner understanding without giving away the full answer."
     elif content_type == RequestedContentType.remedial_micro_module:
-        prompt_guidance = (
-            "Step back to prerequisite understanding, simplify language, and reconnect the learner to the target concept."
-        )
+        prompt_guidance = "Step back to prerequisite understanding, simplify language, and reconnect the learner to the target concept."
     else:
         prompt_guidance = _micro_explanation_guidance(request)
-        prompt_guidance = _append_socratic_guidance(prompt_guidance, mode_calibration=mode_calibration)
+        prompt_guidance = _append_socratic_guidance(
+            prompt_guidance, mode_calibration=mode_calibration
+        )
 
     return GenerationModePlan(
         content_type=content_type,
@@ -253,7 +283,10 @@ def select_content_type(
         and mode_calibration is not None
         and mode_calibration.session_assessment_count > 0
     ):
-        if mode_calibration.session_arc_action == "bridge_with_target" and mode_calibration.session_phase == "bridge":
+        if (
+            mode_calibration.session_arc_action == "bridge_with_target"
+            and mode_calibration.session_phase == "bridge"
+        ):
             return (
                 RequestedContentType.practice_problem,
                 "session_arc",
@@ -285,7 +318,8 @@ def select_content_type(
         default_type == RequestedContentType.micro_explanation
         and route.delivery_mode.value != "blended"
         and (
-            profile.metacognitive_state.help_seeking in {SignalLevel.medium, SignalLevel.high}
+            profile.metacognitive_state.help_seeking
+            in {SignalLevel.medium, SignalLevel.high}
             or profile.cognitive_load.total_load >= 0.7
             or profile.metacognitive_state.confidence_calibration < 0.45
         )
@@ -323,7 +357,8 @@ def select_worked_example_fading(
         return WorkedExampleFading.full
     if (
         mastery < 0.75
-        or profile.metacognitive_state.help_seeking in {SignalLevel.medium, SignalLevel.high}
+        or profile.metacognitive_state.help_seeking
+        in {SignalLevel.medium, SignalLevel.high}
         or profile.metacognitive_state.confidence_calibration < 0.6
         or profile.metacognitive_state.self_monitoring < 0.6
     ):
@@ -343,7 +378,9 @@ def apply_support_bias_to_difficulty_band(
         PracticeDifficultyBand.stretch,
     ]
     current_index = bands.index(difficulty_band)
-    adjusted_index = max(0, min(len(bands) - 1, current_index + mode_calibration.support_bias))
+    adjusted_index = max(
+        0, min(len(bands) - 1, current_index + mode_calibration.support_bias)
+    )
     return bands[adjusted_index]
 
 
@@ -359,7 +396,9 @@ def apply_support_bias_to_fading(
         WorkedExampleFading.independent,
     ]
     current_index = strategies.index(fading)
-    adjusted_index = max(0, min(len(strategies) - 1, current_index + mode_calibration.support_bias))
+    adjusted_index = max(
+        0, min(len(strategies) - 1, current_index + mode_calibration.support_bias)
+    )
     return strategies[adjusted_index]
 
 
@@ -370,7 +409,9 @@ def plan_practice_progression(
     mode_calibration: GenerationModeCalibration | None,
 ) -> PracticeProgressionPlan:
     baseline_band = select_practice_difficulty_band(profile, request)
-    difficulty_band = apply_support_bias_to_difficulty_band(baseline_band, mode_calibration)
+    difficulty_band = apply_support_bias_to_difficulty_band(
+        baseline_band, mode_calibration
+    )
     progression_action = "steady_practice"
     distractor_style = "single_contrast"
 
@@ -380,17 +421,22 @@ def plan_practice_progression(
             progression_action = "repair_rebuild"
             distractor_style = "misconception_contrast"
         elif mode_calibration.session_phase == "consolidate":
-            difficulty_band = _cap_practice_band(difficulty_band, PracticeDifficultyBand.on_grade)
+            difficulty_band = _cap_practice_band(
+                difficulty_band, PracticeDifficultyBand.on_grade
+            )
             progression_action = "guided_consolidation"
             distractor_style = "scaffolded_near_miss"
         elif mode_calibration.session_phase == "bridge":
-            difficulty_band = _cap_practice_band(difficulty_band, PracticeDifficultyBand.on_grade)
+            difficulty_band = _cap_practice_band(
+                difficulty_band, PracticeDifficultyBand.on_grade
+            )
             progression_action = "bridge_to_transfer"
             distractor_style = "target_return"
         elif (
             mode_calibration.progress_signal == "improving"
             and mode_calibration.support_bias > 0
-            and mode_calibration.strategy_trajectory_state in {"accelerating", "consolidating", "insufficient"}
+            and mode_calibration.strategy_trajectory_state
+            in {"accelerating", "consolidating", "insufficient"}
         ):
             if baseline_band != PracticeDifficultyBand.support:
                 difficulty_band = _raise_practice_band(difficulty_band)
@@ -401,7 +447,9 @@ def plan_practice_progression(
             progression_action = "stabilize_after_decline"
             distractor_style = "misconception_contrast"
         elif mode_calibration.strategy_trajectory_state in {"plateaued", "volatile"}:
-            difficulty_band = _cap_practice_band(difficulty_band, PracticeDifficultyBand.on_grade)
+            difficulty_band = _cap_practice_band(
+                difficulty_band, PracticeDifficultyBand.on_grade
+            )
             progression_action = "vary_support_before_stretch"
             distractor_style = "scaffolded_near_miss"
         elif difficulty_band == PracticeDifficultyBand.stretch:
@@ -430,23 +478,29 @@ def plan_practice_progression(
     ):
         distractor_style = "misconception_contrast"
 
-    distractor_focus, target_misconception_ids, remediation_anchor = _practice_distractor_focus(
-        request=request,
-        distractor_style=distractor_style,
-        progression_action=progression_action,
+    distractor_focus, target_misconception_ids, remediation_anchor = (
+        _practice_distractor_focus(
+            request=request,
+            distractor_style=distractor_style,
+            progression_action=progression_action,
+        )
     )
-    distractor_family, distractor_support_intensity, distractor_rationale = _practice_distractor_family(
-        profile=profile,
-        request=request,
-        distractor_style=distractor_style,
-        progression_action=progression_action,
-        mode_calibration=mode_calibration,
+    distractor_family, distractor_support_intensity, distractor_rationale = (
+        _practice_distractor_family(
+            profile=profile,
+            request=request,
+            distractor_style=distractor_style,
+            progression_action=progression_action,
+            mode_calibration=mode_calibration,
+        )
     )
-    distractor_blueprint, distractor_slots, answer_check_focus = _practice_distractor_blueprint(
-        request=request,
-        distractor_style=distractor_style,
-        progression_action=progression_action,
-        support_intensity=distractor_support_intensity,
+    distractor_blueprint, distractor_slots, answer_check_focus = (
+        _practice_distractor_blueprint(
+            request=request,
+            distractor_style=distractor_style,
+            progression_action=progression_action,
+            support_intensity=distractor_support_intensity,
+        )
     )
 
     return PracticeProgressionPlan(
@@ -501,8 +555,13 @@ def plan_worked_example_progression(
         elif mode_calibration.strategy_trajectory_state in {"plateaued", "volatile"}:
             fading = _cap_fading(fading, WorkedExampleFading.completion)
             progression_action = "vary_support_release"
-            fade_focus = "a partially faded example with one decision left for the learner"
-        elif mode_calibration.progress_signal == "improving" and mode_calibration.support_bias > 0:
+            fade_focus = (
+                "a partially faded example with one decision left for the learner"
+            )
+        elif (
+            mode_calibration.progress_signal == "improving"
+            and mode_calibration.support_bias > 0
+        ):
             fading = _raise_fading(fading)
             progression_action = "accelerate_fade"
             fade_focus = "a quick cue before independent target completion"
@@ -544,14 +603,16 @@ def plan_worked_example_progression(
         transfer_move=transfer_move,
         transfer_plan=transfer_plan,
     )
-    release_stage, learner_release_intensity, release_transition, release_rationale = _worked_example_release_plan(
-        profile=profile,
-        fading=fading,
-        progression_action=progression_action,
-        visible_step_roles=visible_step_roles,
-        hidden_step_role=hidden_step_role,
-        transfer_move=transfer_move,
-        mode_calibration=mode_calibration,
+    release_stage, learner_release_intensity, release_transition, release_rationale = (
+        _worked_example_release_plan(
+            profile=profile,
+            fading=fading,
+            progression_action=progression_action,
+            visible_step_roles=visible_step_roles,
+            hidden_step_role=hidden_step_role,
+            transfer_move=transfer_move,
+            mode_calibration=mode_calibration,
+        )
     )
 
     return WorkedExampleProgressionPlan(
@@ -653,33 +714,19 @@ def _append_socratic_guidance(
     ):
         return guidance
     if mode_calibration.socratic_steering_action == "repair_then_model":
-        return (
-            f"{guidance} Start from the exact prerequisite gap surfaced in the recent Socratic turn and make the corrected reasoning explicit before asking for independence."
-        )
+        return f"{guidance} Start from the exact prerequisite gap surfaced in the recent Socratic turn and make the corrected reasoning explicit before asking for independence."
     if mode_calibration.socratic_steering_action == "restate_then_apply":
-        return (
-            f"{guidance} Ask the learner to restate the repaired idea briefly, then apply it once in a closely related case before any broader transfer move."
-        )
+        return f"{guidance} Ask the learner to restate the repaired idea briefly, then apply it once in a closely related case before any broader transfer move."
     if mode_calibration.session_arc_action == "bridge_with_target":
-        return (
-            f"{guidance} Keep this as a guided bridge on the current target, then end with one light application that prepares the learner for transfer."
-        )
+        return f"{guidance} Keep this as a guided bridge on the current target, then end with one light application that prepares the learner for transfer."
     if mode_calibration.session_arc_action == "restate_then_apply":
-        return (
-            f"{guidance} Ask the learner to restate the repaired idea briefly, then apply it once in a closely related case."
-        )
+        return f"{guidance} Ask the learner to restate the repaired idea briefly, then apply it once in a closely related case."
     if mode_calibration.session_arc_action == "reprobe_new_angle":
-        return (
-            f"{guidance} Change the representation or comparison and avoid adding another full scaffold in the same wording."
-        )
+        return f"{guidance} Change the representation or comparison and avoid adding another full scaffold in the same wording."
     if mode_calibration.socratic_steering_action == "clarify_then_check":
-        return (
-            f"{guidance} Address the exact wording or reasoning ambiguity surfaced in the recent Socratic follow-up, then end with one short self-explanation check."
-        )
+        return f"{guidance} Address the exact wording or reasoning ambiguity surfaced in the recent Socratic follow-up, then end with one short self-explanation check."
     if mode_calibration.socratic_steering_action == "verify_transfer":
-        return (
-            f"{guidance} Keep the final cue light and use a nearby transfer context so the learner has to apply the idea, not restate it."
-        )
+        return f"{guidance} Keep the final cue light and use a nearby transfer context so the learner has to apply the idea, not restate it."
     if mode_calibration.socratic_steering_action == "probe_from_new_angle":
         return f"{guidance} Use a fresh representation or comparison so the next step does not simply repeat the last Socratic wording."
     return guidance
@@ -693,15 +740,11 @@ def _micro_explanation_guidance(request: GenerationRequest) -> str:
     concept_anchor = hint.kc_name
     guidance = f"{guidance} Center the explanation on {concept_anchor}."
     if hint.misconception_labels:
-        guidance = (
-            f"{guidance} Name and correct the likely misconception '{hint.misconception_labels[0]}' without repeating the learner's exact wording."
-        )
+        guidance = f"{guidance} Name and correct the likely misconception '{hint.misconception_labels[0]}' without repeating the learner's exact wording."
     if hint.remediation_hints:
         guidance = f"{guidance} Anchor the correction in this move: {hint.remediation_hints[0]}."
     if hint.nearby_kc_names:
-        guidance = (
-            f"{guidance} Use one nearby comparison such as {hint.nearby_kc_names[0]} to make the distinction visible."
-        )
+        guidance = f"{guidance} Use one nearby comparison such as {hint.nearby_kc_names[0]} to make the distinction visible."
     return guidance
 
 
@@ -713,14 +756,24 @@ def _practice_distractor_focus(
 ) -> tuple[str, list[str], str | None]:
     hint = _primary_target_hint(request)
     if hint is None:
-        return _default_practice_distractor_focus(distractor_style, progression_action), [], None
+        return (
+            _default_practice_distractor_focus(distractor_style, progression_action),
+            [],
+            None,
+        )
 
     misconception_ids = hint.misconception_ids[:1]
-    misconception_label = hint.misconception_labels[0] if hint.misconception_labels else None
+    misconception_label = (
+        hint.misconception_labels[0] if hint.misconception_labels else None
+    )
     remediation_anchor = hint.remediation_hints[0] if hint.remediation_hints else None
     concept_anchor = hint.kc_name
     if misconception_label is None:
-        return _default_practice_distractor_focus(distractor_style, progression_action), misconception_ids, remediation_anchor
+        return (
+            _default_practice_distractor_focus(distractor_style, progression_action),
+            misconception_ids,
+            remediation_anchor,
+        )
 
     style_map = {
         "misconception_contrast": (
@@ -739,13 +792,19 @@ def _practice_distractor_focus(
             f"Make the main contrast expose '{misconception_label}' in {concept_anchor} instead of relying on a generic wrong answer."
         ),
     }
-    return style_map.get(
-        distractor_style,
-        _default_practice_distractor_focus(distractor_style, progression_action),
-    ), misconception_ids, remediation_anchor
+    return (
+        style_map.get(
+            distractor_style,
+            _default_practice_distractor_focus(distractor_style, progression_action),
+        ),
+        misconception_ids,
+        remediation_anchor,
+    )
 
 
-def _default_practice_distractor_focus(distractor_style: str, progression_action: str) -> str:
+def _default_practice_distractor_focus(
+    distractor_style: str, progression_action: str
+) -> str:
     style_map = {
         "misconception_contrast": "Contrast one likely wrong move with one clearly correct structural alternative.",
         "scaffolded_near_miss": "Use one close near miss and one simpler structural contrast so the learner has to discriminate, not guess.",
@@ -768,8 +827,16 @@ def _practice_distractor_blueprint(
 ) -> tuple[list[dict[str, str]], list[str], str]:
     hint = _primary_target_hint(request)
     concept_anchor = hint.kc_name if hint is not None else "the target concept"
-    nearby_anchor = hint.nearby_kc_names[0] if hint is not None and hint.nearby_kc_names else "a nearby parallel case"
-    misconception_label = hint.misconception_labels[0] if hint is not None and hint.misconception_labels else "the likely misconception"
+    nearby_anchor = (
+        hint.nearby_kc_names[0]
+        if hint is not None and hint.nearby_kc_names
+        else "a nearby parallel case"
+    )
+    misconception_label = (
+        hint.misconception_labels[0]
+        if hint is not None and hint.misconception_labels
+        else "the likely misconception"
+    )
     misconception_description = (
         hint.misconception_descriptions[0]
         if hint is not None and hint.misconception_descriptions
@@ -921,8 +988,14 @@ def _practice_distractor_family(
     }
     family = family_map.get(distractor_style, "single_structural_contrast")
     hint = _primary_target_hint(request)
-    if hint is not None and hint.misconception_labels and distractor_style == "misconception_contrast":
-        support_intensity = "explicit" if support_intensity == "moderate" else support_intensity
+    if (
+        hint is not None
+        and hint.misconception_labels
+        and distractor_style == "misconception_contrast"
+    ):
+        support_intensity = (
+            "explicit" if support_intensity == "moderate" else support_intensity
+        )
     if hint is not None and hint.misconception_labels:
         rationale = f"{rationale} Ground the wrong answer family in {hint.misconception_labels[0]}."
     return family, support_intensity, rationale
@@ -934,7 +1007,10 @@ def _practice_support_intensity(
     progression_action: str,
     mode_calibration: GenerationModeCalibration | None,
 ) -> tuple[str, str]:
-    if mode_calibration is not None and mode_calibration.session_phase in {"stabilize", "repair"}:
+    if mode_calibration is not None and mode_calibration.session_phase in {
+        "stabilize",
+        "repair",
+    }:
         return (
             "explicit",
             "Same-session repair is still active, so distractors should keep the comparison space tight and visibly contrast the corrected move.",
@@ -944,12 +1020,19 @@ def _practice_support_intensity(
             "explicit",
             "Reliable durable load or metacognitive signals still point to support need, so distractors should stay close to the misconception and avoid noisy variation.",
         )
-    if progression_action in {"repair_rebuild", "hold_support", "stabilize_after_decline"}:
+    if progression_action in {
+        "repair_rebuild",
+        "hold_support",
+        "stabilize_after_decline",
+    }:
         return (
             "explicit",
             "The current progression still calls for support, so distractors should make the corrected move unmistakable before asking for freer discrimination.",
         )
-    if progression_action in {"advance_after_improvement", "advance_to_stretch"} or _ready_for_reliable_release(
+    if progression_action in {
+        "advance_after_improvement",
+        "advance_to_stretch",
+    } or _ready_for_reliable_release(
         profile=profile,
         mode_calibration=mode_calibration,
     ):
@@ -971,15 +1054,42 @@ def _worked_example_roles(
 ) -> tuple[list[str], str, str]:
     hint = _primary_target_hint(request)
     concept_anchor = hint.kc_name if hint is not None else "the target concept"
-    nearby_anchor = hint.nearby_kc_names[0] if hint is not None and hint.nearby_kc_names else "a nearby parallel case"
+    nearby_anchor = (
+        hint.nearby_kc_names[0]
+        if hint is not None and hint.nearby_kc_names
+        else "a nearby parallel case"
+    )
 
-    if progression_action in {"rebuild_with_full_model", "stabilize_with_modeling", "hold_full_model"}:
-        return ["setup", "reasoning", "check"], "self-explanation", f"explain why the repaired reasoning works in {concept_anchor}"
+    if progression_action in {
+        "rebuild_with_full_model",
+        "stabilize_with_modeling",
+        "hold_full_model",
+    }:
+        return (
+            ["setup", "reasoning", "check"],
+            "self-explanation",
+            f"explain why the repaired reasoning works in {concept_anchor}",
+        )
     if progression_action == "bridge_release":
-        return ["setup", "worked bridge"], "target return", f"carry the repaired idea from {nearby_anchor} back into {concept_anchor}"
-    if progression_action in {"independent_transfer", "accelerate_fade"} or fading == WorkedExampleFading.independent:
-        return ["cue"], "independent application", f"apply {concept_anchor} in {nearby_anchor}"
-    return ["setup", "worked step"], "target completion", f"finish the final {concept_anchor} move independently"
+        return (
+            ["setup", "worked bridge"],
+            "target return",
+            f"carry the repaired idea from {nearby_anchor} back into {concept_anchor}",
+        )
+    if (
+        progression_action in {"independent_transfer", "accelerate_fade"}
+        or fading == WorkedExampleFading.independent
+    ):
+        return (
+            ["cue"],
+            "independent application",
+            f"apply {concept_anchor} in {nearby_anchor}",
+        )
+    return (
+        ["setup", "worked step"],
+        "target completion",
+        f"finish the final {concept_anchor} move independently",
+    )
 
 
 def _worked_example_step_outline(
@@ -993,7 +1103,11 @@ def _worked_example_step_outline(
 ) -> tuple[list[str], str]:
     hint = _primary_target_hint(request)
     concept_anchor = hint.kc_name if hint is not None else "the target concept"
-    nearby_anchor = hint.nearby_kc_names[0] if hint is not None and hint.nearby_kc_names else "a nearby parallel case"
+    nearby_anchor = (
+        hint.nearby_kc_names[0]
+        if hint is not None and hint.nearby_kc_names
+        else "a nearby parallel case"
+    )
     role_map = {
         "setup": f"setup: establish the representation or givens for {concept_anchor}",
         "reasoning": f"reasoning: model the key structural relationship that makes {concept_anchor} work",
@@ -1002,7 +1116,12 @@ def _worked_example_step_outline(
         "worked bridge": f"worked bridge: demonstrate the same idea in {nearby_anchor} before returning to {concept_anchor}",
         "cue": f"cue: give only the lightest setup needed to remind the learner how {concept_anchor} starts",
     }
-    step_outline = [role_map.get(role, f"{role}: keep the step concise and aligned to {concept_anchor}") for role in visible_step_roles]
+    step_outline = [
+        role_map.get(
+            role, f"{role}: keep the step concise and aligned to {concept_anchor}"
+        )
+        for role in visible_step_roles
+    ]
     if hidden_step_role == "self-explanation":
         learner_release = f"self-explanation: ask the learner to explain why the repaired reasoning now works in {concept_anchor}."
     elif hidden_step_role == "target return":
@@ -1012,13 +1131,13 @@ def _worked_example_step_outline(
     else:
         learner_release = f"target completion: ask the learner to finish the final move in {concept_anchor} and justify it briefly."
     if progression_action == "bridge_release":
-        learner_release = (
-            f"{learner_release} Keep the bridge explicit so the learner sees how the example returns from {nearby_anchor} to {concept_anchor}."
-        )
+        learner_release = f"{learner_release} Keep the bridge explicit so the learner sees how the example returns from {nearby_anchor} to {concept_anchor}."
     if progression_action == "independent_transfer":
         learner_release = f"{learner_release} Keep the final cue light and point toward this transfer move: {transfer_move}."
     if transfer_plan.get("check_prompt"):
-        learner_release = f"{learner_release} Check prompt: {transfer_plan['check_prompt']}."
+        learner_release = (
+            f"{learner_release} Check prompt: {transfer_plan['check_prompt']}."
+        )
     return step_outline, learner_release
 
 
@@ -1031,8 +1150,17 @@ def _worked_example_transfer_plan(
 ) -> dict[str, str]:
     hint = _primary_target_hint(request)
     concept_anchor = hint.kc_name if hint is not None else "the target concept"
-    nearby_anchor = hint.nearby_kc_names[0] if hint is not None and hint.nearby_kc_names else concept_anchor
-    bridge_context = nearby_anchor if progression_action in {"bridge_release", "independent_transfer", "accelerate_fade"} else concept_anchor
+    nearby_anchor = (
+        hint.nearby_kc_names[0]
+        if hint is not None and hint.nearby_kc_names
+        else concept_anchor
+    )
+    bridge_context = (
+        nearby_anchor
+        if progression_action
+        in {"bridge_release", "independent_transfer", "accelerate_fade"}
+        else concept_anchor
+    )
     if progression_action == "bridge_release":
         preserve = f"the repaired structure in {concept_anchor} stays the same"
         change = f"the example now bridges through {nearby_anchor} before returning to {concept_anchor}"
@@ -1044,7 +1172,9 @@ def _worked_example_transfer_plan(
     else:
         preserve = f"the same target structure of {concept_anchor} stays visible"
         change = f"the learner now owns the last move in {concept_anchor}"
-        check_prompt = f"state the structural carryover and complete the {hidden_step_role}"
+        check_prompt = (
+            f"state the structural carryover and complete the {hidden_step_role}"
+        )
     return {
         "source_context": concept_anchor,
         "bridge_context": bridge_context,
@@ -1067,7 +1197,11 @@ def _worked_example_release_plan(
 ) -> tuple[str, str, str, str]:
     visible_text = " -> ".join(visible_step_roles)
     release_transition = f"{visible_text} -> {hidden_step_role}"
-    if progression_action in {"rebuild_with_full_model", "stabilize_with_modeling", "hold_full_model"}:
+    if progression_action in {
+        "rebuild_with_full_model",
+        "stabilize_with_modeling",
+        "hold_full_model",
+    }:
         return (
             "full_model_then_self_explain",
             "high_support",
@@ -1081,10 +1215,15 @@ def _worked_example_release_plan(
             release_transition,
             f"Use the visible bridge step to move from the repaired case into {transfer_move} without pretending the learner is ready for a cold transfer.",
         )
-    if fading == WorkedExampleFading.independent or progression_action in {"accelerate_fade", "independent_transfer"}:
+    if fading == WorkedExampleFading.independent or progression_action in {
+        "accelerate_fade",
+        "independent_transfer",
+    }:
         rationale = (
             "Stable recovery and challenge readiness support a light release, so the learner should own the transfer move after a minimal cue."
-            if _ready_for_reliable_release(profile=profile, mode_calibration=mode_calibration)
+            if _ready_for_reliable_release(
+                profile=profile, mode_calibration=mode_calibration
+            )
             else "The learner is ready for a light release, so the example should quickly hand off the transfer move."
         )
         return (
@@ -1112,11 +1251,19 @@ def _primary_target_hint(request: GenerationRequest) -> TargetKcGenerationHint |
     return request.target_kc_hints[0]
 
 
-def _average_target_mastery(profile: LearnerProfile, request: GenerationRequest) -> float:
+def _average_target_mastery(
+    profile: LearnerProfile, request: GenerationRequest
+) -> float:
     if request.target_kc_ids:
-        values = [profile.knowledge_state.kc_mastery.get(kc_id, 0.0) for kc_id in request.target_kc_ids]
+        values = [
+            profile.knowledge_state.kc_mastery.get(kc_id, 0.0)
+            for kc_id in request.target_kc_ids
+        ]
     elif request.target_lo_ids:
-        values = [profile.knowledge_state.lo_mastery.get(lo_id, 0.0) for lo_id in request.target_lo_ids]
+        values = [
+            profile.knowledge_state.lo_mastery.get(lo_id, 0.0)
+            for lo_id in request.target_lo_ids
+        ]
     else:
         values = list(profile.knowledge_state.kc_mastery.values()) or [0.5]
     return sum(values) / len(values)

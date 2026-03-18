@@ -5,14 +5,28 @@ from uuid import UUID
 
 from dibble.models.assignment import Assignment
 from dibble.models.classroom import Classroom, ClassroomUpsert
-from dibble.models.curriculum import CurriculumResource, CurriculumResourceUpsert, KnowledgeComponent, KnowledgeComponentUpsert
+from dibble.models.curriculum import (
+    CurriculumResource,
+    CurriculumResourceUpsert,
+    KnowledgeComponent,
+    KnowledgeComponentUpsert,
+)
 from dibble.models.assessment import SocraticAssessmentSession
-from dibble.models.generation import GeneratedContent, GenerationRequest, PredictiveWarmSweepResult, PredictiveWarmTask
+from dibble.models.generation import (
+    GeneratedContent,
+    GenerationRequest,
+    PredictiveWarmSweepResult,
+    PredictiveWarmTask,
+)
 from dibble.models.observations import LearnerObservation, LearnerObservationCreate
 from dibble.models.profile import LearnerProfile
 from dibble.models.remediation import RemediationWorkflowSession
 from dibble.models.session_adaptation import WithinSessionControllerState
-from dibble.models.telemetry import AuditEvent, ProviderHealthEvent, ProviderStatusSnapshot
+from dibble.models.telemetry import (
+    AuditEvent,
+    ProviderHealthEvent,
+    ProviderStatusSnapshot,
+)
 from dibble.services.auth_sessions import StoredAuthSession
 from dibble.services.provider_health import ProviderRoutingSnapshot
 from dibble.services.retrieval.embedding_store import StoredEmbedding
@@ -21,10 +35,16 @@ from dibble.services.retrieval.embedding_store import StoredEmbedding
 class AssignmentStore(Protocol):
     def upsert(self, assignment: Assignment) -> Assignment: ...
     def get(self, assignment_id: str) -> Assignment | None: ...
-    def list_for_student(self, *, student_id: str, limit: int = 20, offset: int = 0) -> list[Assignment]: ...
+    def list_for_student(
+        self, *, student_id: str, limit: int = 20, offset: int = 0
+    ) -> list[Assignment]: ...
     def count_for_student(self, *, student_id: str) -> int: ...
-    def list_for_classroom(self, *, classroom_id: str, limit: int = 50, offset: int = 0) -> list[Assignment]: ...
-    def list_for_teacher(self, *, teacher_id: str, limit: int = 50, offset: int = 0) -> list[Assignment]: ...
+    def list_for_classroom(
+        self, *, classroom_id: str, limit: int = 50, offset: int = 0
+    ) -> list[Assignment]: ...
+    def list_for_teacher(
+        self, *, teacher_id: str, limit: int = 50, offset: int = 0
+    ) -> list[Assignment]: ...
 
 
 class ProfileStore(Protocol):
@@ -34,8 +54,12 @@ class ProfileStore(Protocol):
 
 
 class ObservationStore(Protocol):
-    def append(self, *, student_id: str, observation: LearnerObservationCreate) -> LearnerObservation: ...
-    def list_recent(self, *, student_id: str, limit: int = 20) -> list[LearnerObservation]: ...
+    def append(
+        self, *, student_id: str, observation: LearnerObservationCreate
+    ) -> LearnerObservation: ...
+    def list_recent(
+        self, *, student_id: str, limit: int = 20
+    ) -> list[LearnerObservation]: ...
 
 
 class CurriculumStore(Protocol):
@@ -71,7 +95,9 @@ class AuditStore(Protocol):
 
 
 class GeneratedContentStore(Protocol):
-    def upsert(self, *, cache_key: str, content: GeneratedContent) -> GeneratedContent: ...
+    def upsert(
+        self, *, cache_key: str, content: GeneratedContent
+    ) -> GeneratedContent: ...
     def get(self, *, generation_id: str) -> GeneratedContent | None: ...
     def get_fresh(self, *, cache_key: str) -> GeneratedContent | None: ...
     def refresh(self, *, content: GeneratedContent) -> GeneratedContent: ...
@@ -132,30 +158,50 @@ class PredictiveWarmTaskStore(Protocol):
 
 class EmbeddingStore(Protocol):
     def get(self, resource_id: str) -> StoredEmbedding | None: ...
-    def upsert(self, *, resource_id: str, vector: list[float], source_updated_at: str) -> StoredEmbedding: ...
+    def upsert(
+        self, *, resource_id: str, vector: list[float], source_updated_at: str
+    ) -> StoredEmbedding: ...
 
 
 class ProviderHealthStore(Protocol):
-    def append(self, *, provider_name: str, status: str, detail: dict[str, object] | None = None) -> ProviderHealthEvent: ...
+    def append(
+        self,
+        *,
+        provider_name: str,
+        status: str,
+        detail: dict[str, object] | None = None,
+    ) -> ProviderHealthEvent: ...
     def list(self, *, limit: int = 100) -> list[ProviderHealthEvent]: ...
     def latest_statuses(self) -> list[ProviderStatusSnapshot]: ...
-    def routing_snapshots(self, *, provider_names: list[str] | None = None, limit: int = 500) -> list[ProviderRoutingSnapshot]: ...
+    def routing_snapshots(
+        self, *, provider_names: list[str] | None = None, limit: int = 500
+    ) -> list[ProviderRoutingSnapshot]: ...
 
 
 class SocraticSessionStore(Protocol):
-    def upsert(self, session: SocraticAssessmentSession) -> SocraticAssessmentSession: ...
+    def upsert(
+        self, session: SocraticAssessmentSession
+    ) -> SocraticAssessmentSession: ...
     def get(self, session_id: str) -> SocraticAssessmentSession | None: ...
-    def list_recent_for_student(self, *, student_id: str, limit: int = 20, offset: int = 0) -> list[SocraticAssessmentSession]: ...
+    def list_recent_for_student(
+        self, *, student_id: str, limit: int = 20, offset: int = 0
+    ) -> list[SocraticAssessmentSession]: ...
 
 
 class RemediationSessionStore(Protocol):
-    def upsert(self, session: RemediationWorkflowSession) -> RemediationWorkflowSession: ...
+    def upsert(
+        self, session: RemediationWorkflowSession
+    ) -> RemediationWorkflowSession: ...
     def get(self, session_id: str) -> RemediationWorkflowSession | None: ...
-    def list_recent_for_student(self, *, student_id: str, limit: int = 20, offset: int = 0) -> list[RemediationWorkflowSession]: ...
+    def list_recent_for_student(
+        self, *, student_id: str, limit: int = 20, offset: int = 0
+    ) -> list[RemediationWorkflowSession]: ...
 
 
 class WithinSessionControllerStore(Protocol):
-    def upsert(self, session: WithinSessionControllerState) -> WithinSessionControllerState: ...
+    def upsert(
+        self, session: WithinSessionControllerState
+    ) -> WithinSessionControllerState: ...
     def get(self, learning_session_id: str) -> WithinSessionControllerState | None: ...
 
 

@@ -1,7 +1,10 @@
 from uuid import uuid4
 
 from dibble.services.audit_store import SQLiteAuditStore
-from dibble.services.learning_progress_profiles import LearningProgressProfileBuilder, LearningProgressProfileRecorder
+from dibble.services.learning_progress_profiles import (
+    LearningProgressProfileBuilder,
+    LearningProgressProfileRecorder,
+)
 from dibble.storage import ensure_database
 
 
@@ -81,11 +84,16 @@ def test_learning_progress_profile_recorder_persists_progress_trend(tmp_path):
     profile_event = recorded[0]
     assert profile_event.event_type == "learning.progress.profile"
     assert profile_event.payload["matched_session_count"] == 4
-    assert profile_event.payload["recent_average_run_outcome_score"] > profile_event.payload["prior_average_run_outcome_score"]
+    assert (
+        profile_event.payload["recent_average_run_outcome_score"]
+        > profile_event.payload["prior_average_run_outcome_score"]
+    )
     assert profile_event.payload["progress_signal"] == "improving"
 
 
-def test_learning_progress_profile_builder_marks_declining_when_recent_runs_drop(tmp_path):
+def test_learning_progress_profile_builder_marks_declining_when_recent_runs_drop(
+    tmp_path,
+):
     database_path = str(tmp_path / "learning-progress-profile-declining.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -161,12 +169,17 @@ def test_learning_progress_profile_builder_marks_declining_when_recent_runs_drop
     )
 
     assert snapshot is not None
-    assert snapshot.recent_average_run_outcome_score < snapshot.prior_average_run_outcome_score
+    assert (
+        snapshot.recent_average_run_outcome_score
+        < snapshot.prior_average_run_outcome_score
+    )
     assert snapshot.progress_delta < 0
     assert snapshot.progress_signal == "declining"
 
 
-def test_learning_progress_profile_builder_marks_tentative_without_prior_history(tmp_path):
+def test_learning_progress_profile_builder_marks_tentative_without_prior_history(
+    tmp_path,
+):
     database_path = str(tmp_path / "learning-progress-profile-tentative.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -189,7 +202,9 @@ def test_learning_progress_profile_builder_marks_tentative_without_prior_history
         },
     )
 
-    snapshot = builder.build_from_summary_event(summary_event=summary_event, summary_events=[summary_event])
+    snapshot = builder.build_from_summary_event(
+        summary_event=summary_event, summary_events=[summary_event]
+    )
 
     assert snapshot is not None
     assert snapshot.prior_average_run_outcome_score is None

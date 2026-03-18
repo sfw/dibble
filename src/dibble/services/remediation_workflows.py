@@ -5,12 +5,27 @@ from datetime import datetime, timezone
 from uuid import UUID
 from uuid import uuid4
 
-from dibble.models.generation import ContentIntent, GenerationRequest, RequestedContentType
-from dibble.models.profile import LearnerContinueAction, LearnerFlowNextStep, LearnerStrategySummary
-from dibble.models.remediation import RemediationWorkflowSession, RemediationWorkflowStep, RemediationWorkflowSummary
+from dibble.models.generation import (
+    ContentIntent,
+    GenerationRequest,
+    RequestedContentType,
+)
+from dibble.models.profile import (
+    LearnerContinueAction,
+    LearnerFlowNextStep,
+    LearnerStrategySummary,
+)
+from dibble.models.remediation import (
+    RemediationWorkflowSession,
+    RemediationWorkflowStep,
+    RemediationWorkflowSummary,
+)
 from dibble.services.protocols import RemediationSessionStore
 from dibble.services.remediation_planner import RemediationPlan
-from dibble.services.workflow_rationale import decision_grade_rationale, target_stage_for_phase
+from dibble.services.workflow_rationale import (
+    decision_grade_rationale,
+    target_stage_for_phase,
+)
 
 
 class RemediationWorkflowNotFoundError(LookupError):
@@ -21,7 +36,9 @@ class RemediationWorkflowNotFoundError(LookupError):
 
 class RemediationWorkflowCompleteError(LookupError):
     def __init__(self, session_id: str) -> None:
-        super().__init__(f"Remediation workflow session is already complete: {session_id}.")
+        super().__init__(
+            f"Remediation workflow session is already complete: {session_id}."
+        )
         self.session_id = session_id
 
 
@@ -137,7 +154,9 @@ class RemediationWorkflowCoordinator:
         )
         next_index = current_index + 1
         if next_index < len(steps):
-            steps[next_index] = steps[next_index].model_copy(update={"status": "active"})
+            steps[next_index] = steps[next_index].model_copy(
+                update={"status": "active"}
+            )
             updated_index: int | None = next_index
         else:
             updated_index = None
@@ -145,7 +164,10 @@ class RemediationWorkflowCoordinator:
             update={
                 "steps": steps,
                 "current_step_index": updated_index,
-                "completed_generation_ids": [*session.completed_generation_ids, generation_id],
+                "completed_generation_ids": [
+                    *session.completed_generation_ids,
+                    generation_id,
+                ],
                 "progression_decision": "advance",
                 "progression_rationale": None,
                 "progression_target_kc_ids": [],
@@ -176,8 +198,14 @@ class RemediationWorkflowCoordinator:
         if session is None:
             raise RemediationWorkflowNotFoundError(session_id)
         steps = list(session.steps)
-        if generation_id is not None and step_index is not None and 0 <= step_index < len(steps):
-            steps[step_index] = steps[step_index].model_copy(update={"generated_content_id": generation_id})
+        if (
+            generation_id is not None
+            and step_index is not None
+            and 0 <= step_index < len(steps)
+        ):
+            steps[step_index] = steps[step_index].model_copy(
+                update={"generated_content_id": generation_id}
+            )
         updated_session = session.model_copy(
             update={
                 "steps": steps,
@@ -203,22 +231,34 @@ class RemediationWorkflowCoordinator:
                 RemediationWorkflowStep(
                     phase=phase,
                     title=str(raw_step.get("title", phase.replace("_", " ").title())),
-                    target_kc_ids=[str(item) for item in raw_step.get("target_kc_ids", []) if item is not None],
+                    target_kc_ids=[
+                        str(item)
+                        for item in raw_step.get("target_kc_ids", [])
+                        if item is not None
+                    ],
                     support_level=str(raw_step.get("support_level", "medium")),
                     objective=str(raw_step.get("objective", "")),
                     guidance=str(raw_step.get("guidance", "")),
-                    misconception_ids=[str(item) for item in raw_step.get("misconception_ids", []) if item is not None],
+                    misconception_ids=[
+                        str(item)
+                        for item in raw_step.get("misconception_ids", [])
+                        if item is not None
+                    ],
                     recommended_content_type=self._content_type_for_phase(phase),
                 )
             )
         return steps
 
-    def _current_step(self, session: RemediationWorkflowSession) -> RemediationWorkflowStep | None:
+    def _current_step(
+        self, session: RemediationWorkflowSession
+    ) -> RemediationWorkflowStep | None:
         if session.current_step_index is None:
             return None
         return self._step_at(session, session.current_step_index)
 
-    def _step_at(self, session: RemediationWorkflowSession, step_index: int) -> RemediationWorkflowStep | None:
+    def _step_at(
+        self, session: RemediationWorkflowSession, step_index: int
+    ) -> RemediationWorkflowStep | None:
         if step_index < 0 or step_index >= len(session.steps):
             return None
         return session.steps[step_index]
@@ -228,12 +268,18 @@ class RemediationWorkflowCoordinator:
             return RequestedContentType.practice_problem
         return RequestedContentType.remedial_micro_module
 
-    def _with_summary(self, session: RemediationWorkflowSession) -> RemediationWorkflowSession:
+    def _with_summary(
+        self, session: RemediationWorkflowSession
+    ) -> RemediationWorkflowSession:
         return session.model_copy(update={"summary": self._summary_for(session)})
 
-    def _summary_for(self, session: RemediationWorkflowSession) -> RemediationWorkflowSummary:
+    def _summary_for(
+        self, session: RemediationWorkflowSession
+    ) -> RemediationWorkflowSummary:
         current_step = self._current_step(session)
-        next_step = self._next_step_for_summary(session=session, current_step=current_step)
+        next_step = self._next_step_for_summary(
+            session=session, current_step=current_step
+        )
         status = "complete" if session.current_step_index is None else "in_progress"
         if session.progression_decision.startswith("hold_"):
             status = "held"
@@ -241,8 +287,12 @@ class RemediationWorkflowCoordinator:
             status=status,
             current_phase=current_step.phase if current_step is not None else None,
             current_step_title=current_step.title if current_step is not None else None,
-            current_step_target_kc_ids=list(current_step.target_kc_ids) if current_step is not None else [],
-            next_phase=next_step.action if next_step.action not in {"complete", "advance"} else None,
+            current_step_target_kc_ids=list(current_step.target_kc_ids)
+            if current_step is not None
+            else [],
+            next_phase=next_step.action
+            if next_step.action not in {"complete", "advance"}
+            else None,
             completed_step_count=len(session.completed_generation_ids),
             step_count=len(session.steps),
             progression_decision=session.progression_decision,
@@ -267,7 +317,11 @@ class RemediationWorkflowCoordinator:
         current_step: RemediationWorkflowStep | None,
     ):
         if session.progression_decision.startswith("hold_"):
-            target_stage = "bridge" if session.progression_decision == "hold_bridge_target" else "repair"
+            target_stage = (
+                "bridge"
+                if session.progression_decision == "hold_bridge_target"
+                else "repair"
+            )
             content_type = (
                 RequestedContentType.practice_problem.value
                 if session.progression_decision == "hold_bridge_target"
@@ -290,7 +344,9 @@ class RemediationWorkflowCoordinator:
                 action="complete",
                 content_type=None,
                 target_stage="transfer",
-                target_kc_ids=list(session.kc_sequence.deferred_kc_ids or session.focus_kc_ids),
+                target_kc_ids=list(
+                    session.kc_sequence.deferred_kc_ids or session.focus_kc_ids
+                ),
                 rationale=decision_grade_rationale(
                     "The remediation workflow is complete.",
                     action="complete",
@@ -303,7 +359,9 @@ class RemediationWorkflowCoordinator:
             content_type=current_step.recommended_content_type.value,
             target_stage=target_stage,
             target_kc_ids=list(current_step.target_kc_ids),
-            rationale=self._active_step_rationale(session=session, current_step=current_step),
+            rationale=self._active_step_rationale(
+                session=session, current_step=current_step
+            ),
         )
 
     def _continue_action_for_summary(
@@ -314,7 +372,9 @@ class RemediationWorkflowCoordinator:
         next_step: LearnerFlowNextStep,
     ) -> LearnerContinueAction:
         if status == "complete":
-            target_kc_ids = list(session.kc_sequence.deferred_kc_ids or session.focus_kc_ids)
+            target_kc_ids = list(
+                session.kc_sequence.deferred_kc_ids or session.focus_kc_ids
+            )
             latest_generation_id = (
                 str(session.completed_generation_ids[-1])
                 if session.completed_generation_ids
@@ -383,20 +443,32 @@ class RemediationWorkflowCoordinator:
             step_instruction=current_step.guidance or current_step.objective,
         )
 
-    def _strategy_curriculum_context(self, strategy_summary: LearnerStrategySummary) -> list[str]:
+    def _strategy_curriculum_context(
+        self, strategy_summary: LearnerStrategySummary
+    ) -> list[str]:
         if strategy_summary.signal == "insufficient":
             return []
-        context = [f"Learner strategy: {strategy_summary.signal} ({strategy_summary.recovery_focus})."]
+        context = [
+            f"Learner strategy: {strategy_summary.signal} ({strategy_summary.recovery_focus})."
+        ]
         if strategy_summary.rationale is not None:
             context.append(strategy_summary.rationale)
         if strategy_summary.recovery_focus == "prerequisite_rebuild":
-            context.append("Rebuild prerequisite understanding before asking for transfer back to the target.")
+            context.append(
+                "Rebuild prerequisite understanding before asking for transfer back to the target."
+            )
         elif strategy_summary.recovery_focus == "targeted_repair":
-            context.append("Keep support explicit and verify each repair step before fading support.")
+            context.append(
+                "Keep support explicit and verify each repair step before fading support."
+            )
         elif strategy_summary.recovery_focus == "independent_practice":
-            context.append("Fade support sooner and end with an independent check on the target skill.")
+            context.append(
+                "Fade support sooner and end with an independent check on the target skill."
+            )
         elif strategy_summary.recovery_focus == "guided_practice":
-            context.append("Keep guidance present, but start fading support once the learner is stable.")
+            context.append(
+                "Keep guidance present, but start fading support once the learner is stable."
+            )
         return context
 
     def _sequencing_curriculum_context(self, kc_sequence) -> list[str]:
@@ -404,7 +476,9 @@ class RemediationWorkflowCoordinator:
             return []
         context = [f"KC sequencing: {kc_sequence.action}."]
         if kc_sequence.primary_kc_id is not None:
-            context.append(f"Stay centered on {kc_sequence.primary_kc_id} before moving on.")
+            context.append(
+                f"Stay centered on {kc_sequence.primary_kc_id} before moving on."
+            )
         if kc_sequence.bridge_kc_ids:
             context.append(
                 "Bridge through nearby KC(s) "
