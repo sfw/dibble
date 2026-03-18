@@ -184,17 +184,26 @@ Contract-hardening in use:
 
 ### In progress
 
-- learner experience polish: flow transitions, product-grade feel
-- teacher reporting depth: trends, standards mastery, per-learner evidence timelines
+- learner experience polish: continued micro-interaction refinement
+- teacher reporting depth: trend lines, per-learner evidence timelines
 
 ### Next up
 
-1. polish learner flow transitions for product-grade feel
-2. deepen teacher reporting with trend lines and standards mastery views
+1. continue refining learner flow micro-interactions and transitions
+2. add trend lines to teacher reports when backend exposes historical snapshots
 3. keep this work plan and `from-front-to-back-needs.md` updated together
 
 ### Recently completed
 
+- learner flow transitions: staggered fade-in-up animations on content blocks, streaming indicators, progress bars, home cards, Socratic conversation thread, remediation steps, and confidence picker for a polished product-grade feel
+- learner SocraticCheck: submission success feedback ("Answer received" badge), auto-scroll to bottom of conversation thread, hover/scale micro-interactions on confidence picker
+- learner RemediationSession: enhanced step progress with numbered circles, check marks on completed steps, connected track lines between steps, animated phase labels
+- learner ContinueLearning: animated progress bar fill, smoother loading indicator with descriptive subtext
+- learner LearnerHome: staggered entrance animations on greeting, lesson card, focus section, and progress section
+- StreamingContent: per-block fade-in animation with stagger delay, richer streaming indicator with "usually takes a few seconds" subtext
+- CSS animation utilities: `animate-fade-in-up`, `animate-fade-in`, `animate-scale-in`, `animate-progress-fill`, `animate-pulse-gentle` added to `index.css`
+- teacher Reports: class average mastery banner with on-track/at-risk counts, mastery distribution histogram (4-bucket bar chart), resource mastery breakdown showing weakest-first resources with per-resource mastery bars and mastered/total counts
+- Reports tests expanded to cover mastery banner, mastery distribution, and resource mastery sections (19 tests total)
 - wired backend `display_label` and `stage_display_label` through to `copy.ts` callers in LearnerHome, ContinueLearning, and Progress views
 - added animated loading spinner to ContinueLearning initial load state
 - added loading indicator to RemediationSession when content is loading between steps

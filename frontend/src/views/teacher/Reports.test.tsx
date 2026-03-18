@@ -86,7 +86,19 @@ const learnerA = makeLearner({
     active_resource_count: 1,
     mastered_resource_ratio: 0.8,
     blocked_resources: [],
-    ready_resources: [],
+    ready_resources: [
+      {
+        resource_id: 'res-1',
+        title: 'Fractions Basics',
+        state: 'ready',
+        learning_objective_ids: ['lo-1'],
+        knowledge_component_ids: ['kc-1'],
+        blocked_prerequisite_kc_ids: [],
+        mastery_ratio: 0.9,
+        current_flow_aligned: false,
+        target_stage: 'mastered',
+      },
+    ],
   },
   recent_activity: { generation_count: 5, observation_count: 8, socratic_assessment_count: 2 },
 })
@@ -112,6 +124,17 @@ const learnerB = makeLearner({
     mastered_resource_ratio: 0.2,
     blocked_resources: [],
     ready_resources: [],
+    current_resource: {
+      resource_id: 'res-2',
+      title: 'Decimal Operations',
+      state: 'active',
+      learning_objective_ids: ['lo-2'],
+      knowledge_component_ids: ['kc-2'],
+      blocked_prerequisite_kc_ids: [],
+      mastery_ratio: 0.3,
+      current_flow_aligned: true,
+      target_stage: 'repair',
+    },
   },
   recent_activity: { generation_count: 2, observation_count: 3, socratic_assessment_count: 0 },
 })
@@ -294,5 +317,39 @@ describe('Reports', () => {
     expect(screen.getByText('Deep-dive into:')).toBeInTheDocument()
     const select = screen.getByRole('combobox')
     expect(select).toBeInTheDocument()
+  })
+
+  // --- New sections ---
+
+  it('renders class average mastery banner', () => {
+    renderReports()
+    expect(screen.getByText('Class average mastery')).toBeInTheDocument()
+    // Average of 0.8 and 0.2 = 50% — find within the banner context
+    expect(screen.getAllByText('50%').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('renders on-track and at-risk counts in mastery banner', () => {
+    renderReports()
+    // student-1 (0.8) is on track, student-2 (0.2) is at risk
+    expect(screen.getByText('On track (≥50%)')).toBeInTheDocument()
+    expect(screen.getByText(/At risk/)).toBeInTheDocument()
+  })
+
+  it('renders mastery distribution histogram', () => {
+    renderReports()
+    expect(screen.getByText('Mastery distribution')).toBeInTheDocument()
+    // Bucket labels
+    expect(screen.getByText('0–25%')).toBeInTheDocument()
+    expect(screen.getByText('25–50%')).toBeInTheDocument()
+    expect(screen.getByText('50–75%')).toBeInTheDocument()
+    expect(screen.getByText('75–100%')).toBeInTheDocument()
+  })
+
+  it('renders resource mastery breakdown', () => {
+    renderReports()
+    expect(screen.getByText('Resource mastery')).toBeInTheDocument()
+    // Resources from learner fixture data
+    expect(screen.getByText('Decimal Operations')).toBeInTheDocument()
+    expect(screen.getByText('Fractions Basics')).toBeInTheDocument()
   })
 })
