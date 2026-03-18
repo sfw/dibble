@@ -115,7 +115,7 @@ Contract-hardening in use:
 
 - ~~`lib/copy.ts` still has "TEMPORARY SHIM" comments for `display_rationale` on `TeacherLearnerCard`~~ — **RESOLVED**: shim comment updated; callers now pass backend `display_label` and `stage_display_label` where available
 - ~~`TeacherView` imports `teacherContractGaps` from sample-data and shows a hardcoded gap list instead of real gap detection~~ — **RESOLVED**: gaps updated to reflect current P2-only status; section renamed to "Future expansion seams"
-- `lib/triage.ts` `describeLearnerRationale` still selects among multiple rationale sources; a backend `display_rationale` field on `TeacherLearnerCard` would simplify this
+- ~~`lib/triage.ts` `describeLearnerRationale` still selects among multiple rationale sources; a backend `display_rationale` field on `TeacherLearnerCard` would simplify this~~ — **RESOLVED**: backend now provides `display_rationale` on `TeacherLearnerCard`; frontend prefers it with backwards-compatible fallback
 - Affective support component exists but only renders when `workspace.affective_support` is populated
 - ~~Some forms expose orchestration inputs (target KCs, LOs, session IDs) that should be hidden in learner mode~~ — **RESOLVED**: learner views already keep all orchestration inputs (target KCs, LOs, intent selectors, session IDs) in internal form state; none are rendered in the learner shell UI
 

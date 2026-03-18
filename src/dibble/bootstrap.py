@@ -60,6 +60,7 @@ from dibble.services.predictive_content_invalidator import PredictiveContentInva
 from dibble.services.predictive_content_warming import PredictiveContentWarmer
 from dibble.services.predictive_warm_queue_store import SQLitePredictiveWarmQueueStore
 from dibble.services.predictive_warm_scheduler import PredictiveWarmScheduler
+from dibble.services.progression_outcome_tracker import ProgressionOutcomeTracker
 from dibble.services.progression_ownership import ProgressionOwnershipService
 from dibble.services.provider_health import SQLiteProviderHealthStore
 from dibble.services.profile_store import SQLiteProfileStore
@@ -140,6 +141,7 @@ class ApplicationServices:
     predictive_content_invalidator: PredictiveContentInvalidator
     predictive_warm_scheduler: PredictiveWarmScheduler
     mastery_snapshot_service: MasterySnapshotService
+    progression_outcome_tracker: ProgressionOutcomeTracker
     within_session_adaptation_service: WithinSessionAdaptationService
     router_plugin: RouterPlugin
 
@@ -322,6 +324,9 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     misconception_profile_recorder = LearningMisconceptionProfileRecorder(
         audit_store=audit_store
     )
+    progression_outcome_tracker = ProgressionOutcomeTracker(
+        audit_store=audit_store
+    )
     content_warmer = ContentWarmer(
         profile_store,
         generation_engine,
@@ -411,6 +416,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         predictive_content_invalidator=predictive_content_invalidator,
         predictive_warm_scheduler=predictive_warm_scheduler,
         mastery_snapshot_service=mastery_snapshot_service,
+        progression_outcome_tracker=progression_outcome_tracker,
         within_session_adaptation_service=within_session_adaptation_service,
         router_plugin=router_plugin,
     )

@@ -70,11 +70,15 @@ export function toneForIntervention(status: string): TriageTone {
 /**
  * Selects the most relevant rationale string to display for a learner.
  *
- * Prefers intervention decision status, then curriculum progression rationale,
- * then flow next-step rationale, then flow rationale. A backend-owned
- * `display_rationale` field on TeacherLearnerCard would simplify this.
+ * Prefers the backend-owned `display_rationale` field, which already applies
+ * the canonical precedence (intervention decision → curriculum progression →
+ * flow next-step → flow rationale). The inline cascade is a backwards-compatible
+ * fallback for older backend versions that do not yet provide the field.
  */
 export function describeLearnerRationale(learner: TeacherLearnerCard): string {
+  if (learner.display_rationale) {
+    return learner.display_rationale
+  }
   if (learner.intervention.latest_decision_status) {
     const status = learner.intervention.latest_decision_status
       .split(/[_-]/g)

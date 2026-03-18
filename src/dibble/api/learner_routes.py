@@ -122,6 +122,14 @@ def build_learner_router(context: ApiContext) -> APIRouter:
         updated_profile = observation_profile_update.profile
         services.profile_store.upsert(updated_profile)
         services.mastery_snapshot_service.record_from_profile(updated_profile)
+        progression_outcomes = (
+            services.progression_outcome_tracker.evaluate_recent_decisions(
+                student_id=str(student_id),
+                current_kc_mastery=updated_profile.knowledge_state.kc_mastery,
+            )
+        )
+        if progression_outcomes:
+            services.progression_outcome_tracker.record_outcomes(progression_outcomes)
         observation_audit_event = services.audit_store.append(
             event_type="learner.observe",
             status="success",

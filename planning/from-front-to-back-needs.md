@@ -78,6 +78,7 @@ These backend-owned seams are already good enough for the active frontend roadma
 - explicit `workflow_summary` and session-summary contracts
 - `affective_support` on learner workspace
 - `display_label` / `stage_display_label` on learner-facing and teacher-facing contracts
+- `display_rationale` on `TeacherLearnerCard` for canonical teacher-facing rationale
 
 ## Backend Quality Work That Still Matters
 

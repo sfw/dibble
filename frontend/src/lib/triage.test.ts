@@ -127,7 +127,14 @@ describe('toneForIntervention', () => {
 })
 
 describe('describeLearnerRationale', () => {
-  it('shows latest decision status when present', () => {
+  it('prefers backend display_rationale when present', () => {
+    const learner = makeLearnerCard({})
+    learner.display_rationale = 'Backend-owned canonical rationale.'
+    learner.curriculum_progression.rationale = 'Should not be used'
+    expect(describeLearnerRationale(learner)).toBe('Backend-owned canonical rationale.')
+  })
+
+  it('shows latest decision status when present and no display_rationale', () => {
     const learner = makeLearnerCard({})
     learner.intervention.latest_decision_status = 'approved'
     expect(describeLearnerRationale(learner)).toContain('Approved')
