@@ -121,7 +121,7 @@ Contract-hardening in use:
 
 - Build a real teacher reporting surface with class-level progress, mastery trends, and per-learner evidence timelines
 - Improve classroom detail density so teachers can scan 30 learners efficiently
-- Add teacher-to-learner drill-in for artifact review (see the actual generated content, Socratic turns, remediation steps a learner worked through)
+- ~~Add teacher-to-learner drill-in for artifact review~~ — **DONE**: `LearnerDetail` evidence timeline with expandable entries and artifact review panel
 
 ### P1: assignment layer (frontend + backend coordination) — DONE
 
@@ -185,7 +185,7 @@ Contract-hardening in use:
 ### In progress
 
 - learner experience polish: continued micro-interaction refinement
-- teacher reporting depth: trend lines, per-learner evidence timelines
+- teacher reporting depth: trend lines
 
 ### Next up
 
@@ -195,6 +195,10 @@ Contract-hardening in use:
 
 ### Recently completed
 
+- teacher `LearnerDetail` evidence timeline: unified chronological view interleaving generation, Socratic, and remediation history entries with expandable detail rows showing flow type, status, phase, progression, steering, evidence strength, and rationale; load-more pagination via existing `useLearnerContracts` hook
+- teacher `LearnerDetail` artifact review panel: click any generation in the timeline to load and display the actual content blocks via `GET /api/content/{generation_id}`, with quality metadata, safety notes, and all block types rendered through the existing `ContentBlock` component
+- `getGeneratedContent` API function for fetching individual generations by ID
+- `LearnerDetail.test.tsx` test suite covering header, overview, current activity, evidence timeline, and back navigation
 - learner flow transitions: staggered fade-in-up animations on content blocks, streaming indicators, progress bars, home cards, Socratic conversation thread, remediation steps, and confidence picker for a polished product-grade feel
 - learner SocraticCheck: submission success feedback ("Answer received" badge), auto-scroll to bottom of conversation thread, hover/scale micro-interactions on confidence picker
 - learner RemediationSession: enhanced step progress with numbered circles, check marks on completed steps, connected track lines between steps, animated phase labels
@@ -267,13 +271,13 @@ Remaining:
 Built:
 - `Dashboard` with classroom overview cards and attention/blocked/intervention counts
 - `ClassroomDetail` with learner cards grouped by backend-owned `triage_section`
-- `LearnerDetail` with affective state, progression, intervention proposal
+- `LearnerDetail` with affective state, progression, intervention proposal, unified evidence timeline, and artifact review panel
 - `InterventionWorkspace` with approve/defer/escalate/select-option controls
 - Classroom-to-learner drill-in and return navigation
 
 Remaining:
 - ~~teacher reporting surface~~ — **DONE**: `/teacher/reports` with cross-classroom and per-classroom reporting
-- artifact review (see actual generated content a learner received)
+- ~~artifact review~~ — **DONE**: `LearnerDetail` now has a unified evidence timeline with expandable detail and click-to-review generated content via `GET /api/content/{generation_id}`
 - ~~assignment management layer~~ — **DONE**: teacher and learner assignment views
 - richer class-level progress and trend views
 
