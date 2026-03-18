@@ -338,10 +338,10 @@ describe('Reports', () => {
   it('renders mastery distribution histogram', () => {
     renderReports()
     expect(screen.getByText('Mastery distribution')).toBeInTheDocument()
-    // Bucket labels
-    expect(screen.getByText('0–25%')).toBeInTheDocument()
-    expect(screen.getByText('25–50%')).toBeInTheDocument()
-    expect(screen.getByText('50–75%')).toBeInTheDocument()
+    // Bucket labels appear in both histogram and legend strip
+    expect(screen.getAllByText('0–25%').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('25–50%').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('50–75%').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('75–100%')).toBeInTheDocument()
   })
 
@@ -351,5 +351,39 @@ describe('Reports', () => {
     // Resources from learner fixture data
     expect(screen.getByText('Decimal Operations')).toBeInTheDocument()
     expect(screen.getByText('Fractions Basics')).toBeInTheDocument()
+  })
+
+  // --- Mastery heatmap ---
+
+  it('renders learner mastery overview strip', () => {
+    renderReports()
+    expect(screen.getByText('Learner mastery overview')).toBeInTheDocument()
+    expect(screen.getByText('Sorted low → high')).toBeInTheDocument()
+  })
+
+  it('renders one heatmap cell per learner', () => {
+    renderReports()
+    const list = screen.getByRole('list', { name: 'Per-learner mastery' })
+    const items = list.querySelectorAll('[role="listitem"]')
+    expect(items.length).toBe(2)
+  })
+
+  it('shows hover tooltip with learner id and mastery', () => {
+    renderReports()
+    const list = screen.getByRole('list', { name: 'Per-learner mastery' })
+    const items = list.querySelectorAll('[role="listitem"]')
+    // student-2 (20%) should be first (sorted low→high)
+    expect(items[0].getAttribute('title')).toBe('student-2: 20% mastery')
+    expect(items[1].getAttribute('title')).toBe('student-1: 80% mastery')
+  })
+
+  it('renders mastery color legend', () => {
+    renderReports()
+    // Legend uses slightly different labels than the histogram
+    expect(screen.getByText('<25%')).toBeInTheDocument()
+    // These overlap with histogram labels — just verify they exist at least once
+    expect(screen.getAllByText('25–50%').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('50–75%').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText('75%+')).toBeInTheDocument()
   })
 })
