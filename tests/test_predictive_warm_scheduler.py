@@ -27,7 +27,11 @@ class FlakyContentWarmer:
         self.calls += 1
         if self.calls == 1:
             raise RuntimeError("provider timeout")
-        return ContentWarmResult(total_requests=len(requests), cache_misses=len(requests), generation_ids=["gen-retry"])
+        return ContentWarmResult(
+            total_requests=len(requests),
+            cache_misses=len(requests),
+            generation_ids=["gen-retry"],
+        )
 
 
 def test_predictive_warm_scheduler_processes_enqueued_tasks(tmp_path):
@@ -38,7 +42,9 @@ def test_predictive_warm_scheduler_processes_enqueued_tasks(tmp_path):
     queue_store = SQLitePredictiveWarmQueueStore(database_path)
     student_id = uuid4()
     profile_store.upsert(build_profile_model(student_id))
-    curriculum_store.upsert(CurriculumResourceUpsert.model_validate(build_curriculum_resource()))
+    curriculum_store.upsert(
+        CurriculumResourceUpsert.model_validate(build_curriculum_resource())
+    )
     generation_engine = GenerationEngine(
         retriever=RAGRetriever(curriculum_store),
         router=AdaptiveRouter(),
@@ -92,7 +98,9 @@ def test_predictive_warm_scheduler_processes_enqueued_tasks(tmp_path):
     assert queue_store.stats()["completed"] == 1
 
 
-def test_predictive_warm_scheduler_processes_highest_priority_pending_task_first(tmp_path):
+def test_predictive_warm_scheduler_processes_highest_priority_pending_task_first(
+    tmp_path,
+):
     database_path = str(tmp_path / "predictive-warm-scheduler-priority.db")
     ensure_database(database_path)
     profile_store = SQLiteProfileStore(database_path)
@@ -100,7 +108,9 @@ def test_predictive_warm_scheduler_processes_highest_priority_pending_task_first
     queue_store = SQLitePredictiveWarmQueueStore(database_path)
     student_id = uuid4()
     profile_store.upsert(build_profile_model(student_id))
-    curriculum_store.upsert(CurriculumResourceUpsert.model_validate(build_curriculum_resource()))
+    curriculum_store.upsert(
+        CurriculumResourceUpsert.model_validate(build_curriculum_resource())
+    )
     generation_engine = GenerationEngine(
         retriever=RAGRetriever(curriculum_store),
         router=AdaptiveRouter(),
@@ -161,11 +171,15 @@ def test_predictive_warm_scheduler_processes_highest_priority_pending_task_first
     assert remaining[0].request.requested_content_type == "practice_problem"
 
 
-def test_predictive_warm_scheduler_defers_retryable_failures_and_later_completes(tmp_path):
+def test_predictive_warm_scheduler_defers_retryable_failures_and_later_completes(
+    tmp_path,
+):
     database_path = str(tmp_path / "predictive-warm-scheduler-retry.db")
     ensure_database(database_path)
     profile_store = SQLiteProfileStore(database_path)
-    queue_store = SQLitePredictiveWarmQueueStore(database_path, retry_backoff_seconds=30)
+    queue_store = SQLitePredictiveWarmQueueStore(
+        database_path, retry_backoff_seconds=30
+    )
     student_id = uuid4()
     profile_store.upsert(build_profile_model(student_id))
     scheduler = PredictiveWarmScheduler(
@@ -222,7 +236,9 @@ def test_predictive_warm_scheduler_reports_requeued_stale_processing_tasks(tmp_p
     database_path = str(tmp_path / "predictive-warm-scheduler-sweep.db")
     ensure_database(database_path)
     profile_store = SQLiteProfileStore(database_path)
-    queue_store = SQLitePredictiveWarmQueueStore(database_path, processing_timeout_seconds=30)
+    queue_store = SQLitePredictiveWarmQueueStore(
+        database_path, processing_timeout_seconds=30
+    )
     student_id = uuid4()
     profile_store.upsert(build_profile_model(student_id))
     scheduler = PredictiveWarmScheduler(
@@ -279,10 +295,14 @@ def test_predictive_warm_scheduler_recovers_stale_urgent_tasks_in_same_pass(tmp_
     ensure_database(database_path)
     profile_store = SQLiteProfileStore(database_path)
     curriculum_store = SQLiteCurriculumStore(database_path)
-    queue_store = SQLitePredictiveWarmQueueStore(database_path, processing_timeout_seconds=30)
+    queue_store = SQLitePredictiveWarmQueueStore(
+        database_path, processing_timeout_seconds=30
+    )
     student_id = uuid4()
     profile_store.upsert(build_profile_model(student_id))
-    curriculum_store.upsert(CurriculumResourceUpsert.model_validate(build_curriculum_resource()))
+    curriculum_store.upsert(
+        CurriculumResourceUpsert.model_validate(build_curriculum_resource())
+    )
     generation_engine = GenerationEngine(
         retriever=RAGRetriever(curriculum_store),
         router=AdaptiveRouter(),
@@ -344,7 +364,9 @@ def test_predictive_warm_scheduler_recovers_stale_urgent_tasks_in_same_pass(tmp_
     assert result.claim_details[0].claim_mode == "background_drain"
 
 
-def test_predictive_warm_scheduler_uses_spare_inline_capacity_for_pending_backlog(tmp_path):
+def test_predictive_warm_scheduler_uses_spare_inline_capacity_for_pending_backlog(
+    tmp_path,
+):
     database_path = str(tmp_path / "predictive-warm-scheduler-inline-backlog.db")
     ensure_database(database_path)
     profile_store = SQLiteProfileStore(database_path)
@@ -352,7 +374,9 @@ def test_predictive_warm_scheduler_uses_spare_inline_capacity_for_pending_backlo
     queue_store = SQLitePredictiveWarmQueueStore(database_path)
     student_id = uuid4()
     profile_store.upsert(build_profile_model(student_id))
-    curriculum_store.upsert(CurriculumResourceUpsert.model_validate(build_curriculum_resource()))
+    curriculum_store.upsert(
+        CurriculumResourceUpsert.model_validate(build_curriculum_resource())
+    )
     generation_engine = GenerationEngine(
         retriever=RAGRetriever(curriculum_store),
         router=AdaptiveRouter(),
@@ -413,7 +437,9 @@ def test_predictive_warm_scheduler_uses_spare_inline_capacity_for_pending_backlo
     assert queue_store.stats()["completed"] == 2
 
 
-def test_predictive_warm_scheduler_can_autonomously_process_pending_work_inline(tmp_path):
+def test_predictive_warm_scheduler_can_autonomously_process_pending_work_inline(
+    tmp_path,
+):
     database_path = str(tmp_path / "predictive-warm-scheduler-inline-autonomous.db")
     ensure_database(database_path)
     profile_store = SQLiteProfileStore(database_path)
@@ -421,7 +447,9 @@ def test_predictive_warm_scheduler_can_autonomously_process_pending_work_inline(
     queue_store = SQLitePredictiveWarmQueueStore(database_path)
     student_id = uuid4()
     profile_store.upsert(build_profile_model(student_id))
-    curriculum_store.upsert(CurriculumResourceUpsert.model_validate(build_curriculum_resource()))
+    curriculum_store.upsert(
+        CurriculumResourceUpsert.model_validate(build_curriculum_resource())
+    )
     generation_engine = GenerationEngine(
         retriever=RAGRetriever(curriculum_store),
         router=AdaptiveRouter(),

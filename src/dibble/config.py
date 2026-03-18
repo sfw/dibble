@@ -69,10 +69,18 @@ def _get_csv_env(name: str) -> tuple[str, ...]:
 def get_settings() -> Settings:
     return Settings(
         database_path=os.getenv("DIBBLE_DATABASE_PATH", "dibble.db"),
-        router_plugin=os.getenv("DIBBLE_ROUTER_PLUGIN", "dibble.plugins.defaults.router:build"),
-        retriever_plugin=os.getenv("DIBBLE_RETRIEVER_PLUGIN", "dibble.plugins.defaults.retriever:build"),
-        provider_plugin=os.getenv("DIBBLE_PROVIDER_PLUGIN", "dibble.plugins.defaults.provider:build"),
-        validator_plugin=os.getenv("DIBBLE_VALIDATOR_PLUGIN", "dibble.plugins.defaults.validator:build"),
+        router_plugin=os.getenv(
+            "DIBBLE_ROUTER_PLUGIN", "dibble.plugins.defaults.router:build"
+        ),
+        retriever_plugin=os.getenv(
+            "DIBBLE_RETRIEVER_PLUGIN", "dibble.plugins.defaults.retriever:build"
+        ),
+        provider_plugin=os.getenv(
+            "DIBBLE_PROVIDER_PLUGIN", "dibble.plugins.defaults.provider:build"
+        ),
+        validator_plugin=os.getenv(
+            "DIBBLE_VALIDATOR_PLUGIN", "dibble.plugins.defaults.validator:build"
+        ),
         llm_api_base=os.getenv("DIBBLE_LLM_API_BASE", "https://api.openai.com/v1"),
         llm_api_key=os.getenv("DIBBLE_LLM_API_KEY"),
         llm_model=os.getenv("DIBBLE_LLM_MODEL"),
@@ -86,21 +94,34 @@ def get_settings() -> Settings:
             if os.getenv("DIBBLE_LLM_SECONDARY_TIMEOUT_SECONDS")
             else None
         ),
-        llm_circuit_breaker_threshold=int(os.getenv("DIBBLE_LLM_CIRCUIT_BREAKER_THRESHOLD", "2")),
+        llm_circuit_breaker_threshold=int(
+            os.getenv("DIBBLE_LLM_CIRCUIT_BREAKER_THRESHOLD", "2")
+        ),
         llm_circuit_breaker_cooldown_seconds=float(
             os.getenv("DIBBLE_LLM_CIRCUIT_BREAKER_COOLDOWN_SECONDS", "30.0")
         ),
         llm_selection_strategy=os.getenv("DIBBLE_LLM_SELECTION_STRATEGY", "ordered"),
         prompt_library_version=os.getenv("DIBBLE_PROMPT_LIBRARY_VERSION", "1.0"),
-        prompt_experiment_enabled=_get_bool_env("DIBBLE_PROMPT_EXPERIMENT_ENABLED", False),
-        prompt_adaptive_selection_enabled=_get_bool_env("DIBBLE_PROMPT_ADAPTIVE_SELECTION_ENABLED", False),
+        prompt_experiment_enabled=_get_bool_env(
+            "DIBBLE_PROMPT_EXPERIMENT_ENABLED", False
+        ),
+        prompt_adaptive_selection_enabled=_get_bool_env(
+            "DIBBLE_PROMPT_ADAPTIVE_SELECTION_ENABLED", False
+        ),
         prompt_variant_override=os.getenv("DIBBLE_PROMPT_VARIANT"),
-        embedding_api_base=os.getenv("DIBBLE_EMBEDDING_API_BASE", "https://api.openai.com/v1"),
-        embedding_api_key=os.getenv("DIBBLE_EMBEDDING_API_KEY") or os.getenv("DIBBLE_LLM_API_KEY"),
+        embedding_api_base=os.getenv(
+            "DIBBLE_EMBEDDING_API_BASE", "https://api.openai.com/v1"
+        ),
+        embedding_api_key=os.getenv("DIBBLE_EMBEDDING_API_KEY")
+        or os.getenv("DIBBLE_LLM_API_KEY"),
         embedding_model=os.getenv("DIBBLE_EMBEDDING_MODEL"),
         embedding_dimensions=int(os.getenv("DIBBLE_EMBEDDING_DIMENSIONS", "256")),
-        embedding_timeout_seconds=float(os.getenv("DIBBLE_EMBEDDING_TIMEOUT_SECONDS", "15.0")),
-        embedding_allow_local_fallback=_get_bool_env("DIBBLE_EMBEDDING_ALLOW_LOCAL_FALLBACK", True),
+        embedding_timeout_seconds=float(
+            os.getenv("DIBBLE_EMBEDDING_TIMEOUT_SECONDS", "15.0")
+        ),
+        embedding_allow_local_fallback=_get_bool_env(
+            "DIBBLE_EMBEDDING_ALLOW_LOCAL_FALLBACK", True
+        ),
         auth_enabled=_get_bool_env("DIBBLE_AUTH_ENABLED", False),
         auth_api_keys=_get_csv_env("DIBBLE_AUTH_API_KEYS"),
         auth_principals=_get_csv_env("DIBBLE_AUTH_PRINCIPALS"),
@@ -108,8 +129,12 @@ def get_settings() -> Settings:
         auth_token_secret=os.getenv("DIBBLE_AUTH_TOKEN_SECRET"),
         auth_token_issuer=os.getenv("DIBBLE_AUTH_TOKEN_ISSUER", "dibble"),
         auth_token_ttl_seconds=int(os.getenv("DIBBLE_AUTH_TOKEN_TTL_SECONDS", "3600")),
-        auth_refresh_ttl_seconds=int(os.getenv("DIBBLE_AUTH_REFRESH_TTL_SECONDS", "604800")),
-        generation_cache_ttl_seconds=int(os.getenv("DIBBLE_GENERATION_CACHE_TTL_SECONDS", "3600")),
+        auth_refresh_ttl_seconds=int(
+            os.getenv("DIBBLE_AUTH_REFRESH_TTL_SECONDS", "604800")
+        ),
+        generation_cache_ttl_seconds=int(
+            os.getenv("DIBBLE_GENERATION_CACHE_TTL_SECONDS", "3600")
+        ),
         predictive_warm_inline_process_limit=int(
             os.getenv("DIBBLE_PREDICTIVE_WARM_INLINE_PROCESS_LIMIT", "2")
         ),

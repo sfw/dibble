@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from dibble.models.generation import AdaptiveRouteDecision, DeliveryMode, GenerationRequest, InterventionType
+from dibble.models.generation import (
+    AdaptiveRouteDecision,
+    DeliveryMode,
+    GenerationRequest,
+    InterventionType,
+)
 from dibble.models.profile import LearnerProfile
 from dibble.services.adaptive_router import AdaptiveRouter
 from dibble.services.audit_store import SQLiteAuditStore
@@ -10,7 +15,9 @@ from dibble.services.calibrated_router import CalibratedRouter
 from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
 from dibble.services.router_calibration_signals import RouterCalibrationSignalService
 from dibble.services.within_session_adaptation import WithinSessionAdaptationService
-from dibble.services.within_session_controller_store import SQLiteWithinSessionControllerStore
+from dibble.services.within_session_controller_store import (
+    SQLiteWithinSessionControllerStore,
+)
 from dibble.storage import ensure_database
 from tests.support import build_profile
 
@@ -40,7 +47,9 @@ def test_calibrated_router_holds_back_stretch_after_negative_run_signal(tmp_path
             help_seeking="low",
         )
     )
-    request = GenerationRequest(student_id=profile.student_id, target_kc_ids=["KC-1"], intent="explanation")
+    request = GenerationRequest(
+        student_id=profile.student_id, target_kc_ids=["KC-1"], intent="explanation"
+    )
     audit_store.append(
         event_type="content.generate",
         status="success",
@@ -76,9 +85,13 @@ def test_calibrated_router_holds_back_stretch_after_negative_run_signal(tmp_path
 
     router = CalibratedRouter(
         base_router=AdaptiveRouter(),
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
-        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(
+            audit_store=audit_store
+        ),
     )
 
     decision = router.route(profile, request)
@@ -105,7 +118,9 @@ def test_calibrated_router_relaxes_scaffolding_after_positive_run_signal(tmp_pat
             help_seeking="high",
         )
     )
-    request = GenerationRequest(student_id=profile.student_id, target_kc_ids=["KC-1"], intent="explanation")
+    request = GenerationRequest(
+        student_id=profile.student_id, target_kc_ids=["KC-1"], intent="explanation"
+    )
     audit_store.append(
         event_type="content.generate",
         status="success",
@@ -141,9 +156,13 @@ def test_calibrated_router_relaxes_scaffolding_after_positive_run_signal(tmp_pat
 
     router = CalibratedRouter(
         base_router=AlwaysReteachRouter(),
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
-        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(
+            audit_store=audit_store
+        ),
     )
 
     decision = router.route(profile, request)
@@ -199,9 +218,13 @@ def test_calibrated_router_raises_support_for_declining_progress_profile(tmp_pat
 
     router = CalibratedRouter(
         base_router=AlwaysReteachRouter(),
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
-        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(
+            audit_store=audit_store
+        ),
     )
 
     decision = router.route(profile, request)
@@ -212,7 +235,9 @@ def test_calibrated_router_raises_support_for_declining_progress_profile(tmp_pat
     assert decision.calibration.progress_signal == "declining"
 
 
-def test_calibrated_router_uses_strategy_profile_when_recent_calibration_is_insufficient(tmp_path):
+def test_calibrated_router_uses_strategy_profile_when_recent_calibration_is_insufficient(
+    tmp_path,
+):
     database_path = str(tmp_path / "calibrated-router-strategy.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -256,18 +281,27 @@ def test_calibrated_router_uses_strategy_profile_when_recent_calibration_is_insu
 
     router = CalibratedRouter(
         base_router=AlwaysReteachRouter(),
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
-        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(
+            audit_store=audit_store
+        ),
     )
 
     decision = router.route(profile, request)
 
     assert decision.scaffolding_level == "high"
-    assert any("Long-horizon learner strategy was support_intensive" in reason for reason in decision.reasons)
+    assert any(
+        "Long-horizon learner strategy was support_intensive" in reason
+        for reason in decision.reasons
+    )
 
 
-def test_calibrated_router_uses_same_session_observation_before_cross_session_history(tmp_path):
+def test_calibrated_router_uses_same_session_observation_before_cross_session_history(
+    tmp_path,
+):
     database_path = str(tmp_path / "calibrated-router-session-negative.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -308,18 +342,26 @@ def test_calibrated_router_uses_same_session_observation_before_cross_session_hi
 
     router = CalibratedRouter(
         base_router=AlwaysReteachRouter(),
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
-        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(
+            audit_store=audit_store
+        ),
     )
 
     decision = router.route(profile, request)
 
     assert decision.scaffolding_level == "high"
-    assert any("Same-session adaptation was negative" in reason for reason in decision.reasons)
+    assert any(
+        "Same-session adaptation was negative" in reason for reason in decision.reasons
+    )
 
 
-def test_calibrated_router_relaxes_support_after_same_session_demonstrated_assessment(tmp_path):
+def test_calibrated_router_relaxes_support_after_same_session_demonstrated_assessment(
+    tmp_path,
+):
     database_path = str(tmp_path / "calibrated-router-session-positive.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -356,18 +398,26 @@ def test_calibrated_router_relaxes_support_after_same_session_demonstrated_asses
 
     router = CalibratedRouter(
         base_router=AlwaysReteachRouter(),
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
-        within_session_adaptation_service=WithinSessionAdaptationService(audit_store=audit_store),
+        within_session_adaptation_service=WithinSessionAdaptationService(
+            audit_store=audit_store
+        ),
     )
 
     decision = router.route(profile, request)
 
     assert decision.scaffolding_level == "low"
-    assert any("Same-session adaptation was positive" in reason for reason in decision.reasons)
+    assert any(
+        "Same-session adaptation was positive" in reason for reason in decision.reasons
+    )
 
 
-def test_calibrated_router_uses_persisted_session_controller_before_cross_session_history(tmp_path):
+def test_calibrated_router_uses_persisted_session_controller_before_cross_session_history(
+    tmp_path,
+):
     database_path = str(tmp_path / "calibrated-router-session-controller.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -411,11 +461,15 @@ def test_calibrated_router_uses_persisted_session_controller_before_cross_sessio
         student_id=str(profile.student_id),
         payload=observation_payload,
     )
-    service.record_observation_event(student_id=profile.student_id, event_payload=observation_payload)
+    service.record_observation_event(
+        student_id=profile.student_id, event_payload=observation_payload
+    )
 
     router = CalibratedRouter(
         base_router=AlwaysReteachRouter(),
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
         within_session_adaptation_service=service,
     )
@@ -423,4 +477,6 @@ def test_calibrated_router_uses_persisted_session_controller_before_cross_sessio
     decision = router.route(profile, request)
 
     assert decision.scaffolding_level == "high"
-    assert any("Same-session adaptation was negative" in reason for reason in decision.reasons)
+    assert any(
+        "Same-session adaptation was negative" in reason for reason in decision.reasons
+    )

@@ -7,7 +7,9 @@ from dibble.models.generation import GeneratedContent, RequestedContentType
 
 @dataclass(frozen=True, slots=True)
 class PredictiveNextStepPlanner:
-    def plan(self, generated_content: GeneratedContent) -> list[tuple[RequestedContentType, str]]:
+    def plan(
+        self, generated_content: GeneratedContent
+    ) -> list[tuple[RequestedContentType, str]]:
         request_context = generated_content.request_context
         content_type = str(
             request_context.get("selected_content_type")
@@ -16,7 +18,11 @@ class PredictiveNextStepPlanner:
         )
         route_calibration = generated_content.response.route.calibration
         mode_calibration = request_context.get("mode_calibration", {})
-        mode_support_bias = int(mode_calibration.get("support_bias", 0)) if isinstance(mode_calibration, dict) else 0
+        mode_support_bias = (
+            int(mode_calibration.get("support_bias", 0))
+            if isinstance(mode_calibration, dict)
+            else 0
+        )
         progression = request_context.get("progression", {})
         progression_action = (
             str(progression.get("action", "stay_on_requested_target"))
@@ -44,7 +50,10 @@ class PredictiveNextStepPlanner:
             else 0.0
         )
         sequence_action = (
-            str(mode_calibration.get("sequence_action") or mode_calibration.get("strategy_sequence_action", "monitor"))
+            str(
+                mode_calibration.get("sequence_action")
+                or mode_calibration.get("strategy_sequence_action", "monitor")
+            )
             if isinstance(mode_calibration, dict)
             else "monitor"
         )
@@ -53,8 +62,16 @@ class PredictiveNextStepPlanner:
             if isinstance(mode_calibration, dict)
             else "monitor"
         )
-        route_signal = route_calibration.signal if route_calibration is not None else "insufficient"
-        progress_signal = route_calibration.progress_signal if route_calibration is not None else "insufficient"
+        route_signal = (
+            route_calibration.signal
+            if route_calibration is not None
+            else "insufficient"
+        )
+        progress_signal = (
+            route_calibration.progress_signal
+            if route_calibration is not None
+            else "insufficient"
+        )
 
         if content_type == RequestedContentType.micro_explanation.value:
             if progression_action == "hold_target" and progression_confidence >= 0.5:
@@ -176,7 +193,10 @@ class PredictiveNextStepPlanner:
                         "Same-session progression evidence still says hold the current target, so warm another target-aligned practice step.",
                     )
                 ]
-            if progression_action == "attempt_transfer" and progression_confidence >= 0.5:
+            if (
+                progression_action == "attempt_transfer"
+                and progression_confidence >= 0.5
+            ):
                 return [
                     (
                         RequestedContentType.assessment_probe,
@@ -309,7 +329,11 @@ class PredictiveNextStepPlanner:
         progress_signal: str,
         mode_support_bias: int,
     ) -> bool:
-        return route_signal == "negative" or progress_signal == "declining" or mode_support_bias < 0
+        return (
+            route_signal == "negative"
+            or progress_signal == "declining"
+            or mode_support_bias < 0
+        )
 
     def _shows_independence(
         self,
@@ -318,7 +342,11 @@ class PredictiveNextStepPlanner:
         progress_signal: str,
         mode_support_bias: int,
     ) -> bool:
-        return route_signal == "positive" or progress_signal == "improving" or mode_support_bias > 0
+        return (
+            route_signal == "positive"
+            or progress_signal == "improving"
+            or mode_support_bias > 0
+        )
 
     def _should_rebuild_prerequisite(
         self,
@@ -339,10 +367,10 @@ class PredictiveNextStepPlanner:
         strategy_trajectory_state: str,
         strategy_next_action: str,
     ) -> bool:
-        return (
-            strategy_next_action in {"introduce_varied_support", "stabilize_support"}
-            or strategy_trajectory_state in {"plateaued", "volatile"}
-        )
+        return strategy_next_action in {
+            "introduce_varied_support",
+            "stabilize_support",
+        } or strategy_trajectory_state in {"plateaued", "volatile"}
 
     def _should_check_transfer(
         self,
@@ -357,7 +385,10 @@ class PredictiveNextStepPlanner:
             return False
         if strategy_next_action == "check_transfer_readiness":
             return True
-        if strategy_trajectory_state == "insufficient" and strategy_next_action == "monitor":
+        if (
+            strategy_trajectory_state == "insufficient"
+            and strategy_next_action == "monitor"
+        ):
             return True
         return self._shows_independence(
             route_signal=route_signal,

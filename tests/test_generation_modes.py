@@ -24,7 +24,9 @@ def test_generation_mode_plan_assigns_support_difficulty_for_low_mastery():
             engagement="medium",
         )
     )
-    request = GenerationRequest(student_id=profile.student_id, target_kc_ids=["KC-1"], intent="practice")
+    request = GenerationRequest(
+        student_id=profile.student_id, target_kc_ids=["KC-1"], intent="practice"
+    )
     route = AdaptiveRouteDecision(
         intervention_type=InterventionType.targeted_practice,
         delivery_mode=DeliveryMode.generated,
@@ -87,7 +89,9 @@ def test_generation_mode_plan_auto_selects_worked_example_for_high_help_seeking(
             help_seeking="high",
         )
     )
-    request = GenerationRequest(student_id=profile.student_id, target_kc_ids=["KC-1"], intent="explanation")
+    request = GenerationRequest(
+        student_id=profile.student_id, target_kc_ids=["KC-1"], intent="explanation"
+    )
     route = AdaptiveRouteDecision(
         intervention_type=InterventionType.reteach,
         delivery_mode=DeliveryMode.generated,
@@ -299,7 +303,9 @@ def test_generation_mode_plan_uses_bridge_arc_to_select_guided_practice():
 
     assert plan.content_type == RequestedContentType.practice_problem
     assert plan.request_context["selection_mode"] == "session_arc"
-    assert plan.request_context["session_adaptation"]["arc_action"] == "bridge_with_target"
+    assert (
+        plan.request_context["session_adaptation"]["arc_action"] == "bridge_with_target"
+    )
     assert "guided bridge" in plan.prompt_guidance
 
 
@@ -559,7 +565,9 @@ def test_generation_mode_plan_surfaces_loop_risk_in_session_context():
 
     assert plan.request_context["session_adaptation"]["stuck_loop_risk"] == "high"
     assert plan.request_context["session_adaptation"]["support_steps_remaining"] == 0
-    assert plan.request_context["socratic_follow_up"]["arc_action"] == "reprobe_new_angle"
+    assert (
+        plan.request_context["socratic_follow_up"]["arc_action"] == "reprobe_new_angle"
+    )
     assert "Change the representation" in plan.prompt_guidance
 
 
@@ -583,7 +591,9 @@ def test_generation_mode_plan_uses_target_kc_misconceptions_to_focus_distractors
                 kc_name="Generate equivalent fractions",
                 misconception_ids=["fraction-whole-number-bias"],
                 misconception_labels=["Whole-number bias"],
-                remediation_hints=["Compare the total amount before comparing the parts."],
+                remediation_hints=[
+                    "Compare the total amount before comparing the parts."
+                ],
             )
         ],
     )
@@ -597,19 +607,34 @@ def test_generation_mode_plan_uses_target_kc_misconceptions_to_focus_distractors
     plan = build_generation_mode_plan(profile, request, route)
 
     assert "Whole-number bias" in plan.request_context["practice_distractor_focus"]
-    assert plan.request_context["practice_distractor_family"] == "misconception_mirror_pair"
+    assert (
+        plan.request_context["practice_distractor_family"]
+        == "misconception_mirror_pair"
+    )
     assert plan.request_context["practice_distractor_support_intensity"] == "explicit"
-    assert "misconception_mirror" in plan.request_context["practice_distractor_slots"][0]
-    assert "avoids Whole-number bias" in plan.request_context["practice_answer_check_focus"]
-    assert plan.request_context["practice_distractor_misconception_ids"] == ["fraction-whole-number-bias"]
+    assert (
+        "misconception_mirror" in plan.request_context["practice_distractor_slots"][0]
+    )
+    assert (
+        "avoids Whole-number bias"
+        in plan.request_context["practice_answer_check_focus"]
+    )
+    assert plan.request_context["practice_distractor_misconception_ids"] == [
+        "fraction-whole-number-bias"
+    ]
     assert (
         plan.request_context["practice_distractor_remediation_hint"]
         == "Compare the total amount before comparing the parts."
     )
-    assert "Ground the wrong answer family" in plan.request_context["practice_distractor_rationale"]
+    assert (
+        "Ground the wrong answer family"
+        in plan.request_context["practice_distractor_rationale"]
+    )
     assert "Whole-number bias" in plan.prompt_guidance
     assert "Distractor slots:" in plan.prompt_guidance
-    assert "Compare the total amount before comparing the parts." in plan.prompt_guidance
+    assert (
+        "Compare the total amount before comparing the parts." in plan.prompt_guidance
+    )
 
 
 def test_generation_mode_plan_uses_target_kc_hints_to_ground_micro_explanations():
@@ -632,7 +657,9 @@ def test_generation_mode_plan_uses_target_kc_hints_to_ground_micro_explanations(
                 kc_name="Generate equivalent fractions",
                 nearby_kc_names=["Compare equivalent fractions"],
                 misconception_labels=["Whole-number bias"],
-                remediation_hints=["Compare the total amount before comparing the parts."],
+                remediation_hints=[
+                    "Compare the total amount before comparing the parts."
+                ],
             )
         ],
     )
@@ -646,9 +673,14 @@ def test_generation_mode_plan_uses_target_kc_hints_to_ground_micro_explanations(
     plan = build_generation_mode_plan(profile, request, route)
 
     assert plan.content_type == RequestedContentType.micro_explanation
-    assert "Center the explanation on Generate equivalent fractions." in plan.prompt_guidance
+    assert (
+        "Center the explanation on Generate equivalent fractions."
+        in plan.prompt_guidance
+    )
     assert "Whole-number bias" in plan.prompt_guidance
-    assert "Compare the total amount before comparing the parts." in plan.prompt_guidance
+    assert (
+        "Compare the total amount before comparing the parts." in plan.prompt_guidance
+    )
     assert "Compare equivalent fractions" in plan.prompt_guidance
 
 
@@ -692,9 +724,15 @@ def test_generation_mode_plan_uses_bridge_progression_for_worked_examples():
 
     assert plan.request_context["fading_strategy"] == "completion"
     assert plan.request_context["worked_example_progression_action"] == "bridge_release"
-    assert plan.request_context["worked_example_fade_focus"] == "a near-target example with the transfer move left unfinished"
+    assert (
+        plan.request_context["worked_example_fade_focus"]
+        == "a near-target example with the transfer move left unfinished"
+    )
     assert "worked bridge" in plan.request_context["worked_example_step_outline"][1]
-    assert "learner sees how the example returns" in plan.request_context["worked_example_learner_release"]
+    assert (
+        "learner sees how the example returns"
+        in plan.request_context["worked_example_learner_release"]
+    )
     assert "near-target example" in plan.prompt_guidance
 
 
@@ -744,16 +782,31 @@ def test_generation_mode_plan_names_visible_and_hidden_worked_example_roles():
     plan = build_generation_mode_plan(profile, request, route)
 
     assert plan.request_context["worked_example_visible_step_roles"] == ["cue"]
-    assert plan.request_context["worked_example_hidden_step_role"] == "independent application"
+    assert (
+        plan.request_context["worked_example_hidden_step_role"]
+        == "independent application"
+    )
     assert plan.request_context["worked_example_release_stage"] == "cue_then_transfer"
-    assert plan.request_context["worked_example_learner_release_intensity"] == "light_release"
-    assert plan.request_context["worked_example_release_transition"] == "cue -> independent application"
+    assert (
+        plan.request_context["worked_example_learner_release_intensity"]
+        == "light_release"
+    )
+    assert (
+        plan.request_context["worked_example_release_transition"]
+        == "cue -> independent application"
+    )
     assert (
         plan.request_context["worked_example_transfer_move"]
         == "apply Generate equivalent fractions in Compare equivalent fractions"
     )
-    assert "cue: give only the lightest setup needed" in plan.request_context["worked_example_step_outline"][0]
-    assert "independent application" in plan.request_context["worked_example_learner_release"]
+    assert (
+        "cue: give only the lightest setup needed"
+        in plan.request_context["worked_example_step_outline"][0]
+    )
+    assert (
+        "independent application"
+        in plan.request_context["worked_example_learner_release"]
+    )
     assert "light release" in plan.prompt_guidance
     assert "visible step roles (cue)" in plan.prompt_guidance
     assert "independent application" in plan.prompt_guidance
@@ -803,7 +856,10 @@ def test_generation_mode_plan_uses_reliable_state_signals_to_keep_practice_distr
     plan = build_generation_mode_plan(profile, request, route)
 
     assert plan.request_context["practice_distractor_support_intensity"] == "explicit"
-    assert "Reliable durable load or metacognitive signals" in plan.request_context["practice_distractor_rationale"]
+    assert (
+        "Reliable durable load or metacognitive signals"
+        in plan.request_context["practice_distractor_rationale"]
+    )
 
 
 def test_generation_mode_plan_uses_reliable_trait_signals_for_lighter_worked_example_release():
@@ -847,8 +903,14 @@ def test_generation_mode_plan_uses_reliable_trait_signals_for_lighter_worked_exa
     plan = build_generation_mode_plan(profile, request, route)
 
     assert plan.request_context["worked_example_release_stage"] == "cue_then_transfer"
-    assert plan.request_context["worked_example_learner_release_intensity"] == "light_release"
-    assert "Stable recovery and challenge readiness support a light release" in plan.request_context["worked_example_release_rationale"]
+    assert (
+        plan.request_context["worked_example_learner_release_intensity"]
+        == "light_release"
+    )
+    assert (
+        "Stable recovery and challenge readiness support a light release"
+        in plan.request_context["worked_example_release_rationale"]
+    )
 
 
 def test_generation_mode_plan_advances_practice_after_improving_progress():
@@ -885,13 +947,22 @@ def test_generation_mode_plan_advances_practice_after_improving_progress():
     plan = build_generation_mode_plan(profile, request, route)
 
     assert plan.request_context["difficulty_band"] == "stretch"
-    assert plan.request_context["difficulty_progression_action"] == "advance_after_improvement"
+    assert (
+        plan.request_context["difficulty_progression_action"]
+        == "advance_after_improvement"
+    )
     assert plan.request_context["practice_distractor_style"] == "near_transfer"
 
 
 def test_generation_mode_plan_builds_structured_practice_distractor_blueprint():
     profile = LearnerProfile.model_validate(
-        build_profile(uuid4(), frustration="low", total_load=0.2, kc_mastery={"KC-1": 0.2}, engagement="medium")
+        build_profile(
+            uuid4(),
+            frustration="low",
+            total_load=0.2,
+            kc_mastery={"KC-1": 0.2},
+            engagement="medium",
+        )
     )
     request = GenerationRequest(
         student_id=profile.student_id,
@@ -903,8 +974,12 @@ def test_generation_mode_plan_builds_structured_practice_distractor_blueprint():
                 kc_name="Generate equivalent fractions",
                 misconception_ids=["fraction-whole-number-bias"],
                 misconception_labels=["Whole-number bias"],
-                misconception_descriptions=["The learner compares numerators and denominators separately."],
-                remediation_hints=["Compare the whole amount before comparing the parts."],
+                misconception_descriptions=[
+                    "The learner compares numerators and denominators separately."
+                ],
+                remediation_hints=[
+                    "Compare the whole amount before comparing the parts."
+                ],
             )
         ],
     )
@@ -921,7 +996,9 @@ def test_generation_mode_plan_builds_structured_practice_distractor_blueprint():
     assert blueprint[0]["slot"] == "misconception_mirror"
     assert "temptation_basis" in blueprint[0]
     assert "repair_cue" in blueprint[0]
-    assert plan.request_context["practice_distractor_slots"][0].startswith("misconception_mirror")
+    assert plan.request_context["practice_distractor_slots"][0].startswith(
+        "misconception_mirror"
+    )
 
 
 def test_generation_mode_plan_uses_support_intensity_to_tighten_practice_blueprint_surface_shift():
@@ -945,7 +1022,9 @@ def test_generation_mode_plan_uses_support_intensity_to_tighten_practice_bluepri
                 kc_id="KC-1",
                 kc_name="Generate equivalent fractions",
                 misconception_labels=["Whole-number bias"],
-                remediation_hints=["Compare the whole amount before comparing the parts."],
+                remediation_hints=[
+                    "Compare the whole amount before comparing the parts."
+                ],
             )
         ],
         mode_calibration=GenerationModeCalibration(
@@ -975,7 +1054,10 @@ def test_generation_mode_plan_uses_support_intensity_to_tighten_practice_bluepri
     plan = build_generation_mode_plan(profile, request, route)
 
     assert plan.request_context["practice_distractor_support_intensity"] == "explicit"
-    assert plan.request_context["practice_distractor_blueprint"][0]["surface_shift"] == "same_representation"
+    assert (
+        plan.request_context["practice_distractor_blueprint"][0]["surface_shift"]
+        == "same_representation"
+    )
 
 
 def test_generation_mode_plan_builds_worked_example_transfer_plan_for_independent_transfer():
@@ -1029,5 +1111,11 @@ def test_generation_mode_plan_builds_worked_example_transfer_plan_for_independen
     assert transfer_plan["preserve"]
     assert transfer_plan["change"]
     assert transfer_plan["learner_owned_move"] == "independent application"
-    assert "Generate equivalent fractions" in plan.request_context["worked_example_transfer_move"]
-    assert "Compare equivalent fractions" in plan.request_context["worked_example_transfer_move"]
+    assert (
+        "Generate equivalent fractions"
+        in plan.request_context["worked_example_transfer_move"]
+    )
+    assert (
+        "Compare equivalent fractions"
+        in plan.request_context["worked_example_transfer_move"]
+    )

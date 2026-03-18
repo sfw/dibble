@@ -46,7 +46,9 @@ class MisconceptionDisambiguationService:
                 )
         return [updates.get(id(signal), signal) for signal in signals]
 
-    def _score(self, signal: MisconceptionSignal, *, term_counts: dict[str, int]) -> float:
+    def _score(
+        self, signal: MisconceptionSignal, *, term_counts: dict[str, int]
+    ) -> float:
         source_bonus = {
             "profile": 16.0,
             "catalog": 8.0,
@@ -57,7 +59,11 @@ class MisconceptionDisambiguationService:
             (signal.recurrence_session_count * 7.0) + (signal.recurrence_count * 2.0),
         )
         evidence_bonus = min(18.0, len(signal.evidence_terms) * 4.0)
-        repair_target_bonus = 3.0 if signal.recommended_kc_ids and signal.recommended_kc_ids != [signal.kc_id] else 0.0
+        repair_target_bonus = (
+            3.0
+            if signal.recommended_kc_ids and signal.recommended_kc_ids != [signal.kc_id]
+            else 0.0
+        )
         distinctive_bonus = min(
             16.0,
             sum(6.0 for term in signal.evidence_terms if term_counts.get(term, 0) == 1),
@@ -102,7 +108,9 @@ class MisconceptionDisambiguationService:
 
 
 def _is_disambiguation_candidate(signal: MisconceptionSignal) -> bool:
-    return signal.category == "known_misconception" and signal.misconception_id is not None
+    return (
+        signal.category == "known_misconception" and signal.misconception_id is not None
+    )
 
 
 def _term_counts(signals: list[MisconceptionSignal]) -> dict[str, int]:

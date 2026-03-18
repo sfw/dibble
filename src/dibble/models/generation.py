@@ -102,10 +102,16 @@ class GenerationModeCalibration(BaseModel):
     trait_profile_source: str = "insufficient"
     trait_profile_trait_stability: float = Field(default=0.0, ge=0.0, le=1.0)
     trait_profile_challenge_tolerance: float = Field(default=0.0, ge=0.0, le=1.0)
-    trait_profile_challenge_evidence_strength: float = Field(default=0.0, ge=0.0, le=1.0)
-    trait_profile_processing_speed_reliability: float = Field(default=0.0, ge=0.0, le=1.0)
+    trait_profile_challenge_evidence_strength: float = Field(
+        default=0.0, ge=0.0, le=1.0
+    )
+    trait_profile_processing_speed_reliability: float = Field(
+        default=0.0, ge=0.0, le=1.0
+    )
     trait_profile_working_memory_reliability: float = Field(default=0.0, ge=0.0, le=1.0)
-    trait_profile_spatial_reasoning_reliability: float = Field(default=0.0, ge=0.0, le=1.0)
+    trait_profile_spatial_reasoning_reliability: float = Field(
+        default=0.0, ge=0.0, le=1.0
+    )
     strategy_sequence_action: str = "monitor"
     strategy_sequence_primary_kc_id: str | None = None
     strategy_sequence_kc_ids: list[str] = Field(default_factory=list)
@@ -306,7 +312,9 @@ class GenerationWorkflowSummary(BaseModel):
     active_target_kc_ids: list[str] = Field(default_factory=list)
     rationale: str | None = None
     next_step: LearnerFlowNextStep = Field(default_factory=LearnerFlowNextStep)
-    continue_action: LearnerContinueAction = Field(default_factory=LearnerContinueAction)
+    continue_action: LearnerContinueAction = Field(
+        default_factory=LearnerContinueAction
+    )
 
 
 class GenerationResponse(BaseModel):

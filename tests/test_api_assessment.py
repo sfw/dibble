@@ -1,8 +1,17 @@
-from tests.support import assert_machine_readable_error, build_curriculum_resource, build_profile
+from tests.support import (
+    assert_machine_readable_error,
+    build_curriculum_resource,
+    build_profile,
+)
 
 
-def test_socratic_assessment_starts_with_probe_when_no_learner_response(client, student_id):
-    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+def test_socratic_assessment_starts_with_probe_when_no_learner_response(
+    client, student_id
+):
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, frustration="low", total_load=0.2),
+    )
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
 
     response = client.post(
@@ -28,12 +37,17 @@ def test_socratic_assessment_starts_with_probe_when_no_learner_response(client, 
     assert payload["summary"]["latest_prompt_style"] == "diagnostic"
     assert payload["summary"]["latest_next_action"] == "ask_probe"
     assert payload["summary"]["next_step"]["content_type"] == "assessment_probe"
-    assert payload["summary"]["rationale"] == payload["summary"]["next_step"]["rationale"]
-    assert "gathering one more assessment signal instead of releasing into practice yet" in payload["summary"][
-        "rationale"
-    ]
+    assert (
+        payload["summary"]["rationale"] == payload["summary"]["next_step"]["rationale"]
+    )
+    assert (
+        "gathering one more assessment signal instead of releasing into practice yet"
+        in payload["summary"]["rationale"]
+    )
     assert payload["summary"]["continue_action"]["kind"] == "continue_socratic"
-    assert payload["summary"]["continue_action"]["endpoint"] == "/api/assessments/socratic"
+    assert (
+        payload["summary"]["continue_action"]["endpoint"] == "/api/assessments/socratic"
+    )
     assert payload["generation_metadata"]["prompt_template_name"] is not None
     assert payload["generated_blocks"]
     event_types = [event["event_type"] for event in audit_response.json()]
@@ -50,8 +64,13 @@ def test_socratic_assessment_session_not_found_returns_machine_readable_error(cl
     )
 
 
-def test_socratic_assessment_detects_grounded_reasoning_in_learner_response(client, student_id):
-    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+def test_socratic_assessment_detects_grounded_reasoning_in_learner_response(
+    client, student_id
+):
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, frustration="low", total_load=0.2),
+    )
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
 
     response = client.post(
@@ -76,15 +95,28 @@ def test_socratic_assessment_detects_grounded_reasoning_in_learner_response(clie
     assert payload["summary"]["latest_next_action"] == "advance"
     assert payload["summary"]["next_step"]["content_type"] == "practice_problem"
     assert payload["summary"]["next_step"]["target_stage"] == "transfer"
-    assert payload["summary"]["rationale"] == payload["summary"]["next_step"]["rationale"]
-    assert "testing transfer instead of adding another support step" in payload["summary"]["rationale"]
+    assert (
+        payload["summary"]["rationale"] == payload["summary"]["next_step"]["rationale"]
+    )
+    assert (
+        "testing transfer instead of adding another support step"
+        in payload["summary"]["rationale"]
+    )
     assert payload["summary"]["continue_action"]["kind"] == "generate_follow_up"
-    assert payload["summary"]["continue_action"]["request_payload"]["requested_content_type"] == "practice_problem"
+    assert (
+        payload["summary"]["continue_action"]["request_payload"][
+            "requested_content_type"
+        ]
+        == "practice_problem"
+    )
     assert "equivalent" in payload["evaluation"]["matched_terms"]
 
 
 def test_socratic_assessment_session_persists_across_turns(client, student_id):
-    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, frustration="low", total_load=0.2),
+    )
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
 
     first_response = client.post(
@@ -127,7 +159,10 @@ def test_socratic_assessment_session_persists_across_turns(client, student_id):
     assert session_payload["summary"]["latest_prompt_style"] == "transfer_check"
     assert session_payload["summary"]["latest_next_action"] == "advance"
     assert session_payload["summary"]["continue_action"]["kind"] == "generate_follow_up"
-    assert session_payload["summary"]["continue_action"] == second_payload["summary"]["continue_action"]
+    assert (
+        session_payload["summary"]["continue_action"]
+        == second_payload["summary"]["continue_action"]
+    )
 
     third_response = client.post(
         "/api/assessments/socratic",
@@ -141,7 +176,9 @@ def test_socratic_assessment_session_persists_across_turns(client, student_id):
     assert third_response.json()["prompt_style"] == "transfer_check"
 
 
-def test_socratic_assessment_updates_profile_and_unblocks_stretch_routing(client, student_id):
+def test_socratic_assessment_updates_profile_and_unblocks_stretch_routing(
+    client, student_id
+):
     client.put(
         f"/api/learners/{student_id}/profile",
         json=build_profile(
@@ -198,12 +235,21 @@ def test_socratic_assessment_updates_profile_and_unblocks_stretch_routing(client
     assert assessment_payload["evaluation"]["evidence_strength"] == "demonstrated"
     assert profile_payload["knowledge_state"]["kc_mastery"]["KC-1"] >= 0.85
     assert profile_payload["metacognitive_state"]["confidence_calibration"] > 0.45
-    assert profile_payload["metacognitive_state"]["help_seeking"] in {"none", "low", "medium"}
+    assert profile_payload["metacognitive_state"]["help_seeking"] in {
+        "none",
+        "low",
+        "medium",
+    }
     assert after_payload["intervention_type"] == "stretch"
 
 
-def test_socratic_assessment_invalidates_matching_predictive_cache_entries(client, student_id):
-    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+def test_socratic_assessment_invalidates_matching_predictive_cache_entries(
+    client, student_id
+):
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, frustration="low", total_load=0.2),
+    )
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
 
     client.post(
@@ -259,19 +305,30 @@ def test_socratic_assessment_invalidates_matching_predictive_cache_entries(clien
     summary_event = next(
         event
         for event in audit_response.json()
-        if event["event_type"] == "learning.run.summary" and event["payload"]["trigger_event_type"] == "assessment.socratic"
+        if event["event_type"] == "learning.run.summary"
+        and event["payload"]["trigger_event_type"] == "assessment.socratic"
     )
-    progress_event = next(event for event in audit_response.json() if event["event_type"] == "learning.progress.profile")
+    progress_event = next(
+        event
+        for event in audit_response.json()
+        if event["event_type"] == "learning.progress.profile"
+    )
     invalidation_event = next(
         event
         for event in audit_response.json()
-        if event["event_type"] == "content.cache.invalidate" and event["payload"]["trigger_event_type"] == "assessment.socratic"
+        if event["event_type"] == "content.cache.invalidate"
+        and event["payload"]["trigger_event_type"] == "assessment.socratic"
     )
-    assert progress_event["payload"]["source_run_summary_event_id"] == summary_event["event_id"]
+    assert (
+        progress_event["payload"]["source_run_summary_event_id"]
+        == summary_event["event_id"]
+    )
     assert invalidation_event["payload"]["expired_entries"] >= 1
 
 
-def test_socratic_assessment_propagates_mastery_to_prerequisites_and_parent_lo(client, student_id):
+def test_socratic_assessment_propagates_mastery_to_prerequisites_and_parent_lo(
+    client, student_id
+):
     from tests.support import build_knowledge_component
 
     client.put(
@@ -288,10 +345,15 @@ def test_socratic_assessment_propagates_mastery_to_prerequisites_and_parent_lo(c
         ),
     )
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
-    client.put("/api/knowledge-components/KC-1", json=build_knowledge_component("KC-1", parent_lo_id="LO-1"))
+    client.put(
+        "/api/knowledge-components/KC-1",
+        json=build_knowledge_component("KC-1", parent_lo_id="LO-1"),
+    )
     client.put(
         "/api/knowledge-components/KC-2",
-        json=build_knowledge_component("KC-2", parent_lo_id="LO-1", prerequisite_kc_ids=["KC-1"]),
+        json=build_knowledge_component(
+            "KC-2", parent_lo_id="LO-1", prerequisite_kc_ids=["KC-1"]
+        ),
     )
 
     assessment_response = client.post(
@@ -313,7 +375,9 @@ def test_socratic_assessment_propagates_mastery_to_prerequisites_and_parent_lo(c
 
     profile_payload = profile_response.json()
     assessment_event = next(
-        event for event in audit_response.json() if event["event_type"] == "assessment.socratic"
+        event
+        for event in audit_response.json()
+        if event["event_type"] == "assessment.socratic"
     )
     assert profile_payload["knowledge_state"]["kc_mastery"]["KC-1"] > 0.42
     assert profile_payload["knowledge_state"]["lo_mastery"]["LO-1"] > 0.6

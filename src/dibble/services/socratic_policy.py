@@ -34,8 +34,16 @@ class SocraticTurnPolicy:
                 rationale="Start with an open probe so the system can observe the learner's current reasoning without over-scaffolding.",
             )
 
-        latest_evaluation = current_evaluation if request.learner_response else session.turns[-1].evaluation if session.turns else current_evaluation
-        recent_mastery = [turn.evaluation.inferred_mastery for turn in session.turns[-2:]]
+        latest_evaluation = (
+            current_evaluation
+            if request.learner_response
+            else session.turns[-1].evaluation
+            if session.turns
+            else current_evaluation
+        )
+        recent_mastery = [
+            turn.evaluation.inferred_mastery for turn in session.turns[-2:]
+        ]
         if request.learner_response:
             recent_mastery.append(current_evaluation.inferred_mastery)
         mastery_trend = 0.0
@@ -43,18 +51,25 @@ class SocraticTurnPolicy:
             mastery_trend = recent_mastery[-1] - recent_mastery[0]
 
         repeated_low_signal = all(
-            turn.evaluation.evidence_strength == SocraticEvidenceStrength.insufficient for turn in session.turns[-2:]
+            turn.evaluation.evidence_strength == SocraticEvidenceStrength.insufficient
+            for turn in session.turns[-2:]
         )
-        repeated_clarification = (
-            len(session.turns) >= 2
-            and all(turn.prompt_style == SocraticPromptStyle.clarification for turn in session.turns[-2:])
+        repeated_clarification = len(session.turns) >= 2 and all(
+            turn.prompt_style == SocraticPromptStyle.clarification
+            for turn in session.turns[-2:]
         )
-        repeated_step_back = (
-            len(session.turns) >= 2
-            and all(turn.prompt_style == SocraticPromptStyle.scaffolded_step_back for turn in session.turns[-2:])
+        repeated_step_back = len(session.turns) >= 2 and all(
+            turn.prompt_style == SocraticPromptStyle.scaffolded_step_back
+            for turn in session.turns[-2:]
         )
-        already_step_back = any(turn.prompt_style == SocraticPromptStyle.scaffolded_step_back for turn in session.turns[-2:])
-        already_checked_transfer = any(turn.prompt_style == SocraticPromptStyle.transfer_check for turn in session.turns[-2:])
+        already_step_back = any(
+            turn.prompt_style == SocraticPromptStyle.scaffolded_step_back
+            for turn in session.turns[-2:]
+        )
+        already_checked_transfer = any(
+            turn.prompt_style == SocraticPromptStyle.transfer_check
+            for turn in session.turns[-2:]
+        )
         last_prompt_style = session.turns[-1].prompt_style if session.turns else None
         stalled_recent_progress = len(recent_mastery) >= 2 and abs(mastery_trend) < 0.05
         clarification_loop = (
@@ -71,20 +86,20 @@ class SocraticTurnPolicy:
         )
 
         if latest_evaluation.evidence_strength == SocraticEvidenceStrength.demonstrated:
-            if (
-                last_prompt_style == SocraticPromptStyle.scaffolded_step_back
-                and (
-                    request.learner_confidence is not None
-                    and request.learner_confidence < 0.55
-                    or latest_evaluation.evidence_dimensions.progression_signal < 0.55
-                )
+            if last_prompt_style == SocraticPromptStyle.scaffolded_step_back and (
+                request.learner_confidence is not None
+                and request.learner_confidence < 0.55
+                or latest_evaluation.evidence_dimensions.progression_signal < 0.55
             ):
                 return self._decision(
                     prompt_style=SocraticPromptStyle.clarification,
                     steering_action=SocraticSteeringAction.restate_then_apply,
                     rationale="The learner recovered after a step-back prompt but still needs to restate the repaired idea clearly before transfer.",
                 )
-            if request.learner_confidence is not None and request.learner_confidence < 0.45:
+            if (
+                request.learner_confidence is not None
+                and request.learner_confidence < 0.45
+            ):
                 return self._decision(
                     prompt_style=SocraticPromptStyle.clarification,
                     steering_action=SocraticSteeringAction.clarify_then_check,
@@ -121,12 +136,9 @@ class SocraticTurnPolicy:
                     steering_action=SocraticSteeringAction.probe_from_new_angle,
                     rationale="Repeated step-back turns are no longer moving the learner forward, so the next prompt should test the idea through a new representation before adding more scaffold.",
                 )
-            if (
-                last_prompt_style == SocraticPromptStyle.scaffolded_step_back
-                and (
-                    latest_evaluation.evidence_score >= 0.45
-                    or latest_evaluation.evidence_dimensions.progression_signal >= 0.55
-                )
+            if last_prompt_style == SocraticPromptStyle.scaffolded_step_back and (
+                latest_evaluation.evidence_score >= 0.45
+                or latest_evaluation.evidence_dimensions.progression_signal >= 0.55
             ):
                 return self._decision(
                     prompt_style=SocraticPromptStyle.clarification,
@@ -135,7 +147,10 @@ class SocraticTurnPolicy:
                 )
             if repeated_clarification and (
                 latest_evaluation.evidence_dimensions.confidence_alignment < 0.4
-                or (request.learner_confidence is not None and request.learner_confidence < 0.45)
+                or (
+                    request.learner_confidence is not None
+                    and request.learner_confidence < 0.45
+                )
             ):
                 return self._decision(
                     prompt_style=SocraticPromptStyle.scaffolded_step_back,

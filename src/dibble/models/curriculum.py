@@ -47,7 +47,9 @@ class KnowledgeComponentUpsert(BaseModel):
     difficulty: float = Field(default=0.5, ge=0.0, le=1.0)
     estimated_time_minutes: int = Field(default=10, ge=1)
     tags: list[str] = Field(default_factory=list)
-    common_misconceptions: list[KnowledgeComponentMisconception] = Field(default_factory=list)
+    common_misconceptions: list[KnowledgeComponentMisconception] = Field(
+        default_factory=list
+    )
 
 
 class KnowledgeComponent(KnowledgeComponentUpsert):

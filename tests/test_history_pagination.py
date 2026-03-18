@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from tests.support import build_curriculum_resource, build_knowledge_component, build_profile
+from tests.support import (
+    build_curriculum_resource,
+    build_knowledge_component,
+    build_profile,
+)
 
 
 def test_generation_history_returns_paginated_response(client, student_id):
@@ -55,33 +59,46 @@ def test_generation_history_respects_limit_and_offset(client, student_id):
             },
         )
 
-    first_page = client.get(f"/api/learners/{student_id}/history/generations?limit=2&offset=0").json()
+    first_page = client.get(
+        f"/api/learners/{student_id}/history/generations?limit=2&offset=0"
+    ).json()
     assert len(first_page["items"]) == 2
     assert first_page["offset"] == 0
     assert first_page["limit"] == 2
     assert first_page["has_more"] is True
 
-    second_page = client.get(f"/api/learners/{student_id}/history/generations?limit=2&offset=2").json()
+    second_page = client.get(
+        f"/api/learners/{student_id}/history/generations?limit=2&offset=2"
+    ).json()
     assert len(second_page["items"]) == 2
     assert second_page["offset"] == 2
     assert second_page["has_more"] is True
 
-    third_page = client.get(f"/api/learners/{student_id}/history/generations?limit=2&offset=4").json()
+    third_page = client.get(
+        f"/api/learners/{student_id}/history/generations?limit=2&offset=4"
+    ).json()
     assert len(third_page["items"]) == 1
     assert third_page["offset"] == 4
     assert third_page["has_more"] is False
 
-    all_ids = [e["generation_id"] for e in first_page["items"] + second_page["items"] + third_page["items"]]
+    all_ids = [
+        e["generation_id"]
+        for e in first_page["items"] + second_page["items"] + third_page["items"]
+    ]
     assert len(set(all_ids)) == 5
 
 
 def test_generation_history_clamps_limit(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
 
-    over_max = client.get(f"/api/learners/{student_id}/history/generations?limit=200").json()
+    over_max = client.get(
+        f"/api/learners/{student_id}/history/generations?limit=200"
+    ).json()
     assert over_max["limit"] == 100
 
-    under_min = client.get(f"/api/learners/{student_id}/history/generations?limit=0").json()
+    under_min = client.get(
+        f"/api/learners/{student_id}/history/generations?limit=0"
+    ).json()
     assert under_min["limit"] == 1
 
 

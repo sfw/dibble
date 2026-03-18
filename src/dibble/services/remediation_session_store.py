@@ -40,7 +40,9 @@ class SQLiteRemediationSessionStore:
             return None
         return RemediationWorkflowSession.model_validate_json(row[0])
 
-    def list_recent_for_student(self, *, student_id: str, limit: int = 20, offset: int = 0) -> list[RemediationWorkflowSession]:
+    def list_recent_for_student(
+        self, *, student_id: str, limit: int = 20, offset: int = 0
+    ) -> list[RemediationWorkflowSession]:
         with sqlite3.connect(self.database_path) as connection:
             rows = connection.execute(
                 """

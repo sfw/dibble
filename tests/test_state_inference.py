@@ -41,7 +41,10 @@ def test_state_inference_detects_high_frustration_and_load():
     assert inferred.affective_state.frustration == SignalLevel.high
     assert inferred.affective_state.confusion in {SignalLevel.medium, SignalLevel.high}
     assert inferred.cognitive_load.total_load >= 0.6
-    assert inferred.metacognitive_state.help_seeking in {SignalLevel.medium, SignalLevel.high}
+    assert inferred.metacognitive_state.help_seeking in {
+        SignalLevel.medium,
+        SignalLevel.high,
+    }
     assert inferred.metacognitive_state.confidence_calibration >= 0.7
     assert inferred.metacognitive_state.self_monitoring <= 0.5
     assert inferred.observation_count == 2
@@ -78,7 +81,10 @@ def test_state_inference_tracks_calibrated_confidence_when_performance_matches()
     inferred = service.infer(student_id=student_id, observations=observations)
 
     assert inferred.metacognitive_state.confidence_calibration >= 0.8
-    assert inferred.metacognitive_state.help_seeking in {SignalLevel.none, SignalLevel.low}
+    assert inferred.metacognitive_state.help_seeking in {
+        SignalLevel.none,
+        SignalLevel.low,
+    }
     assert inferred.metacognitive_state.self_monitoring >= 0.6
 
 
@@ -119,8 +125,14 @@ def test_state_inference_is_task_aware_for_supported_vs_assessment_work():
 
     assert assessed.cognitive_load.total_load > supported.cognitive_load.total_load
     assert assessed.affective_state.confusion.value in {"low", "medium", "high"}
-    assert assessed.metacognitive_state.help_seeking in {SignalLevel.medium, SignalLevel.high}
-    assert supported.metacognitive_state.help_seeking in {SignalLevel.none, SignalLevel.low}
+    assert assessed.metacognitive_state.help_seeking in {
+        SignalLevel.medium,
+        SignalLevel.high,
+    }
+    assert supported.metacognitive_state.help_seeking in {
+        SignalLevel.none,
+        SignalLevel.low,
+    }
 
 
 def test_state_inference_blends_high_confidence_durable_state_profile(tmp_path):
@@ -255,10 +267,15 @@ def test_state_inference_ignores_weak_mismatched_durable_profile(tmp_path):
     blended = blended_service.infer(student_id=student_id, observations=observations)
 
     assert blended.cognitive_load.total_load == baseline.cognitive_load.total_load
-    assert blended.metacognitive_state.self_monitoring == baseline.metacognitive_state.self_monitoring
+    assert (
+        blended.metacognitive_state.self_monitoring
+        == baseline.metacognitive_state.self_monitoring
+    )
 
 
-def test_state_inference_downweights_high_confidence_durable_profile_when_current_evidence_is_rich_and_contradictory(tmp_path):
+def test_state_inference_downweights_high_confidence_durable_profile_when_current_evidence_is_rich_and_contradictory(
+    tmp_path,
+):
     database_path = str(tmp_path / "state-inference-rich-current.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -335,12 +352,22 @@ def test_state_inference_downweights_high_confidence_durable_profile_when_curren
     baseline = baseline_service.infer(student_id=student_id, observations=observations)
     blended = blended_service.infer(student_id=student_id, observations=observations)
 
-    assert blended.cognitive_load.total_load >= baseline.cognitive_load.total_load - 0.04
-    assert blended.metacognitive_state.self_monitoring <= baseline.metacognitive_state.self_monitoring + 0.06
-    assert blended.metacognitive_state.help_seeking in {SignalLevel.medium, SignalLevel.high}
+    assert (
+        blended.cognitive_load.total_load >= baseline.cognitive_load.total_load - 0.04
+    )
+    assert (
+        blended.metacognitive_state.self_monitoring
+        <= baseline.metacognitive_state.self_monitoring + 0.06
+    )
+    assert blended.metacognitive_state.help_seeking in {
+        SignalLevel.medium,
+        SignalLevel.high,
+    }
 
 
-def test_state_inference_blends_durable_load_more_than_affect_when_reliability_is_dimension_specific(tmp_path):
+def test_state_inference_blends_durable_load_more_than_affect_when_reliability_is_dimension_specific(
+    tmp_path,
+):
     database_path = str(tmp_path / "state-inference-dimension-specific.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -404,8 +431,16 @@ def test_state_inference_blends_durable_load_more_than_affect_when_reliability_i
     baseline = baseline_service.infer(student_id=student_id, observations=observations)
     blended = blended_service.infer(student_id=student_id, observations=observations)
 
-    assert blended.cognitive_load.total_load - baseline.cognitive_load.total_load >= 0.08
-    assert abs(_signal_rank(blended.affective_state.frustration) - _signal_rank(baseline.affective_state.frustration)) <= 1
+    assert (
+        blended.cognitive_load.total_load - baseline.cognitive_load.total_load >= 0.08
+    )
+    assert (
+        abs(
+            _signal_rank(blended.affective_state.frustration)
+            - _signal_rank(baseline.affective_state.frustration)
+        )
+        <= 1
+    )
 
 
 def _signal_rank(value: SignalLevel) -> int:

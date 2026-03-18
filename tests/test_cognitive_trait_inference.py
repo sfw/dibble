@@ -71,7 +71,9 @@ def test_cognitive_trait_inference_merges_with_existing_trait_scores():
 
     traits = service.infer(
         observations=observations,
-        existing_traits={"working_memory": CognitiveTraitScore(value=0.8, confidence=0.8)},
+        existing_traits={
+            "working_memory": CognitiveTraitScore(value=0.8, confidence=0.8)
+        },
     )
 
     assert traits["working_memory"].value < 0.8
@@ -104,7 +106,9 @@ def test_cognitive_trait_inference_blends_durable_trait_profile(tmp_path):
         },
     )
     service = CognitiveTraitInferenceService(
-        trait_profile_signal_service=LearnerTraitProfileSignalService(audit_store=audit_store)
+        trait_profile_signal_service=LearnerTraitProfileSignalService(
+            audit_store=audit_store
+        )
     )
     observations = [
         LearnerObservation(
@@ -123,14 +127,18 @@ def test_cognitive_trait_inference_blends_durable_trait_profile(tmp_path):
         )
     ]
 
-    traits = service.infer(student_id=student_id, observations=observations, existing_traits={})
+    traits = service.infer(
+        student_id=student_id, observations=observations, existing_traits={}
+    )
 
     assert traits["processing_speed"].value > 0.45
     assert traits["working_memory"].value > 0.55
     assert traits["spatial_reasoning"].value > 0.6
 
 
-def test_cognitive_trait_inference_uses_trait_stability_and_challenge_tolerance_in_durable_blend(tmp_path):
+def test_cognitive_trait_inference_uses_trait_stability_and_challenge_tolerance_in_durable_blend(
+    tmp_path,
+):
     database_path = str(tmp_path / "cognitive-trait-profile-stability.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -154,7 +162,9 @@ def test_cognitive_trait_inference_uses_trait_stability_and_challenge_tolerance_
         },
     )
     service = CognitiveTraitInferenceService(
-        trait_profile_signal_service=LearnerTraitProfileSignalService(audit_store=audit_store)
+        trait_profile_signal_service=LearnerTraitProfileSignalService(
+            audit_store=audit_store
+        )
     )
     observations = [
         LearnerObservation(
@@ -173,13 +183,17 @@ def test_cognitive_trait_inference_uses_trait_stability_and_challenge_tolerance_
         )
     ]
 
-    traits = service.infer(student_id=student_id, observations=observations, existing_traits={})
+    traits = service.infer(
+        student_id=student_id, observations=observations, existing_traits={}
+    )
 
     assert traits["working_memory"].value > 0.6
     assert traits["processing_speed"].value > 0.55
 
 
-def test_cognitive_trait_inference_downweights_mismatched_tentative_durable_profile(tmp_path):
+def test_cognitive_trait_inference_downweights_mismatched_tentative_durable_profile(
+    tmp_path,
+):
     database_path = str(tmp_path / "cognitive-trait-profile-mismatch.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -203,7 +217,9 @@ def test_cognitive_trait_inference_downweights_mismatched_tentative_durable_prof
         },
     )
     service = CognitiveTraitInferenceService(
-        trait_profile_signal_service=LearnerTraitProfileSignalService(audit_store=audit_store)
+        trait_profile_signal_service=LearnerTraitProfileSignalService(
+            audit_store=audit_store
+        )
     )
     observations = [
         LearnerObservation(
@@ -236,13 +252,17 @@ def test_cognitive_trait_inference_downweights_mismatched_tentative_durable_prof
         ),
     ]
 
-    traits = service.infer(student_id=student_id, observations=observations, existing_traits={})
+    traits = service.infer(
+        student_id=student_id, observations=observations, existing_traits={}
+    )
 
     assert traits["working_memory"].value < 0.65
     assert traits["processing_speed"].value < 0.65
 
 
-def test_cognitive_trait_inference_downweights_stable_durable_profile_when_current_challenge_evidence_is_strong(tmp_path):
+def test_cognitive_trait_inference_downweights_stable_durable_profile_when_current_challenge_evidence_is_strong(
+    tmp_path,
+):
     database_path = str(tmp_path / "cognitive-trait-profile-strong-current.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -267,7 +287,9 @@ def test_cognitive_trait_inference_downweights_stable_durable_profile_when_curre
     )
     baseline_service = CognitiveTraitInferenceService()
     blended_service = CognitiveTraitInferenceService(
-        trait_profile_signal_service=LearnerTraitProfileSignalService(audit_store=audit_store)
+        trait_profile_signal_service=LearnerTraitProfileSignalService(
+            audit_store=audit_store
+        )
     )
     observations = [
         LearnerObservation(
@@ -314,14 +336,22 @@ def test_cognitive_trait_inference_downweights_stable_durable_profile_when_curre
         ),
     ]
 
-    baseline = baseline_service.infer(student_id=student_id, observations=observations, existing_traits={})
-    blended = blended_service.infer(student_id=student_id, observations=observations, existing_traits={})
+    baseline = baseline_service.infer(
+        student_id=student_id, observations=observations, existing_traits={}
+    )
+    blended = blended_service.infer(
+        student_id=student_id, observations=observations, existing_traits={}
+    )
 
     assert blended["working_memory"].value <= baseline["working_memory"].value + 0.05
-    assert blended["processing_speed"].value <= baseline["processing_speed"].value + 0.05
+    assert (
+        blended["processing_speed"].value <= baseline["processing_speed"].value + 0.05
+    )
 
 
-def test_cognitive_trait_inference_uses_stable_durable_profile_more_when_current_evidence_is_sparse(tmp_path):
+def test_cognitive_trait_inference_uses_stable_durable_profile_more_when_current_evidence_is_sparse(
+    tmp_path,
+):
     database_path = str(tmp_path / "cognitive-trait-profile-sparse-current.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -347,7 +377,9 @@ def test_cognitive_trait_inference_uses_stable_durable_profile_more_when_current
     )
     baseline_service = CognitiveTraitInferenceService()
     blended_service = CognitiveTraitInferenceService(
-        trait_profile_signal_service=LearnerTraitProfileSignalService(audit_store=audit_store)
+        trait_profile_signal_service=LearnerTraitProfileSignalService(
+            audit_store=audit_store
+        )
     )
     observations = [
         LearnerObservation(
@@ -366,14 +398,20 @@ def test_cognitive_trait_inference_uses_stable_durable_profile_more_when_current
         )
     ]
 
-    baseline = baseline_service.infer(student_id=student_id, observations=observations, existing_traits={})
-    blended = blended_service.infer(student_id=student_id, observations=observations, existing_traits={})
+    baseline = baseline_service.infer(
+        student_id=student_id, observations=observations, existing_traits={}
+    )
+    blended = blended_service.infer(
+        student_id=student_id, observations=observations, existing_traits={}
+    )
 
     assert blended["spatial_reasoning"].value > baseline["spatial_reasoning"].value
     assert blended["processing_speed"].value > baseline["processing_speed"].value
 
 
-def test_cognitive_trait_inference_prefers_reliable_durable_traits_over_unreliable_ones(tmp_path):
+def test_cognitive_trait_inference_prefers_reliable_durable_traits_over_unreliable_ones(
+    tmp_path,
+):
     database_path = str(tmp_path / "cognitive-trait-profile-reliability.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -398,7 +436,9 @@ def test_cognitive_trait_inference_prefers_reliable_durable_traits_over_unreliab
     )
     baseline_service = CognitiveTraitInferenceService()
     blended_service = CognitiveTraitInferenceService(
-        trait_profile_signal_service=LearnerTraitProfileSignalService(audit_store=audit_store)
+        trait_profile_signal_service=LearnerTraitProfileSignalService(
+            audit_store=audit_store
+        )
     )
     observations = [
         LearnerObservation(
@@ -431,8 +471,14 @@ def test_cognitive_trait_inference_prefers_reliable_durable_traits_over_unreliab
         ),
     ]
 
-    baseline = baseline_service.infer(student_id=student_id, observations=observations, existing_traits={})
-    blended = blended_service.infer(student_id=student_id, observations=observations, existing_traits={})
+    baseline = baseline_service.infer(
+        student_id=student_id, observations=observations, existing_traits={}
+    )
+    blended = blended_service.infer(
+        student_id=student_id, observations=observations, existing_traits={}
+    )
 
     assert blended["working_memory"].value - baseline["working_memory"].value >= 0.04
-    assert blended["processing_speed"].value <= baseline["processing_speed"].value + 0.03
+    assert (
+        blended["processing_speed"].value <= baseline["processing_speed"].value + 0.03
+    )

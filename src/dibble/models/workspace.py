@@ -31,8 +31,12 @@ class AffectiveSupportMessage(BaseModel):
 class LearnerWorkspace(BaseModel):
     student_id: UUID
     summary: ProfileSummary
-    active_artifact: LearnerWorkspaceArtifact = Field(default_factory=LearnerWorkspaceArtifact)
-    continue_action: LearnerContinueAction = Field(default_factory=LearnerContinueAction)
+    active_artifact: LearnerWorkspaceArtifact = Field(
+        default_factory=LearnerWorkspaceArtifact
+    )
+    continue_action: LearnerContinueAction = Field(
+        default_factory=LearnerContinueAction
+    )
     affective_support: AffectiveSupportMessage | None = None
     generated_content: GeneratedContent | None = None
     remediation_session: RemediationWorkflowSession | None = None

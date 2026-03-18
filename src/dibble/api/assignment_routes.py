@@ -27,7 +27,9 @@ def build_assignment_router(context: ApiContext) -> APIRouter:
     )
     def create_assignment(payload: AssignmentCreate, request: Request) -> Assignment:
         identity = getattr(request.state, "auth_identity", None)
-        teacher_id = identity.teacher_id if identity and identity.teacher_id else "unknown"
+        teacher_id = (
+            identity.teacher_id if identity and identity.teacher_id else "unknown"
+        )
 
         assignment = Assignment(
             assignment_id=str(uuid4()),
@@ -75,7 +77,9 @@ def build_assignment_router(context: ApiContext) -> APIRouter:
         response_model=Assignment,
         dependencies=context.deps("teacher"),
     )
-    def update_assignment_status(assignment_id: str, payload: AssignmentUpdate) -> Assignment:
+    def update_assignment_status(
+        assignment_id: str, payload: AssignmentUpdate
+    ) -> Assignment:
         assignment = services.assignment_store.get(assignment_id)
         if assignment is None:
             raise api_error(
@@ -88,9 +92,15 @@ def build_assignment_router(context: ApiContext) -> APIRouter:
         assignment.status = payload.status
         assignment.updated_at = now
 
-        if payload.status == AssignmentStatus.in_progress and assignment.started_at is None:
+        if (
+            payload.status == AssignmentStatus.in_progress
+            and assignment.started_at is None
+        ):
             assignment.started_at = now
-        elif payload.status == AssignmentStatus.completed and assignment.completed_at is None:
+        elif (
+            payload.status == AssignmentStatus.completed
+            and assignment.completed_at is None
+        ):
             assignment.completed_at = now
 
         services.assignment_store.upsert(assignment)
@@ -124,7 +134,9 @@ def build_assignment_router(context: ApiContext) -> APIRouter:
         has_more = len(items) > limit
         if has_more:
             items = items[:limit]
-        return AssignmentPage(items=items, offset=offset, limit=limit, has_more=has_more)
+        return AssignmentPage(
+            items=items, offset=offset, limit=limit, has_more=has_more
+        )
 
     @router.get(
         "/teachers/assignments",
@@ -137,7 +149,9 @@ def build_assignment_router(context: ApiContext) -> APIRouter:
         offset: int = Query(default=0, ge=0),
     ) -> AssignmentPage:
         identity = getattr(request.state, "auth_identity", None)
-        teacher_id = identity.teacher_id if identity and identity.teacher_id else "unknown"
+        teacher_id = (
+            identity.teacher_id if identity and identity.teacher_id else "unknown"
+        )
         items = services.assignment_store.list_for_teacher(
             teacher_id=teacher_id,
             limit=limit + 1,
@@ -146,6 +160,8 @@ def build_assignment_router(context: ApiContext) -> APIRouter:
         has_more = len(items) > limit
         if has_more:
             items = items[:limit]
-        return AssignmentPage(items=items, offset=offset, limit=limit, has_more=has_more)
+        return AssignmentPage(
+            items=items, offset=offset, limit=limit, has_more=has_more
+        )
 
     return router

@@ -55,7 +55,9 @@ class CognitiveTraitInferenceService:
             ):
                 if inferred is None:
                     continue
-                reliability = self._trait_reliability(profile=durable_profile, name=name)
+                reliability = self._trait_reliability(
+                    profile=durable_profile, name=name
+                )
                 if not self._should_apply_durable_trait(
                     profile=durable_profile,
                     name=name,
@@ -76,28 +78,53 @@ class CognitiveTraitInferenceService:
 
         return {**existing_traits, **updates}
 
-    def _processing_speed(self, observations: list[LearnerObservation]) -> CognitiveTraitScore | None:
+    def _processing_speed(
+        self, observations: list[LearnerObservation]
+    ) -> CognitiveTraitScore | None:
         ratios = [
-            observation.response_time_ms / max(1, observation.expected_duration_ms or 15000)
+            observation.response_time_ms
+            / max(1, observation.expected_duration_ms or 15000)
             for observation in observations
         ]
         avg_ratio = sum(ratios) / len(ratios)
-        completion_rate = sum(1 for observation in observations if observation.completed) / len(observations)
-        avg_pause_count = sum(observation.pause_count for observation in observations) / len(observations)
-        score = 0.7 - max(avg_ratio - 1.0, 0.0) * 0.35 + (completion_rate * 0.2) - min(avg_pause_count, 4.0) * 0.03
+        completion_rate = sum(
+            1 for observation in observations if observation.completed
+        ) / len(observations)
+        avg_pause_count = sum(
+            observation.pause_count for observation in observations
+        ) / len(observations)
+        score = (
+            0.7
+            - max(avg_ratio - 1.0, 0.0) * 0.35
+            + (completion_rate * 0.2)
+            - min(avg_pause_count, 4.0) * 0.03
+        )
         confidence = min(0.82, 0.35 + (len(observations) * 0.08))
-        return CognitiveTraitScore(value=round(min(0.95, max(0.1, score)), 2), confidence=round(confidence, 2))
+        return CognitiveTraitScore(
+            value=round(min(0.95, max(0.1, score)), 2), confidence=round(confidence, 2)
+        )
 
-    def _working_memory(self, observations: list[LearnerObservation]) -> CognitiveTraitScore | None:
-        avg_hints = sum(observation.hints_used for observation in observations) / len(observations)
-        avg_errors = sum(observation.error_count for observation in observations) / len(observations)
-        avg_switches = sum(observation.modality_switches for observation in observations) / len(observations)
+    def _working_memory(
+        self, observations: list[LearnerObservation]
+    ) -> CognitiveTraitScore | None:
+        avg_hints = sum(observation.hints_used for observation in observations) / len(
+            observations
+        )
+        avg_errors = sum(observation.error_count for observation in observations) / len(
+            observations
+        )
+        avg_switches = sum(
+            observation.modality_switches for observation in observations
+        ) / len(observations)
         challenge_rate = sum(
             1
             for observation in observations
-            if observation.support_level.value == "low" and observation.task_type.value in {"practice", "assessment"}
+            if observation.support_level.value == "low"
+            and observation.task_type.value in {"practice", "assessment"}
         ) / len(observations)
-        completion_rate = sum(1 for observation in observations if observation.completed) / len(observations)
+        completion_rate = sum(
+            1 for observation in observations if observation.completed
+        ) / len(observations)
         score = (
             0.6
             + (completion_rate * 0.15)
@@ -107,22 +134,40 @@ class CognitiveTraitInferenceService:
             - min(avg_switches, 4.0) * 0.03
         )
         confidence = min(0.8, 0.3 + (len(observations) * 0.08))
-        return CognitiveTraitScore(value=round(min(0.95, max(0.1, score)), 2), confidence=round(confidence, 2))
+        return CognitiveTraitScore(
+            value=round(min(0.95, max(0.1, score)), 2), confidence=round(confidence, 2)
+        )
 
-    def _spatial_reasoning(self, observations: list[LearnerObservation]) -> CognitiveTraitScore | None:
+    def _spatial_reasoning(
+        self, observations: list[LearnerObservation]
+    ) -> CognitiveTraitScore | None:
         relevant = [
             observation
             for observation in observations
-            if observation.task_type.value in {"worked_example", "explanation", "remediation"}
+            if observation.task_type.value
+            in {"worked_example", "explanation", "remediation"}
         ]
         if not relevant:
             return None
-        completion_rate = sum(1 for observation in relevant if observation.completed) / len(relevant)
-        avg_errors = sum(observation.error_count for observation in relevant) / len(relevant)
-        avg_switches = sum(observation.modality_switches for observation in relevant) / len(relevant)
-        score = 0.55 + (completion_rate * 0.18) - min(avg_errors, 3.0) * 0.06 - min(avg_switches, 3.0) * 0.04
+        completion_rate = sum(
+            1 for observation in relevant if observation.completed
+        ) / len(relevant)
+        avg_errors = sum(observation.error_count for observation in relevant) / len(
+            relevant
+        )
+        avg_switches = sum(
+            observation.modality_switches for observation in relevant
+        ) / len(relevant)
+        score = (
+            0.55
+            + (completion_rate * 0.18)
+            - min(avg_errors, 3.0) * 0.06
+            - min(avg_switches, 3.0) * 0.04
+        )
         confidence = min(0.74, 0.28 + (len(relevant) * 0.1))
-        return CognitiveTraitScore(value=round(min(0.95, max(0.1, score)), 2), confidence=round(confidence, 2))
+        return CognitiveTraitScore(
+            value=round(min(0.95, max(0.1, score)), 2), confidence=round(confidence, 2)
+        )
 
     def _merge(
         self,
@@ -135,7 +180,8 @@ class CognitiveTraitInferenceService:
         if total_confidence <= 0.0:
             return inferred
         merged_value = (
-            (existing.value * existing.confidence) + (inferred.value * inferred.confidence)
+            (existing.value * existing.confidence)
+            + (inferred.value * inferred.confidence)
         ) / (existing.confidence + inferred.confidence)
         return CognitiveTraitScore(
             value=round(merged_value, 2),
@@ -174,7 +220,11 @@ class CognitiveTraitInferenceService:
                 and challenge_index >= 0.72
                 and profile.signal == "tentative"
             )
-            and not (profile.signal == "tentative" and challenge_index >= 0.72 and profile.challenge_tolerance < 0.45)
+            and not (
+                profile.signal == "tentative"
+                and challenge_index >= 0.72
+                and profile.challenge_tolerance < 0.45
+            )
         )
 
     def _should_apply_durable_trait(
@@ -196,11 +246,17 @@ class CognitiveTraitInferenceService:
             and profile.challenge_evidence_strength < 0.48
         ):
             return False
-        if profile.signal == "tentative" and reliability < 0.52 and evidence.current_reliability >= 0.62:
+        if (
+            profile.signal == "tentative"
+            and reliability < 0.52
+            and evidence.current_reliability >= 0.62
+        ):
             return False
         return True
 
-    def _trait_reliability(self, *, profile: LearnerTraitProfileSummary, name: str) -> float:
+    def _trait_reliability(
+        self, *, profile: LearnerTraitProfileSummary, name: str
+    ) -> float:
         return {
             "processing_speed": profile.processing_speed_reliability,
             "working_memory": profile.working_memory_reliability,
@@ -220,7 +276,12 @@ class CognitiveTraitInferenceService:
     ) -> CognitiveTraitScore:
         if current is None:
             return durable
-        durable_weight = 0.08 + (durable.confidence * 0.16) + (profile.trait_stability * 0.1) + (reliability * 0.18)
+        durable_weight = (
+            0.08
+            + (durable.confidence * 0.16)
+            + (profile.trait_stability * 0.1)
+            + (reliability * 0.18)
+        )
         if challenge_index >= 0.6:
             durable_weight += 0.06 if profile.challenge_tolerance >= 0.6 else -0.08
         elif challenge_index <= 0.3 and profile.challenge_tolerance >= 0.7:
@@ -233,7 +294,11 @@ class CognitiveTraitInferenceService:
             durable_weight += reliability * 0.02
         if evidence.current_reliability >= 0.6:
             durable_weight -= min(0.12, evidence.current_reliability * 0.1)
-        if evidence.challenge_exposure >= 0.55 and challenge_index >= 0.65 and profile.challenge_tolerance < 0.55:
+        if (
+            evidence.challenge_exposure >= 0.55
+            and challenge_index >= 0.65
+            and profile.challenge_tolerance < 0.55
+        ):
             durable_weight -= 0.06
         if name == "working_memory" and profile.challenge_evidence_strength < 0.52:
             durable_weight -= 0.08
@@ -249,7 +314,9 @@ class CognitiveTraitInferenceService:
         if reliability >= 0.72 and consistency >= 0.7:
             durable_weight += 0.03
         durable_weight = min(0.5, max(0.08, durable_weight))
-        merged_value = (current.value * (1.0 - durable_weight)) + (durable.value * durable_weight)
+        merged_value = (current.value * (1.0 - durable_weight)) + (
+            durable.value * durable_weight
+        )
         merged_confidence = min(0.92, current.confidence + (durable.confidence * 0.2))
         return CognitiveTraitScore(
             value=round(merged_value, 2),
@@ -265,10 +332,14 @@ class CognitiveTraitInferenceService:
             for observation in observations
             if observation.task_type.value in {"practice", "assessment"}
         ] or observations
-        completion_gap = 1.0 - (sum(1 for observation in active if observation.completed) / len(active))
+        completion_gap = 1.0 - (
+            sum(1 for observation in active if observation.completed) / len(active)
+        )
         hints = sum(observation.hints_used for observation in active) / len(active)
         errors = sum(observation.error_count for observation in active) / len(active)
-        low_support_rate = sum(1 for observation in active if observation.support_level.value == "low") / len(active)
+        low_support_rate = sum(
+            1 for observation in active if observation.support_level.value == "low"
+        ) / len(active)
         return round(
             min(
                 1.0,
@@ -281,7 +352,9 @@ class CognitiveTraitInferenceService:
             2,
         )
 
-    def _current_trait_evidence(self, observations: list[LearnerObservation]) -> "_TraitEvidence":
+    def _current_trait_evidence(
+        self, observations: list[LearnerObservation]
+    ) -> "_TraitEvidence":
         if not observations:
             return _TraitEvidence(current_reliability=0.0, challenge_exposure=0.0)
         active = [
@@ -289,7 +362,9 @@ class CognitiveTraitInferenceService:
             for observation in observations
             if observation.task_type.value in {"practice", "assessment"}
         ] or observations
-        challenge_exposure = sum(1 for observation in active if observation.support_level.value == "low") / len(active)
+        challenge_exposure = sum(
+            1 for observation in active if observation.support_level.value == "low"
+        ) / len(active)
         current_reliability = min(
             1.0,
             0.18 + (len(observations) * 0.12) + (min(len(active), 3) * 0.06),

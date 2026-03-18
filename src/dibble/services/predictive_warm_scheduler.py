@@ -3,7 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from dibble.models.generation import PredictiveWarmClaimDetail, PredictiveWarmProcessResult
+from dibble.models.generation import (
+    PredictiveWarmClaimDetail,
+    PredictiveWarmProcessResult,
+)
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.predictive_content_warming import PredictiveWarmPlan
 from dibble.services.protocols import PredictiveWarmTaskStore
@@ -44,7 +47,9 @@ class PredictiveWarmScheduler:
 
     def process_inline(self, *, task_ids: list[str]) -> PredictiveWarmProcessResult:
         if self.inline_process_limit <= 0:
-            return self._idle_result(worker_id="inline_scheduler", execution_mode="inline")
+            return self._idle_result(
+                worker_id="inline_scheduler", execution_mode="inline"
+            )
         sweep_result = self.queue_store.sweep()
         claimed = (
             self.queue_store.claim_tasks(
@@ -131,20 +136,27 @@ class PredictiveWarmScheduler:
         for task in tasks:
             profile = self.content_warmer.profile_store.get(task.student_id)
             if profile is None:
-                self.queue_store.mark_failed(task_id=task.task_id, error="Learner profile not found.")
+                self.queue_store.mark_failed(
+                    task_id=task.task_id, error="Learner profile not found."
+                )
                 failed += 1
                 continue
             try:
                 result = self.content_warmer.warm([task.request])
             except Exception as exc:  # pragma: no cover - defensive fallback around provider/runtime failures
-                if self.queue_store.defer_retry(task_id=task.task_id, error=str(exc)) is not None:
+                if (
+                    self.queue_store.defer_retry(task_id=task.task_id, error=str(exc))
+                    is not None
+                ):
                     retried += 1
                     deferred += 1
                 else:
                     failed += 1
                 continue
             if result.total_requests <= 0:
-                self.queue_store.mark_failed(task_id=task.task_id, error="Predictive warm task was skipped.")
+                self.queue_store.mark_failed(
+                    task_id=task.task_id, error="Predictive warm task was skipped."
+                )
                 dropped += 1
                 skipped += 1
                 continue
@@ -221,11 +233,15 @@ class PredictiveWarmScheduler:
         return int(stats.get("pending", 0) or 0) + int(stats.get("deferred", 0) or 0)
 
     def _claim_detail(self, task) -> PredictiveWarmClaimDetail:
-        wait_seconds = max(0, int((datetime.now(timezone.utc) - task.created_at).total_seconds()))
+        wait_seconds = max(
+            0, int((datetime.now(timezone.utc) - task.created_at).total_seconds())
+        )
         return PredictiveWarmClaimDetail(
             task_id=task.task_id,
             requested_content_type=(
-                task.request.requested_content_type.value if task.request.requested_content_type is not None else None
+                task.request.requested_content_type.value
+                if task.request.requested_content_type is not None
+                else None
             ),
             priority_class=task.priority_class,
             claim_owner=task.claim_owner,

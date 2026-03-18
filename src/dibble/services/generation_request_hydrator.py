@@ -9,7 +9,11 @@ def hydrate_target_kc_hints(
     request: GenerationRequest,
     knowledge_component_store: KnowledgeComponentStore | None,
 ) -> GenerationRequest:
-    if knowledge_component_store is None or request.target_kc_hints or not request.target_kc_ids:
+    if (
+        knowledge_component_store is None
+        or request.target_kc_hints
+        or not request.target_kc_ids
+    ):
         return request
 
     hints: list[TargetKcGenerationHint] = []
@@ -21,7 +25,8 @@ def hydrate_target_kc_hints(
         nearby_names = [
             nearby_component.name
             for nearby_kc_id in component.nearby_kc_ids[:2]
-            if (nearby_component := knowledge_component_store.get(nearby_kc_id)) is not None
+            if (nearby_component := knowledge_component_store.get(nearby_kc_id))
+            is not None
         ]
         misconceptions = component.common_misconceptions[:2]
         hints.append(
@@ -33,8 +38,14 @@ def hydrate_target_kc_hints(
                 nearby_kc_names=nearby_names,
                 misconception_ids=[item.misconception_id for item in misconceptions],
                 misconception_labels=[item.label for item in misconceptions],
-                misconception_descriptions=[item.description for item in misconceptions],
-                remediation_hints=[item.remediation_hint for item in misconceptions if item.remediation_hint is not None],
+                misconception_descriptions=[
+                    item.description for item in misconceptions
+                ],
+                remediation_hints=[
+                    item.remediation_hint
+                    for item in misconceptions
+                    if item.remediation_hint is not None
+                ],
             )
         )
 

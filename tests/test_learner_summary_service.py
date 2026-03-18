@@ -13,13 +13,19 @@ from dibble.storage import ensure_database
 from tests.support import build_profile
 
 
-def test_learner_summary_service_prefers_calibration_profile_and_recent_activity(tmp_path):
+def test_learner_summary_service_prefers_calibration_profile_and_recent_activity(
+    tmp_path,
+):
     database_path = str(tmp_path / "learner-summary-service.db")
     ensure_database(database_path)
     profile_store = SQLiteProfileStore(database_path)
     audit_store = SQLiteAuditStore(database_path)
     student_id = uuid4()
-    profile_store.upsert(LearnerProfile.model_validate(build_profile(student_id, engagement="high", help_seeking="medium")))
+    profile_store.upsert(
+        LearnerProfile.model_validate(
+            build_profile(student_id, engagement="high", help_seeking="medium")
+        )
+    )
     audit_store.append(
         event_type="content.generate",
         status="success",
@@ -150,7 +156,9 @@ def test_learner_summary_service_prefers_calibration_profile_and_recent_activity
         audit_store=audit_store,
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
         state_signal_service=LearnerStateSignalService(audit_store=audit_store),
-        trait_profile_signal_service=LearnerTraitProfileSignalService(audit_store=audit_store),
+        trait_profile_signal_service=LearnerTraitProfileSignalService(
+            audit_store=audit_store
+        ),
     ).build_for_student(student_id=student_id)
 
     assert summary is not None
@@ -185,7 +193,9 @@ def test_learner_summary_service_prefers_calibration_profile_and_recent_activity
     assert summary.current_flow.status == "idle"
 
 
-def test_learner_summary_service_falls_back_to_run_summary_when_profile_missing(tmp_path):
+def test_learner_summary_service_falls_back_to_run_summary_when_profile_missing(
+    tmp_path,
+):
     database_path = str(tmp_path / "learner-summary-service-fallback.db")
     ensure_database(database_path)
     profile_store = SQLiteProfileStore(database_path)
@@ -215,7 +225,9 @@ def test_learner_summary_service_falls_back_to_run_summary_when_profile_missing(
         audit_store=audit_store,
         strategy_signal_service=LearnerStrategySignalService(audit_store=audit_store),
         state_signal_service=LearnerStateSignalService(audit_store=audit_store),
-        trait_profile_signal_service=LearnerTraitProfileSignalService(audit_store=audit_store),
+        trait_profile_signal_service=LearnerTraitProfileSignalService(
+            audit_store=audit_store
+        ),
     ).build_for_student(student_id=student_id)
 
     assert summary is not None

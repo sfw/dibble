@@ -88,7 +88,9 @@ class SocraticSessionSummary(BaseModel):
     latest_evidence_score: float = Field(default=0.0, ge=0.0, le=1.0)
     rationale: str | None = None
     next_step: LearnerFlowNextStep = Field(default_factory=LearnerFlowNextStep)
-    continue_action: LearnerContinueAction = Field(default_factory=LearnerContinueAction)
+    continue_action: LearnerContinueAction = Field(
+        default_factory=LearnerContinueAction
+    )
     updated_at: datetime | None = None
 
 
@@ -121,7 +123,9 @@ class SocraticAssessmentRequest(BaseModel):
 class SocraticAssessmentEvaluation(BaseModel):
     evidence_strength: SocraticEvidenceStrength
     evidence_score: float = Field(default=0.0, ge=0.0, le=1.0)
-    evidence_dimensions: SocraticEvidenceDimensions = Field(default_factory=SocraticEvidenceDimensions)
+    evidence_dimensions: SocraticEvidenceDimensions = Field(
+        default_factory=SocraticEvidenceDimensions
+    )
     inferred_mastery: float = Field(ge=0.0, le=1.0)
     matched_terms: list[str] = Field(default_factory=list)
     rationale: str

@@ -412,7 +412,8 @@ class ProgressionOwnershipService:
                 support_dependent_threshold - scaled_penalty,
             )
             effective_fragile_threshold = max(
-                effective_fragile_threshold - scaled_penalty, fragile_threshold - scaled_penalty
+                effective_fragile_threshold - scaled_penalty,
+                fragile_threshold - scaled_penalty,
             )
 
         # ADAPT-006: Mastery trend adjusts hold aggressiveness.  An improving

@@ -6,7 +6,12 @@ from uuid import UUID
 
 from dibble.models.assessment import SocraticAssessmentSession
 from dibble.models.generation import GenerationWorkflowSummary, RequestedContentType
-from dibble.models.profile import ContinueActionKind, LearnerContinueAction, LearnerFlowNextStep, LearnerFlowSummary
+from dibble.models.profile import (
+    ContinueActionKind,
+    LearnerContinueAction,
+    LearnerFlowNextStep,
+    LearnerFlowSummary,
+)
 from dibble.models.remediation import RemediationWorkflowSession
 from dibble.models.session_adaptation import WithinSessionControllerState
 from dibble.services.predictive_next_step_planner import PredictiveNextStepPlanner
@@ -29,10 +34,16 @@ class LearnerFlowService:
     within_session_controller_store: WithinSessionControllerStore | None = None
     max_events: int = 300
     max_generated_content: int = 100
-    next_step_planner: PredictiveNextStepPlanner = field(default_factory=PredictiveNextStepPlanner)
+    next_step_planner: PredictiveNextStepPlanner = field(
+        default_factory=PredictiveNextStepPlanner
+    )
 
     def build_for_student(self, *, student_id: UUID) -> LearnerFlowSummary:
-        events = [event for event in self.audit_store.list(limit=self.max_events) if event.student_id == student_id]
+        events = [
+            event
+            for event in self.audit_store.list(limit=self.max_events)
+            if event.student_id == student_id
+        ]
 
         candidates: list[tuple[int, datetime | None, LearnerFlowSummary]] = []
         remediation_flow = self._remediation_flow(events=events)
@@ -48,12 +59,16 @@ class LearnerFlowService:
             candidates.append((1, generation_flow.updated_at, generation_flow))
 
         if not candidates:
-            controller_flow = self._controller_flow(student_id=student_id, events=events)
+            controller_flow = self._controller_flow(
+                student_id=student_id, events=events
+            )
             if controller_flow is not None:
                 candidates.append((0, controller_flow.updated_at, controller_flow))
 
         if not candidates:
-            return LearnerFlowSummary(updated_at=events[0].created_at if events else None)
+            return LearnerFlowSummary(
+                updated_at=events[0].created_at if events else None
+            )
 
         candidates.sort(
             key=lambda item: (
@@ -64,17 +79,24 @@ class LearnerFlowService:
         )
         return candidates[0][2]
 
-    def _generation_flow(self, *, student_id: UUID, events) -> LearnerFlowSummary | None:
-        generation_event = next((event for event in events if event.event_type == "content.generate"), None)
+    def _generation_flow(
+        self, *, student_id: UUID, events
+    ) -> LearnerFlowSummary | None:
+        generation_event = next(
+            (event for event in events if event.event_type == "content.generate"), None
+        )
         latest_content = next(
             (
                 content
-                for content in self.generated_content_store.list_recent(limit=self.max_generated_content)
+                for content in self.generated_content_store.list_recent(
+                    limit=self.max_generated_content
+                )
                 if content.student_id == student_id
                 and not bool(content.request_context.get("is_predictive_warm"))
                 and (
                     generation_event is None
-                    or content.generation_id == self._maybe_str(generation_event.payload.get("generation_id"))
+                    or content.generation_id
+                    == self._maybe_str(generation_event.payload.get("generation_id"))
                 )
             ),
             None,
@@ -82,11 +104,19 @@ class LearnerFlowService:
         if latest_content is None and generation_event is None:
             return None
 
-        request_context = latest_content.request_context if latest_content is not None else {}
-        workflow_summary = latest_content.workflow_summary if latest_content is not None else None
-        controller = self._controller_for_session(self._maybe_str(request_context.get("learning_session_id")))
+        request_context = (
+            latest_content.request_context if latest_content is not None else {}
+        )
+        workflow_summary = (
+            latest_content.workflow_summary if latest_content is not None else None
+        )
+        controller = self._controller_for_session(
+            self._maybe_str(request_context.get("learning_session_id"))
+        )
         if controller is None and generation_event is not None:
-            controller = self._controller_for_session(self._maybe_str(generation_event.payload.get("learning_session_id")))
+            controller = self._controller_for_session(
+                self._maybe_str(generation_event.payload.get("learning_session_id"))
+            )
 
         audit_progression = self._progression_from_generation_event(generation_event)
         workflow_progression = self._progression_from_workflow_summary(workflow_summary)
@@ -125,7 +155,9 @@ class LearnerFlowService:
             workflow_summary=workflow_summary,
             latest_content=latest_content,
             events=events,
-            generation_id=self._maybe_str(generation_event.payload.get("generation_id")) if generation_event is not None else None,
+            generation_id=self._maybe_str(generation_event.payload.get("generation_id"))
+            if generation_event is not None
+            else None,
             progression=progression,
             fallback_target_kc_ids=active_target_kc_ids,
             target_stage=target_stage,
@@ -138,11 +170,14 @@ class LearnerFlowService:
         )
 
         return LearnerFlowSummary(
-            status="ready_for_next_step" if next_step.content_type is not None else "idle",
+            status="ready_for_next_step"
+            if next_step.content_type is not None
+            else "idle",
             flow_type="lesson",
             learning_session_id=(
                 self._maybe_str(workflow_summary.learning_session_id)
-                if workflow_summary is not None and workflow_summary.learning_session_id is not None
+                if workflow_summary is not None
+                and workflow_summary.learning_session_id is not None
                 else (
                     self._maybe_str(generation_event.payload.get("learning_session_id"))
                     if generation_event is not None
@@ -156,7 +191,8 @@ class LearnerFlowService:
             ),
             current_content_type=(
                 workflow_summary.delivered_content_type
-                if workflow_summary is not None and workflow_summary.delivered_content_type is not None
+                if workflow_summary is not None
+                and workflow_summary.delivered_content_type is not None
                 else (
                     latest_content.content_type
                     if latest_content is not None
@@ -171,11 +207,17 @@ class LearnerFlowService:
             progression_action=progression_action,
             target_stage=target_stage,
             active_target_kc_ids=active_target_kc_ids,
-            deferred_target_kc_ids=self._string_list(progression.get("deferred_target_kc_ids")),
-            transfer_target_kc_ids=self._string_list(progression.get("transfer_target_kc_ids")),
+            deferred_target_kc_ids=self._string_list(
+                progression.get("deferred_target_kc_ids")
+            ),
+            transfer_target_kc_ids=self._string_list(
+                progression.get("transfer_target_kc_ids")
+            ),
             session_phase=str(session_adaptation.get("phase", "monitor")),
             session_arc_action=str(session_adaptation.get("arc_action", "steady")),
-            session_stuck_loop_risk=str(session_adaptation.get("stuck_loop_risk", "low")),
+            session_stuck_loop_risk=str(
+                session_adaptation.get("stuck_loop_risk", "low")
+            ),
             rationale=self._first_text(
                 next_step.rationale,
                 workflow_summary.rationale if workflow_summary is not None else None,
@@ -197,7 +239,11 @@ class LearnerFlowService:
 
     def _remediation_flow(self, *, events) -> LearnerFlowSummary | None:
         remediation_event = next(
-            (event for event in events if event.event_type in {"remediation.advance", "remediation.trigger"}),
+            (
+                event
+                for event in events
+                if event.event_type in {"remediation.advance", "remediation.trigger"}
+            ),
             None,
         )
         if remediation_event is None:
@@ -223,21 +269,32 @@ class LearnerFlowService:
             active_target_kc_ids=list(summary.next_step.target_kc_ids),
             deferred_target_kc_ids=list(session.kc_sequence.deferred_kc_ids),
             transfer_target_kc_ids=list(session.kc_sequence.deferred_kc_ids),
-            rationale=self._first_text(summary.next_step.rationale, summary.progression_rationale, session.rationale),
+            rationale=self._first_text(
+                summary.next_step.rationale,
+                summary.progression_rationale,
+                session.rationale,
+            ),
             next_step=summary.next_step,
             continue_action=summary.continue_action,
             updated_at=session.updated_at,
         )
 
     def _socratic_flow(self, *, events) -> LearnerFlowSummary | None:
-        assessment_event = next((event for event in events if event.event_type == "assessment.socratic"), None)
+        assessment_event = next(
+            (event for event in events if event.event_type == "assessment.socratic"),
+            None,
+        )
         if assessment_event is None:
             return None
         session_id = assessment_event.payload.get("session_id")
         if session_id is None:
             return None
         session = self.socratic_session_store.get(str(session_id))
-        if session is None or not isinstance(session, SocraticAssessmentSession) or not session.turns:
+        if (
+            session is None
+            or not isinstance(session, SocraticAssessmentSession)
+            or not session.turns
+        ):
             return None
 
         summary = session.summary
@@ -258,7 +315,9 @@ class LearnerFlowService:
             updated_at=session.updated_at,
         )
 
-    def _controller_flow(self, *, student_id: UUID, events) -> LearnerFlowSummary | None:
+    def _controller_flow(
+        self, *, student_id: UUID, events
+    ) -> LearnerFlowSummary | None:
         if self.within_session_controller_store is None:
             return None
         learning_session_id = next(
@@ -290,7 +349,9 @@ class LearnerFlowService:
             rationale=controller.rationale,
             next_step=LearnerFlowNextStep(
                 action=controller.arc_action,
-                content_type=next_content_type.value if next_content_type is not None else None,
+                content_type=next_content_type.value
+                if next_content_type is not None
+                else None,
                 target_stage=self._controller_target_stage(controller),
                 target_kc_ids=list(controller.target_kc_ids),
                 rationale=controller.rationale,
@@ -303,12 +364,17 @@ class LearnerFlowService:
             updated_at=controller.updated_at,
         )
 
-    def _session_adaptation_from_request_context(self, request_context: dict[str, object]) -> dict[str, object]:
+    def _session_adaptation_from_request_context(
+        self, request_context: dict[str, object]
+    ) -> dict[str, object]:
         session_adaptation = self._dict_value(request_context.get("session_adaptation"))
         if session_adaptation:
             return session_adaptation
         mode_calibration = self._dict_value(request_context.get("mode_calibration"))
-        if not mode_calibration or mode_calibration.get("session_signal") in {None, "insufficient"}:
+        if not mode_calibration or mode_calibration.get("session_signal") in {
+            None,
+            "insufficient",
+        }:
             return {}
         return {
             "phase": mode_calibration.get("session_phase"),
@@ -337,7 +403,9 @@ class LearnerFlowService:
         return {
             "action": payload.get("progression_action"),
             "target_stage": payload.get("progression_target_stage"),
-            "target_redirect_applied": payload.get("progression_target_redirect_applied"),
+            "target_redirect_applied": payload.get(
+                "progression_target_redirect_applied"
+            ),
             "requested_target_kc_ids": payload.get("requested_target_kc_ids"),
             "applied_target_kc_ids": payload.get("applied_target_kc_ids"),
             "transfer_target_kc_ids": payload.get("progression_transfer_target_kc_ids"),
@@ -351,8 +419,12 @@ class LearnerFlowService:
             "observation_count": payload.get("progression_evidence_observation_count"),
             "assessment_count": payload.get("progression_evidence_assessment_count"),
             "confidence": payload.get("progression_evidence_confidence"),
-            "average_observed_mastery": payload.get("progression_average_observed_mastery"),
-            "average_assessment_mastery": payload.get("progression_average_assessment_mastery"),
+            "average_observed_mastery": payload.get(
+                "progression_average_observed_mastery"
+            ),
+            "average_assessment_mastery": payload.get(
+                "progression_average_assessment_mastery"
+            ),
         }
 
     def _progression_from_workflow_summary(
@@ -398,18 +470,27 @@ class LearnerFlowService:
         return True
 
     def _current_remediation_step(self, session: RemediationWorkflowSession):
-        if session.current_step_index is None or session.current_step_index >= len(session.steps):
+        if session.current_step_index is None or session.current_step_index >= len(
+            session.steps
+        ):
             return None
         return session.steps[session.current_step_index]
 
-    def _controller_next_content_type(self, controller: WithinSessionControllerState) -> RequestedContentType:
-        if controller.phase == "transfer_check" or controller.sequence_action == "attempt_transfer":
+    def _controller_next_content_type(
+        self, controller: WithinSessionControllerState
+    ) -> RequestedContentType:
+        if (
+            controller.phase == "transfer_check"
+            or controller.sequence_action == "attempt_transfer"
+        ):
             return RequestedContentType.assessment_probe
         if controller.phase in {"stabilize", "repair"}:
             return RequestedContentType.remedial_micro_module
         return RequestedContentType.practice_problem
 
-    def _controller_for_session(self, learning_session_id: str | None) -> WithinSessionControllerState | None:
+    def _controller_for_session(
+        self, learning_session_id: str | None
+    ) -> WithinSessionControllerState | None:
         if learning_session_id is None or self.within_session_controller_store is None:
             return None
         return self.within_session_controller_store.get(learning_session_id)
@@ -417,7 +498,10 @@ class LearnerFlowService:
     def _controller_target_stage(self, controller: WithinSessionControllerState) -> str:
         if controller.phase == "bridge":
             return "bridge"
-        if controller.phase == "transfer_check" or controller.sequence_action == "attempt_transfer":
+        if (
+            controller.phase == "transfer_check"
+            or controller.sequence_action == "attempt_transfer"
+        ):
             return "transfer"
         if controller.phase in {"stabilize", "repair"}:
             return "repair"
@@ -431,10 +515,14 @@ class LearnerFlowService:
         next_content_type: RequestedContentType | None,
     ) -> list[str]:
         if next_content_type == RequestedContentType.assessment_probe:
-            transfer_target_kc_ids = self._string_list(progression.get("transfer_target_kc_ids"))
+            transfer_target_kc_ids = self._string_list(
+                progression.get("transfer_target_kc_ids")
+            )
             if transfer_target_kc_ids:
                 return transfer_target_kc_ids
-        applied_target_kc_ids = self._string_list(progression.get("applied_target_kc_ids"))
+        applied_target_kc_ids = self._string_list(
+            progression.get("applied_target_kc_ids")
+        )
         return applied_target_kc_ids or fallback_target_kc_ids
 
     def _next_step_for_generation(
@@ -450,7 +538,10 @@ class LearnerFlowService:
         progression_action: str,
     ) -> tuple[LearnerFlowNextStep, str]:
         workflow_next_step = self._workflow_next_step(workflow_summary)
-        if workflow_next_step is not None and workflow_next_step.content_type is not None:
+        if (
+            workflow_next_step is not None
+            and workflow_next_step.content_type is not None
+        ):
             return workflow_next_step, "workflow_summary"
 
         next_content_type, next_reason = self._next_step_from_predictive_event(
@@ -484,7 +575,11 @@ class LearnerFlowService:
         if workflow_next_step is not None:
             return workflow_next_step, "workflow_summary"
 
-        next_steps = self.next_step_planner.plan(latest_content) if latest_content is not None else []
+        next_steps = (
+            self.next_step_planner.plan(latest_content)
+            if latest_content is not None
+            else []
+        )
         if next_steps:
             next_content_type, next_reason = next_steps[0]
             return (
@@ -515,7 +610,10 @@ class LearnerFlowService:
                 action=progression_action,
                 content_type=None,
                 target_stage=target_stage,
-                target_kc_ids=self._string_list(progression.get("applied_target_kc_ids")) or fallback_target_kc_ids,
+                target_kc_ids=self._string_list(
+                    progression.get("applied_target_kc_ids")
+                )
+                or fallback_target_kc_ids,
                 rationale=decision_grade_rationale(
                     self._maybe_str(progression.get("mastery_gate_reason")),
                     action=progression_action,
@@ -541,7 +639,10 @@ class LearnerFlowService:
         latest_content,
         next_step: LearnerFlowNextStep,
     ) -> LearnerContinueAction:
-        if workflow_summary is not None and workflow_summary.continue_action.kind != ContinueActionKind.idle:
+        if (
+            workflow_summary is not None
+            and workflow_summary.continue_action.kind != ContinueActionKind.idle
+        ):
             return workflow_summary.continue_action.model_copy()
         if latest_content is None or next_step.content_type is None:
             return LearnerContinueAction.idle(rationale=next_step.rationale)
@@ -549,15 +650,21 @@ class LearnerFlowService:
         return LearnerContinueAction.generate_follow_up(
             resource_id=latest_content.generation_id,
             generation_id=latest_content.generation_id,
-            learning_session_id=self._maybe_str(request_context.get("learning_session_id")),
+            learning_session_id=self._maybe_str(
+                request_context.get("learning_session_id")
+            ),
             content_type=next_step.content_type,
             target_stage=next_step.target_stage,
             target_kc_ids=list(next_step.target_kc_ids),
             request_payload={
                 "student_id": str(latest_content.student_id),
-                "learning_session_id": self._maybe_str(request_context.get("learning_session_id")),
+                "learning_session_id": self._maybe_str(
+                    request_context.get("learning_session_id")
+                ),
                 "target_kc_ids": list(next_step.target_kc_ids),
-                "target_lo_ids": self._string_list(request_context.get("target_lo_ids")),
+                "target_lo_ids": self._string_list(
+                    request_context.get("target_lo_ids")
+                ),
                 "requested_content_type": next_step.content_type,
                 "curriculum_context": list(latest_content.response.curriculum_context),
                 "source_generation_id": latest_content.generation_id,

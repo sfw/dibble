@@ -15,16 +15,25 @@ class LearningMisconceptionProfileRecorder:
     recency_window_days: int = 21
     max_events: int = 1000
 
-    def record_from_remediation_event(self, *, remediation_event: AuditEvent) -> list[AuditEvent]:
-        if remediation_event.event_type != "remediation.trigger" or remediation_event.student_id is None:
+    def record_from_remediation_event(
+        self, *, remediation_event: AuditEvent
+    ) -> list[AuditEvent]:
+        if (
+            remediation_event.event_type != "remediation.trigger"
+            or remediation_event.student_id is None
+        ):
             return []
 
         target_kc_id = remediation_event.payload.get("target_kc_id")
         misconception_signals = remediation_event.payload.get("misconception_signals")
-        if not isinstance(target_kc_id, str) or not isinstance(misconception_signals, list):
+        if not isinstance(target_kc_id, str) or not isinstance(
+            misconception_signals, list
+        ):
             return []
 
-        recent_cutoff = datetime.now(timezone.utc) - timedelta(days=max(1, self.recency_window_days))
+        recent_cutoff = datetime.now(timezone.utc) - timedelta(
+            days=max(1, self.recency_window_days)
+        )
         all_events = self.audit_store.list(limit=self.max_events)
         remediation_events = [
             event
@@ -57,7 +66,11 @@ class LearningMisconceptionProfileRecorder:
 
             reference_time = remediation_event.created_at
             signal_weights = [
-                recency_weight(event.created_at, reference_time, lookback_days=self.recency_window_days)
+                recency_weight(
+                    event.created_at,
+                    reference_time,
+                    lookback_days=self.recency_window_days,
+                )
                 for event in remediation_events
                 for candidate_signal in _misconception_signals(event)
                 if _signal_key(candidate_signal) == signal_key
@@ -95,7 +108,11 @@ class LearningMisconceptionProfileRecorder:
                 matched_session_count=len(matched_sessions),
                 average_confidence=average_confidence,
             )
-            profile_signal = "persistent" if recurrence_signal in {"recurring", "relapsing"} else "tentative"
+            profile_signal = (
+                "persistent"
+                if recurrence_signal in {"recurring", "relapsing"}
+                else "tentative"
+            )
             recorded.append(
                 self.audit_store.append(
                     event_type="learning.misconception.profile",
@@ -133,7 +150,9 @@ class LearningMisconceptionProfileResolver:
         target_kc_id: str,
         evidence_terms: set[str],
     ) -> list[MisconceptionSignal]:
-        recent_cutoff = datetime.now(timezone.utc) - timedelta(days=max(1, self.recency_window_days))
+        recent_cutoff = datetime.now(timezone.utc) - timedelta(
+            days=max(1, self.recency_window_days)
+        )
         signals: list[MisconceptionSignal] = []
         for event in profile_events:
             if event.event_type != "learning.misconception.profile":
@@ -147,33 +166,54 @@ class LearningMisconceptionProfileResolver:
             if average_confidence < self.minimum_average_confidence:
                 continue
 
-            prior_terms = {str(term) for term in event.payload.get("evidence_terms", []) if term is not None}
+            prior_terms = {
+                str(term)
+                for term in event.payload.get("evidence_terms", [])
+                if term is not None
+            }
             matched_terms = sorted(prior_terms.intersection(evidence_terms))
-            if evidence_terms and not matched_terms and event.payload.get("profile_signal") != "persistent":
+            if (
+                evidence_terms
+                and not matched_terms
+                and event.payload.get("profile_signal") != "persistent"
+            ):
                 continue
 
-            prior_signal_count = max(1, int(event.payload.get("matched_signal_count", 1)))
-            prior_session_count = max(1, int(event.payload.get("matched_session_count", prior_signal_count)))
-            current_occurrence_count = prior_signal_count + (1 if matched_terms or not evidence_terms else 0)
-            current_session_count = prior_session_count + (1 if matched_terms or not evidence_terms else 0)
+            prior_signal_count = max(
+                1, int(event.payload.get("matched_signal_count", 1))
+            )
+            prior_session_count = max(
+                1, int(event.payload.get("matched_session_count", prior_signal_count))
+            )
+            current_occurrence_count = prior_signal_count + (
+                1 if matched_terms or not evidence_terms else 0
+            )
+            current_session_count = prior_session_count + (
+                1 if matched_terms or not evidence_terms else 0
+            )
             recurrence_signal = _recurrence_signal(
                 matched_signal_count=current_occurrence_count,
                 matched_session_count=current_session_count,
                 average_confidence=average_confidence,
             )
             event_recency = recency_weight(
-                event.created_at, datetime.now(timezone.utc), lookback_days=self.recency_window_days,
+                event.created_at,
+                datetime.now(timezone.utc),
+                lookback_days=self.recency_window_days,
             )
             confidence = min(
                 0.99,
-                (average_confidence * event_recency) + min(0.18, current_occurrence_count * 0.05),
+                (average_confidence * event_recency)
+                + min(0.18, current_occurrence_count * 0.05),
             )
             if recurrence_signal == "relapsing":
                 confidence = min(0.99, confidence + 0.05)
             signals.append(
                 MisconceptionSignal(
                     kc_id=str(event.payload.get("kc_id") or target_kc_id),
-                    category=str(event.payload.get("category") or "persistent_misconception"),
+                    category=str(
+                        event.payload.get("category") or "persistent_misconception"
+                    ),
                     confidence=round(confidence, 2),
                     rationale=(
                         "Prior remediation runs repeatedly surfaced this misconception pattern"
@@ -182,14 +222,24 @@ class LearningMisconceptionProfileResolver:
                             if recurrence_signal in {"recurring", "relapsing"}
                             else ""
                         )
-                        + (f" with overlap on {', '.join(matched_terms)}." if matched_terms else ".")
+                        + (
+                            f" with overlap on {', '.join(matched_terms)}."
+                            if matched_terms
+                            else "."
+                        )
                     ),
                     source="profile",
-                    misconception_id=_string_or_none(event.payload.get("misconception_id")),
+                    misconception_id=_string_or_none(
+                        event.payload.get("misconception_id")
+                    ),
                     recommended_kc_ids=[
-                        str(kc_id) for kc_id in event.payload.get("recommended_kc_ids", []) if kc_id is not None
+                        str(kc_id)
+                        for kc_id in event.payload.get("recommended_kc_ids", [])
+                        if kc_id is not None
                     ],
-                    remediation_hint=_string_or_none(event.payload.get("remediation_hint")),
+                    remediation_hint=_string_or_none(
+                        event.payload.get("remediation_hint")
+                    ),
                     evidence_terms=matched_terms or sorted(prior_terms),
                     recurrence_count=current_occurrence_count,
                     recurrence_session_count=current_session_count,

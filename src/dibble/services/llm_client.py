@@ -21,7 +21,9 @@ Transport = Callable[[str, dict[str, Any], dict[str, str], float], dict[str, Any
 StreamTransport = Callable[[str, dict[str, Any], dict[str, str], float], Iterator[str]]
 
 
-def post_json(url: str, payload: dict[str, Any], headers: dict[str, str], timeout: float) -> dict[str, Any]:
+def post_json(
+    url: str, payload: dict[str, Any], headers: dict[str, str], timeout: float
+) -> dict[str, Any]:
     body = json.dumps(payload).encode("utf-8")
     http_request = request.Request(url=url, data=body, headers=headers, method="POST")
 
@@ -30,9 +32,13 @@ def post_json(url: str, payload: dict[str, Any], headers: dict[str, str], timeou
             return json.loads(response.read().decode("utf-8"))
     except error.HTTPError as exc:
         details = exc.read().decode("utf-8", errors="replace")
-        raise LLMClientError(f"LLM request failed with status {exc.code}: {details}") from exc
+        raise LLMClientError(
+            f"LLM request failed with status {exc.code}: {details}"
+        ) from exc
     except error.URLError as exc:
-        raise LLMClientError(f"LLM request could not be completed: {exc.reason}") from exc
+        raise LLMClientError(
+            f"LLM request could not be completed: {exc.reason}"
+        ) from exc
     except json.JSONDecodeError as exc:
         raise LLMClientError("LLM response was not valid JSON.") from exc
 
@@ -52,9 +58,13 @@ def post_event_stream(
                 yield raw_line.decode("utf-8")
     except error.HTTPError as exc:
         details = exc.read().decode("utf-8", errors="replace")
-        raise LLMClientError(f"LLM request failed with status {exc.code}: {details}") from exc
+        raise LLMClientError(
+            f"LLM request failed with status {exc.code}: {details}"
+        ) from exc
     except error.URLError as exc:
-        raise LLMClientError(f"LLM request could not be completed: {exc.reason}") from exc
+        raise LLMClientError(
+            f"LLM request could not be completed: {exc.reason}"
+        ) from exc
 
 
 class OpenAICompatibleChatClient:
@@ -75,7 +85,9 @@ class OpenAICompatibleChatClient:
         self.transport = transport
         self.stream_transport = stream_transport
 
-    def complete(self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2) -> LLMCompletion:
+    def complete(
+        self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2
+    ) -> LLMCompletion:
         response = self.transport(
             f"{self.api_base}/chat/completions",
             payload={
@@ -151,7 +163,9 @@ class OpenAICompatibleChatClient:
         if content is not None:
             return content.strip()
 
-        raise LLMClientError("LLM response did not include a supported message content format.")
+        raise LLMClientError(
+            "LLM response did not include a supported message content format."
+        )
 
     def _extract_finish_reason(self, response: dict[str, Any]) -> str | None:
         choices = response.get("choices")

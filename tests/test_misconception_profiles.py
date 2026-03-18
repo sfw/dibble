@@ -35,7 +35,9 @@ def test_misconception_profile_recorder_compacts_remediation_signals(tmp_path):
         },
     )
 
-    recorded = recorder.record_from_remediation_event(remediation_event=remediation_event)
+    recorded = recorder.record_from_remediation_event(
+        remediation_event=remediation_event
+    )
 
     assert len(recorded) == 1
     profile_event = recorded[0]
@@ -92,7 +94,9 @@ def test_misconception_profile_resolver_emits_persistent_profile_signal(tmp_path
     assert signal.recurrence_signal == "relapsing"
 
 
-def test_misconception_profile_recorder_marks_recurring_and_relapsing_patterns(tmp_path):
+def test_misconception_profile_recorder_marks_recurring_and_relapsing_patterns(
+    tmp_path,
+):
     database_path = str(tmp_path / "misconception-profile-recurrence.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -120,7 +124,9 @@ def test_misconception_profile_recorder_marks_recurring_and_relapsing_patterns(t
                 ],
             },
         )
-        recorded = recorder.record_from_remediation_event(remediation_event=remediation_event)
+        recorded = recorder.record_from_remediation_event(
+            remediation_event=remediation_event
+        )
 
     assert len(recorded) == 1
     profile_event = recorded[0]

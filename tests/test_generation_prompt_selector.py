@@ -10,7 +10,9 @@ def test_generation_prompt_selector_prefers_higher_quality_variant(tmp_path):
     database_path = str(tmp_path / "generation-selector.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
-    selector = GenerationPromptSelector(audit_store=audit_store, min_samples_per_variant=2)
+    selector = GenerationPromptSelector(
+        audit_store=audit_store, min_samples_per_variant=2
+    )
 
     for quality_score in (0.92, 0.95):
         audit_store.append(
@@ -40,7 +42,10 @@ def test_generation_prompt_selector_prefers_higher_quality_variant(tmp_path):
         )
 
     assert (
-        selector.select_variant(content_type=RequestedContentType.worked_example, fallback_variant="baseline")
+        selector.select_variant(
+            content_type=RequestedContentType.worked_example,
+            fallback_variant="baseline",
+        )
         == "guided_reflection"
     )
 
@@ -49,7 +54,9 @@ def test_generation_prompt_selector_falls_back_when_samples_are_sparse(tmp_path)
     database_path = str(tmp_path / "generation-selector-sparse.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
-    selector = GenerationPromptSelector(audit_store=audit_store, min_samples_per_variant=2)
+    selector = GenerationPromptSelector(
+        audit_store=audit_store, min_samples_per_variant=2
+    )
 
     audit_store.append(
         event_type="content.generate",
@@ -65,7 +72,10 @@ def test_generation_prompt_selector_falls_back_when_samples_are_sparse(tmp_path)
     )
 
     assert (
-        selector.select_variant(content_type=RequestedContentType.micro_explanation, fallback_variant="baseline")
+        selector.select_variant(
+            content_type=RequestedContentType.micro_explanation,
+            fallback_variant="baseline",
+        )
         == "baseline"
     )
 
@@ -74,7 +84,9 @@ def test_generation_prompt_selector_can_prefer_better_downstream_outcome(tmp_pat
     database_path = str(tmp_path / "generation-selector-outcomes.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
-    selector = GenerationPromptSelector(audit_store=audit_store, min_samples_per_variant=2)
+    selector = GenerationPromptSelector(
+        audit_store=audit_store, min_samples_per_variant=2
+    )
     student_a = "00000000-0000-0000-0000-000000000101"
     student_b = "00000000-0000-0000-0000-000000000102"
 
@@ -105,7 +117,10 @@ def test_generation_prompt_selector_can_prefer_better_downstream_outcome(tmp_pat
             },
         )
 
-    for student_id in ("00000000-0000-0000-0000-000000000201", "00000000-0000-0000-0000-000000000202"):
+    for student_id in (
+        "00000000-0000-0000-0000-000000000201",
+        "00000000-0000-0000-0000-000000000202",
+    ):
         audit_store.append(
             event_type="content.generate",
             status="success",
@@ -133,16 +148,23 @@ def test_generation_prompt_selector_can_prefer_better_downstream_outcome(tmp_pat
         )
 
     assert (
-        selector.select_variant(content_type=RequestedContentType.practice_problem, fallback_variant="baseline")
+        selector.select_variant(
+            content_type=RequestedContentType.practice_problem,
+            fallback_variant="baseline",
+        )
         == "guided_reflection"
     )
 
 
-def test_generation_prompt_selector_can_prefer_variant_with_stronger_same_session_assessment(tmp_path):
+def test_generation_prompt_selector_can_prefer_variant_with_stronger_same_session_assessment(
+    tmp_path,
+):
     database_path = str(tmp_path / "generation-selector-assessment.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
-    selector = GenerationPromptSelector(audit_store=audit_store, min_samples_per_variant=2)
+    selector = GenerationPromptSelector(
+        audit_store=audit_store, min_samples_per_variant=2
+    )
 
     for suffix in ("1", "2"):
         student_id = f"00000000-0000-0000-0000-00000000030{suffix}"
@@ -205,7 +227,10 @@ def test_generation_prompt_selector_can_prefer_variant_with_stronger_same_sessio
         )
 
     assert (
-        selector.select_variant(content_type=RequestedContentType.micro_explanation, fallback_variant="baseline")
+        selector.select_variant(
+            content_type=RequestedContentType.micro_explanation,
+            fallback_variant="baseline",
+        )
         == "guided_reflection"
     )
 
@@ -214,7 +239,9 @@ def test_generation_prompt_selector_can_prefer_deeper_session_trace(tmp_path):
     database_path = str(tmp_path / "generation-selector-trace-depth.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
-    selector = GenerationPromptSelector(audit_store=audit_store, min_samples_per_variant=2)
+    selector = GenerationPromptSelector(
+        audit_store=audit_store, min_samples_per_variant=2
+    )
 
     for suffix in ("1", "2"):
         student_id = f"00000000-0000-0000-0000-00000000050{suffix}"
@@ -278,7 +305,10 @@ def test_generation_prompt_selector_can_prefer_deeper_session_trace(tmp_path):
         )
 
     assert (
-        selector.select_variant(content_type=RequestedContentType.worked_example, fallback_variant="baseline")
+        selector.select_variant(
+            content_type=RequestedContentType.worked_example,
+            fallback_variant="baseline",
+        )
         == "guided_reflection"
     )
 
@@ -287,7 +317,9 @@ def test_generation_prompt_selector_uses_session_arc_to_break_support_loop(tmp_p
     database_path = str(tmp_path / "generation-selector-session-arc.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
-    selector = GenerationPromptSelector(audit_store=audit_store, min_samples_per_variant=2)
+    selector = GenerationPromptSelector(
+        audit_store=audit_store, min_samples_per_variant=2
+    )
 
     assert (
         selector.select_variant(
@@ -306,10 +338,14 @@ def test_generation_prompt_selector_uses_session_arc_to_break_support_loop(tmp_p
     )
 
 
-def test_generation_prompt_selector_steers_guided_reflection_for_reliable_overload_signals(tmp_path):
+def test_generation_prompt_selector_steers_guided_reflection_for_reliable_overload_signals(
+    tmp_path,
+):
     database_path = str(tmp_path / "generation-selector-state-steer.db")
     ensure_database(database_path)
-    selector = GenerationPromptSelector(audit_store=SQLiteAuditStore(database_path), min_samples_per_variant=2)
+    selector = GenerationPromptSelector(
+        audit_store=SQLiteAuditStore(database_path), min_samples_per_variant=2
+    )
 
     variant = selector.select_variant(
         content_type=RequestedContentType.practice_problem,
@@ -328,7 +364,9 @@ def test_generation_prompt_selector_steers_guided_reflection_for_reliable_overlo
 def test_generation_prompt_selector_steers_baseline_for_stable_trait_release(tmp_path):
     database_path = str(tmp_path / "generation-selector-trait-steer.db")
     ensure_database(database_path)
-    selector = GenerationPromptSelector(audit_store=SQLiteAuditStore(database_path), min_samples_per_variant=2)
+    selector = GenerationPromptSelector(
+        audit_store=SQLiteAuditStore(database_path), min_samples_per_variant=2
+    )
 
     variant = selector.select_variant(
         content_type=RequestedContentType.worked_example,
@@ -345,11 +383,15 @@ def test_generation_prompt_selector_steers_baseline_for_stable_trait_release(tmp
     assert variant == "baseline"
 
 
-def test_generation_prompt_selector_prefers_variant_with_stronger_persisted_run_summaries(tmp_path):
+def test_generation_prompt_selector_prefers_variant_with_stronger_persisted_run_summaries(
+    tmp_path,
+):
     database_path = str(tmp_path / "generation-selector-persisted-summary.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
-    selector = GenerationPromptSelector(audit_store=audit_store, min_samples_per_variant=2)
+    selector = GenerationPromptSelector(
+        audit_store=audit_store, min_samples_per_variant=2
+    )
 
     for suffix, quality_score, run_score, signal in (
         ("1", 0.72, 0.86, "positive"),
@@ -422,16 +464,23 @@ def test_generation_prompt_selector_prefers_variant_with_stronger_persisted_run_
         )
 
     assert (
-        selector.select_variant(content_type=RequestedContentType.worked_example, fallback_variant="baseline")
+        selector.select_variant(
+            content_type=RequestedContentType.worked_example,
+            fallback_variant="baseline",
+        )
         == "guided_reflection"
     )
 
 
-def test_generation_prompt_selector_can_prefer_better_cross_generation_session_outcome(tmp_path):
+def test_generation_prompt_selector_can_prefer_better_cross_generation_session_outcome(
+    tmp_path,
+):
     database_path = str(tmp_path / "generation-selector-session-run.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
-    selector = GenerationPromptSelector(audit_store=audit_store, min_samples_per_variant=2)
+    selector = GenerationPromptSelector(
+        audit_store=audit_store, min_samples_per_variant=2
+    )
 
     for suffix in ("1", "2"):
         student_id = f"00000000-0000-0000-0000-00000000070{suffix}"
@@ -528,7 +577,10 @@ def test_generation_prompt_selector_can_prefer_better_cross_generation_session_o
         )
 
     assert (
-        selector.select_variant(content_type=RequestedContentType.micro_explanation, fallback_variant="baseline")
+        selector.select_variant(
+            content_type=RequestedContentType.micro_explanation,
+            fallback_variant="baseline",
+        )
         == "guided_reflection"
     )
 
@@ -556,7 +608,9 @@ def test_generation_prompt_selector_can_prefer_stronger_positive_run_signal(tmp_
     database_path = str(tmp_path / "generation-selector-run-signal.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
-    selector = GenerationPromptSelector(audit_store=audit_store, min_samples_per_variant=2)
+    selector = GenerationPromptSelector(
+        audit_store=audit_store, min_samples_per_variant=2
+    )
 
     for suffix in ("1", "2"):
         student_id = f"00000000-0000-0000-0000-00000000090{suffix}"
@@ -636,6 +690,9 @@ def test_generation_prompt_selector_can_prefer_stronger_positive_run_signal(tmp_
         )
 
     assert (
-        selector.select_variant(content_type=RequestedContentType.worked_example, fallback_variant="baseline")
+        selector.select_variant(
+            content_type=RequestedContentType.worked_example,
+            fallback_variant="baseline",
+        )
         == "guided_reflection"
     )

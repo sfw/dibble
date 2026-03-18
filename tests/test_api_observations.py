@@ -3,9 +3,14 @@ from dibble.services.audit_store import SQLiteAuditStore
 from tests.support import build_profile
 
 
-def test_observation_endpoint_updates_inferred_state_and_profile(client, student_id, app_settings):
+def test_observation_endpoint_updates_inferred_state_and_profile(
+    client, student_id, app_settings
+):
     audit_store = SQLiteAuditStore(app_settings.database_path)
-    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="none", total_load=0.2))
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, frustration="none", total_load=0.2),
+    )
     audit_store.append(
         event_type="content.generate",
         status="success",
@@ -72,13 +77,37 @@ def test_observation_endpoint_updates_inferred_state_and_profile(client, student
     state = state_response.json()
     profile = profile_response.json()
     audit_events = audit_response.json()
-    learner_observe_event = next(event for event in audit_events if event["event_type"] == "learner.observe")
-    summary_event = next(event for event in audit_events if event["event_type"] == "learning.run.summary")
-    profile_event = next(event for event in audit_events if event["event_type"] == "learning.calibration.profile")
-    progress_event = next(event for event in audit_events if event["event_type"] == "learning.progress.profile")
-    strategy_event = next(event for event in audit_events if event["event_type"] == "learning.strategy.profile")
-    state_profile_event = next(event for event in audit_events if event["event_type"] == "learning.state.profile")
-    trait_profile_event = next(event for event in audit_events if event["event_type"] == "learning.cognitive_trait.profile")
+    learner_observe_event = next(
+        event for event in audit_events if event["event_type"] == "learner.observe"
+    )
+    summary_event = next(
+        event for event in audit_events if event["event_type"] == "learning.run.summary"
+    )
+    profile_event = next(
+        event
+        for event in audit_events
+        if event["event_type"] == "learning.calibration.profile"
+    )
+    progress_event = next(
+        event
+        for event in audit_events
+        if event["event_type"] == "learning.progress.profile"
+    )
+    strategy_event = next(
+        event
+        for event in audit_events
+        if event["event_type"] == "learning.strategy.profile"
+    )
+    state_profile_event = next(
+        event
+        for event in audit_events
+        if event["event_type"] == "learning.state.profile"
+    )
+    trait_profile_event = next(
+        event
+        for event in audit_events
+        if event["event_type"] == "learning.cognitive_trait.profile"
+    )
 
     assert observed["student_id"] == str(student_id)
     assert observed["observation_count"] == 1
@@ -88,21 +117,39 @@ def test_observation_endpoint_updates_inferred_state_and_profile(client, student
     assert observed["metacognitive_state"]["confidence_calibration"] < 0.8
     assert observed["current_evidence"]["signal"] == "overload"
     assert state["observation_count"] == 1
-    assert profile["affective_state"]["frustration"] == observed["affective_state"]["frustration"]
-    assert profile["cognitive_load"]["total_load"] == observed["cognitive_load"]["total_load"]
-    assert profile["metacognitive_state"]["confidence_calibration"] == observed["metacognitive_state"]["confidence_calibration"]
+    assert (
+        profile["affective_state"]["frustration"]
+        == observed["affective_state"]["frustration"]
+    )
+    assert (
+        profile["cognitive_load"]["total_load"]
+        == observed["cognitive_load"]["total_load"]
+    )
+    assert (
+        profile["metacognitive_state"]["confidence_calibration"]
+        == observed["metacognitive_state"]["confidence_calibration"]
+    )
     assert "processing_speed" in profile["cognitive_traits"]
     assert "confidence_calibration" in learner_observe_event["payload"]
-    assert "processing_speed" in learner_observe_event["payload"]["updated_cognitive_traits"]
+    assert (
+        "processing_speed"
+        in learner_observe_event["payload"]["updated_cognitive_traits"]
+    )
     assert learner_observe_event["payload"]["task_type"] == "assessment"
     assert learner_observe_event["payload"]["support_level"] == "low"
     assert learner_observe_event["payload"]["learning_session_id"] == "learn-session-1"
     assert learner_observe_event["payload"]["generation_id"] == "gen-123"
-    assert learner_observe_event["payload"]["observed_content_type"] == "assessment_probe"
+    assert (
+        learner_observe_event["payload"]["observed_content_type"] == "assessment_probe"
+    )
     assert learner_observe_event["payload"]["target_kc_ids"] == ["KC-1"]
     assert learner_observe_event["payload"]["target_lo_ids"] == ["LO-1"]
     assert learner_observe_event["payload"]["state_calibration_signal"] == "negative"
-    assert learner_observe_event["payload"]["state_calibration_source"] in {"derived", "profile", "progress_profile"}
+    assert learner_observe_event["payload"]["state_calibration_source"] in {
+        "derived",
+        "profile",
+        "progress_profile",
+    }
     assert learner_observe_event["payload"]["state_calibration_applied"] is True
     assert learner_observe_event["payload"]["state_calibration_run_count"] >= 1
     assert learner_observe_event["payload"]["state_calibration_progress_signal"] in {
@@ -114,21 +161,41 @@ def test_observation_endpoint_updates_inferred_state_and_profile(client, student
     }
     assert "state_calibration_recovery_stability" in learner_observe_event["payload"]
     assert "state_calibration_overload_risk" in learner_observe_event["payload"]
-    assert "state_calibration_metacognitive_reliability" in learner_observe_event["payload"]
+    assert (
+        "state_calibration_metacognitive_reliability"
+        in learner_observe_event["payload"]
+    )
     assert learner_observe_event["payload"]["current_evidence_signal"] == "overload"
-    assert learner_observe_event["payload"]["state_calibration_current_evidence_signal"] == "overload"
+    assert (
+        learner_observe_event["payload"]["state_calibration_current_evidence_signal"]
+        == "overload"
+    )
     assert "observation_matched_observation_count" in learner_observe_event["payload"]
     assert "observation_average_recent_mastery" in learner_observe_event["payload"]
     assert "observation_evidence_confidence" in learner_observe_event["payload"]
     assert summary_event["payload"]["generation_id"] == "gen-123"
     assert summary_event["payload"]["trigger_event_type"] == "learner.observe"
     assert summary_event["payload"]["run_summary_score"] is not None
-    assert profile_event["payload"]["source_run_summary_event_id"] == summary_event["event_id"]
+    assert (
+        profile_event["payload"]["source_run_summary_event_id"]
+        == summary_event["event_id"]
+    )
     assert profile_event["payload"]["matched_run_count"] >= 1
-    assert progress_event["payload"]["source_run_summary_event_id"] == summary_event["event_id"]
+    assert (
+        progress_event["payload"]["source_run_summary_event_id"]
+        == summary_event["event_id"]
+    )
     assert progress_event["payload"]["matched_run_count"] >= 1
-    assert progress_event["payload"]["progress_signal"] in {"improving", "stable", "declining", "tentative"}
-    assert strategy_event["payload"]["source_run_summary_event_id"] == summary_event["event_id"]
+    assert progress_event["payload"]["progress_signal"] in {
+        "improving",
+        "stable",
+        "declining",
+        "tentative",
+    }
+    assert (
+        strategy_event["payload"]["source_run_summary_event_id"]
+        == summary_event["event_id"]
+    )
     assert strategy_event["payload"]["strategy_signal"] in {
         "support_intensive",
         "stabilizing",
@@ -136,7 +203,10 @@ def test_observation_endpoint_updates_inferred_state_and_profile(client, student
         "monitor",
         "insufficient",
     }
-    assert state_profile_event["payload"]["source_run_summary_event_id"] == summary_event["event_id"]
+    assert (
+        state_profile_event["payload"]["source_run_summary_event_id"]
+        == summary_event["event_id"]
+    )
     assert state_profile_event["payload"]["state_profile_signal"] in {
         "support_needed",
         "recovering",
@@ -148,7 +218,10 @@ def test_observation_endpoint_updates_inferred_state_and_profile(client, student
     assert "overload_risk" in state_profile_event["payload"]
     assert "affective_reliability" in state_profile_event["payload"]
     assert "load_reliability" in state_profile_event["payload"]
-    assert trait_profile_event["payload"]["source_observation_event_id"] == learner_observe_event["event_id"]
+    assert (
+        trait_profile_event["payload"]["source_observation_event_id"]
+        == learner_observe_event["event_id"]
+    )
     assert trait_profile_event["payload"]["profile_signal"] in {"stable", "tentative"}
     assert "trait_stability" in trait_profile_event["payload"]
     assert "challenge_tolerance" in trait_profile_event["payload"]
@@ -157,10 +230,15 @@ def test_observation_endpoint_updates_inferred_state_and_profile(client, student
     assert "working_memory" in trait_profile_event["payload"]
 
 
-def test_observation_endpoint_invalidates_matching_predictive_cache_entries(client, student_id):
+def test_observation_endpoint_invalidates_matching_predictive_cache_entries(
+    client, student_id
+):
     from tests.support import build_curriculum_resource
 
-    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, frustration="low", total_load=0.2),
+    )
     client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
 
     client.post(
@@ -214,19 +292,31 @@ def test_observation_endpoint_invalidates_matching_predictive_cache_entries(clie
     assert second_problem_response.status_code == 200
     assert first_problem_response.json()["quality"]["cache_hit"] is True
     assert second_problem_response.json()["quality"]["cache_hit"] is False
-    assert second_problem_response.json()["generation_id"] != first_problem_response.json()["generation_id"]
+    assert (
+        second_problem_response.json()["generation_id"]
+        != first_problem_response.json()["generation_id"]
+    )
 
     invalidation_event = next(
         event
         for event in audit_response.json()
-        if event["event_type"] == "content.cache.invalidate" and event["payload"]["trigger_event_type"] == "learner.observe"
+        if event["event_type"] == "content.cache.invalidate"
+        and event["payload"]["trigger_event_type"] == "learner.observe"
     )
-    assert invalidation_event["payload"]["learning_session_id"] == "session-invalidate-observation"
+    assert (
+        invalidation_event["payload"]["learning_session_id"]
+        == "session-invalidate-observation"
+    )
     assert invalidation_event["payload"]["expired_entries"] >= 1
 
 
-def test_observation_endpoint_writes_back_strong_target_scoped_practice_without_links(client, student_id):
-    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id, frustration="low", total_load=0.2))
+def test_observation_endpoint_writes_back_strong_target_scoped_practice_without_links(
+    client, student_id
+):
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id, frustration="low", total_load=0.2),
+    )
 
     observe_response = client.post(
         f"/api/learners/{student_id}/observations",
@@ -253,18 +343,28 @@ def test_observation_endpoint_writes_back_strong_target_scoped_practice_without_
     assert profile_response.status_code == 200
     profile = profile_response.json()
     learner_observe_event = next(
-        event for event in audit_response.json() if event["event_type"] == "learner.observe"
+        event
+        for event in audit_response.json()
+        if event["event_type"] == "learner.observe"
     )
 
     assert profile["knowledge_state"]["kc_mastery"]["KC-1"] > 0.2
     assert learner_observe_event["payload"]["observation_mastery_applied"] is True
-    assert learner_observe_event["payload"]["observation_mastery_linkage_source"] == "target_scoped_strong_observation"
+    assert (
+        learner_observe_event["payload"]["observation_mastery_linkage_source"]
+        == "target_scoped_strong_observation"
+    )
 
 
 def test_observation_endpoint_writes_back_linked_practice_mastery(client, student_id):
     client.put(
         f"/api/learners/{student_id}/profile",
-        json=build_profile(student_id, frustration="low", total_load=0.2, kc_mastery={"KC-1": 0.25, "KC-2": 0.22}),
+        json=build_profile(
+            student_id,
+            frustration="low",
+            total_load=0.2,
+            kc_mastery={"KC-1": 0.25, "KC-2": 0.22},
+        ),
     )
 
     observe_response = client.post(
@@ -295,19 +395,30 @@ def test_observation_endpoint_writes_back_linked_practice_mastery(client, studen
     assert audit_response.status_code == 200
 
     profile_payload = profile_response.json()
-    learner_observe_event = next(event for event in audit_response.json() if event["event_type"] == "learner.observe")
+    learner_observe_event = next(
+        event
+        for event in audit_response.json()
+        if event["event_type"] == "learner.observe"
+    )
 
     assert profile_payload["knowledge_state"]["kc_mastery"]["KC-2"] > 0.22
     assert profile_payload["knowledge_state"]["lo_mastery"]["LO-1"] > 0.5
     assert learner_observe_event["payload"]["observation_mastery_applied"] is True
     assert learner_observe_event["payload"]["updated_kc_mastery"]["KC-2"] > 0.22
-    assert learner_observe_event["payload"]["observation_evidence_strength"] in {"emerging", "demonstrated"}
+    assert learner_observe_event["payload"]["observation_evidence_strength"] in {
+        "emerging",
+        "demonstrated",
+    }
 
 
-def test_observation_endpoint_records_durable_ordinary_mastery_profile(client, student_id):
+def test_observation_endpoint_records_durable_ordinary_mastery_profile(
+    client, student_id
+):
     client.put(
         f"/api/learners/{student_id}/profile",
-        json=build_profile(student_id, frustration="low", total_load=0.2, kc_mastery={"KC-2": 0.24}),
+        json=build_profile(
+            student_id, frustration="low", total_load=0.2, kc_mastery={"KC-2": 0.24}
+        ),
     )
 
     for session_id in ["ordinary-1", "ordinary-1", "ordinary-2", "ordinary-2"]:
@@ -337,11 +448,19 @@ def test_observation_endpoint_records_durable_ordinary_mastery_profile(client, s
 
     audit_events = audit_response.json()
     mastery_profile_events = [
-        event for event in audit_events if event["event_type"] == "learning.ordinary_mastery.profile"
+        event
+        for event in audit_events
+        if event["event_type"] == "learning.ordinary_mastery.profile"
     ]
-    learner_observe_event = next(event for event in audit_events if event["event_type"] == "learner.observe")
+    learner_observe_event = next(
+        event for event in audit_events if event["event_type"] == "learner.observe"
+    )
 
     assert mastery_profile_events
     assert mastery_profile_events[0]["payload"]["profile_signal"] == "durable_mastery"
     assert mastery_profile_events[0]["payload"]["average_observed_mastery"] >= 0.72
-    assert learner_observe_event["payload"]["durable_mastery_signal"] in {"insufficient", "emerging_mastery", "durable_mastery"}
+    assert learner_observe_event["payload"]["durable_mastery_signal"] in {
+        "insufficient",
+        "emerging_mastery",
+        "durable_mastery",
+    }

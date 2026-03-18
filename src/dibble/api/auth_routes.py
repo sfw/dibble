@@ -3,7 +3,12 @@ from __future__ import annotations
 from fastapi import APIRouter, Header, Request, status
 
 from dibble.api.common import ApiContext, api_error
-from dibble.models.auth import AuthIdentity, AuthRefreshRequest, AuthRevokeRequest, AuthToken
+from dibble.models.auth import (
+    AuthIdentity,
+    AuthRefreshRequest,
+    AuthRevokeRequest,
+    AuthToken,
+)
 from dibble.services.auth import AuthenticationError, TokenConfigurationError
 
 
@@ -11,18 +16,24 @@ def build_auth_router(context: ApiContext) -> APIRouter:
     router = APIRouter(prefix="/api")
     services = context.services
 
-    @router.get("/auth/me", response_model=AuthIdentity, dependencies=context.deps("viewer"))
+    @router.get(
+        "/auth/me", response_model=AuthIdentity, dependencies=context.deps("viewer")
+    )
     def get_current_identity(request: Request) -> AuthIdentity:
         identity = getattr(request.state, "auth_identity", None)
         if identity is None:
             return services.auth_service.authenticate(None)
         return identity
 
-    @router.post("/auth/token", response_model=AuthToken, dependencies=context.deps("viewer"))
+    @router.post(
+        "/auth/token", response_model=AuthToken, dependencies=context.deps("viewer")
+    )
     def issue_access_token(request: Request) -> AuthToken:
         identity = getattr(request.state, "auth_identity", None)
         if identity is None:
-            return services.auth_service.issue_token(services.auth_service.authenticate(None))
+            return services.auth_service.issue_token(
+                services.auth_service.authenticate(None)
+            )
         try:
             token = services.auth_service.issue_token(identity)
         except TokenConfigurationError as exc:
@@ -86,7 +97,9 @@ def build_auth_router(context: ApiContext) -> APIRouter:
         services.audit_store.append(
             event_type="auth.token",
             status="revoked",
-            payload={"mode": "refresh" if payload and payload.refresh_token else "bearer"},
+            payload={
+                "mode": "refresh" if payload and payload.refresh_token else "bearer"
+            },
         )
         return {"status": "revoked"}
 

@@ -32,7 +32,11 @@ def build_content_router(context: ApiContext) -> APIRouter:
     router = APIRouter(prefix="/api")
     services = context.services
 
-    @router.post("/router/decide", response_model=AdaptiveRouteDecision, dependencies=context.deps("editor"))
+    @router.post(
+        "/router/decide",
+        response_model=AdaptiveRouteDecision,
+        dependencies=context.deps("editor"),
+    )
     def decide_adaptive_route(request: GenerationRequest) -> AdaptiveRouteDecision:
         try:
             return services.content_workflow_service.decide_route(request)
@@ -43,7 +47,11 @@ def build_content_router(context: ApiContext) -> APIRouter:
                 code="learner_profile_not_found",
             ) from exc
 
-    @router.post("/content/generate", response_model=GeneratedContent, dependencies=context.deps("editor"))
+    @router.post(
+        "/content/generate",
+        response_model=GeneratedContent,
+        dependencies=context.deps("editor"),
+    )
     def generate_content(request: GenerationRequest) -> GeneratedContent:
         try:
             return services.content_workflow_service.generate_content(request)
@@ -60,7 +68,11 @@ def build_content_router(context: ApiContext) -> APIRouter:
                 code="content_generation_failed",
             ) from exc
 
-    @router.get("/content/{generation_id}", response_model=GeneratedContent, dependencies=context.deps("viewer"))
+    @router.get(
+        "/content/{generation_id}",
+        response_model=GeneratedContent,
+        dependencies=context.deps("viewer"),
+    )
     def get_generated_content(generation_id: str) -> GeneratedContent:
         content = services.content_workflow_service.get_generated_content(generation_id)
         if content is None:
@@ -71,7 +83,11 @@ def build_content_router(context: ApiContext) -> APIRouter:
             )
         return content
 
-    @router.post("/content/warm", response_model=ContentWarmResult, dependencies=context.deps("editor"))
+    @router.post(
+        "/content/warm",
+        response_model=ContentWarmResult,
+        dependencies=context.deps("editor"),
+    )
     def warm_content(request: ContentWarmRequest) -> ContentWarmResult:
         return services.content_workflow_service.warm_content(request)
 
@@ -83,9 +99,15 @@ def build_content_router(context: ApiContext) -> APIRouter:
     def process_predictive_warm_queue(
         request: PredictiveWarmProcessRequest,
     ) -> PredictiveWarmProcessResult:
-        return services.content_workflow_service.process_predictive_warm_queue(limit=request.limit)
+        return services.content_workflow_service.process_predictive_warm_queue(
+            limit=request.limit
+        )
 
-    @router.post("/explanations/generate", response_model=GeneratedContent, dependencies=context.deps("editor"))
+    @router.post(
+        "/explanations/generate",
+        response_model=GeneratedContent,
+        dependencies=context.deps("editor"),
+    )
     def generate_explanation(request: GenerationRequest) -> GeneratedContent:
         explanation_request = GenerationRequest.model_validate(
             {
@@ -96,7 +118,11 @@ def build_content_router(context: ApiContext) -> APIRouter:
         )
         return generate_content(explanation_request)
 
-    @router.post("/problems/generate", response_model=GeneratedContent, dependencies=context.deps("editor"))
+    @router.post(
+        "/problems/generate",
+        response_model=GeneratedContent,
+        dependencies=context.deps("editor"),
+    )
     def generate_problem(request: GenerationRequest) -> GeneratedContent:
         problem_request = GenerationRequest.model_validate(
             {
@@ -107,7 +133,11 @@ def build_content_router(context: ApiContext) -> APIRouter:
         )
         return generate_content(problem_request)
 
-    @router.post("/worked-examples/generate", response_model=GeneratedContent, dependencies=context.deps("editor"))
+    @router.post(
+        "/worked-examples/generate",
+        response_model=GeneratedContent,
+        dependencies=context.deps("editor"),
+    )
     def generate_worked_example(request: GenerationRequest) -> GeneratedContent:
         worked_example_request = GenerationRequest.model_validate(
             {
@@ -117,7 +147,11 @@ def build_content_router(context: ApiContext) -> APIRouter:
         )
         return generate_content(worked_example_request)
 
-    @router.post("/remedial/trigger", response_model=GeneratedContent, dependencies=context.deps("editor"))
+    @router.post(
+        "/remedial/trigger",
+        response_model=GeneratedContent,
+        dependencies=context.deps("editor"),
+    )
     def trigger_remedial_content(request: RemedialTriggerRequest) -> GeneratedContent:
         try:
             return services.content_workflow_service.trigger_remedial_content(request)
@@ -191,7 +225,9 @@ def build_content_router(context: ApiContext) -> APIRouter:
     @router.post("/llm/stream", dependencies=context.deps("editor"))
     def stream_generated_content(request: GenerationRequest) -> StreamingResponse:
         try:
-            prepared = services.content_workflow_service.prepare_generation_request(request)
+            prepared = services.content_workflow_service.prepare_generation_request(
+                request
+            )
         except LearnerProfileNotFoundError as exc:
             raise api_error(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -202,7 +238,9 @@ def build_content_router(context: ApiContext) -> APIRouter:
         def event_stream():
             try:
                 complete_event: GenerationStreamEvent | None = None
-                for event in services.generation_engine.stream_generate(prepared.profile, prepared.request):
+                for event in services.generation_engine.stream_generate(
+                    prepared.profile, prepared.request
+                ):
                     if event.event == "moderation" and event.moderation is not None:
                         services.audit_store.append(
                             event_type="content.moderation",
@@ -218,7 +256,10 @@ def build_content_router(context: ApiContext) -> APIRouter:
                                 "response_rewritten": event.moderation.response_rewritten,
                                 "categories": event.moderation.categories,
                                 "matched_terms": event.moderation.matched_terms,
-                                "matches": [match.model_dump(mode="json") for match in event.moderation.matches],
+                                "matches": [
+                                    match.model_dump(mode="json")
+                                    for match in event.moderation.matches
+                                ],
                                 "fallback_applied": event.moderation.fallback_applied,
                                 "fallback_kind": event.moderation.fallback_kind,
                                 "stream_action": event.moderation.stream_action,
@@ -240,7 +281,11 @@ def build_content_router(context: ApiContext) -> APIRouter:
                                 progression_decision=prepared.progression_decision,
                                 record_moderation_event=False,
                             )
-                            event = event.model_copy(update={"workflow_summary": generated_content.workflow_summary})
+                            event = event.model_copy(
+                                update={
+                                    "workflow_summary": generated_content.workflow_summary
+                                }
+                            )
                         complete_event = event
                         if response is not None:
                             services.audit_store.append(
@@ -254,7 +299,9 @@ def build_content_router(context: ApiContext) -> APIRouter:
                                     "delivery_mode": response.route.delivery_mode.value,
                                     "grounding_count": len(response.grounding),
                                     "generated_block_count": len(response.blocks),
-                                    "validation_issue_count": len(response.validation_issues),
+                                    "validation_issue_count": len(
+                                        response.validation_issues
+                                    ),
                                     "generation_id": response.generation_id,
                                     "requested_target_kc_ids": prepared.progression_decision.requested_target_kc_ids,
                                     "applied_target_kc_ids": prepared.progression_decision.applied_target_kc_ids,
@@ -303,22 +350,26 @@ def build_content_router(context: ApiContext) -> APIRouter:
                                     ),
                                     "workflow_flow_type": (
                                         generated_content.workflow_summary.flow_type
-                                        if generated_content.workflow_summary is not None
+                                        if generated_content.workflow_summary
+                                        is not None
                                         else None
                                     ),
                                     "workflow_delivered_phase": (
                                         generated_content.workflow_summary.delivered_phase
-                                        if generated_content.workflow_summary is not None
+                                        if generated_content.workflow_summary
+                                        is not None
                                         else None
                                     ),
                                     "workflow_next_step_action": (
                                         generated_content.workflow_summary.next_step.action
-                                        if generated_content.workflow_summary is not None
+                                        if generated_content.workflow_summary
+                                        is not None
                                         else None
                                     ),
                                     "workflow_next_step_content_type": (
                                         generated_content.workflow_summary.next_step.content_type
-                                        if generated_content.workflow_summary is not None
+                                        if generated_content.workflow_summary
+                                        is not None
                                         else None
                                     ),
                                     "mode_calibration_signal": (
@@ -458,14 +509,20 @@ def build_content_router(context: ApiContext) -> APIRouter:
                         event_type="content.generate.stream",
                         status="error",
                         student_id=str(request.student_id),
-                        payload={"intent": prepared.request.intent.value, "detail": "stream ended before completion"},
+                        payload={
+                            "intent": prepared.request.intent.value,
+                            "detail": "stream ended before completion",
+                        },
                     )
             except Exception as exc:
                 services.audit_store.append(
                     event_type="content.generate.stream",
                     status="error",
                     student_id=str(request.student_id),
-                    payload={"intent": prepared.request.intent.value, "detail": str(exc)},
+                    payload={
+                        "intent": prepared.request.intent.value,
+                        "detail": str(exc),
+                    },
                 )
                 yield encode_sse_event(
                     GenerationStreamEvent(

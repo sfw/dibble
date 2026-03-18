@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 
-def assert_machine_readable_error(response, *, status_code: int, code: str, detail: str | None = None) -> None:
+def assert_machine_readable_error(
+    response, *, status_code: int, code: str, detail: str | None = None
+) -> None:
     assert response.status_code == status_code
     assert response.headers["x-dibble-error-code"] == code
     payload = response.json()

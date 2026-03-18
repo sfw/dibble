@@ -17,7 +17,10 @@ from dibble.models.generation import (
 from dibble.models.profile import LearnerProfile
 from dibble.services.content_provider import MockLLMProvider
 from dibble.services.llm_client import LLMClientError, OpenAICompatibleChatClient
-from dibble.services.llm_prompting import build_generation_prompts, build_stream_generation_prompts
+from dibble.services.llm_prompting import (
+    build_generation_prompts,
+    build_stream_generation_prompts,
+)
 from dibble.services.provider_health import ProviderRoutingSnapshot
 from dibble.services.protocols import AuditStore, ProviderHealthStore
 from dibble.services.prompt_manager import PromptManager
@@ -49,7 +52,9 @@ class ClientCircuitState:
     average_latency_ms: float | None = None
 
 
-def build_llm_clients(settings: Settings) -> tuple[list[tuple[str, OpenAICompatibleChatClient]], dict[str, str]]:
+def build_llm_clients(
+    settings: Settings,
+) -> tuple[list[tuple[str, OpenAICompatibleChatClient]], dict[str, str]]:
     configs = [
         LLMProviderConfig(
             name="primary",
@@ -64,7 +69,8 @@ def build_llm_clients(settings: Settings) -> tuple[list[tuple[str, OpenAICompati
             api_base=settings.llm_secondary_api_base or settings.llm_api_base,
             api_key=settings.llm_secondary_api_key,
             model=settings.llm_secondary_model,
-            timeout_seconds=settings.llm_secondary_timeout_seconds or settings.llm_timeout_seconds,
+            timeout_seconds=settings.llm_secondary_timeout_seconds
+            or settings.llm_timeout_seconds,
             allow_mock_fallback=settings.llm_allow_mock_fallback,
         ),
     ]
@@ -127,7 +133,9 @@ class LLMOrchestrationProvider:
         self.client_models = client_models or {}
         self.fallback_provider = fallback_provider
         self.circuit_breaker_threshold = max(1, circuit_breaker_threshold)
-        self.circuit_breaker_cooldown_seconds = max(0.0, circuit_breaker_cooldown_seconds)
+        self.circuit_breaker_cooldown_seconds = max(
+            0.0, circuit_breaker_cooldown_seconds
+        )
         self.selection_strategy = selection_strategy
         self.time_provider = time_provider
         self.client_states = {name: ClientCircuitState() for name, _ in clients}
@@ -151,7 +159,9 @@ class LLMOrchestrationProvider:
         health_store: ProviderHealthStore | None = None,
         prompt_manager: PromptManager | None = None,
     ) -> "LLMOrchestrationProvider":
-        fallback_provider = MockLLMProvider() if settings.llm_allow_mock_fallback else None
+        fallback_provider = (
+            MockLLMProvider() if settings.llm_allow_mock_fallback else None
+        )
         clients, client_models = build_llm_clients(settings)
 
         return cls(
@@ -162,7 +172,8 @@ class LLMOrchestrationProvider:
             circuit_breaker_cooldown_seconds=settings.llm_circuit_breaker_cooldown_seconds,
             selection_strategy=settings.llm_selection_strategy,
             health_store=health_store,
-            prompt_manager=prompt_manager or build_prompt_manager_from_settings(settings),
+            prompt_manager=prompt_manager
+            or build_prompt_manager_from_settings(settings),
         )
 
     def generate(
@@ -180,7 +191,14 @@ class LLMOrchestrationProvider:
             prompt_manager=self.prompt_manager,
         )
         if not self.clients:
-            return self._fallback(profile, request, route, grounding, prompts, "LLM client not configured.")
+            return self._fallback(
+                profile,
+                request,
+                route,
+                grounding,
+                prompts,
+                "LLM client not configured.",
+            )
 
         for name, client in self._iter_candidate_clients():
             started_at = self.time_provider()
@@ -191,13 +209,19 @@ class LLMOrchestrationProvider:
                 )
                 blocks = self._parse_blocks(completion.content)
                 self._set_last_used_descriptor(name, prompts)
-                self._record_success(name, latency_ms=(self.time_provider() - started_at) * 1000.0)
+                self._record_success(
+                    name, latency_ms=(self.time_provider() - started_at) * 1000.0
+                )
                 return blocks
             except (LLMClientError, LLMProviderError):
-                self._record_failure(name, latency_ms=(self.time_provider() - started_at) * 1000.0)
+                self._record_failure(
+                    name, latency_ms=(self.time_provider() - started_at) * 1000.0
+                )
                 continue
 
-        return self._fallback(profile, request, route, grounding, prompts, "LLM call failed.")
+        return self._fallback(
+            profile, request, route, grounding, prompts, "LLM call failed."
+        )
 
     def stream_generate(
         self,
@@ -215,7 +239,14 @@ class LLMOrchestrationProvider:
         )
         if not self.clients:
             yield from iter_block_chunks(
-                self._fallback(profile, request, route, grounding, prompts, "LLM client not configured.")
+                self._fallback(
+                    profile,
+                    request,
+                    route,
+                    grounding,
+                    prompts,
+                    "LLM client not configured.",
+                )
             )
             return
         for name, client in self._iter_candidate_clients():
@@ -232,13 +263,21 @@ class LLMOrchestrationProvider:
                 for chunk in parser.flush():
                     yield chunk
                 self._set_last_used_descriptor(name, prompts)
-                self._record_success(name, latency_ms=(self.time_provider() - started_at) * 1000.0)
+                self._record_success(
+                    name, latency_ms=(self.time_provider() - started_at) * 1000.0
+                )
                 return
             except (LLMClientError, LLMProviderError):
-                self._record_failure(name, latency_ms=(self.time_provider() - started_at) * 1000.0)
+                self._record_failure(
+                    name, latency_ms=(self.time_provider() - started_at) * 1000.0
+                )
                 continue
 
-        yield from iter_block_chunks(self._fallback(profile, request, route, grounding, prompts, "LLM stream failed."))
+        yield from iter_block_chunks(
+            self._fallback(
+                profile, request, route, grounding, prompts, "LLM stream failed."
+            )
+        )
 
     def _is_available(self, name: str) -> bool:
         state = self.client_states.get(name)
@@ -250,7 +289,9 @@ class LLMOrchestrationProvider:
             return True
         return False
 
-    def _iter_candidate_clients(self) -> Iterator[tuple[str, OpenAICompatibleChatClient]]:
+    def _iter_candidate_clients(
+        self,
+    ) -> Iterator[tuple[str, OpenAICompatibleChatClient]]:
         available: list[tuple[str, OpenAICompatibleChatClient]] = []
         for name, client in self.clients:
             if self._is_available(name):
@@ -293,7 +334,9 @@ class LLMOrchestrationProvider:
         state.consecutive_failures = 0
         state.open_until = None
         state.successful_requests += 1
-        state.average_latency_ms = self._smoothed_latency(state.average_latency_ms, latency_ms)
+        state.average_latency_ms = self._smoothed_latency(
+            state.average_latency_ms, latency_ms
+        )
         self._record_health(
             name,
             "success" if not recovered else "circuit_recovered",
@@ -307,7 +350,9 @@ class LLMOrchestrationProvider:
             return
         state.consecutive_failures += 1
         state.failed_requests += 1
-        state.average_latency_ms = self._smoothed_latency(state.average_latency_ms, latency_ms)
+        state.average_latency_ms = self._smoothed_latency(
+            state.average_latency_ms, latency_ms
+        )
         self._record_health(
             name,
             "failure",
@@ -316,7 +361,9 @@ class LLMOrchestrationProvider:
             average_latency_ms=round(state.average_latency_ms, 2),
         )
         if state.consecutive_failures >= self.circuit_breaker_threshold:
-            state.open_until = self.time_provider() + self.circuit_breaker_cooldown_seconds
+            state.open_until = (
+                self.time_provider() + self.circuit_breaker_cooldown_seconds
+            )
             self._record_health(name, "circuit_open", open_until=state.open_until)
 
     def _latency_rank(self, name: str, original_index: int) -> tuple[float, float, int]:
@@ -328,8 +375,14 @@ class LLMOrchestrationProvider:
         if total_requests == 0:
             return (-1.0, float("inf"), original_index)
 
-        success_rate = (state.successful_requests / total_requests) if total_requests else 1.0
-        latency = state.average_latency_ms if state.average_latency_ms is not None else float("inf")
+        success_rate = (
+            (state.successful_requests / total_requests) if total_requests else 1.0
+        )
+        latency = (
+            state.average_latency_ms
+            if state.average_latency_ms is not None
+            else float("inf")
+        )
         return (-success_rate, latency, original_index)
 
     def _smoothed_latency(self, current: float | None, observed: float) -> float:
@@ -416,12 +469,20 @@ class LLMOrchestrationProvider:
 
         try:
             return [GeneratedBlock.model_validate(item) for item in blocks_payload]
-        except Exception as exc:  # pragma: no cover - pydantic already exercises the shape checks.
-            raise LLMProviderError("LLM output blocks did not match the Dibble schema.") from exc
+        except (
+            Exception
+        ) as exc:  # pragma: no cover - pydantic already exercises the shape checks.
+            raise LLMProviderError(
+                "LLM output blocks did not match the Dibble schema."
+            ) from exc
 
     def _strip_code_fence(self, value: str) -> str:
         lines = value.splitlines()
-        if len(lines) >= 2 and lines[0].startswith("```") and lines[-1].startswith("```"):
+        if (
+            len(lines) >= 2
+            and lines[0].startswith("```")
+            and lines[-1].startswith("```")
+        ):
             return "\n".join(lines[1:-1]).strip()
         return value
 
@@ -460,4 +521,6 @@ class StreamingChunkParser:
         try:
             return GeneratedBlockChunk.model_validate(payload)
         except Exception as exc:  # pragma: no cover
-            raise LLMProviderError("Streamed LLM chunk did not match the Dibble schema.") from exc
+            raise LLMProviderError(
+                "Streamed LLM chunk did not match the Dibble schema."
+            ) from exc

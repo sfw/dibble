@@ -70,7 +70,11 @@ class HybridRetrievalScorer:
         metadata_bonus = self._metadata_bonus(profile, request, resource)
         score = (semantic_similarity * 6.0) + (lexical_overlap * 3.0) + metadata_bonus
 
-        if not matched_terms and semantic_similarity < self.minimum_similarity and metadata_bonus <= 0.0:
+        if (
+            not matched_terms
+            and semantic_similarity < self.minimum_similarity
+            and metadata_bonus <= 0.0
+        ):
             return None
 
         return RetrievalScore(
@@ -79,13 +83,17 @@ class HybridRetrievalScorer:
             semantic_similarity=semantic_similarity,
         )
 
-    def build_query_text(self, profile: LearnerProfile, request: GenerationRequest) -> str:
+    def build_query_text(
+        self, profile: LearnerProfile, request: GenerationRequest
+    ) -> str:
         return build_query_text(profile, request)
 
     def build_resource_text(self, resource: CurriculumResource) -> str:
         return build_resource_text(resource)
 
-    def _lexical_overlap(self, query_tokens: set[str], resource_tokens: set[str]) -> float:
+    def _lexical_overlap(
+        self, query_tokens: set[str], resource_tokens: set[str]
+    ) -> float:
         if not query_tokens:
             return 0.0
         overlap = len(query_tokens & resource_tokens)

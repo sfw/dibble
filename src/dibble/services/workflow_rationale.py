@@ -53,9 +53,13 @@ def combine_rationales(*parts: str | None) -> str | None:
     return " ".join(ordered)
 
 
-def append_evidence_snapshot(rationale: str | None, *, fragments: list[str]) -> str | None:
+def append_evidence_snapshot(
+    rationale: str | None, *, fragments: list[str]
+) -> str | None:
     base = combine_rationales(rationale)
-    filtered_fragments = [fragment.strip() for fragment in fragments if fragment and fragment.strip()]
+    filtered_fragments = [
+        fragment.strip() for fragment in fragments if fragment and fragment.strip()
+    ]
     if not filtered_fragments:
         return base
     snapshot = f"{'; '.join(filtered_fragments)}."
@@ -81,7 +85,9 @@ def decision_grade_rationale(
     return rationale
 
 
-def decision_semantics_clause(*, action: str | None = None, target_stage: str | None = None) -> str | None:
+def decision_semantics_clause(
+    *, action: str | None = None, target_stage: str | None = None
+) -> str | None:
     if action is not None:
         clause = ACTION_DECISION_CLAUSES.get(str(action))
         if clause is not None:

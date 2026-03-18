@@ -1,8 +1,14 @@
 from uuid import uuid4
 
-from dibble.models.profile import LearnerContinueAction, LearnerFlowNextStep, LearnerFlowSummary
+from dibble.models.profile import (
+    LearnerContinueAction,
+    LearnerFlowNextStep,
+    LearnerFlowSummary,
+)
 from dibble.services.audit_store import SQLiteAuditStore
-from dibble.services.teacher_intervention_actions import TeacherInterventionActionService
+from dibble.services.teacher_intervention_actions import (
+    TeacherInterventionActionService,
+)
 from dibble.storage import ensure_database
 
 
@@ -52,7 +58,9 @@ def test_teacher_intervention_labels_follow_repair_stage_for_lesson_options(tmp_
 
     contract = service.build_for_student(student_id=student_id)
     labels = {option.option_id: option.label for option in contract.available_options}
-    rationales = {option.option_id: option.rationale for option in contract.available_options}
+    rationales = {
+        option.option_id: option.rationale for option in contract.available_options
+    }
 
     assert labels["recommended"] == "Repair Explanation"
     assert labels["worked_example_support_reset"] == "Repair Worked Example"
@@ -106,7 +114,9 @@ def test_teacher_intervention_labels_follow_transfer_stage_for_lesson_options(tm
 
     contract = service.build_for_student(student_id=student_id)
     labels = {option.option_id: option.label for option in contract.available_options}
-    rationales = {option.option_id: option.rationale for option in contract.available_options}
+    rationales = {
+        option.option_id: option.rationale for option in contract.available_options
+    }
 
     assert labels["recommended"] == "Transfer Worked Example"
     assert labels["practice_problem_same_target"] == "Transfer Practice"

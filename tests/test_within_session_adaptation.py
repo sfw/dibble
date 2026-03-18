@@ -3,7 +3,9 @@ from uuid import uuid4
 from dibble.models.generation import GenerationRequest
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.within_session_adaptation import WithinSessionAdaptationService
-from dibble.services.within_session_controller_store import SQLiteWithinSessionControllerStore
+from dibble.services.within_session_controller_store import (
+    SQLiteWithinSessionControllerStore,
+)
 from dibble.storage import ensure_database
 
 
@@ -81,7 +83,9 @@ def test_within_session_adaptation_detects_transfer_readiness_from_assessment(tm
     assert summary.matched_assessment_count == 1
 
 
-def test_within_session_adaptation_uses_explicit_socratic_steering_action_when_present(tmp_path):
+def test_within_session_adaptation_uses_explicit_socratic_steering_action_when_present(
+    tmp_path,
+):
     database_path = str(tmp_path / "within-session-adaptation-steering.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -151,7 +155,9 @@ def test_within_session_controller_persists_repair_state_across_steps(tmp_path):
         student_id=str(student_id),
         payload=first_observation,
     )
-    first_summary = service.record_observation_event(student_id=student_id, event_payload=first_observation)
+    first_summary = service.record_observation_event(
+        student_id=student_id, event_payload=first_observation
+    )
 
     second_observation = {
         **first_observation,
@@ -164,7 +170,9 @@ def test_within_session_controller_persists_repair_state_across_steps(tmp_path):
         student_id=str(student_id),
         payload=second_observation,
     )
-    second_summary = service.record_observation_event(student_id=student_id, event_payload=second_observation)
+    second_summary = service.record_observation_event(
+        student_id=student_id, event_payload=second_observation
+    )
     generated_summary = service.record_generation_step(
         request=request,
         content_type="practice_problem",
@@ -179,7 +187,10 @@ def test_within_session_controller_persists_repair_state_across_steps(tmp_path):
     assert second_summary.negative_streak == 2
     assert generated_summary.phase == "repair"
     assert generated_summary.generated_step_count == 1
-    assert service.adaptation_for(student_id=student_id, request=request).source == "session_controller"
+    assert (
+        service.adaptation_for(student_id=student_id, request=request).source
+        == "session_controller"
+    )
 
 
 def test_within_session_controller_detects_support_loop_after_budget_is_used(tmp_path):
@@ -218,7 +229,9 @@ def test_within_session_controller_detects_support_loop_after_budget_is_used(tmp
             student_id=str(student_id),
             payload=observation_payload,
         )
-        repair_summary = service.record_observation_event(student_id=student_id, event_payload=observation_payload)
+        repair_summary = service.record_observation_event(
+            student_id=student_id, event_payload=observation_payload
+        )
 
     first_generation = service.record_generation_step(
         request=request,
@@ -240,7 +253,9 @@ def test_within_session_controller_detects_support_loop_after_budget_is_used(tmp
     assert second_generation.arc_action == "reprobe_new_angle"
 
 
-def test_within_session_controller_moves_from_repair_to_transfer_check_after_recovery(tmp_path):
+def test_within_session_controller_moves_from_repair_to_transfer_check_after_recovery(
+    tmp_path,
+):
     database_path = str(tmp_path / "within-session-controller-recovery.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -275,7 +290,9 @@ def test_within_session_controller_moves_from_repair_to_transfer_check_after_rec
         student_id=str(student_id),
         payload=negative_observation,
     )
-    service.record_observation_event(student_id=student_id, event_payload=negative_observation)
+    service.record_observation_event(
+        student_id=student_id, event_payload=negative_observation
+    )
 
     recovery_payload = {
         "learning_session_id": "session-recovery",
@@ -291,7 +308,9 @@ def test_within_session_controller_moves_from_repair_to_transfer_check_after_rec
             student_id=str(student_id),
             payload=recovery_payload,
         )
-        recovery_summary = service.record_assessment_event(student_id=student_id, event_payload=recovery_payload)
+        recovery_summary = service.record_assessment_event(
+            student_id=student_id, event_payload=recovery_payload
+        )
 
     final_summary = service.adaptation_for(student_id=student_id, request=request)
 
@@ -304,7 +323,9 @@ def test_within_session_controller_moves_from_repair_to_transfer_check_after_rec
     assert final_summary.recovery_intent == "check_transfer"
 
 
-def test_within_session_controller_moves_through_consolidate_and_bridge_before_transfer(tmp_path):
+def test_within_session_controller_moves_through_consolidate_and_bridge_before_transfer(
+    tmp_path,
+):
     database_path = str(tmp_path / "within-session-controller-bridge.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -332,7 +353,9 @@ def test_within_session_controller_moves_through_consolidate_and_bridge_before_t
         student_id=str(student_id),
         payload=negative_observation,
     )
-    service.record_observation_event(student_id=student_id, event_payload=negative_observation)
+    service.record_observation_event(
+        student_id=student_id, event_payload=negative_observation
+    )
 
     recovery_payload = {
         "learning_session_id": "session-bridge",
@@ -350,7 +373,9 @@ def test_within_session_controller_moves_through_consolidate_and_bridge_before_t
             student_id=str(student_id),
             payload=recovery_payload,
         )
-        summary = service.record_assessment_event(student_id=student_id, event_payload=recovery_payload)
+        summary = service.record_assessment_event(
+            student_id=student_id, event_payload=recovery_payload
+        )
         phases.append(summary.phase)
         sequence_actions.append(summary.sequence_action)
 
@@ -358,7 +383,9 @@ def test_within_session_controller_moves_through_consolidate_and_bridge_before_t
     assert sequence_actions == ["hold_target", "hold_bridge_target", "attempt_transfer"]
 
 
-def test_within_session_controller_blocks_transfer_when_live_evidence_still_shows_support_dependence(tmp_path):
+def test_within_session_controller_blocks_transfer_when_live_evidence_still_shows_support_dependence(
+    tmp_path,
+):
     database_path = str(tmp_path / "within-session-controller-support-dependence.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -388,7 +415,9 @@ def test_within_session_controller_blocks_transfer_when_live_evidence_still_show
         student_id=str(student_id),
         payload=support_dependent_observation,
     )
-    service.record_observation_event(student_id=student_id, event_payload=support_dependent_observation)
+    service.record_observation_event(
+        student_id=student_id, event_payload=support_dependent_observation
+    )
 
     recovery_payload = {
         "learning_session_id": "session-support-dependent",
@@ -406,7 +435,9 @@ def test_within_session_controller_blocks_transfer_when_live_evidence_still_show
             student_id=str(student_id),
             payload=recovery_payload,
         )
-        summary = service.record_assessment_event(student_id=student_id, event_payload=recovery_payload)
+        summary = service.record_assessment_event(
+            student_id=student_id, event_payload=recovery_payload
+        )
         phases.append(summary.phase)
         sequence_actions.append(summary.sequence_action)
 
@@ -422,13 +453,19 @@ def test_within_session_controller_blocks_transfer_when_live_evidence_still_show
     )
 
     assert phases == ["consolidate", "bridge", "bridge"]
-    assert sequence_actions == ["hold_target", "hold_bridge_target", "hold_bridge_target"]
+    assert sequence_actions == [
+        "hold_target",
+        "hold_bridge_target",
+        "hold_bridge_target",
+    ]
     assert final_summary.phase == "bridge"
     assert final_summary.sequence_action == "hold_bridge_target"
     assert final_summary.recovery_intent == "bridge_target"
 
 
-def test_within_session_adaptation_keeps_productive_struggle_out_of_negative_bucket(tmp_path):
+def test_within_session_adaptation_keeps_productive_struggle_out_of_negative_bucket(
+    tmp_path,
+):
     database_path = str(tmp_path / "within-session-adaptation-productive-struggle.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)

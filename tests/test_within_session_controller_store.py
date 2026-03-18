@@ -1,7 +1,9 @@
 from uuid import uuid4
 
 from dibble.models.session_adaptation import WithinSessionControllerState
-from dibble.services.within_session_controller_store import SQLiteWithinSessionControllerStore
+from dibble.services.within_session_controller_store import (
+    SQLiteWithinSessionControllerStore,
+)
 from dibble.storage import ensure_database
 
 

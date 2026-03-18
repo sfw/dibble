@@ -65,7 +65,11 @@ def _support_bias(
         return -1
     if negative_run_rate >= 0.4 and average_run_outcome_score <= 0.58:
         return -1
-    if progress_signal == "improving" and positive_run_rate >= 0.5 and average_run_outcome_score >= 0.7:
+    if (
+        progress_signal == "improving"
+        and positive_run_rate >= 0.5
+        and average_run_outcome_score >= 0.7
+    ):
         return 1
     if positive_run_rate >= 0.7 and average_run_outcome_score >= 0.78:
         return 1
@@ -78,7 +82,9 @@ def _recovery_focus(
     progress_signal: str,
     negative_run_rate: float,
 ) -> str:
-    if support_bias < 0 and (progress_signal == "declining" or negative_run_rate >= 0.5):
+    if support_bias < 0 and (
+        progress_signal == "declining" or negative_run_rate >= 0.5
+    ):
         return "prerequisite_rebuild"
     if support_bias < 0:
         return "targeted_repair"
@@ -153,7 +159,11 @@ def _trajectory_state(
         and 0.58 <= average_run_outcome_score <= 0.76
     ):
         return "plateaued"
-    if progress_signal == "improving" and average_run_outcome_score >= 0.78 and support_bias >= 0:
+    if (
+        progress_signal == "improving"
+        and average_run_outcome_score >= 0.78
+        and support_bias >= 0
+    ):
         return "accelerating"
     if progress_signal == "improving":
         return "consolidating"
@@ -354,7 +364,9 @@ class LearningStrategyProfileBuilder:
             default=0.0,
         )
         matched_run_count = self._int_value(
-            progress_event.payload.get("matched_run_count") if progress_event is not None else 1,
+            progress_event.payload.get("matched_run_count")
+            if progress_event is not None
+            else 1,
             default=1,
         )
         matched_session_count = self._int_value(
@@ -365,13 +377,21 @@ class LearningStrategyProfileBuilder:
         positive_run_rate = self._float_value(
             progress_event.payload.get("positive_run_rate")
             if progress_event is not None
-            else (1.0 if summary_event.payload.get("run_calibration_signal") == "positive" else 0.0),
+            else (
+                1.0
+                if summary_event.payload.get("run_calibration_signal") == "positive"
+                else 0.0
+            ),
             default=0.0,
         )
         negative_run_rate = self._float_value(
             progress_event.payload.get("negative_run_rate")
             if progress_event is not None
-            else (1.0 if summary_event.payload.get("run_calibration_signal") == "negative" else 0.0),
+            else (
+                1.0
+                if summary_event.payload.get("run_calibration_signal") == "negative"
+                else 0.0
+            ),
             default=0.0,
         )
         progress_signal = (
@@ -380,7 +400,9 @@ class LearningStrategyProfileBuilder:
             else "tentative"
         )
         progress_delta = self._float_value(
-            progress_event.payload.get("progress_delta") if progress_event is not None else 0.0,
+            progress_event.payload.get("progress_delta")
+            if progress_event is not None
+            else 0.0,
             default=0.0,
         )
         return _build_snapshot(
@@ -408,19 +430,30 @@ class LearningStrategyProfileBuilder:
 @dataclass(slots=True)
 class LearningStrategyProfileRecorder:
     audit_store: AuditStore
-    profile_builder: LearningStrategyProfileBuilder = field(default_factory=LearningStrategyProfileBuilder)
+    profile_builder: LearningStrategyProfileBuilder = field(
+        default_factory=LearningStrategyProfileBuilder
+    )
     max_events: int = 1000
 
-    def record_from_summary_events(self, *, summary_events: list[AuditEvent]) -> list[AuditEvent]:
+    def record_from_summary_events(
+        self, *, summary_events: list[AuditEvent]
+    ) -> list[AuditEvent]:
         if not summary_events:
             return []
         events = self.audit_store.list(limit=self.max_events)
-        progress_events = [event for event in events if event.event_type == "learning.progress.profile"]
+        progress_events = [
+            event for event in events if event.event_type == "learning.progress.profile"
+        ]
         recorded: list[AuditEvent] = []
         for summary_event in summary_events:
-            if summary_event.student_id is None or summary_event.event_type != "learning.run.summary":
+            if (
+                summary_event.student_id is None
+                or summary_event.event_type != "learning.run.summary"
+            ):
                 continue
-            progress_event = self._matching_progress_event(summary_event=summary_event, progress_events=progress_events)
+            progress_event = self._matching_progress_event(
+                summary_event=summary_event, progress_events=progress_events
+            )
             snapshot = self.profile_builder.build_from_summary_event(
                 summary_event=summary_event,
                 progress_event=progress_event,
@@ -469,7 +502,8 @@ class LearningStrategyProfileRecorder:
             event
             for event in progress_events
             if event.student_id == summary_event.student_id
-            and event.payload.get("source_run_summary_event_id") == summary_event.event_id
+            and event.payload.get("source_run_summary_event_id")
+            == summary_event.event_id
         ]
         if not matched:
             return None
@@ -489,17 +523,26 @@ class LearningStrategyProfileResolver:
         profile_events: list[AuditEvent],
         request: GenerationRequest,
     ) -> list[AuditEvent]:
-        recent_cutoff = datetime.now(timezone.utc) - timedelta(days=max(1, self.recency_window_days))
+        recent_cutoff = datetime.now(timezone.utc) - timedelta(
+            days=max(1, self.recency_window_days)
+        )
         scored_matches: list[tuple[int, float, AuditEvent]] = []
         for event in profile_events:
             if event.event_type != "learning.strategy.profile":
                 continue
             if event.created_at < recent_cutoff:
                 continue
-            if int(event.payload.get("matched_session_count", 0)) < self.minimum_session_count:
+            if (
+                int(event.payload.get("matched_session_count", 0))
+                < self.minimum_session_count
+            ):
                 continue
-            match_tier = self._request_match_tier(request=request, payload=event.payload)
-            match_score = self._request_match_score(request=request, payload=event.payload)
+            match_tier = self._request_match_tier(
+                request=request, payload=event.payload
+            )
+            match_score = self._request_match_score(
+                request=request, payload=event.payload
+            )
             if match_tier <= 0 or match_score <= 0.0:
                 continue
             scored_matches.append((match_tier, match_score, event))
@@ -513,34 +556,71 @@ class LearningStrategyProfileResolver:
             context_key = (
                 event.payload.get("intent"),
                 event.payload.get("content_type"),
-                tuple(str(item) for item in event.payload.get("target_kc_ids", []) if item is not None),
-                tuple(str(item) for item in event.payload.get("target_lo_ids", []) if item is not None),
+                tuple(
+                    str(item)
+                    for item in event.payload.get("target_kc_ids", [])
+                    if item is not None
+                ),
+                tuple(
+                    str(item)
+                    for item in event.payload.get("target_lo_ids", [])
+                    if item is not None
+                ),
             )
             current = latest_by_context.get(context_key)
-            if current is None or (match_score, event.created_at) > (current[0], current[1].created_at):
+            if current is None or (match_score, event.created_at) > (
+                current[0],
+                current[1].created_at,
+            ):
                 latest_by_context[context_key] = (match_score, event)
         matched = list(latest_by_context.values())
         matched.sort(key=lambda item: (item[0], item[1].created_at), reverse=True)
         return [event for _, event in matched[: self.max_matched_profiles]]
 
-    def _request_match_score(self, *, request: GenerationRequest, payload: dict[str, object]) -> float:
+    def _request_match_score(
+        self, *, request: GenerationRequest, payload: dict[str, object]
+    ) -> float:
         score = 0.0
-        score += self._overlap_score(request.target_kc_ids, payload.get("target_kc_ids")) * 3.0
-        score += self._overlap_score(request.target_lo_ids, payload.get("target_lo_ids")) * 2.0
-        if request.requested_content_type and payload.get("content_type") == request.requested_content_type.value:
+        score += (
+            self._overlap_score(request.target_kc_ids, payload.get("target_kc_ids"))
+            * 3.0
+        )
+        score += (
+            self._overlap_score(request.target_lo_ids, payload.get("target_lo_ids"))
+            * 2.0
+        )
+        if (
+            request.requested_content_type
+            and payload.get("content_type") == request.requested_content_type.value
+        ):
             score += 0.75
         if payload.get("intent") == request.intent.value:
             score += 1.0
-        if not request.target_kc_ids and not request.target_lo_ids and payload.get("intent") == request.intent.value:
+        if (
+            not request.target_kc_ids
+            and not request.target_lo_ids
+            and payload.get("intent") == request.intent.value
+        ):
             score += 0.25
         return score
 
-    def _request_match_tier(self, *, request: GenerationRequest, payload: dict[str, object]) -> int:
-        if self._overlap_score(request.target_kc_ids, payload.get("target_kc_ids")) > 0.0:
+    def _request_match_tier(
+        self, *, request: GenerationRequest, payload: dict[str, object]
+    ) -> int:
+        if (
+            self._overlap_score(request.target_kc_ids, payload.get("target_kc_ids"))
+            > 0.0
+        ):
             return 3
-        if self._overlap_score(request.target_lo_ids, payload.get("target_lo_ids")) > 0.0:
+        if (
+            self._overlap_score(request.target_lo_ids, payload.get("target_lo_ids"))
+            > 0.0
+        ):
             return 3
-        if request.requested_content_type and payload.get("content_type") == request.requested_content_type.value:
+        if (
+            request.requested_content_type
+            and payload.get("content_type") == request.requested_content_type.value
+        ):
             return 2
         if payload.get("intent") == request.intent.value:
             return 1
@@ -548,23 +628,36 @@ class LearningStrategyProfileResolver:
 
     def _overlap_score(self, left: list[str], right: object) -> float:
         left_values = {str(item) for item in left}
-        right_values = {str(item) for item in right} if isinstance(right, list) else set()
+        right_values = (
+            {str(item) for item in right} if isinstance(right, list) else set()
+        )
         if not left_values or not right_values:
             return 0.0
-        return len(left_values & right_values) / max(len(left_values), len(right_values))
+        return len(left_values & right_values) / max(
+            len(left_values), len(right_values)
+        )
 
 
 @dataclass(slots=True)
 class LearnerStrategySignalService:
     audit_store: AuditStore
-    profile_resolver: LearningStrategyProfileResolver = field(default_factory=LearningStrategyProfileResolver)
-    progress_profile_resolver: LearningProgressProfileResolver = field(default_factory=LearningProgressProfileResolver)
+    profile_resolver: LearningStrategyProfileResolver = field(
+        default_factory=LearningStrategyProfileResolver
+    )
+    progress_profile_resolver: LearningProgressProfileResolver = field(
+        default_factory=LearningProgressProfileResolver
+    )
     max_events: int = 500
 
-    def strategy_for(self, *, student_id: UUID, request: GenerationRequest) -> LearnerStrategySummary:
+    def strategy_for(
+        self, *, student_id: UUID, request: GenerationRequest
+    ) -> LearnerStrategySummary:
         events = self.audit_store.list(limit=self.max_events)
         strategy_events = [
-            event for event in events if event.event_type == "learning.strategy.profile" and event.student_id == student_id
+            event
+            for event in events
+            if event.event_type == "learning.strategy.profile"
+            and event.student_id == student_id
         ]
         matched_strategy_profiles = self.profile_resolver.matched_profile_events(
             profile_events=strategy_events,
@@ -574,11 +667,16 @@ class LearnerStrategySignalService:
             return self._aggregate_strategy_events(matched_strategy_profiles)
 
         progress_events = [
-            event for event in events if event.event_type == "learning.progress.profile" and event.student_id == student_id
+            event
+            for event in events
+            if event.event_type == "learning.progress.profile"
+            and event.student_id == student_id
         ]
-        matched_progress_profiles = self.progress_profile_resolver.matched_profile_events(
-            profile_events=progress_events,
-            request=request,
+        matched_progress_profiles = (
+            self.progress_profile_resolver.matched_profile_events(
+                profile_events=progress_events,
+                request=request,
+            )
         )
         if matched_progress_profiles:
             return self._aggregate_progress_events(matched_progress_profiles)
@@ -588,7 +686,12 @@ class LearnerStrategySignalService:
     def latest_for_student(self, *, student_id: UUID) -> LearnerStrategySummary:
         events = self.audit_store.list(limit=self.max_events)
         strategy_event = next(
-            (event for event in events if event.event_type == "learning.strategy.profile" and event.student_id == student_id),
+            (
+                event
+                for event in events
+                if event.event_type == "learning.strategy.profile"
+                and event.student_id == student_id
+            ),
             None,
         )
         if strategy_event is not None:
@@ -599,19 +702,36 @@ class LearnerStrategySignalService:
             )
 
         progress_event = next(
-            (event for event in events if event.event_type == "learning.progress.profile" and event.student_id == student_id),
+            (
+                event
+                for event in events
+                if event.event_type == "learning.progress.profile"
+                and event.student_id == student_id
+            ),
             None,
         )
         if progress_event is None:
             return LearnerStrategySummary()
         snapshot = _build_snapshot(
-            average_run_outcome_score=self._maybe_float(progress_event.payload.get("average_run_outcome_score")),
-            average_run_confidence=float(progress_event.payload.get("average_run_confidence", 0.0)),
+            average_run_outcome_score=self._maybe_float(
+                progress_event.payload.get("average_run_outcome_score")
+            ),
+            average_run_confidence=float(
+                progress_event.payload.get("average_run_confidence", 0.0)
+            ),
             matched_run_count=int(progress_event.payload.get("matched_run_count", 0)),
-            matched_session_count=int(progress_event.payload.get("matched_session_count", 0)),
-            positive_run_rate=float(progress_event.payload.get("positive_run_rate", 0.0)),
-            negative_run_rate=float(progress_event.payload.get("negative_run_rate", 0.0)),
-            progress_signal=str(progress_event.payload.get("progress_signal", "insufficient")),
+            matched_session_count=int(
+                progress_event.payload.get("matched_session_count", 0)
+            ),
+            positive_run_rate=float(
+                progress_event.payload.get("positive_run_rate", 0.0)
+            ),
+            negative_run_rate=float(
+                progress_event.payload.get("negative_run_rate", 0.0)
+            ),
+            progress_signal=str(
+                progress_event.payload.get("progress_signal", "insufficient")
+            ),
             progress_delta=float(progress_event.payload.get("progress_delta", 0.0)),
         )
         return LearnerStrategySummary(
@@ -633,8 +753,13 @@ class LearnerStrategySignalService:
             updated_at=progress_event.created_at,
         )
 
-    def _aggregate_strategy_events(self, profile_events: list[AuditEvent]) -> LearnerStrategySummary:
-        total_run_count = sum(max(1, int(event.payload.get("matched_run_count", 0))) for event in profile_events)
+    def _aggregate_strategy_events(
+        self, profile_events: list[AuditEvent]
+    ) -> LearnerStrategySummary:
+        total_run_count = sum(
+            max(1, int(event.payload.get("matched_run_count", 0)))
+            for event in profile_events
+        )
         if total_run_count <= 0:
             return LearnerStrategySummary()
         support_bias_score = round(
@@ -647,19 +772,34 @@ class LearnerStrategySignalService:
         )
         support_bias = max(-1, min(1, support_bias_score))
         progress_signal = self._dominant_label(
-            labels=[str(event.payload.get("progress_signal", "insufficient")) for event in profile_events]
+            labels=[
+                str(event.payload.get("progress_signal", "insufficient"))
+                for event in profile_events
+            ]
         )
         strategy_signal = self._dominant_label(
-            labels=[str(event.payload.get("strategy_signal", "insufficient")) for event in profile_events]
+            labels=[
+                str(event.payload.get("strategy_signal", "insufficient"))
+                for event in profile_events
+            ]
         )
         recovery_focus = self._dominant_label(
-            labels=[str(event.payload.get("strategy_recovery_focus", "monitor")) for event in profile_events]
+            labels=[
+                str(event.payload.get("strategy_recovery_focus", "monitor"))
+                for event in profile_events
+            ]
         )
         trajectory_state = self._dominant_label(
-            labels=[str(event.payload.get("strategy_trajectory_state", "insufficient")) for event in profile_events]
+            labels=[
+                str(event.payload.get("strategy_trajectory_state", "insufficient"))
+                for event in profile_events
+            ]
         )
         recommended_next_action = self._dominant_label(
-            labels=[str(event.payload.get("strategy_recommended_next_action", "monitor")) for event in profile_events]
+            labels=[
+                str(event.payload.get("strategy_recommended_next_action", "monitor"))
+                for event in profile_events
+            ]
         )
         progress_delta = round(
             sum(
@@ -706,7 +846,10 @@ class LearnerStrategySignalService:
             / total_run_count,
             2,
         )
-        matched_session_count = max(int(event.payload.get("matched_session_count", 0)) for event in profile_events)
+        matched_session_count = max(
+            int(event.payload.get("matched_session_count", 0))
+            for event in profile_events
+        )
         rationale = next(
             (
                 str(event.payload.get("strategy_rationale"))
@@ -734,8 +877,13 @@ class LearnerStrategySignalService:
             updated_at=profile_events[0].created_at,
         )
 
-    def _aggregate_progress_events(self, profile_events: list[AuditEvent]) -> LearnerStrategySummary:
-        total_run_count = sum(max(1, int(event.payload.get("matched_run_count", 0))) for event in profile_events)
+    def _aggregate_progress_events(
+        self, profile_events: list[AuditEvent]
+    ) -> LearnerStrategySummary:
+        total_run_count = sum(
+            max(1, int(event.payload.get("matched_run_count", 0)))
+            for event in profile_events
+        )
         if total_run_count <= 0:
             return LearnerStrategySummary()
         snapshot = _build_snapshot(
@@ -758,7 +906,10 @@ class LearnerStrategySignalService:
                 2,
             ),
             matched_run_count=total_run_count,
-            matched_session_count=max(int(event.payload.get("matched_session_count", 0)) for event in profile_events),
+            matched_session_count=max(
+                int(event.payload.get("matched_session_count", 0))
+                for event in profile_events
+            ),
             positive_run_rate=round(
                 sum(
                     float(event.payload.get("positive_run_rate", 0.0))
@@ -778,7 +929,10 @@ class LearnerStrategySignalService:
                 2,
             ),
             progress_signal=self._dominant_label(
-                labels=[str(event.payload.get("progress_signal", "insufficient")) for event in profile_events]
+                labels=[
+                    str(event.payload.get("progress_signal", "insufficient"))
+                    for event in profile_events
+                ]
             ),
             progress_delta=round(
                 sum(
@@ -821,17 +975,25 @@ class LearnerStrategySignalService:
             source=source,
             support_bias=int(payload.get("strategy_support_bias", 0)),
             recovery_focus=str(payload.get("strategy_recovery_focus", "monitor")),
-            trajectory_state=str(payload.get("strategy_trajectory_state", "insufficient")),
-            recommended_next_action=str(payload.get("strategy_recommended_next_action", "monitor")),
+            trajectory_state=str(
+                payload.get("strategy_trajectory_state", "insufficient")
+            ),
+            recommended_next_action=str(
+                payload.get("strategy_recommended_next_action", "monitor")
+            ),
             confidence=float(payload.get("average_run_confidence", 0.0)),
-            average_run_outcome_score=self._maybe_float(payload.get("average_run_outcome_score")),
+            average_run_outcome_score=self._maybe_float(
+                payload.get("average_run_outcome_score")
+            ),
             matched_run_count=int(payload.get("matched_run_count", 0)),
             matched_session_count=int(payload.get("matched_session_count", 0)),
             progress_signal=str(payload.get("progress_signal", "insufficient")),
             progress_delta=float(payload.get("progress_delta", 0.0)),
             volatility_index=float(payload.get("strategy_volatility_index", 0.0)),
             relapse_risk=float(payload.get("strategy_relapse_risk", 0.0)),
-            rationale=str(payload.get("strategy_rationale")) if payload.get("strategy_rationale") is not None else None,
+            rationale=str(payload.get("strategy_rationale"))
+            if payload.get("strategy_rationale") is not None
+            else None,
             updated_at=updated_at,
         )
 
@@ -841,7 +1003,9 @@ class LearnerStrategySignalService:
         ranking: dict[str, int] = {}
         for label in labels:
             ranking[label] = ranking.get(label, 0) + 1
-        return sorted(ranking.items(), key=lambda item: (item[1], item[0]), reverse=True)[0][0]
+        return sorted(
+            ranking.items(), key=lambda item: (item[1], item[0]), reverse=True
+        )[0][0]
 
     def _maybe_float(self, value: object) -> float | None:
         return float(value) if value is not None else None

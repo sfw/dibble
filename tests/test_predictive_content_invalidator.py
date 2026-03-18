@@ -17,7 +17,9 @@ from dibble.services.predictive_warm_queue_store import SQLitePredictiveWarmQueu
 from dibble.storage import ensure_database
 
 
-def test_predictive_content_invalidator_expires_only_matching_predictive_entries(tmp_path):
+def test_predictive_content_invalidator_expires_only_matching_predictive_entries(
+    tmp_path,
+):
     database_path = str(tmp_path / "predictive-cache.db")
     ensure_database(database_path)
     generated_content_store = SQLiteGeneratedContentStore(database_path)
@@ -100,7 +102,10 @@ def test_predictive_content_invalidator_expires_only_matching_predictive_entries
     assert invalidation_event.payload["expired_entries"] == 1
     assert invalidation_event.payload["canceled_queue_tasks"] == 1
     assert generated_content_store.get_fresh(cache_key="predictive-match") is None
-    assert generated_content_store.get_fresh(cache_key="predictive-other-session") is not None
+    assert (
+        generated_content_store.get_fresh(cache_key="predictive-other-session")
+        is not None
+    )
     assert generated_content_store.get_fresh(cache_key="non-predictive") is not None
 
 
@@ -116,7 +121,9 @@ def _build_generated_content(
         scaffolding_level="medium",
         reasons=["test"],
     )
-    metadata = GenerationMetadata(quality_score=0.75, validation_passed=True, grounding_count=1)
+    metadata = GenerationMetadata(
+        quality_score=0.75, validation_passed=True, grounding_count=1
+    )
     response = GenerationResponse(
         student_id=student_id,
         route=route,

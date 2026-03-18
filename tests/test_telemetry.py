@@ -20,15 +20,21 @@ from tests.support import build_profile
 
 
 class AlwaysFailsClient:
-    def complete(self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2):
+    def complete(
+        self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2
+    ):
         raise LLMClientError("boom")
 
-    def stream_complete(self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2):
+    def stream_complete(
+        self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2
+    ):
         raise LLMClientError("boom")
 
 
 class SucceedsClient:
-    def complete(self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2):
+    def complete(
+        self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2
+    ):
         class Result:
             content = (
                 '{"blocks":['
@@ -39,7 +45,9 @@ class SucceedsClient:
 
         return Result()
 
-    def stream_complete(self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2):
+    def stream_complete(
+        self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2
+    ):
         yield '{"block_index":0,"kind":"summary","title":"Backup","body_delta":"Recovered output.","done":true}\n'
 
 
@@ -99,7 +107,9 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     audit_store = SQLiteAuditStore(database_path)
     generated_content_store = SQLiteGeneratedContentStore(database_path)
     queue_store = SQLitePredictiveWarmQueueStore(database_path)
-    telemetry = TelemetryService(audit_store, generated_content_store, predictive_warm_queue_store=queue_store)
+    telemetry = TelemetryService(
+        audit_store, generated_content_store, predictive_warm_queue_store=queue_store
+    )
     deferred_task = queue_store.enqueue(
         request=GenerationRequest(
             student_id=uuid4(),
@@ -275,7 +285,9 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     assert snapshot.requeued_predictive_warm_tasks == 1
     assert snapshot.dropped_predictive_warm_tasks == 0
     assert snapshot.generated_content_entries == 0
-    assert snapshot.prompt_template_usages[0].template_name == "micro_explanation.baseline"
+    assert (
+        snapshot.prompt_template_usages[0].template_name == "micro_explanation.baseline"
+    )
     assert snapshot.prompt_template_usages[0].event_count == 1
 
 
@@ -490,5 +502,7 @@ def test_telemetry_snapshot_includes_socratic_assessment_metrics(tmp_path):
     assert snapshot.socratic_step_back_events == 1
     assert snapshot.average_socratic_evidence_score == 0.51
     assert len(snapshot.socratic_prompt_performances) == 2
-    assert snapshot.socratic_prompt_performances[0].template_name.startswith("assessment_probe.")
+    assert snapshot.socratic_prompt_performances[0].template_name.startswith(
+        "assessment_probe."
+    )
     assert snapshot.socratic_prompt_performances[0].event_count == 1

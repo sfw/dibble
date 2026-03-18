@@ -45,11 +45,17 @@ def normalize_tokens(text: str) -> list[str]:
 
 
 def salient_tokens(text: str) -> list[str]:
-    return [token for token in normalize_tokens(text) if len(token) >= 2 and token not in _STOPWORDS]
+    return [
+        token
+        for token in normalize_tokens(text)
+        if len(token) >= 2 and token not in _STOPWORDS
+    ]
 
 
 def char_ngrams(text: str, *, size: int = 3) -> list[str]:
     collapsed = "".join(ch for ch in text.lower() if ch.isalnum())
     if len(collapsed) < size:
         return [collapsed] if collapsed else []
-    return [collapsed[index : index + size] for index in range(len(collapsed) - size + 1)]
+    return [
+        collapsed[index : index + size] for index in range(len(collapsed) - size + 1)
+    ]

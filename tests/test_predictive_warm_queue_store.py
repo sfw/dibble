@@ -156,7 +156,10 @@ def test_predictive_warm_queue_store_records_claim_metadata(tmp_path):
     assert len(claimed) == 1
     assert claimed[0].claim_owner == "inline_scheduler"
     assert claimed[0].claim_mode == "inline_targeted"
-    assert claimed[0].claim_reason == "fresh predictive follow-up from the current generation request"
+    assert (
+        claimed[0].claim_reason
+        == "fresh predictive follow-up from the current generation request"
+    )
     assert claimed[0].claimed_at is not None
     assert claimed[0].stale_recovered is True
 
@@ -239,7 +242,9 @@ def test_predictive_warm_queue_store_cancels_stale_pending_tasks_before_claim(tm
     )
 
     assert task is not None
-    store._update_status(task_id=task.task_id, status="pending", last_error=None, next_attempt_at=None)
+    store._update_status(
+        task_id=task.task_id, status="pending", last_error=None, next_attempt_at=None
+    )
     from datetime import datetime, timedelta, timezone
     import sqlite3
 
@@ -499,11 +504,19 @@ def test_predictive_warm_queue_store_uses_shorter_backoff_for_urgent_tasks(tmp_p
     assert urgent_claim
     assert routine_claim
 
-    urgent_deferred = store.defer_retry(task_id=urgent_claim[0].task_id, error="provider timeout")
-    routine_deferred = store.defer_retry(task_id=routine_claim[0].task_id, error="provider timeout")
+    urgent_deferred = store.defer_retry(
+        task_id=urgent_claim[0].task_id, error="provider timeout"
+    )
+    routine_deferred = store.defer_retry(
+        task_id=routine_claim[0].task_id, error="provider timeout"
+    )
 
     assert urgent_deferred is not None
     assert routine_deferred is not None
-    urgent_delay = (urgent_deferred.next_attempt_at - urgent_deferred.updated_at).total_seconds()
-    routine_delay = (routine_deferred.next_attempt_at - routine_deferred.updated_at).total_seconds()
+    urgent_delay = (
+        urgent_deferred.next_attempt_at - urgent_deferred.updated_at
+    ).total_seconds()
+    routine_delay = (
+        routine_deferred.next_attempt_at - routine_deferred.updated_at
+    ).total_seconds()
     assert urgent_delay < routine_delay

@@ -4,7 +4,14 @@ from dibble.services.learning_session_outcomes import LearningSessionOutcome
 from dibble.models.telemetry import AuditEvent
 
 
-def _observation_event(*, engagement: str, frustration: str, load: float, confidence: float, help_seeking: str) -> AuditEvent:
+def _observation_event(
+    *,
+    engagement: str,
+    frustration: str,
+    load: float,
+    confidence: float,
+    help_seeking: str,
+) -> AuditEvent:
     return AuditEvent(
         event_id="observation",
         event_type="learner.observe",
@@ -19,7 +26,9 @@ def _observation_event(*, engagement: str, frustration: str, load: float, confid
     )
 
 
-def _assessment_event(*, strength: str, evidence_score: float, profile_update_applied: bool) -> AuditEvent:
+def _assessment_event(
+    *, strength: str, evidence_score: float, profile_update_applied: bool
+) -> AuditEvent:
     return AuditEvent(
         event_id="assessment",
         event_type="assessment.socratic",

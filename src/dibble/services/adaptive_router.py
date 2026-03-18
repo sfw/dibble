@@ -14,13 +14,16 @@ from dibble.models.profile import LearnerProfile, SignalLevel
 
 
 class AdaptiveRouter:
-    def route(self, profile: LearnerProfile, request: GenerationRequest) -> AdaptiveRouteDecision:
+    def route(
+        self, profile: LearnerProfile, request: GenerationRequest
+    ) -> AdaptiveRouteDecision:
         target_mastery = self._average_target_mastery(profile, request)
         confidence_calibration = profile.metacognitive_state.confidence_calibration
         help_seeking = profile.metacognitive_state.help_seeking
 
         if (
-            profile.affective_state.frustration in {SignalLevel.medium, SignalLevel.high}
+            profile.affective_state.frustration
+            in {SignalLevel.medium, SignalLevel.high}
             or profile.cognitive_load.total_load >= 0.8
         ):
             return AdaptiveRouteDecision(
@@ -87,7 +90,9 @@ class AdaptiveRouter:
 
         alpha, beta = scores[chosen_action]
         reasons = [self._reason_for(chosen_action, target_mastery, profile)]
-        reasons.append(f"Thompson prior alpha={alpha:.2f}, beta={beta:.2f} selected the highest sampled action.")
+        reasons.append(
+            f"Thompson prior alpha={alpha:.2f}, beta={beta:.2f} selected the highest sampled action."
+        )
 
         return AdaptiveRouteDecision(
             intervention_type=chosen_action,
@@ -96,7 +101,9 @@ class AdaptiveRouter:
             reasons=reasons,
         )
 
-    def _average_target_mastery(self, profile: LearnerProfile, request: GenerationRequest) -> float:
+    def _average_target_mastery(
+        self, profile: LearnerProfile, request: GenerationRequest
+    ) -> float:
         if request.target_kc_ids:
             values = [
                 profile.knowledge_state.kc_mastery.get(kc_id, 0.0)
@@ -112,7 +119,9 @@ class AdaptiveRouter:
 
         return sum(values) / len(values)
 
-    def _stretch_is_eligible(self, profile: LearnerProfile, target_mastery: float) -> bool:
+    def _stretch_is_eligible(
+        self, profile: LearnerProfile, target_mastery: float
+    ) -> bool:
         return (
             target_mastery >= 0.75
             and profile.affective_state.engagement == SignalLevel.high
@@ -137,7 +146,11 @@ class AdaptiveRouter:
         priors = {
             InterventionType.step_back: (
                 1.0
-                + (2.5 if frustration in {SignalLevel.medium, SignalLevel.high} else 0.3)
+                + (
+                    2.5
+                    if frustration in {SignalLevel.medium, SignalLevel.high}
+                    else 0.3
+                )
                 + (2.0 if load >= 0.8 else 0.1)
                 + (0.8 if help_seeking == SignalLevel.high else 0.0)
                 + (0.6 if confidence_calibration < 0.45 else 0.0),
@@ -148,13 +161,19 @@ class AdaptiveRouter:
                 + (2.2 if request.intent == ContentIntent.practice else 0.4)
                 + max(0.6 - target_mastery, 0.0) * 3
                 + (self_monitoring * 0.5),
-                1.0 + max(target_mastery - 0.5, 0.0) * 2 + (0.5 if help_seeking == SignalLevel.high else 0.0),
+                1.0
+                + max(target_mastery - 0.5, 0.0) * 2
+                + (0.5 if help_seeking == SignalLevel.high else 0.0),
             ),
             InterventionType.reteach: (
                 1.0
                 + (1.6 if 0.45 <= target_mastery < 0.8 else 0.6)
                 + (0.9 if confidence_calibration < 0.55 else 0.0)
-                + (0.6 if help_seeking in {SignalLevel.medium, SignalLevel.high} else 0.0),
+                + (
+                    0.6
+                    if help_seeking in {SignalLevel.medium, SignalLevel.high}
+                    else 0.0
+                ),
                 1.0 + (1.0 if frustration == SignalLevel.high else 0.4),
             ),
             InterventionType.stretch: (
@@ -163,7 +182,11 @@ class AdaptiveRouter:
                 + (1.0 if engagement == SignalLevel.high else 0.1)
                 + (0.4 if self_monitoring >= 0.7 else 0.0),
                 1.0
-                + (2.0 if frustration in {SignalLevel.medium, SignalLevel.high} else 0.2)
+                + (
+                    2.0
+                    if frustration in {SignalLevel.medium, SignalLevel.high}
+                    else 0.2
+                )
                 + (1.5 if load >= 0.7 else 0.2)
                 + (0.9 if confidence_calibration < 0.55 else 0.0)
                 + (0.6 if help_seeking == SignalLevel.high else 0.0),
@@ -202,7 +225,8 @@ class AdaptiveRouter:
         if intervention_type == InterventionType.stretch:
             return "High mastery and strong engagement made stretch work the best sampled action."
         if (
-            profile.metacognitive_state.help_seeking in {SignalLevel.medium, SignalLevel.high}
+            profile.metacognitive_state.help_seeking
+            in {SignalLevel.medium, SignalLevel.high}
             or profile.metacognitive_state.confidence_calibration < 0.55
         ):
             return "Metacognitive signals suggest the learner still benefits from modeled explanation before more independent work."

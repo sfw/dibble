@@ -14,4 +14,6 @@ ROLE_RANKS = {
 
 def allows_role(role: str, allowed_roles: Iterable[str]) -> bool:
     subject_rank = ROLE_RANKS.get(role, 0)
-    return any(subject_rank >= ROLE_RANKS.get(candidate, 0) for candidate in allowed_roles)
+    return any(
+        subject_rank >= ROLE_RANKS.get(candidate, 0) for candidate in allowed_roles
+    )

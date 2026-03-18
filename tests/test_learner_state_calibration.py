@@ -16,7 +16,9 @@ from dibble.services.router_calibration_signals import RouterCalibrationSignalSe
 from dibble.storage import ensure_database
 
 
-def test_learner_state_calibrator_strengthens_metacognition_after_positive_run(tmp_path):
+def test_learner_state_calibrator_strengthens_metacognition_after_positive_run(
+    tmp_path,
+):
     database_path = str(tmp_path / "learner-state-positive.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -57,7 +59,9 @@ def test_learner_state_calibrator_strengthens_metacognition_after_positive_run(t
     )
 
     calibrator = LearnerStateCalibrator(
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
     )
     inferred_state = InferredLearnerState(
         student_id=student_id,
@@ -89,10 +93,15 @@ def test_learner_state_calibrator_strengthens_metacognition_after_positive_run(t
     assert result.signal == "positive"
     assert result.state.metacognitive_state.confidence_calibration > 0.52
     assert result.state.metacognitive_state.self_monitoring > 0.48
-    assert result.state.metacognitive_state.help_seeking in {SignalLevel.none, SignalLevel.low}
+    assert result.state.metacognitive_state.help_seeking in {
+        SignalLevel.none,
+        SignalLevel.low,
+    }
 
 
-def test_learner_state_calibrator_reduces_metacognitive_readiness_after_negative_run(tmp_path):
+def test_learner_state_calibrator_reduces_metacognitive_readiness_after_negative_run(
+    tmp_path,
+):
     database_path = str(tmp_path / "learner-state-negative.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -131,7 +140,9 @@ def test_learner_state_calibrator_reduces_metacognitive_readiness_after_negative
     )
 
     calibrator = LearnerStateCalibrator(
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
     )
     inferred_state = InferredLearnerState(
         student_id=student_id,
@@ -161,16 +172,23 @@ def test_learner_state_calibrator_reduces_metacognitive_readiness_after_negative
     assert result.signal == "negative"
     assert result.state.metacognitive_state.confidence_calibration < 0.7
     assert result.state.metacognitive_state.self_monitoring < 0.66
-    assert result.state.metacognitive_state.help_seeking in {SignalLevel.medium, SignalLevel.high}
+    assert result.state.metacognitive_state.help_seeking in {
+        SignalLevel.medium,
+        SignalLevel.high,
+    }
 
 
-def test_learner_state_calibrator_leaves_state_unchanged_without_durable_signal(tmp_path):
+def test_learner_state_calibrator_leaves_state_unchanged_without_durable_signal(
+    tmp_path,
+):
     database_path = str(tmp_path / "learner-state-insufficient.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
     student_id = uuid4()
     calibrator = LearnerStateCalibrator(
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
     )
     inferred_state = InferredLearnerState(
         student_id=student_id,
@@ -240,7 +258,9 @@ def test_learner_state_calibrator_blends_durable_state_profile_when_available(tm
     )
 
     calibrator = LearnerStateCalibrator(
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         state_signal_service=LearnerStateSignalService(audit_store=audit_store),
     )
     inferred_state = InferredLearnerState(
@@ -288,7 +308,9 @@ def test_learner_state_calibrator_blends_durable_state_profile_when_available(tm
     assert result.state.affective_state.frustration == SignalLevel.low
 
 
-def test_learner_state_calibrator_skips_durable_independence_when_current_observation_is_sharply_strained(tmp_path):
+def test_learner_state_calibrator_skips_durable_independence_when_current_observation_is_sharply_strained(
+    tmp_path,
+):
     database_path = str(tmp_path / "learner-state-profile-strain-guard.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -357,7 +379,9 @@ def test_learner_state_calibrator_skips_durable_independence_when_current_observ
     )
 
     calibrator = LearnerStateCalibrator(
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         state_signal_service=LearnerStateSignalService(audit_store=audit_store),
     )
     inferred_state = InferredLearnerState(
@@ -406,7 +430,9 @@ def test_learner_state_calibrator_skips_durable_independence_when_current_observ
     assert result.state.metacognitive_state.self_monitoring < 0.4
 
 
-def test_learner_state_calibrator_does_not_force_support_profile_over_productive_struggle(tmp_path):
+def test_learner_state_calibrator_does_not_force_support_profile_over_productive_struggle(
+    tmp_path,
+):
     database_path = str(tmp_path / "learner-state-productive-struggle.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -436,12 +462,16 @@ def test_learner_state_calibrator_does_not_force_support_profile_over_productive
         },
     )
     calibrator = LearnerStateCalibrator(
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         state_signal_service=LearnerStateSignalService(audit_store=audit_store),
     )
     inferred_state = InferredLearnerState(
         student_id=student_id,
-        affective_state=AffectiveState(engagement=SignalLevel.medium, frustration=SignalLevel.low, confidence=0.6),
+        affective_state=AffectiveState(
+            engagement=SignalLevel.medium, frustration=SignalLevel.low, confidence=0.6
+        ),
         cognitive_load=CognitiveLoadState(total_load=0.42, capacity_utilization=0.48),
         metacognitive_state=MetacognitiveState(
             confidence_calibration=0.58,
@@ -477,7 +507,9 @@ def test_learner_state_calibrator_does_not_force_support_profile_over_productive
     assert result.current_evidence_signal == "productive_struggle"
 
 
-def test_learner_state_calibrator_blocks_release_profile_when_current_evidence_shows_overload(tmp_path):
+def test_learner_state_calibrator_blocks_release_profile_when_current_evidence_shows_overload(
+    tmp_path,
+):
     database_path = str(tmp_path / "learner-state-overload-guardrail.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -507,12 +539,18 @@ def test_learner_state_calibrator_blocks_release_profile_when_current_evidence_s
         },
     )
     calibrator = LearnerStateCalibrator(
-        calibration_signal_service=RouterCalibrationSignalService(audit_store=audit_store),
+        calibration_signal_service=RouterCalibrationSignalService(
+            audit_store=audit_store
+        ),
         state_signal_service=LearnerStateSignalService(audit_store=audit_store),
     )
     inferred_state = InferredLearnerState(
         student_id=student_id,
-        affective_state=AffectiveState(engagement=SignalLevel.medium, frustration=SignalLevel.medium, confidence=0.4),
+        affective_state=AffectiveState(
+            engagement=SignalLevel.medium,
+            frustration=SignalLevel.medium,
+            confidence=0.4,
+        ),
         cognitive_load=CognitiveLoadState(total_load=0.74, capacity_utilization=0.82),
         metacognitive_state=MetacognitiveState(
             confidence_calibration=0.42,

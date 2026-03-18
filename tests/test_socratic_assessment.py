@@ -85,8 +85,14 @@ def test_socratic_assessment_requests_probe_without_learner_response(tmp_path):
             reasons=["test"],
         ),
         blocks=[
-            GeneratedBlock(kind="summary", title="Focus", body="Equivalent fractions matter."),
-            GeneratedBlock(kind="instruction", title="Think aloud", body="How do you know 1/2 and 2/4 are equal?"),
+            GeneratedBlock(
+                kind="summary", title="Focus", body="Equivalent fractions matter."
+            ),
+            GeneratedBlock(
+                kind="instruction",
+                title="Think aloud",
+                body="How do you know 1/2 and 2/4 are equal?",
+            ),
         ],
         curriculum_context=["Equivalent fractions"],
         grounding=[
@@ -100,7 +106,9 @@ def test_socratic_assessment_requests_probe_without_learner_response(tmp_path):
         ],
         safety_notes=[],
         generation_id="gen-1",
-        generation_metadata=GenerationMetadata(prompt_template_name="assessment_probe.baseline"),
+        generation_metadata=GenerationMetadata(
+            prompt_template_name="assessment_probe.baseline"
+        ),
     )
     service = build_service(tmp_path, response)
 
@@ -135,8 +143,14 @@ def test_socratic_assessment_advances_when_response_is_grounded(tmp_path):
             reasons=["test"],
         ),
         blocks=[
-            GeneratedBlock(kind="summary", title="Focus", body="Equivalent fractions matter."),
-            GeneratedBlock(kind="instruction", title="Think aloud", body="Why are 1/2 and 2/4 the same amount?"),
+            GeneratedBlock(
+                kind="summary", title="Focus", body="Equivalent fractions matter."
+            ),
+            GeneratedBlock(
+                kind="instruction",
+                title="Think aloud",
+                body="Why are 1/2 and 2/4 the same amount?",
+            ),
         ],
         curriculum_context=["Equivalent fractions"],
         grounding=[
@@ -150,7 +164,9 @@ def test_socratic_assessment_advances_when_response_is_grounded(tmp_path):
         ],
         safety_notes=[],
         generation_id="gen-2",
-        generation_metadata=GenerationMetadata(prompt_template_name="assessment_probe.baseline"),
+        generation_metadata=GenerationMetadata(
+            prompt_template_name="assessment_probe.baseline"
+        ),
     )
     service = build_service(tmp_path, response)
 
@@ -185,8 +201,14 @@ def test_socratic_assessment_reuses_persisted_session_history(tmp_path):
             reasons=["test"],
         ),
         blocks=[
-            GeneratedBlock(kind="summary", title="Focus", body="Equivalent fractions matter."),
-            GeneratedBlock(kind="instruction", title="Think aloud", body="Why are 1/2 and 2/4 the same amount?"),
+            GeneratedBlock(
+                kind="summary", title="Focus", body="Equivalent fractions matter."
+            ),
+            GeneratedBlock(
+                kind="instruction",
+                title="Think aloud",
+                body="Why are 1/2 and 2/4 the same amount?",
+            ),
         ],
         curriculum_context=["Equivalent fractions"],
         grounding=[
@@ -200,7 +222,9 @@ def test_socratic_assessment_reuses_persisted_session_history(tmp_path):
         ],
         safety_notes=[],
         generation_id="gen-3",
-        generation_metadata=GenerationMetadata(prompt_template_name="assessment_probe.baseline"),
+        generation_metadata=GenerationMetadata(
+            prompt_template_name="assessment_probe.baseline"
+        ),
     )
     service = build_service(tmp_path, response)
 

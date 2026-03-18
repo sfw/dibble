@@ -13,7 +13,11 @@ from dibble.models.history import (
     LearnerSocraticSessionHistoryPage,
 )
 from dibble.models.profile import LearnerContinueAction, LearnerFlowNextStep
-from dibble.services.protocols import GeneratedContentStore, RemediationSessionStore, SocraticSessionStore
+from dibble.services.protocols import (
+    GeneratedContentStore,
+    RemediationSessionStore,
+    SocraticSessionStore,
+)
 
 
 @dataclass(slots=True)
@@ -47,27 +51,41 @@ class LearnerHistoryService:
                 LearnerGenerationHistoryEntry(
                     generation_id=content.generation_id,
                     learning_session_id=self._maybe_str(
-                        workflow_summary.learning_session_id if workflow_summary is not None else None
+                        workflow_summary.learning_session_id
+                        if workflow_summary is not None
+                        else None
                     )
                     or self._maybe_str(request_context.get("learning_session_id")),
-                    source_generation_id=self._maybe_str(request_context.get("source_generation_id")),
+                    source_generation_id=self._maybe_str(
+                        request_context.get("source_generation_id")
+                    ),
                     content_type=content.content_type,
-                    flow_type=workflow_summary.flow_type if workflow_summary is not None else "lesson",
-                    status=workflow_summary.status if workflow_summary is not None else "delivered",
-                    delivered_phase=workflow_summary.delivered_phase if workflow_summary is not None else "target",
+                    flow_type=workflow_summary.flow_type
+                    if workflow_summary is not None
+                    else "lesson",
+                    status=workflow_summary.status
+                    if workflow_summary is not None
+                    else "delivered",
+                    delivered_phase=workflow_summary.delivered_phase
+                    if workflow_summary is not None
+                    else "target",
                     progression_action=(
                         workflow_summary.progression_action
                         if workflow_summary is not None
                         else "stay_on_requested_target"
                     ),
-                    target_stage=workflow_summary.target_stage if workflow_summary is not None else "target",
+                    target_stage=workflow_summary.target_stage
+                    if workflow_summary is not None
+                    else "target",
                     active_target_kc_ids=(
                         list(workflow_summary.active_target_kc_ids)
                         if workflow_summary is not None
                         else self._string_list(request_context.get("target_kc_ids"))
                     ),
                     intervention_type=content.response.route.intervention_type.value,
-                    rationale=workflow_summary.rationale if workflow_summary is not None else None,
+                    rationale=workflow_summary.rationale
+                    if workflow_summary is not None
+                    else None,
                     next_step=(
                         workflow_summary.next_step.model_copy()
                         if workflow_summary is not None
@@ -82,7 +100,10 @@ class LearnerHistoryService:
                 )
             )
         return LearnerGenerationHistoryPage(
-            items=items, offset=safe_offset, limit=safe_limit, has_more=has_more,
+            items=items,
+            offset=safe_offset,
+            limit=safe_limit,
+            has_more=has_more,
         )
 
     def list_socratic_session_history(
@@ -121,7 +142,10 @@ class LearnerHistoryService:
             for session in sessions[:safe_limit]
         ]
         return LearnerSocraticSessionHistoryPage(
-            items=items, offset=safe_offset, limit=safe_limit, has_more=has_more,
+            items=items,
+            offset=safe_offset,
+            limit=safe_limit,
+            has_more=has_more,
         )
 
     def list_remediation_session_history(
@@ -160,7 +184,10 @@ class LearnerHistoryService:
             for session in sessions[:safe_limit]
         ]
         return LearnerRemediationSessionHistoryPage(
-            items=items, offset=safe_offset, limit=safe_limit, has_more=has_more,
+            items=items,
+            offset=safe_offset,
+            limit=safe_limit,
+            has_more=has_more,
         )
 
     @staticmethod

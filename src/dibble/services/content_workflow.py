@@ -15,7 +15,11 @@ from dibble.models.generation import (
     RemedialTriggerRequest,
     RequestedContentType,
 )
-from dibble.models.profile import LearnerContinueAction, LearnerFlowNextStep, LearnerProfile
+from dibble.models.profile import (
+    LearnerContinueAction,
+    LearnerFlowNextStep,
+    LearnerProfile,
+)
 from dibble.models.remediation import (
     RemediationWorkflowAdvanceRequest,
     RemediationWorkflowAdvanceResponse,
@@ -30,11 +34,26 @@ from dibble.services.generation_request_hydrator import hydrate_target_kc_hints
 from dibble.services.generation_modes import build_generation_mode_plan
 from dibble.services.learner_strategy_profiles import LearnerStrategySignalService
 from dibble.services.misconception_profiles import LearningMisconceptionProfileRecorder
-from dibble.services.observation_profile_update import ObservationProfileUpdater, RemediationProgressDecision
-from dibble.services.predictive_content_warming import PredictiveContentWarmer, PredictiveWarmPlan
+from dibble.services.observation_profile_update import (
+    ObservationProfileUpdater,
+    RemediationProgressDecision,
+)
+from dibble.services.predictive_content_warming import (
+    PredictiveContentWarmer,
+    PredictiveWarmPlan,
+)
 from dibble.services.predictive_warm_scheduler import PredictiveWarmScheduler
-from dibble.services.progression_ownership import ProgressionOwnershipDecision, ProgressionOwnershipService
-from dibble.services.protocols import AuditStore, GeneratedContentStore, KnowledgeComponentStore, ObservationStore, ProfileStore
+from dibble.services.progression_ownership import (
+    ProgressionOwnershipDecision,
+    ProgressionOwnershipService,
+)
+from dibble.services.protocols import (
+    AuditStore,
+    GeneratedContentStore,
+    KnowledgeComponentStore,
+    ObservationStore,
+    ProfileStore,
+)
 from dibble.services.remediation_planner import RemediationPlanner
 from dibble.services.remediation_workflows import (
     RemediationWorkflowCoordinator,
@@ -81,7 +100,9 @@ class ContentWorkflowService:
     def decide_route(self, request: GenerationRequest) -> AdaptiveRouteDecision:
         profile = self._load_profile(request.student_id)
         decision = self.router.route(profile, request)
-        strategy = self.strategy_signal_service.strategy_for(student_id=request.student_id, request=request)
+        strategy = self.strategy_signal_service.strategy_for(
+            student_id=request.student_id, request=request
+        )
         self.audit_store.append(
             event_type="adaptive.decide",
             status="success",
@@ -92,20 +113,34 @@ class ContentWorkflowService:
                 "delivery_mode": decision.delivery_mode.value,
                 "scaffolding_level": decision.scaffolding_level,
                 "reason_count": len(decision.reasons),
-                "calibration_signal": decision.calibration.signal if decision.calibration is not None else None,
-                "calibration_source": decision.calibration.source if decision.calibration is not None else None,
-                "calibration_confidence": decision.calibration.confidence if decision.calibration is not None else 0.0,
+                "calibration_signal": decision.calibration.signal
+                if decision.calibration is not None
+                else None,
+                "calibration_source": decision.calibration.source
+                if decision.calibration is not None
+                else None,
+                "calibration_confidence": decision.calibration.confidence
+                if decision.calibration is not None
+                else 0.0,
                 "calibration_run_count": (
-                    decision.calibration.matched_run_count if decision.calibration is not None else 0
+                    decision.calibration.matched_run_count
+                    if decision.calibration is not None
+                    else 0
                 ),
                 "calibration_outcome_score": (
-                    decision.calibration.average_run_outcome_score if decision.calibration is not None else None
+                    decision.calibration.average_run_outcome_score
+                    if decision.calibration is not None
+                    else None
                 ),
                 "calibration_progress_signal": (
-                    decision.calibration.progress_signal if decision.calibration is not None else None
+                    decision.calibration.progress_signal
+                    if decision.calibration is not None
+                    else None
                 ),
                 "calibration_progress_delta": (
-                    decision.calibration.progress_delta if decision.calibration is not None else 0.0
+                    decision.calibration.progress_delta
+                    if decision.calibration is not None
+                    else 0.0
                 ),
                 "strategy_signal": strategy.signal,
                 "strategy_source": strategy.source,
@@ -118,7 +153,9 @@ class ContentWorkflowService:
     def generate_content(self, request: GenerationRequest) -> GeneratedContent:
         prepared = self.prepare_generation_request(request)
         response = self.generation_engine.generate(prepared.profile, prepared.request)
-        plan = build_generation_mode_plan(prepared.profile, prepared.request, response.route)
+        plan = build_generation_mode_plan(
+            prepared.profile, prepared.request, response.route
+        )
         metadata = response.generation_metadata
         if metadata is None or response.generation_id is None:
             raise RuntimeError("Generated content metadata was not available.")
@@ -142,7 +179,10 @@ class ContentWorkflowService:
                 "moderation_categories": metadata.moderation.categories,
                 "moderation_reasons": metadata.moderation.reasons,
                 "moderation_matched_terms": metadata.moderation.matched_terms,
-                "moderation_matches": [match.model_dump(mode="json") for match in metadata.moderation.matches],
+                "moderation_matches": [
+                    match.model_dump(mode="json")
+                    for match in metadata.moderation.matches
+                ],
                 "moderation_severity": metadata.moderation.severity,
                 "moderation_decision": metadata.moderation.decision,
                 "moderation_blocked": metadata.moderation.blocked,
@@ -188,10 +228,14 @@ class ContentWorkflowService:
                 "progression_ordinary_mastery_rationale": prepared.progression_decision.ordinary_mastery_rationale,
                 "scaffolding_level": response.route.scaffolding_level,
                 "mode_calibration_signal": (
-                    prepared.request.mode_calibration.signal if prepared.request.mode_calibration is not None else None
+                    prepared.request.mode_calibration.signal
+                    if prepared.request.mode_calibration is not None
+                    else None
                 ),
                 "mode_calibration_source": (
-                    prepared.request.mode_calibration.source if prepared.request.mode_calibration is not None else None
+                    prepared.request.mode_calibration.source
+                    if prepared.request.mode_calibration is not None
+                    else None
                 ),
                 "mode_calibration_confidence": (
                     prepared.request.mode_calibration.confidence
@@ -238,21 +282,33 @@ class ContentWorkflowService:
                     if prepared.request.mode_calibration is not None
                     else None
                 ),
-                "mode_calibration_applied": bool(plan.request_context.get("mode_calibration_applied", False)),
+                "mode_calibration_applied": bool(
+                    plan.request_context.get("mode_calibration_applied", False)
+                ),
                 "route_calibration_signal": (
-                    response.route.calibration.signal if response.route.calibration is not None else None
+                    response.route.calibration.signal
+                    if response.route.calibration is not None
+                    else None
                 ),
                 "route_calibration_source": (
-                    response.route.calibration.source if response.route.calibration is not None else None
+                    response.route.calibration.source
+                    if response.route.calibration is not None
+                    else None
                 ),
                 "route_calibration_confidence": (
-                    response.route.calibration.confidence if response.route.calibration is not None else 0.0
+                    response.route.calibration.confidence
+                    if response.route.calibration is not None
+                    else 0.0
                 ),
                 "route_calibration_progress_signal": (
-                    response.route.calibration.progress_signal if response.route.calibration is not None else None
+                    response.route.calibration.progress_signal
+                    if response.route.calibration is not None
+                    else None
                 ),
                 "route_calibration_progress_delta": (
-                    response.route.calibration.progress_delta if response.route.calibration is not None else 0.0
+                    response.route.calibration.progress_delta
+                    if response.route.calibration is not None
+                    else 0.0
                 ),
                 "prompt_template_name": metadata.prompt_template_name,
                 "prompt_template_version": metadata.prompt_template_version,
@@ -266,14 +322,18 @@ class ContentWorkflowService:
             progression_decision=prepared.progression_decision,
         )
 
-    def prepare_generation_request(self, request: GenerationRequest) -> PreparedGenerationRequest:
+    def prepare_generation_request(
+        self, request: GenerationRequest
+    ) -> PreparedGenerationRequest:
         profile = self._load_profile(request.student_id)
         progression_decision = self._progression_ownership_decision(request=request)
         enriched_request = hydrate_target_kc_hints(
             request=progression_decision.request,
             knowledge_component_store=self.knowledge_component_store,
         )
-        calibrated_request = self.generation_mode_calibrator.calibrate_request(request=enriched_request)
+        calibrated_request = self.generation_mode_calibrator.calibrate_request(
+            request=enriched_request
+        )
         return PreparedGenerationRequest(
             profile=profile,
             request=calibrated_request,
@@ -324,10 +384,16 @@ class ContentWorkflowService:
             generated_content=generated_content,
             progression_decision=progression_decision,
         )
-        predictive_plan = self.predictive_content_warmer.plan_follow_ups(generated_content)
+        predictive_plan = self.predictive_content_warmer.plan_follow_ups(
+            generated_content
+        )
         if predictive_plan.requests:
-            enqueue_result = self.predictive_warm_scheduler.enqueue_plan(plan=predictive_plan)
-            inline_process_result = self.predictive_warm_scheduler.process_inline(task_ids=enqueue_result.task_ids or [])
+            enqueue_result = self.predictive_warm_scheduler.enqueue_plan(
+                plan=predictive_plan
+            )
+            inline_process_result = self.predictive_warm_scheduler.process_inline(
+                task_ids=enqueue_result.task_ids or []
+            )
             self.audit_store.append(
                 event_type="content.warm.predictive",
                 status="success",
@@ -362,7 +428,10 @@ class ContentWorkflowService:
                     "cache_hits": inline_process_result.cache_hits,
                     "cache_misses": inline_process_result.cache_misses,
                     "generation_ids": inline_process_result.generation_ids,
-                    "claim_details": [detail.model_dump(mode="json") for detail in inline_process_result.claim_details],
+                    "claim_details": [
+                        detail.model_dump(mode="json")
+                        for detail in inline_process_result.claim_details
+                    ],
                 },
             )
         finalized_content = self._apply_generation_workflow_summary(
@@ -398,7 +467,9 @@ class ContentWorkflowService:
                 "response_rewritten": moderation.response_rewritten,
                 "categories": moderation.categories,
                 "matched_terms": moderation.matched_terms,
-                "matches": [match.model_dump(mode="json") for match in moderation.matches],
+                "matches": [
+                    match.model_dump(mode="json") for match in moderation.matches
+                ],
                 "fallback_applied": moderation.fallback_applied,
                 "fallback_kind": moderation.fallback_kind,
                 "stream_action": moderation.stream_action,
@@ -527,14 +598,22 @@ class ContentWorkflowService:
         progression = request_context.get("progression")
         progression_data = progression if isinstance(progression, dict) else {}
         remediation_workflow = request_context.get("remediation_workflow")
-        remediation_data = remediation_workflow if isinstance(remediation_workflow, dict) else {}
+        remediation_data = (
+            remediation_workflow if isinstance(remediation_workflow, dict) else {}
+        )
 
         if remediation_data:
             executed_phase = str(remediation_data.get("executed_phase", "repair"))
             next_phase = remediation_data.get("next_phase")
-            progression_decision = str(remediation_data.get("progression_decision", "advance"))
-            next_target_kc_ids = self._remediation_next_step_target_kc_ids(remediation_data=remediation_data)
-            explicit_next_step_rationale = self._maybe_str(remediation_data.get("next_step_rationale"))
+            progression_decision = str(
+                remediation_data.get("progression_decision", "advance")
+            )
+            next_target_kc_ids = self._remediation_next_step_target_kc_ids(
+                remediation_data=remediation_data
+            )
+            explicit_next_step_rationale = self._maybe_str(
+                remediation_data.get("next_step_rationale")
+            )
             next_step = LearnerFlowNextStep(
                 action=(
                     str(remediation_data.get("progression_decision"))
@@ -551,7 +630,8 @@ class ContentWorkflowService:
                 ),
                 target_kc_ids=next_target_kc_ids,
                 rationale=self._workflow_step_rationale(
-                    primary=explicit_next_step_rationale or self._maybe_str(remediation_data.get("progression_rationale")),
+                    primary=explicit_next_step_rationale
+                    or self._maybe_str(remediation_data.get("progression_rationale")),
                     action=(
                         progression_decision
                         if progression_decision.startswith("hold_")
@@ -577,13 +657,16 @@ class ContentWorkflowService:
                     "workflow_summary": GenerationWorkflowSummary(
                         status="delivered",
                         flow_type="remediation",
-                        learning_session_id=self._maybe_str(request_context.get("learning_session_id")),
+                        learning_session_id=self._maybe_str(
+                            request_context.get("learning_session_id")
+                        ),
                         delivered_phase=executed_phase,
                         delivered_content_type=generated_content.content_type,
                         progression_action=progression_decision,
                         target_stage=self._target_stage_for_phase(executed_phase),
                         active_target_kc_ids=self._string_list(
-                            progression_data.get("applied_target_kc_ids") or request_context.get("target_kc_ids")
+                            progression_data.get("applied_target_kc_ids")
+                            or request_context.get("target_kc_ids")
                         ),
                         rationale=next_step.rationale,
                         next_step=next_step,
@@ -606,17 +689,24 @@ class ContentWorkflowService:
                 "workflow_summary": GenerationWorkflowSummary(
                     status="delivered",
                     flow_type="lesson",
-                    learning_session_id=self._maybe_str(request_context.get("learning_session_id")),
+                    learning_session_id=self._maybe_str(
+                        request_context.get("learning_session_id")
+                    ),
                     delivered_phase=str(
                         progression_data.get("target_stage")
-                        or self._dict_value(request_context.get("session_adaptation")).get("phase")
+                        or self._dict_value(
+                            request_context.get("session_adaptation")
+                        ).get("phase")
                         or "target"
                     ),
                     delivered_content_type=generated_content.content_type,
-                    progression_action=str(progression_data.get("action", "stay_on_requested_target")),
+                    progression_action=str(
+                        progression_data.get("action", "stay_on_requested_target")
+                    ),
                     target_stage=str(progression_data.get("target_stage", "target")),
                     active_target_kc_ids=self._string_list(
-                        progression_data.get("applied_target_kc_ids") or request_context.get("target_kc_ids")
+                        progression_data.get("applied_target_kc_ids")
+                        or request_context.get("target_kc_ids")
                     ),
                     rationale=next_step.rationale,
                     next_step=next_step,
@@ -643,7 +733,8 @@ class ContentWorkflowService:
                 content_type=forced_content_type,
                 target_stage=str(progression.get("target_stage", "target")),
                 target_kc_ids=self._string_list(
-                    progression.get("applied_target_kc_ids") or request_context.get("target_kc_ids")
+                    progression.get("applied_target_kc_ids")
+                    or request_context.get("target_kc_ids")
                 ),
                 rationale=self._workflow_step_rationale(
                     primary=self._maybe_str(progression.get("mastery_gate_reason")),
@@ -658,7 +749,8 @@ class ContentWorkflowService:
                 content_type=None,
                 target_stage=str(progression.get("target_stage", "target")),
                 target_kc_ids=self._string_list(
-                    progression.get("applied_target_kc_ids") or request_context.get("target_kc_ids")
+                    progression.get("applied_target_kc_ids")
+                    or request_context.get("target_kc_ids")
                 ),
                 rationale=self._workflow_step_rationale(
                     primary=self._maybe_str(progression.get("mastery_gate_reason")),
@@ -671,12 +763,16 @@ class ContentWorkflowService:
         next_reason = predictive_plan.reasons[0] if predictive_plan.reasons else None
         target_kc_ids = self._string_list(progression.get("applied_target_kc_ids"))
         if next_content_type == RequestedContentType.assessment_probe.value:
-            target_kc_ids = self._string_list(progression.get("transfer_target_kc_ids")) or target_kc_ids
+            target_kc_ids = (
+                self._string_list(progression.get("transfer_target_kc_ids"))
+                or target_kc_ids
+            )
         return LearnerFlowNextStep(
             action=str(progression.get("action", "stay_on_requested_target")),
             content_type=next_content_type,
             target_stage=str(progression.get("target_stage", "target")),
-            target_kc_ids=target_kc_ids or self._string_list(request_context.get("target_kc_ids")),
+            target_kc_ids=target_kc_ids
+            or self._string_list(request_context.get("target_kc_ids")),
             rationale=self._workflow_step_rationale(
                 primary=self._maybe_str(progression.get("mastery_gate_reason")),
                 action=str(progression.get("action", "stay_on_requested_target")),
@@ -709,7 +805,9 @@ class ContentWorkflowService:
         *,
         remediation_data: dict[str, object],
     ) -> list[str]:
-        progression_decision = str(remediation_data.get("progression_decision", "advance"))
+        progression_decision = str(
+            remediation_data.get("progression_decision", "advance")
+        )
         if progression_decision.startswith("hold_"):
             return self._string_list(remediation_data.get("progression_target_kc_ids"))
         return self._string_list(remediation_data.get("next_step_target_kc_ids"))
@@ -726,7 +824,9 @@ class ContentWorkflowService:
             return "repair"
         return self._target_stage_for_phase(phase)
 
-    def _forced_next_step_content_type(self, progression: dict[str, object]) -> str | None:
+    def _forced_next_step_content_type(
+        self, progression: dict[str, object]
+    ) -> str | None:
         action = str(progression.get("action", ""))
         if action in {"hold_target", "hold_target_before_assessment"}:
             return RequestedContentType.practice_problem.value
@@ -770,7 +870,9 @@ class ContentWorkflowService:
         return LearnerContinueAction.generate_follow_up(
             resource_id=generated_content.generation_id,
             generation_id=generated_content.generation_id,
-            learning_session_id=self._maybe_str(request_context.get("learning_session_id")),
+            learning_session_id=self._maybe_str(
+                request_context.get("learning_session_id")
+            ),
             content_type=next_step.content_type,
             target_stage=next_step.target_stage,
             target_kc_ids=list(next_step.target_kc_ids),
@@ -793,12 +895,15 @@ class ContentWorkflowService:
         if session_id is None:
             return LearnerContinueAction.idle(rationale=next_step.rationale)
         if str(remediation_data.get("status", "in_progress")) == "complete":
-            summary_continue_action = self._dict_value(remediation_data.get("summary_continue_action"))
+            summary_continue_action = self._dict_value(
+                remediation_data.get("summary_continue_action")
+            )
             if summary_continue_action:
                 return LearnerContinueAction.model_validate(summary_continue_action)
 
             target_kc_ids = list(next_step.target_kc_ids) or self._string_list(
-                request_context.get("focus_kc_ids") or request_context.get("target_kc_ids")
+                request_context.get("focus_kc_ids")
+                or request_context.get("target_kc_ids")
             )
             follow_up_step = next_step.model_copy(
                 update={
@@ -816,7 +921,9 @@ class ContentWorkflowService:
             return LearnerContinueAction.generate_follow_up(
                 resource_id=session_id,
                 generation_id=generated_content.generation_id,
-                learning_session_id=self._maybe_str(request_context.get("learning_session_id")),
+                learning_session_id=self._maybe_str(
+                    request_context.get("learning_session_id")
+                ),
                 content_type=follow_up_step.content_type,
                 target_stage=follow_up_step.target_stage,
                 target_kc_ids=list(follow_up_step.target_kc_ids),
@@ -830,12 +937,16 @@ class ContentWorkflowService:
             endpoint=f"/api/remedial/sessions/{session_id}/advance",
             resource_id=session_id,
             generation_id=generated_content.generation_id,
-            learning_session_id=self._maybe_str(request_context.get("learning_session_id")),
+            learning_session_id=self._maybe_str(
+                request_context.get("learning_session_id")
+            ),
             content_type=next_step.content_type,
             target_stage=next_step.target_stage,
             target_kc_ids=list(next_step.target_kc_ids),
             request_payload={
-                "curriculum_context": list(generated_content.response.curriculum_context),
+                "curriculum_context": list(
+                    generated_content.response.curriculum_context
+                ),
             },
             rationale=next_step.rationale,
         )
@@ -849,7 +960,9 @@ class ContentWorkflowService:
         request_context = generated_content.request_context
         return {
             "student_id": str(generated_content.student_id),
-            "learning_session_id": self._maybe_str(request_context.get("learning_session_id")),
+            "learning_session_id": self._maybe_str(
+                request_context.get("learning_session_id")
+            ),
             "target_kc_ids": list(next_step.target_kc_ids),
             "target_lo_ids": self._string_list(request_context.get("target_lo_ids")),
             "requested_content_type": next_step.content_type,
@@ -881,7 +994,9 @@ class ContentWorkflowService:
                 return value.strip()
         return None
 
-    def _progression_ownership_decision(self, *, request: GenerationRequest) -> ProgressionOwnershipDecision:
+    def _progression_ownership_decision(
+        self, *, request: GenerationRequest
+    ) -> ProgressionOwnershipDecision:
         if self.progression_ownership_service is None:
             return ProgressionOwnershipDecision(
                 request=request,
@@ -906,7 +1021,9 @@ class ContentWorkflowService:
         )
         return warmed
 
-    def process_predictive_warm_queue(self, *, limit: int) -> PredictiveWarmProcessResult:
+    def process_predictive_warm_queue(
+        self, *, limit: int
+    ) -> PredictiveWarmProcessResult:
         result = self.predictive_warm_scheduler.process_pending(limit=limit)
         self.audit_store.append(
             event_type="content.warm.predictive.process",
@@ -935,12 +1052,16 @@ class ContentWorkflowService:
                 "cache_hits": result.cache_hits,
                 "cache_misses": result.cache_misses,
                 "generation_ids": result.generation_ids,
-                "claim_details": [detail.model_dump(mode="json") for detail in result.claim_details],
+                "claim_details": [
+                    detail.model_dump(mode="json") for detail in result.claim_details
+                ],
             },
         )
         return result
 
-    def trigger_remedial_content(self, request: RemedialTriggerRequest) -> GeneratedContent:
+    def trigger_remedial_content(
+        self, request: RemedialTriggerRequest
+    ) -> GeneratedContent:
         profile = self._load_profile(request.student_id)
         strategy_summary = self.strategy_signal_service.strategy_for(
             student_id=request.student_id,
@@ -965,23 +1086,27 @@ class ContentWorkflowService:
             plan=plan,
             strategy_summary=strategy_summary,
         )
-        executed_step, updated_session, generated_content = self._execute_remediation_session_step(
-            session_id=session.session_id,
-            learner_prompt=request.learner_prompt,
-            curriculum_context=[
-                *[
-                    signal.remediation_hint
-                    for signal in plan.misconception_signals
-                    if signal.remediation_hint is not None
+        executed_step, updated_session, generated_content = (
+            self._execute_remediation_session_step(
+                session_id=session.session_id,
+                learner_prompt=request.learner_prompt,
+                curriculum_context=[
+                    *[
+                        signal.remediation_hint
+                        for signal in plan.misconception_signals
+                        if signal.remediation_hint is not None
+                    ],
+                    *request.curriculum_context,
                 ],
-                *request.curriculum_context,
-            ],
+            )
         )
         enriched_content = self._enrich_remediation_content(
             generated_content=generated_content,
             session=updated_session,
             executed_step=executed_step,
-            misconception_signals=[signal.model_dump(mode="json") for signal in plan.misconception_signals],
+            misconception_signals=[
+                signal.model_dump(mode="json") for signal in plan.misconception_signals
+            ],
         )
         remediation_event = self.audit_store.append(
             event_type="remediation.trigger",
@@ -993,7 +1118,10 @@ class ContentWorkflowService:
                 "focus_kc_ids": plan.focus_kc_ids,
                 "prerequisite_kc_ids": plan.prerequisite_kc_ids,
                 "misconception_signal_count": len(plan.misconception_signals),
-                "misconception_signals": [signal.model_dump(mode="json") for signal in plan.misconception_signals],
+                "misconception_signals": [
+                    signal.model_dump(mode="json")
+                    for signal in plan.misconception_signals
+                ],
                 "remediation_blueprint": plan.module_blueprint,
                 "generation_id": enriched_content.generation_id,
                 "rationale": plan.rationale,
@@ -1008,7 +1136,9 @@ class ContentWorkflowService:
                 "sequence_ordered_kc_ids": plan.kc_sequence.ordered_kc_ids,
             },
         )
-        self.misconception_profile_recorder.record_from_remediation_event(remediation_event=remediation_event)
+        self.misconception_profile_recorder.record_from_remediation_event(
+            remediation_event=remediation_event
+        )
         return enriched_content
 
     def get_remediation_session(self, session_id: str) -> RemediationWorkflowSession:
@@ -1018,12 +1148,16 @@ class ContentWorkflowService:
         return session
 
     def get_generated_content(self, generation_id: str) -> GeneratedContent | None:
-        generated_content = self.generated_content_store.get(generation_id=generation_id)
+        generated_content = self.generated_content_store.get(
+            generation_id=generation_id
+        )
         if generated_content is None:
             return None
         if generated_content.workflow_summary is not None:
             return generated_content
-        return self._apply_generation_workflow_summary(generated_content=generated_content)
+        return self._apply_generation_workflow_summary(
+            generated_content=generated_content
+        )
 
     def advance_remediation_session(
         self,
@@ -1034,17 +1168,21 @@ class ContentWorkflowService:
         session = self.get_remediation_session(session_id)
         progression_decision = self._remediation_progression_decision(session=session)
         if progression_decision.decision == "advance":
-            executed_step, updated_session, generated_content = self._execute_remediation_session_step(
-                session_id=session_id,
-                learner_prompt=request.learner_prompt,
-                curriculum_context=request.curriculum_context,
+            executed_step, updated_session, generated_content = (
+                self._execute_remediation_session_step(
+                    session_id=session_id,
+                    learner_prompt=request.learner_prompt,
+                    curriculum_context=request.curriculum_context,
+                )
             )
         else:
-            executed_step, updated_session, generated_content = self._execute_held_remediation_step(
-                session=session,
-                progression_decision=progression_decision,
-                learner_prompt=request.learner_prompt,
-                curriculum_context=request.curriculum_context,
+            executed_step, updated_session, generated_content = (
+                self._execute_held_remediation_step(
+                    session=session,
+                    progression_decision=progression_decision,
+                    learner_prompt=request.learner_prompt,
+                    curriculum_context=request.curriculum_context,
+                )
             )
         enriched_content = self._enrich_remediation_content(
             generated_content=generated_content,
@@ -1094,10 +1232,12 @@ class ContentWorkflowService:
         learner_prompt: str | None,
         curriculum_context: list[str],
     ) -> tuple[RemediationWorkflowStep, RemediationWorkflowSession, GeneratedContent]:
-        _, current_step, generation_request = self.remediation_workflow_coordinator.generation_request_for_current_step(
-            session_id=session_id,
-            learner_prompt=learner_prompt,
-            curriculum_context=curriculum_context,
+        _, current_step, generation_request = (
+            self.remediation_workflow_coordinator.generation_request_for_current_step(
+                session_id=session_id,
+                learner_prompt=learner_prompt,
+                curriculum_context=curriculum_context,
+            )
         )
         generated_content = self.generate_content(generation_request)
         updated_session = self.remediation_workflow_coordinator.complete_current_step(
@@ -1116,16 +1256,21 @@ class ContentWorkflowService:
     ) -> tuple[RemediationWorkflowStep, RemediationWorkflowSession, GeneratedContent]:
         hold_step_index = progression_decision.hold_step_index
         if hold_step_index is None:
-            raise RuntimeError("Remediation hold decision did not include a step index.")
-        _, hold_step, generation_request = self.remediation_workflow_coordinator.generation_request_for_step(
-            session_id=session.session_id,
-            step_index=hold_step_index,
-            learner_prompt=learner_prompt,
-            curriculum_context=[
-                *(curriculum_context or []),
-                f"Progression decision: {progression_decision.decision}.",
-                progression_decision.rationale or "Hold on the current repair target before advancing.",
-            ],
+            raise RuntimeError(
+                "Remediation hold decision did not include a step index."
+            )
+        _, hold_step, generation_request = (
+            self.remediation_workflow_coordinator.generation_request_for_step(
+                session_id=session.session_id,
+                step_index=hold_step_index,
+                learner_prompt=learner_prompt,
+                curriculum_context=[
+                    *(curriculum_context or []),
+                    f"Progression decision: {progression_decision.decision}.",
+                    progression_decision.rationale
+                    or "Hold on the current repair target before advancing.",
+                ],
+            )
         )
         generated_content = self.generate_content(generation_request)
         updated_session = self.remediation_workflow_coordinator.update_progression_decision(
@@ -1142,10 +1287,14 @@ class ContentWorkflowService:
         )
         return hold_step, updated_session, generated_content
 
-    def _remediation_progression_decision(self, *, session: RemediationWorkflowSession) -> RemediationProgressDecision:
+    def _remediation_progression_decision(
+        self, *, session: RemediationWorkflowSession
+    ) -> RemediationProgressDecision:
         if self.observation_profile_updater is None:
             return RemediationProgressDecision()
-        observations = self.observation_store.list_recent(student_id=str(session.student_id))
+        observations = self.observation_store.list_recent(
+            student_id=str(session.student_id)
+        )
         return self.observation_profile_updater.evaluate_remediation_progress(
             session=session,
             observations=observations,
@@ -1173,11 +1322,15 @@ class ContentWorkflowService:
             "learner_strategy": session.strategy_summary.model_dump(mode="json"),
             "sequencing": session.kc_sequence.model_dump(mode="json"),
             "remediation_workflow": {
-                "status": "complete" if session.current_step_index is None else "in_progress",
+                "status": "complete"
+                if session.current_step_index is None
+                else "in_progress",
                 "executed_phase": executed_step.phase,
                 "executed_step_target_kc_ids": executed_step.target_kc_ids,
                 "next_phase": next_step.phase if next_step is not None else None,
-                "next_step_target_kc_ids": list(session.summary.next_step.target_kc_ids),
+                "next_step_target_kc_ids": list(
+                    session.summary.next_step.target_kc_ids
+                ),
                 "completed_step_count": len(session.completed_generation_ids),
                 "step_count": len(session.steps),
                 "progression_decision": session.progression_decision,
@@ -1188,17 +1341,25 @@ class ContentWorkflowService:
                 "progression_average_observed_mastery": session.progression_average_observed_mastery,
                 "progression_low_support_success_count": session.progression_low_support_success_count,
                 "next_step_rationale": session.summary.next_step.rationale,
-                "summary_continue_action": session.summary.continue_action.model_dump(mode="json"),
+                "summary_continue_action": session.summary.continue_action.model_dump(
+                    mode="json"
+                ),
             },
         }
         if misconception_signals is not None:
             enriched_request_context["misconception_signals"] = misconception_signals
-        enriched_content = generated_content.model_copy(update={"request_context": enriched_request_context})
-        finalized_content = self._apply_generation_workflow_summary(generated_content=enriched_content)
+        enriched_content = generated_content.model_copy(
+            update={"request_context": enriched_request_context}
+        )
+        finalized_content = self._apply_generation_workflow_summary(
+            generated_content=enriched_content
+        )
         self._refresh_generated_content(finalized_content)
         return finalized_content
 
-    def _current_remediation_step(self, session: RemediationWorkflowSession) -> RemediationWorkflowStep | None:
+    def _current_remediation_step(
+        self, session: RemediationWorkflowSession
+    ) -> RemediationWorkflowStep | None:
         current_index = session.current_step_index
         if current_index is None or current_index >= len(session.steps):
             return None
@@ -1207,7 +1368,9 @@ class ContentWorkflowService:
     def _refresh_generated_content(self, generated_content: GeneratedContent) -> None:
         self.generated_content_store.refresh(content=generated_content)
 
-    def _next_remediation_phase(self, session: RemediationWorkflowSession) -> str | None:
+    def _next_remediation_phase(
+        self, session: RemediationWorkflowSession
+    ) -> str | None:
         next_step = self._current_remediation_step(session)
         if next_step is None:
             return None

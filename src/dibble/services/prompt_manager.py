@@ -52,10 +52,13 @@ class PromptManager:
         content_type: RequestedContentType,
         mode_calibration: GenerationModeCalibration | None = None,
     ) -> PromptSelection:
-        variant = self.variant_override or self._variant_for(student_id=student_id, content_type=content_type)
+        variant = self.variant_override or self._variant_for(
+            student_id=student_id, content_type=content_type
+        )
         if (
             self.adaptive_selection_enabled
-            and content_type in {
+            and content_type
+            in {
                 RequestedContentType.micro_explanation,
                 RequestedContentType.worked_example,
                 RequestedContentType.practice_problem,
@@ -72,24 +75,34 @@ class PromptManager:
             and content_type == RequestedContentType.assessment_probe
             and self.socratic_prompt_selector is not None
         ):
-            variant = self.socratic_prompt_selector.select_variant(fallback_variant=variant)
+            variant = self.socratic_prompt_selector.select_variant(
+                fallback_variant=variant
+            )
         template_name = f"{content_type.value}.{variant}"
         return PromptSelection(
             template_name=template_name,
             template_version=self.library_version,
             template_variant=variant,
-            system_directives=self._system_directives(content_type=content_type, variant=variant),
-            user_directives=self._user_directives(content_type=content_type, variant=variant),
+            system_directives=self._system_directives(
+                content_type=content_type, variant=variant
+            ),
+            user_directives=self._user_directives(
+                content_type=content_type, variant=variant
+            ),
         )
 
-    def _variant_for(self, *, student_id: UUID, content_type: RequestedContentType) -> str:
+    def _variant_for(
+        self, *, student_id: UUID, content_type: RequestedContentType
+    ) -> str:
         if not self.experiment_enabled:
             return "baseline"
         variants = self._variants_for(content_type)
         if len(variants) == 1:
             return "baseline"
         key = f"{student_id}:{content_type.value}:{self.library_version}"
-        bucket = int(hashlib.sha256(key.encode("utf-8")).hexdigest()[:8], 16) % len(variants)
+        bucket = int(hashlib.sha256(key.encode("utf-8")).hexdigest()[:8], 16) % len(
+            variants
+        )
         return variants[bucket]
 
     def _variants_for(self, content_type: RequestedContentType) -> tuple[str, ...]:
@@ -101,16 +114,16 @@ class PromptManager:
         }
         return variant_map.get(content_type, ("baseline",))
 
-    def _system_directives(self, *, content_type: RequestedContentType, variant: str) -> str:
+    def _system_directives(
+        self, *, content_type: RequestedContentType, variant: str
+    ) -> str:
         if content_type == RequestedContentType.worked_example:
             return (
                 "Include at least one worked_example block before the instruction block. "
                 "Make the modeled reasoning explicit and concise, and keep the fade plan aligned to named step roles rather than unlabeled step counts."
             )
         if content_type == RequestedContentType.practice_problem:
-            return (
-                "Include at least one practice block, keep the answer-check guidance lightweight, and make any distractor contrast purposeful rather than random."
-            )
+            return "Include at least one practice block, keep the answer-check guidance lightweight, and make any distractor contrast purposeful rather than random."
         if content_type == RequestedContentType.assessment_probe:
             if variant == "causal_probe":
                 return (
@@ -119,12 +132,12 @@ class PromptManager:
                 )
             return "Ask one concise reasoning probe that surfaces the learner's current understanding."
         if variant == "guided_reflection":
-            return (
-                "End the instructional sequence with a brief reflection or check-for-understanding prompt."
-            )
+            return "End the instructional sequence with a brief reflection or check-for-understanding prompt."
         return "Keep the structure simple, grounded, and ready for student delivery."
 
-    def _user_directives(self, *, content_type: RequestedContentType, variant: str) -> str:
+    def _user_directives(
+        self, *, content_type: RequestedContentType, variant: str
+    ) -> str:
         if content_type == RequestedContentType.worked_example:
             return "Show the learner how and why each visible step works, then clearly name the remaining learner-owned step."
         if content_type == RequestedContentType.practice_problem:

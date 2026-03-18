@@ -3,10 +3,16 @@ from __future__ import annotations
 import json
 from collections.abc import Iterable, Iterator
 
-from dibble.models.generation import GeneratedBlock, GeneratedBlockChunk, GenerationStreamEvent
+from dibble.models.generation import (
+    GeneratedBlock,
+    GeneratedBlockChunk,
+    GenerationStreamEvent,
+)
 
 
-def iter_block_chunks(blocks: Iterable[GeneratedBlock], *, chunk_size: int = 120) -> Iterator[GeneratedBlockChunk]:
+def iter_block_chunks(
+    blocks: Iterable[GeneratedBlock], *, chunk_size: int = 120
+) -> Iterator[GeneratedBlockChunk]:
     for block_index, block in enumerate(blocks):
         parts = _chunk_text(block.body, chunk_size=chunk_size)
         if not parts:

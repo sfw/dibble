@@ -4,7 +4,11 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from dibble.contract_labels import affective_support_message
-from dibble.models.workspace import AffectiveSupportMessage, LearnerWorkspace, LearnerWorkspaceArtifact
+from dibble.models.workspace import (
+    AffectiveSupportMessage,
+    LearnerWorkspace,
+    LearnerWorkspaceArtifact,
+)
 from dibble.services.content_workflow import ContentWorkflowService
 from dibble.services.learner_summary_service import LearnerSummaryService
 from dibble.services.socratic_assessment import SocraticAssessmentService
@@ -35,7 +39,9 @@ class LearnerWorkspaceService:
         )
 
         if flow.remediation_session_id is not None:
-            remediation_session = self.content_workflow_service.get_remediation_session(flow.remediation_session_id)
+            remediation_session = self.content_workflow_service.get_remediation_session(
+                flow.remediation_session_id
+            )
             generation_id = self._latest_remediation_generation_id(remediation_session)
             generated_content = (
                 self.content_workflow_service.get_generated_content(generation_id)
@@ -55,7 +61,9 @@ class LearnerWorkspaceService:
                 }
             )
         elif flow.socratic_session_id is not None:
-            socratic_session = self.socratic_assessment_service.get_session(flow.socratic_session_id)
+            socratic_session = self.socratic_assessment_service.get_session(
+                flow.socratic_session_id
+            )
             artifact = artifact.model_copy(
                 update={
                     "kind": "socratic_session",
@@ -63,7 +71,9 @@ class LearnerWorkspaceService:
                 }
             )
         else:
-            generation_id = flow.last_generation_id or summary.recent_activity.last_generation_id
+            generation_id = (
+                flow.last_generation_id or summary.recent_activity.last_generation_id
+            )
             generated_content = (
                 self.content_workflow_service.get_generated_content(generation_id)
                 if generation_id is not None
@@ -71,9 +81,15 @@ class LearnerWorkspaceService:
             )
             artifact = artifact.model_copy(
                 update={
-                    "kind": "generated_content" if generated_content is not None else "idle",
-                    "resource_id": generation_id if generated_content is not None else None,
-                    "generation_id": generation_id if generated_content is not None else None,
+                    "kind": "generated_content"
+                    if generated_content is not None
+                    else "idle",
+                    "resource_id": generation_id
+                    if generated_content is not None
+                    else None,
+                    "generation_id": generation_id
+                    if generated_content is not None
+                    else None,
                     "content_type": (
                         generated_content.content_type
                         if generated_content is not None
@@ -88,9 +104,7 @@ class LearnerWorkspaceService:
             active_artifact=artifact,
             continue_action=flow.continue_action,
             affective_support=(
-                AffectiveSupportMessage.model_validate(
-                    message
-                )
+                AffectiveSupportMessage.model_validate(message)
                 if (
                     message := affective_support_message(
                         frustration=summary.frustration.value,

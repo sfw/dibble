@@ -38,7 +38,9 @@ class TeacherInterventionOption(BaseModel):
     label: str
     rationale: str | None = None
     is_recommended: bool = False
-    continue_action: LearnerContinueAction = Field(default_factory=LearnerContinueAction)
+    continue_action: LearnerContinueAction = Field(
+        default_factory=LearnerContinueAction
+    )
 
 
 class TeacherInterventionDecisionRecord(BaseModel):
@@ -51,12 +53,16 @@ class TeacherInterventionDecisionRecord(BaseModel):
     decided_by: str | None = None
     decided_role: str | None = None
     decided_at: datetime
-    execution_action: LearnerContinueAction = Field(default_factory=LearnerContinueAction)
+    execution_action: LearnerContinueAction = Field(
+        default_factory=LearnerContinueAction
+    )
 
 
 class TeacherInterventionActionContract(BaseModel):
     action_key: str = "idle"
-    proposal_status: TeacherInterventionProposalStatus = TeacherInterventionProposalStatus.unavailable
+    proposal_status: TeacherInterventionProposalStatus = (
+        TeacherInterventionProposalStatus.unavailable
+    )
     flow_type: str = "idle"
     learning_session_id: str | None = None
     remediation_session_id: str | None = None
@@ -68,7 +74,9 @@ class TeacherInterventionActionContract(BaseModel):
     rationale: str | None = None
     source: str = "learner_flow"
     next_step: LearnerFlowNextStep = Field(default_factory=LearnerFlowNextStep)
-    proposed_action: LearnerContinueAction = Field(default_factory=LearnerContinueAction)
+    proposed_action: LearnerContinueAction = Field(
+        default_factory=LearnerContinueAction
+    )
     available_options: list[TeacherInterventionOption] = Field(default_factory=list)
     allowed_decisions: list[TeacherInterventionDecision] = Field(default_factory=list)
     latest_decision: TeacherInterventionDecisionRecord | None = None

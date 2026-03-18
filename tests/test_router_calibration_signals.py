@@ -8,7 +8,9 @@ from dibble.services.router_calibration_signals import RouterCalibrationSignalSe
 from dibble.storage import ensure_database
 
 
-def test_router_calibration_signal_service_returns_negative_signal_for_recent_struggle(tmp_path):
+def test_router_calibration_signal_service_returns_negative_signal_for_recent_struggle(
+    tmp_path,
+):
     database_path = str(tmp_path / "router-calibration-negative.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -162,7 +164,9 @@ def test_router_calibration_signal_service_prefers_same_session_matches(tmp_path
     assert signal.average_run_outcome_score > 0.75
 
 
-def test_router_calibration_signal_service_returns_insufficient_without_matching_runs(tmp_path):
+def test_router_calibration_signal_service_returns_insufficient_without_matching_runs(
+    tmp_path,
+):
     database_path = str(tmp_path / "router-calibration-insufficient.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)

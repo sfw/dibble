@@ -26,7 +26,9 @@ def test_predictive_content_warmer_plans_follow_ups_for_worked_examples():
         },
     )
 
-    plan = PredictiveContentWarmer(content_warmer=None).plan_follow_ups(generated_content)
+    plan = PredictiveContentWarmer(content_warmer=None).plan_follow_ups(
+        generated_content
+    )
 
     assert plan.content_types == ["practice_problem", "assessment_probe"]
     assert len(plan.requests) == 2
@@ -47,7 +49,9 @@ def test_predictive_content_warmer_skips_existing_predictive_content():
         },
     )
 
-    plan = PredictiveContentWarmer(content_warmer=None).plan_follow_ups(generated_content)
+    plan = PredictiveContentWarmer(content_warmer=None).plan_follow_ups(
+        generated_content
+    )
 
     assert plan.requests == []
     assert plan.content_types == []
@@ -76,11 +80,15 @@ def test_predictive_content_warmer_uses_adaptive_follow_up_selection_for_negativ
         "progress_signal": "declining",
         "progress_delta": -0.14,
     }
-    generated_content.response.route.calibration = RouteCalibrationSummary.model_validate(
-        generated_content.response.route.calibration
+    generated_content.response.route.calibration = (
+        RouteCalibrationSummary.model_validate(
+            generated_content.response.route.calibration
+        )
     )
 
-    plan = PredictiveContentWarmer(content_warmer=None).plan_follow_ups(generated_content)
+    plan = PredictiveContentWarmer(content_warmer=None).plan_follow_ups(
+        generated_content
+    )
 
     assert plan.content_types == ["worked_example"]
 
@@ -103,7 +111,9 @@ def test_predictive_content_warmer_uses_strategy_trajectory_for_relapsing_practi
         },
     )
 
-    plan = PredictiveContentWarmer(content_warmer=None).plan_follow_ups(generated_content)
+    plan = PredictiveContentWarmer(content_warmer=None).plan_follow_ups(
+        generated_content
+    )
 
     assert plan.content_types == ["remedial_micro_module"]
 
@@ -126,7 +136,9 @@ def test_predictive_content_warmer_respects_progression_hold_for_practice():
         },
     )
 
-    plan = PredictiveContentWarmer(content_warmer=None).plan_follow_ups(generated_content)
+    plan = PredictiveContentWarmer(content_warmer=None).plan_follow_ups(
+        generated_content
+    )
 
     assert plan.content_types == ["practice_problem"]
 
@@ -150,7 +162,9 @@ def test_predictive_content_warmer_uses_explicit_transfer_target_for_transfer_ch
         },
     )
 
-    plan = PredictiveContentWarmer(content_warmer=None).plan_follow_ups(generated_content)
+    plan = PredictiveContentWarmer(content_warmer=None).plan_follow_ups(
+        generated_content
+    )
 
     assert plan.content_types == ["assessment_probe"]
     assert plan.requests[0].target_kc_ids == ["KC-3"]
@@ -165,7 +179,10 @@ def test_predictive_content_warmer_targets_primary_sequence_kc_for_repair_follow
             "target_lo_ids": ["LO-1"],
             "curriculum_context": ["Equivalent fractions"],
             "selected_content_type": "remedial_micro_module",
-            "mode_calibration": {"support_bias": 0, "strategy_sequence_action": "hold_repair_target"},
+            "mode_calibration": {
+                "support_bias": 0,
+                "strategy_sequence_action": "hold_repair_target",
+            },
             "sequencing": {
                 "action": "hold_repair_target",
                 "primary_kc_id": "KC-1",
@@ -175,7 +192,9 @@ def test_predictive_content_warmer_targets_primary_sequence_kc_for_repair_follow
         },
     )
 
-    plan = PredictiveContentWarmer(content_warmer=None).plan_follow_ups(generated_content)
+    plan = PredictiveContentWarmer(content_warmer=None).plan_follow_ups(
+        generated_content
+    )
 
     assert plan.content_types == ["practice_problem"]
     assert plan.requests[0].target_kc_ids == ["KC-1"]
@@ -190,7 +209,10 @@ def test_predictive_content_warmer_targets_primary_sequence_kc_for_bridge_follow
             "target_lo_ids": ["LO-1"],
             "curriculum_context": ["Equivalent fractions"],
             "selected_content_type": "remedial_micro_module",
-            "mode_calibration": {"support_bias": 0, "strategy_sequence_action": "hold_bridge_target"},
+            "mode_calibration": {
+                "support_bias": 0,
+                "strategy_sequence_action": "hold_bridge_target",
+            },
             "sequencing": {
                 "action": "hold_bridge_target",
                 "primary_kc_id": "KC-2",
@@ -200,13 +222,17 @@ def test_predictive_content_warmer_targets_primary_sequence_kc_for_bridge_follow
         },
     )
 
-    plan = PredictiveContentWarmer(content_warmer=None).plan_follow_ups(generated_content)
+    plan = PredictiveContentWarmer(content_warmer=None).plan_follow_ups(
+        generated_content
+    )
 
     assert plan.content_types == ["practice_problem"]
     assert plan.requests[0].target_kc_ids == ["KC-2"]
 
 
-def _build_generated_content(*, content_type: str, request_context: dict[str, object]) -> GeneratedContent:
+def _build_generated_content(
+    *, content_type: str, request_context: dict[str, object]
+) -> GeneratedContent:
     student_id = uuid4()
     route = AdaptiveRouteDecision(
         intervention_type=InterventionType.reteach,
@@ -214,7 +240,9 @@ def _build_generated_content(*, content_type: str, request_context: dict[str, ob
         scaffolding_level="medium",
         reasons=["test"],
     )
-    metadata = GenerationMetadata(quality_score=0.8, validation_passed=True, grounding_count=1)
+    metadata = GenerationMetadata(
+        quality_score=0.8, validation_passed=True, grounding_count=1
+    )
     response = GenerationResponse(
         student_id=student_id,
         route=route,

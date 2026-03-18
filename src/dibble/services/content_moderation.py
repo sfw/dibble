@@ -35,12 +35,25 @@ class ContentModerationService:
         return self._build_term_categories(
             (
                 (
-                    ModerationRule("unsafe_instruction", "Request asked to bypass safety guidance."),
+                    ModerationRule(
+                        "unsafe_instruction", "Request asked to bypass safety guidance."
+                    ),
                     ["ignore safety", "bypass safety", "skip the safety rules"],
                 ),
                 (
-                    ModerationRule("abusive_tone", "Request asked for shaming or degrading language."),
-                    ["shame", "shaming", "humiliate", "embarrass", "mock", "idiot", "stupid"],
+                    ModerationRule(
+                        "abusive_tone",
+                        "Request asked for shaming or degrading language.",
+                    ),
+                    [
+                        "shame",
+                        "shaming",
+                        "humiliate",
+                        "embarrass",
+                        "mock",
+                        "idiot",
+                        "stupid",
+                    ],
                 ),
                 (
                     ModerationRule(
@@ -63,7 +76,10 @@ class ContentModerationService:
                     ],
                 ),
                 (
-                    ModerationRule("privacy_risk", "Request asked for personal or credential details."),
+                    ModerationRule(
+                        "privacy_risk",
+                        "Request asked for personal or credential details.",
+                    ),
                     [
                         "home address",
                         "their address",
@@ -82,23 +98,43 @@ class ContentModerationService:
                     ],
                 ),
                 (
-                    ModerationRule("sensitive_advice", "Request asked for diagnosis-oriented or therapeutic advice."),
+                    ModerationRule(
+                        "sensitive_advice",
+                        "Request asked for diagnosis-oriented or therapeutic advice.",
+                    ),
                     ["diagnose", "diagnosis", "therapy", "therapist", "prescribe"],
                 ),
                 (
-                    ModerationRule("violence", "Request included violent or weapon-oriented wording."),
+                    ModerationRule(
+                        "violence",
+                        "Request included violent or weapon-oriented wording.",
+                    ),
                     ["kill", "weapon", "gun", "knife", "stab", "bomb"],
                 ),
                 (
                     ModerationRule("self_harm", "Request included self-harm wording."),
-                    ["suicide", "suicidal", "self-harm", "self harm", "cut myself", "hurt myself", "end my life"],
+                    [
+                        "suicide",
+                        "suicidal",
+                        "self-harm",
+                        "self harm",
+                        "cut myself",
+                        "hurt myself",
+                        "end my life",
+                    ],
                 ),
                 (
-                    ModerationRule("sexual_content", "Request included age-inappropriate sexual wording."),
+                    ModerationRule(
+                        "sexual_content",
+                        "Request included age-inappropriate sexual wording.",
+                    ),
                     ["nude", "naked", "porn", "sexual content", "sexually explicit"],
                 ),
                 (
-                    ModerationRule("bias_stereotype", "Request asked for biased or stereotype-based framing."),
+                    ModerationRule(
+                        "bias_stereotype",
+                        "Request asked for biased or stereotype-based framing.",
+                    ),
                     [
                         "girls are bad at math",
                         "boys are better at math",
@@ -107,7 +143,10 @@ class ContentModerationService:
                     ],
                 ),
                 (
-                    ModerationRule("substance_use", "Request included age-inappropriate substance-use wording."),
+                    ModerationRule(
+                        "substance_use",
+                        "Request included age-inappropriate substance-use wording.",
+                    ),
                     ["beer", "vodka", "get drunk", "get high", "marijuana"],
                 ),
             )
@@ -117,15 +156,33 @@ class ContentModerationService:
         return self._build_term_categories(
             (
                 (
-                    ModerationRule("unsafe_instruction", "Generated content attempted to bypass safety guidance."),
+                    ModerationRule(
+                        "unsafe_instruction",
+                        "Generated content attempted to bypass safety guidance.",
+                    ),
                     ["ignore safety", "bypass safety", "skip the safety rules"],
                 ),
                 (
-                    ModerationRule("abusive_tone", "Generated content used shaming or degrading language."),
-                    ["shame", "shaming", "humiliate", "punish", "embarrass", "mock", "idiot", "stupid"],
+                    ModerationRule(
+                        "abusive_tone",
+                        "Generated content used shaming or degrading language.",
+                    ),
+                    [
+                        "shame",
+                        "shaming",
+                        "humiliate",
+                        "punish",
+                        "embarrass",
+                        "mock",
+                        "idiot",
+                        "stupid",
+                    ],
                 ),
                 (
-                    ModerationRule("academic_integrity", "Generated content encouraged cheating instead of learning."),
+                    ModerationRule(
+                        "academic_integrity",
+                        "Generated content encouraged cheating instead of learning.",
+                    ),
                     [
                         "cheat",
                         "do the test",
@@ -139,7 +196,10 @@ class ContentModerationService:
                     ],
                 ),
                 (
-                    ModerationRule("privacy_risk", "Generated content included personal or credential details."),
+                    ModerationRule(
+                        "privacy_risk",
+                        "Generated content included personal or credential details.",
+                    ),
                     [
                         "home address",
                         "their address",
@@ -158,23 +218,45 @@ class ContentModerationService:
                     ],
                 ),
                 (
-                    ModerationRule("sensitive_advice", "Generated content drifted into diagnosis-oriented or therapeutic advice."),
+                    ModerationRule(
+                        "sensitive_advice",
+                        "Generated content drifted into diagnosis-oriented or therapeutic advice.",
+                    ),
                     ["diagnose", "diagnosis", "therapy", "therapist", "prescribe"],
                 ),
                 (
-                    ModerationRule("violence", "Generated content included violent or weapon-oriented wording."),
+                    ModerationRule(
+                        "violence",
+                        "Generated content included violent or weapon-oriented wording.",
+                    ),
                     ["kill", "weapon", "gun", "knife", "stab", "bomb"],
                 ),
                 (
-                    ModerationRule("self_harm", "Generated content included self-harm wording."),
-                    ["suicide", "suicidal", "self-harm", "self harm", "cut myself", "hurt myself", "end my life"],
+                    ModerationRule(
+                        "self_harm", "Generated content included self-harm wording."
+                    ),
+                    [
+                        "suicide",
+                        "suicidal",
+                        "self-harm",
+                        "self harm",
+                        "cut myself",
+                        "hurt myself",
+                        "end my life",
+                    ],
                 ),
                 (
-                    ModerationRule("sexual_content", "Generated content included age-inappropriate sexual wording."),
+                    ModerationRule(
+                        "sexual_content",
+                        "Generated content included age-inappropriate sexual wording.",
+                    ),
                     ["nude", "naked", "porn", "sexual content", "sexually explicit"],
                 ),
                 (
-                    ModerationRule("bias_stereotype", "Generated content used biased or stereotype-based framing."),
+                    ModerationRule(
+                        "bias_stereotype",
+                        "Generated content used biased or stereotype-based framing.",
+                    ),
                     [
                         "girls are bad at math",
                         "boys are better at math",
@@ -183,7 +265,10 @@ class ContentModerationService:
                     ],
                 ),
                 (
-                    ModerationRule("substance_use", "Generated content included age-inappropriate substance-use wording."),
+                    ModerationRule(
+                        "substance_use",
+                        "Generated content included age-inappropriate substance-use wording.",
+                    ),
                     ["beer", "vodka", "get drunk", "get high", "marijuana"],
                 ),
             )
@@ -208,11 +293,19 @@ class ContentModerationService:
             ]
             if part
         )
-        return self._moderate_text(text=text, stage="request", term_categories=self.request_term_categories or {})
+        return self._moderate_text(
+            text=text,
+            stage="request",
+            term_categories=self.request_term_categories or {},
+        )
 
     def moderate_blocks(self, blocks: list[GeneratedBlock]) -> ModerationResult:
         text = " ".join(f"{block.title} {block.body}" for block in blocks)
-        return self._moderate_text(text=text, stage="response", term_categories=self.response_term_categories or {})
+        return self._moderate_text(
+            text=text,
+            stage="response",
+            term_categories=self.response_term_categories or {},
+        )
 
     def build_fallback_blocks(
         self,
@@ -221,10 +314,20 @@ class ContentModerationService:
         grounding: list[GroundingReference],
         moderation: ModerationResult,
     ) -> list[GeneratedBlock]:
-        focus = ", ".join(request.target_kc_ids or request.target_lo_ids or ["the current lesson"])
+        focus = ", ".join(
+            request.target_kc_ids or request.target_lo_ids or ["the current lesson"]
+        )
         grounding_text = summarize_grounding_titles(grounding)
-        categories = ", ".join(moderation.categories) if moderation.categories else "safety review"
-        reason_text = moderation.reasons[0] if moderation.reasons else "The request or generated draft needs a safer reframe."
+        categories = (
+            ", ".join(moderation.categories)
+            if moderation.categories
+            else "safety review"
+        )
+        reason_text = (
+            moderation.reasons[0]
+            if moderation.reasons
+            else "The request or generated draft needs a safer reframe."
+        )
         coaching_note = self._fallback_coaching_note(moderation)
         return [
             GeneratedBlock(
@@ -273,7 +376,11 @@ class ContentModerationService:
                 reasons.append(rule.reason)
         if not categories:
             return ModerationResult()
-        severity = "block" if any(value == "block" for value in category_severities.values()) else "review"
+        severity = (
+            "block"
+            if any(value == "block" for value in category_severities.values())
+            else "review"
+        )
         matches = [
             ModerationMatch(
                 category=category,
@@ -283,9 +390,7 @@ class ContentModerationService:
             )
             for category in categories
         ]
-        audit_message = (
-            f"{stage.title()} moderation flagged {', '.join(categories)} and replaced the content with a teacher-safe fallback."
-        )
+        audit_message = f"{stage.title()} moderation flagged {', '.join(categories)} and replaced the content with a teacher-safe fallback."
         return ModerationResult(
             status="flagged",
             stage=stage,

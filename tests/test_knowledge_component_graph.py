@@ -6,8 +6,18 @@ def test_knowledge_component_graph_tracks_multi_hop_prerequisites_and_dependents
     graph = KnowledgeComponentGraph(
         [
             _build_component("KC-1", parent_lo_id="LO-1", difficulty=0.35),
-            _build_component("KC-2", parent_lo_id="LO-1", prerequisite_kc_ids=["KC-1"], difficulty=0.45),
-            _build_component("KC-3", parent_lo_id="LO-2", prerequisite_kc_ids=["KC-2"], difficulty=0.58),
+            _build_component(
+                "KC-2",
+                parent_lo_id="LO-1",
+                prerequisite_kc_ids=["KC-1"],
+                difficulty=0.45,
+            ),
+            _build_component(
+                "KC-3",
+                parent_lo_id="LO-2",
+                prerequisite_kc_ids=["KC-2"],
+                difficulty=0.58,
+            ),
         ]
     )
 
@@ -27,7 +37,12 @@ def test_knowledge_component_graph_estimates_missing_kc_mastery_from_lo_and_neig
     graph = KnowledgeComponentGraph(
         [
             _build_component("KC-1", parent_lo_id="LO-1", difficulty=0.32),
-            _build_component("KC-2", parent_lo_id="LO-1", prerequisite_kc_ids=["KC-1"], difficulty=0.55),
+            _build_component(
+                "KC-2",
+                parent_lo_id="LO-1",
+                prerequisite_kc_ids=["KC-1"],
+                difficulty=0.55,
+            ),
         ]
     )
 
@@ -44,9 +59,24 @@ def test_knowledge_component_graph_surfaces_same_lo_bridge_candidates():
     graph = KnowledgeComponentGraph(
         [
             _build_component("KC-1", parent_lo_id="LO-1", difficulty=0.28),
-            _build_component("KC-2", parent_lo_id="LO-2", prerequisite_kc_ids=["KC-1"], difficulty=0.48),
-            _build_component("KC-3", parent_lo_id="LO-2", prerequisite_kc_ids=["KC-1"], difficulty=0.6),
-            _build_component("KC-4", parent_lo_id="LO-2", prerequisite_kc_ids=["KC-5"], difficulty=0.92),
+            _build_component(
+                "KC-2",
+                parent_lo_id="LO-2",
+                prerequisite_kc_ids=["KC-1"],
+                difficulty=0.48,
+            ),
+            _build_component(
+                "KC-3",
+                parent_lo_id="LO-2",
+                prerequisite_kc_ids=["KC-1"],
+                difficulty=0.6,
+            ),
+            _build_component(
+                "KC-4",
+                parent_lo_id="LO-2",
+                prerequisite_kc_ids=["KC-5"],
+                difficulty=0.92,
+            ),
             _build_component("KC-5", parent_lo_id="LO-3", difficulty=0.42),
         ]
     )
@@ -102,7 +132,10 @@ def test_knowledge_component_graph_surfaces_curated_local_neighbors_across_taxon
     neighborhood = graph.neighborhood_relations_for("KC-3")
     bridges = graph.bridge_candidates_for("KC-3", anchor_kc_ids=["KC-1"])
 
-    assert [relation.component.kc_id for relation in neighborhood[:2]] == ["KC-4", "KC-2"]
+    assert [relation.component.kc_id for relation in neighborhood[:2]] == [
+        "KC-4",
+        "KC-2",
+    ]
     assert neighborhood[0].relation_kind == "curated_neighbor"
     assert [relation.component.kc_id for relation in bridges[:2]] == ["KC-4", "KC-2"]
     assert bridges[0].relation_kind == "curated_neighbor"

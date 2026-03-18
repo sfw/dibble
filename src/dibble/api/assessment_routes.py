@@ -19,7 +19,9 @@ def build_assessment_router(context: ApiContext) -> APIRouter:
         response_model=SocraticAssessmentResponse,
         dependencies=context.deps("editor"),
     )
-    def assess_socratically(request: SocraticAssessmentRequest) -> SocraticAssessmentResponse:
+    def assess_socratically(
+        request: SocraticAssessmentRequest,
+    ) -> SocraticAssessmentResponse:
         profile = services.profile_store.get(request.student_id)
         if profile is None:
             raise api_error(
@@ -30,7 +32,9 @@ def build_assessment_router(context: ApiContext) -> APIRouter:
 
         result = services.socratic_assessment_service.assess(profile, request)
         session = services.socratic_session_store.get(result.session_id)
-        profile_update = services.socratic_profile_updater.apply(profile, request, result, session)
+        profile_update = services.socratic_profile_updater.apply(
+            profile, request, result, session
+        )
         if profile_update.applied:
             services.profile_store.upsert(profile_update.profile)
         assessment_audit_event = services.audit_store.append(
@@ -51,12 +55,16 @@ def build_assessment_router(context: ApiContext) -> APIRouter:
                 "profile_update_applied": profile_update.applied,
                 "updated_kc_mastery": profile_update.kc_mastery_updates,
                 "updated_lo_mastery": profile_update.lo_mastery_updates,
-                "propagated_kc_mastery": profile_update.propagated_kc_mastery_updates or {},
-                "propagated_lo_mastery": profile_update.propagated_lo_mastery_updates or {},
+                "propagated_kc_mastery": profile_update.propagated_kc_mastery_updates
+                or {},
+                "propagated_lo_mastery": profile_update.propagated_lo_mastery_updates
+                or {},
                 "updated_confidence_calibration": profile_update.confidence_calibration,
                 "updated_self_monitoring": profile_update.self_monitoring,
                 "updated_help_seeking": (
-                    profile_update.help_seeking.value if profile_update.help_seeking is not None else None
+                    profile_update.help_seeking.value
+                    if profile_update.help_seeking is not None
+                    else None
                 ),
                 "prompt_style": result.prompt_style.value,
                 "steering_action": result.steering_action.value,
@@ -76,14 +84,26 @@ def build_assessment_router(context: ApiContext) -> APIRouter:
             student_id=request.student_id,
             event_payload=assessment_audit_event.payload,
         )
-        services.predictive_content_invalidator.invalidate_from_trigger_event(assessment_audit_event)
-        summary_events = services.learning_run_summary_recorder.record_from_trigger_event(
-            trigger_event=assessment_audit_event
+        services.predictive_content_invalidator.invalidate_from_trigger_event(
+            assessment_audit_event
         )
-        services.learning_calibration_profile_recorder.record_from_summary_events(summary_events=summary_events)
-        services.learning_progress_profile_recorder.record_from_summary_events(summary_events=summary_events)
-        services.learning_strategy_profile_recorder.record_from_summary_events(summary_events=summary_events)
-        services.learning_state_profile_recorder.record_from_summary_events(summary_events=summary_events)
+        summary_events = (
+            services.learning_run_summary_recorder.record_from_trigger_event(
+                trigger_event=assessment_audit_event
+            )
+        )
+        services.learning_calibration_profile_recorder.record_from_summary_events(
+            summary_events=summary_events
+        )
+        services.learning_progress_profile_recorder.record_from_summary_events(
+            summary_events=summary_events
+        )
+        services.learning_strategy_profile_recorder.record_from_summary_events(
+            summary_events=summary_events
+        )
+        services.learning_state_profile_recorder.record_from_summary_events(
+            summary_events=summary_events
+        )
         return result
 
     @router.get(

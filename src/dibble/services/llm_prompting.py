@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from dibble.models.generation import AdaptiveRouteDecision, GenerationRequest, GroundingReference
+from dibble.models.generation import (
+    AdaptiveRouteDecision,
+    GenerationRequest,
+    GroundingReference,
+)
 from dibble.services.grounding_context import render_grounding_context
 from dibble.models.profile import LearnerProfile
 from dibble.services.generation_modes import build_generation_mode_plan
@@ -40,8 +44,12 @@ def build_generation_prompts(
     )
     modality_names = [name for name, score in preferred_modalities[:2] if score >= 0.5]
     grounding_text = render_grounding_context(grounding)
-    learner_prompt = request.learner_prompt or "Keep the tone calm, specific, and encouraging."
-    accommodations = ", ".join(profile.accommodations) if profile.accommodations else "None declared"
+    learner_prompt = (
+        request.learner_prompt or "Keep the tone calm, specific, and encouraging."
+    )
+    accommodations = (
+        ", ".join(profile.accommodations) if profile.accommodations else "None declared"
+    )
     example_domains = (
         ", ".join(profile.learning_preferences.example_domain_preferences)
         if profile.learning_preferences.example_domain_preferences
@@ -104,7 +112,9 @@ def build_stream_generation_prompts(
     grounding: list[GroundingReference],
     prompt_manager: PromptManager | None = None,
 ) -> GenerationPrompts:
-    prompts = build_generation_prompts(profile, request, route, grounding, prompt_manager=prompt_manager)
+    prompts = build_generation_prompts(
+        profile, request, route, grounding, prompt_manager=prompt_manager
+    )
     return GenerationPrompts(
         system_prompt=(
             "You are streaming adaptive learning content for Dibble. "
@@ -145,7 +155,9 @@ def _practice_distractor_plan_text(request_context: dict[str, object]) -> str:
     blueprint = request_context.get("practice_distractor_blueprint") or []
     distractor_slots = request_context.get("practice_distractor_slots") or []
     answer_check_focus = request_context.get("practice_answer_check_focus")
-    misconception_ids = request_context.get("practice_distractor_misconception_ids") or []
+    misconception_ids = (
+        request_context.get("practice_distractor_misconception_ids") or []
+    )
     remediation_hint = request_context.get("practice_distractor_remediation_hint")
     rationale = request_context.get("practice_distractor_rationale")
     fragments = [focus]
@@ -167,11 +179,15 @@ def _practice_distractor_plan_text(request_context: dict[str, object]) -> str:
             )
         )
     if distractor_slots:
-        fragments.append(f"distractor_slots={' | '.join(str(item) for item in distractor_slots)}")
+        fragments.append(
+            f"distractor_slots={' | '.join(str(item) for item in distractor_slots)}"
+        )
     if isinstance(answer_check_focus, str) and answer_check_focus:
         fragments.append(f"answer_check_focus={answer_check_focus}")
     if misconception_ids:
-        fragments.append(f"misconception_ids={','.join(str(item) for item in misconception_ids)}")
+        fragments.append(
+            f"misconception_ids={','.join(str(item) for item in misconception_ids)}"
+        )
     if isinstance(remediation_hint, str) and remediation_hint:
         fragments.append(f"remediation_hint={remediation_hint}")
     if isinstance(rationale, str) and rationale:
@@ -201,7 +217,9 @@ def _worked_example_fade_plan_text(request_context: dict[str, object]) -> str:
     if isinstance(release_transition, str) and release_transition:
         fragments.append(f"release_transition={release_transition}")
     if step_outline:
-        fragments.append(f"step_outline={' | '.join(str(item) for item in step_outline)}")
+        fragments.append(
+            f"step_outline={' | '.join(str(item) for item in step_outline)}"
+        )
     if isinstance(learner_release, str) and learner_release:
         fragments.append(f"learner_release={learner_release}")
     if isinstance(transfer_move, str) and transfer_move:
@@ -209,7 +227,9 @@ def _worked_example_fade_plan_text(request_context: dict[str, object]) -> str:
     if isinstance(transfer_plan, dict) and transfer_plan:
         fragments.append(f"transfer_plan_preserve={transfer_plan.get('preserve')}")
         fragments.append(f"transfer_plan_change={transfer_plan.get('change')}")
-        fragments.append(f"learner_owned_move={transfer_plan.get('learner_owned_move')}")
+        fragments.append(
+            f"learner_owned_move={transfer_plan.get('learner_owned_move')}"
+        )
         fragments.append(f"check_prompt={transfer_plan.get('check_prompt')}")
     if isinstance(release_rationale, str) and release_rationale:
         fragments.append(f"release_rationale={release_rationale}")
@@ -236,7 +256,10 @@ def _reliability_plan_text(mode_calibration) -> str:
             f" tolerance={mode_calibration.trait_profile_challenge_tolerance:.2f},"
             f" challenge_evidence={mode_calibration.trait_profile_challenge_evidence_strength:.2f})"
         )
-    if mode_calibration.current_evidence_signal != "steady" and mode_calibration.current_evidence_confidence > 0.0:
+    if (
+        mode_calibration.current_evidence_signal != "steady"
+        and mode_calibration.current_evidence_confidence > 0.0
+    ):
         fragments.append(
             "current="
             f"{mode_calibration.current_evidence_signal}"

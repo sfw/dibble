@@ -9,7 +9,9 @@ from dibble.services.ordinary_mastery_profiles import (
 from dibble.storage import ensure_database
 
 
-def test_ordinary_mastery_profile_recorder_compacts_stable_low_support_evidence(tmp_path):
+def test_ordinary_mastery_profile_recorder_compacts_stable_low_support_evidence(
+    tmp_path,
+):
     database_path = str(tmp_path / "ordinary-mastery-profile.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -17,7 +19,9 @@ def test_ordinary_mastery_profile_recorder_compacts_stable_low_support_evidence(
     recorder = OrdinaryMasteryProfileRecorder(audit_store=audit_store)
 
     observation_events = []
-    for index, session_id in enumerate(["session-1", "session-1", "session-2", "session-2"], start=1):
+    for index, session_id in enumerate(
+        ["session-1", "session-1", "session-2", "session-2"], start=1
+    ):
         observation_events.append(
             audit_store.append(
                 event_type="learner.observe",
@@ -39,7 +43,9 @@ def test_ordinary_mastery_profile_recorder_compacts_stable_low_support_evidence(
             )
         )
 
-    recorded = recorder.record_from_observation_events(observation_events=[observation_events[-1]])
+    recorded = recorder.record_from_observation_events(
+        observation_events=[observation_events[-1]]
+    )
 
     assert len(recorded) == 1
     event = recorded[0]
@@ -107,7 +113,9 @@ def test_ordinary_mastery_signal_service_prefers_target_matching_profile(tmp_pat
     assert summary.high_support_dependency_rate == 0.0
 
 
-def test_ordinary_mastery_signal_service_does_not_fallback_to_unrelated_profile(tmp_path):
+def test_ordinary_mastery_signal_service_does_not_fallback_to_unrelated_profile(
+    tmp_path,
+):
     database_path = str(tmp_path / "ordinary-mastery-unrelated.db")
     ensure_database(database_path)
     audit_store = SQLiteAuditStore(database_path)
@@ -146,7 +154,10 @@ def test_mastery_trend_improving_when_recent_scores_higher():
     # Scores are newest-first: recent observations scored higher than older ones.
     mastery_scores = [0.78, 0.74, 0.70, 0.60, 0.55, 0.50]
     weights = [1.0, 0.95, 0.90, 0.80, 0.75, 0.70]
-    assert builder._mastery_trend(mastery_scores=mastery_scores, weights=weights) == "improving"
+    assert (
+        builder._mastery_trend(mastery_scores=mastery_scores, weights=weights)
+        == "improving"
+    )
 
 
 def test_mastery_trend_declining_when_recent_scores_lower():
@@ -154,19 +165,28 @@ def test_mastery_trend_declining_when_recent_scores_lower():
     # Scores are newest-first: recent observations scored lower than older ones.
     mastery_scores = [0.50, 0.55, 0.60, 0.70, 0.74, 0.78]
     weights = [1.0, 0.95, 0.90, 0.80, 0.75, 0.70]
-    assert builder._mastery_trend(mastery_scores=mastery_scores, weights=weights) == "declining"
+    assert (
+        builder._mastery_trend(mastery_scores=mastery_scores, weights=weights)
+        == "declining"
+    )
 
 
 def test_mastery_trend_stable_when_scores_flat():
     builder = OrdinaryMasteryProfileBuilder()
     mastery_scores = [0.65, 0.64, 0.66, 0.65, 0.64]
     weights = [1.0, 0.95, 0.90, 0.85, 0.80]
-    assert builder._mastery_trend(mastery_scores=mastery_scores, weights=weights) == "stable"
+    assert (
+        builder._mastery_trend(mastery_scores=mastery_scores, weights=weights)
+        == "stable"
+    )
 
 
 def test_mastery_trend_stable_with_fewer_than_three_scores():
     builder = OrdinaryMasteryProfileBuilder()
-    assert builder._mastery_trend(mastery_scores=[0.80, 0.50], weights=[1.0, 0.9]) == "stable"
+    assert (
+        builder._mastery_trend(mastery_scores=[0.80, 0.50], weights=[1.0, 0.9])
+        == "stable"
+    )
     assert builder._mastery_trend(mastery_scores=[0.50], weights=[1.0]) == "stable"
 
 
@@ -247,7 +267,9 @@ def test_mastery_trend_persisted_and_read_back(tmp_path):
             )
         )
 
-    recorded = recorder.record_from_observation_events(observation_events=[observation_events[-1]])
+    recorded = recorder.record_from_observation_events(
+        observation_events=[observation_events[-1]]
+    )
     assert len(recorded) == 1
     assert recorded[0].payload["mastery_trend"] == "improving"
 

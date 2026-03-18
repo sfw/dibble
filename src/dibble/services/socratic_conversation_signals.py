@@ -20,7 +20,9 @@ class SocraticConversationSignalService:
     minimum_turn_count: int = 3
     minimum_confidence: float = 0.55
 
-    def summary_for(self, *, student_id: UUID, request: GenerationRequest) -> SocraticConversationSummary:
+    def summary_for(
+        self, *, student_id: UUID, request: GenerationRequest
+    ) -> SocraticConversationSummary:
         if not request.target_kc_ids and not request.target_lo_ids:
             return SocraticConversationSummary()
         matched_events = self._matched_events(student_id=student_id, request=request)
@@ -28,28 +30,43 @@ class SocraticConversationSignalService:
             return SocraticConversationSummary()
 
         session_ids = {
-            str(event.payload.get("learning_session_id") or event.payload.get("session_id"))
+            str(
+                event.payload.get("learning_session_id")
+                or event.payload.get("session_id")
+            )
             for event in matched_events
-            if event.payload.get("learning_session_id") or event.payload.get("session_id")
+            if event.payload.get("learning_session_id")
+            or event.payload.get("session_id")
         }
         matched_session_count = len(session_ids)
         if matched_session_count < self.minimum_session_count:
             return SocraticConversationSummary()
 
-        steering_counts = Counter(str(event.payload.get("steering_action", "steady")) for event in matched_events)
+        steering_counts = Counter(
+            str(event.payload.get("steering_action", "steady"))
+            for event in matched_events
+        )
         prompt_style_counts = Counter(
-            str(event.payload.get("prompt_style")) for event in matched_events if event.payload.get("prompt_style") is not None
+            str(event.payload.get("prompt_style"))
+            for event in matched_events
+            if event.payload.get("prompt_style") is not None
         )
         total_turns = len(matched_events)
         repair_rate = round(
-            sum(1 for event in matched_events if event.payload.get("steering_action") == "repair_then_model") / total_turns,
+            sum(
+                1
+                for event in matched_events
+                if event.payload.get("steering_action") == "repair_then_model"
+            )
+            / total_turns,
             2,
         )
         clarification_rate = round(
             sum(
                 1
                 for event in matched_events
-                if event.payload.get("steering_action") in {"clarify_then_check", "restate_then_apply"}
+                if event.payload.get("steering_action")
+                in {"clarify_then_check", "restate_then_apply"}
             )
             / total_turns,
             2,
@@ -58,14 +75,20 @@ class SocraticConversationSignalService:
             sum(
                 1
                 for event in matched_events
-                if event.payload.get("steering_action") in {"verify_transfer", "restate_then_apply"}
+                if event.payload.get("steering_action")
+                in {"verify_transfer", "restate_then_apply"}
                 or event.payload.get("evidence_strength") == "demonstrated"
             )
             / total_turns,
             2,
         )
         loop_break_rate = round(
-            sum(1 for event in matched_events if event.payload.get("steering_action") == "probe_from_new_angle") / total_turns,
+            sum(
+                1
+                for event in matched_events
+                if event.payload.get("steering_action") == "probe_from_new_angle"
+            )
+            / total_turns,
             2,
         )
         confidence = round(
@@ -88,8 +111,12 @@ class SocraticConversationSignalService:
         if signal == "insufficient":
             return SocraticConversationSummary()
 
-        dominant_prompt_style = prompt_style_counts.most_common(1)[0][0] if prompt_style_counts else None
-        dominant_steering_action = steering_counts.most_common(1)[0][0] if steering_counts else "steady"
+        dominant_prompt_style = (
+            prompt_style_counts.most_common(1)[0][0] if prompt_style_counts else None
+        )
+        dominant_steering_action = (
+            steering_counts.most_common(1)[0][0] if steering_counts else "steady"
+        )
         return SocraticConversationSummary(
             signal=signal,
             source="socratic_assessment_history",
@@ -111,7 +138,9 @@ class SocraticConversationSignalService:
         )
 
     def _matched_events(self, *, student_id: UUID, request: GenerationRequest):
-        recent_cutoff = datetime.now(timezone.utc) - timedelta(days=max(1, self.recency_window_days))
+        recent_cutoff = datetime.now(timezone.utc) - timedelta(
+            days=max(1, self.recency_window_days)
+        )
         events = self.audit_store.list(limit=self.max_events)
         matched = [
             event
@@ -128,9 +157,19 @@ class SocraticConversationSignalService:
         matched.sort(key=lambda event: event.created_at, reverse=True)
         return matched[: self.max_matched_turns]
 
-    def _targets_overlap(self, *, request: GenerationRequest, payload: dict[str, object]) -> bool:
-        payload_target_kc_ids = {str(item) for item in payload.get("target_kc_ids", [])} if isinstance(payload.get("target_kc_ids"), list) else set()
-        payload_target_lo_ids = {str(item) for item in payload.get("target_lo_ids", [])} if isinstance(payload.get("target_lo_ids"), list) else set()
+    def _targets_overlap(
+        self, *, request: GenerationRequest, payload: dict[str, object]
+    ) -> bool:
+        payload_target_kc_ids = (
+            {str(item) for item in payload.get("target_kc_ids", [])}
+            if isinstance(payload.get("target_kc_ids"), list)
+            else set()
+        )
+        payload_target_lo_ids = (
+            {str(item) for item in payload.get("target_lo_ids", [])}
+            if isinstance(payload.get("target_lo_ids"), list)
+            else set()
+        )
         if set(request.target_kc_ids).intersection(payload_target_kc_ids):
             return True
         if set(request.target_lo_ids).intersection(payload_target_lo_ids):
@@ -158,7 +197,9 @@ class SocraticConversationSignalService:
             return "independent_check"
         return "steady"
 
-    def _rationale(self, *, signal: str, dominant_steering_action: str, matched_session_count: int) -> str:
+    def _rationale(
+        self, *, signal: str, dominant_steering_action: str, matched_session_count: int
+    ) -> str:
         if signal == "vary_representation":
             return (
                 f"Recent Socratic turns across {matched_session_count} sessions needed fresh angles ({dominant_steering_action}), "
@@ -179,6 +220,4 @@ class SocraticConversationSignalService:
                 f"Recent Socratic turns across {matched_session_count} sessions repeatedly supported transfer readiness, "
                 "so the next generated step can shift toward independent application."
             )
-        return (
-            f"Recent Socratic turns across {matched_session_count} sessions were informative but not decisive enough to force a different generation posture."
-        )
+        return f"Recent Socratic turns across {matched_session_count} sessions were informative but not decisive enough to force a different generation posture."
