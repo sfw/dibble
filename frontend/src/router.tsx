@@ -13,12 +13,14 @@ import { SocraticCheck } from './views/learner/SocraticCheck'
 import { RemediationSession } from './views/learner/RemediationSession'
 import { Progress } from './views/learner/Progress'
 import { History } from './views/learner/History'
+import { Assignments as LearnerAssignments } from './views/learner/Assignments'
 
 // Teacher views
 import { Dashboard } from './views/teacher/Dashboard'
 import { ClassroomDetail } from './views/teacher/ClassroomDetail'
 import { LearnerDetail } from './views/teacher/LearnerDetail'
 import { InterventionWorkspace } from './views/teacher/InterventionWorkspace'
+import { TeacherAssignments } from './views/teacher/Assignments'
 
 export const router = createBrowserRouter([
   {
@@ -44,6 +46,7 @@ export const router = createBrowserRouter([
       { path: 'continue', element: <ContinueLearning /> },
       { path: 'socratic/:sessionId', element: <SocraticCheck /> },
       { path: 'remediation/:sessionId', element: <RemediationSession /> },
+      { path: 'assignments', element: <LearnerAssignments /> },
       { path: 'progress', element: <Progress /> },
       { path: 'history', element: <History /> },
     ],
@@ -63,6 +66,7 @@ export const router = createBrowserRouter([
       { path: 'classrooms/:classroomId', element: <ClassroomDetail /> },
       { path: 'learners/:studentId', element: <LearnerDetail /> },
       { path: 'learners/:studentId/intervention', element: <InterventionWorkspace /> },
+      { path: 'assignments', element: <TeacherAssignments /> },
       {
         path: 'reports',
         element: (

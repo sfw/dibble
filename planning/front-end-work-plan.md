@@ -83,7 +83,7 @@ Contract-hardening in use:
 | Priority | Gap | Impact on frontend |
 |---|---|---|
 | ~~P0~~ | ~~No product-level authentication or user identity~~ | **RESOLVED** — backend supports `learner` and `teacher` roles with entity bindings. Frontend now has login screen (`/login`), `useAuth` hook with bearer token persistence and refresh, `AuthGuard` gating `/learn` and `/teacher` routes, role-aware redirect, logout from shell headers, and `AuthContext` for app-wide auth state. |
-| ~~P1~~ | ~~No assignment model or lifecycle~~ | **RESOLVED** — backend now has a first-class `Assignment` entity with teacher attribution, lifecycle status, and paginated endpoints for learner and teacher views. Frontend types and API functions added. Frontend still needs assignment views in learner and teacher shells. |
+| ~~P1~~ | ~~No assignment model or lifecycle~~ | **RESOLVED** — backend has a first-class `Assignment` entity. Frontend now has learner assignment view (`/learn/assignments`) with active/past grouping, start action, and pagination; teacher assignment view (`/teacher/assignments`) with create form, cancel action, and pagination; `useAssignments` hooks for both roles; nav links in both shells; and tests. |
 | P1 | Teacher reporting is a placeholder | `/teacher/reports` shows "Coming soon"; no class-level progress, trend, or standards mastery views |
 | ~~P1~~ | ~~No pagination on history endpoints~~ | **RESOLVED** — backend returns `{ items, offset, limit, has_more }` paginated responses. Frontend `useLearnerContracts` hook now tracks pagination state and exposes `loadMoreHistory`. History view shows a "Load more" button when more entries are available. |
 | P2 | Course-level progression planning is lighter than a true course planner | UI should trust learner `curriculum_progression` and avoid inventing cross-unit sequencing logic |
@@ -122,11 +122,12 @@ Contract-hardening in use:
 - Improve classroom detail density so teachers can scan 30 learners efficiently
 - Add teacher-to-learner drill-in for artifact review (see the actual generated content, Socratic turns, remediation steps a learner worked through)
 
-### P1: assignment layer (frontend + backend coordination)
+### P1: assignment layer (frontend + backend coordination) — DONE
 
-- Design a lightweight assignment model that can wrap backend-owned learning sessions
-- Record what the frontend needs from the backend in `planning/from-front-to-back-needs.md`
-- Start with a presentation layer around learner workspace and progression before adding teacher-launched assignment creation
+- ~~Design a lightweight assignment model~~ — backend owns a first-class `Assignment` entity
+- ~~Learner view~~ — `/learn/assignments` shows assigned work with start action, due dates, and pagination
+- ~~Teacher view~~ — `/teacher/assignments` shows all assignments with create form, cancel, and pagination
+- ~~Hooks~~ — `useLearnerAssignments` and `useTeacherAssignments` with full CRUD and pagination
 
 ### P2: polish and expansion
 
@@ -183,17 +184,20 @@ Contract-hardening in use:
 ### In progress
 
 - hide orchestration inputs from the learner shell so Continue Learning feels like a real learning flow
-- design the assignment model with backend coordination
 
 ### Next up
 
 1. hide orchestration inputs from the learner shell so Continue Learning feels like a real learning flow
 2. build real teacher reporting to replace the placeholder
-3. design the assignment model with backend coordination
-4. keep this work plan and `from-front-to-back-needs.md` updated together
+3. keep this work plan and `from-front-to-back-needs.md` updated together
 
 ### Recently completed
 
+- learner assignment view (`/learn/assignments`) with active/past grouping, start action, due dates, and load-more pagination
+- teacher assignment view (`/teacher/assignments`) with create form, student selection, cancel action, and load-more pagination
+- `useLearnerAssignments` and `useTeacherAssignments` hooks with fetch, create, status update, and pagination
+- assignment nav links added to both learner and teacher shell headers
+- tests for assignment hooks and both assignment views
 - login screen at `/login` with API key authentication, bearer token issuance, and role-aware redirect
 - `useAuth` hook managing auth state, bearer token persistence in localStorage, token refresh, and logout
 - `AuthContext` provider wrapping the app for global auth state access
@@ -242,9 +246,9 @@ Remaining:
 - assignment management layer
 - richer class-level progress and trend views
 
-### Phase 3: assignments, reporting, and operational completeness — NOT STARTED
+### Phase 3: assignments, reporting, and operational completeness — IN PROGRESS
 
-- assignment framing layer (frontend + backend coordination needed)
+- ~~assignment framing layer~~ — **DONE**: learner and teacher assignment views with create, start, cancel, and pagination
 - teacher reporting with trends and standards mastery
 - class-level progress review
 - role-aware navigation polish

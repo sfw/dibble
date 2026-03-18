@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { NavLink, Outlet } from 'react-router'
-import { BookOpen, Clock, Home, LogOut, TrendingUp } from 'lucide-react'
+import { BookOpen, ClipboardList, Clock, Home, LogOut, TrendingUp } from 'lucide-react'
 import { useLearnerWorkspace } from '../hooks/useLearnerWorkspace'
 import { useLearnerContracts } from '../hooks/useLearnerContracts'
 import { useAuthContext } from '../contexts/AuthContext'
@@ -34,6 +34,7 @@ export interface LearnerContext {
 
 const navItems = [
   { to: '/learn', icon: Home, label: 'Home', end: true },
+  { to: '/learn/assignments', icon: ClipboardList, label: 'Assignments' },
   { to: '/learn/progress', icon: TrendingUp, label: 'Progress' },
   { to: '/learn/history', icon: Clock, label: 'History' },
 ]

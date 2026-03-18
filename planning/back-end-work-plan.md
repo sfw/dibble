@@ -129,7 +129,7 @@ Legend:
 Based on `planning/4 - revised-spec/implementation-roadmap.md`, `planning/5 - dev-handoff-revised-spec/requirements-traceability.csv`, the current code seams, `planning/front-end-work-plan.md`, `planning/from-front-to-back-needs.md`, and `planning/lms-interface-plan.md`, the strongest next backend slices are now:
 
 1. ~~**product-level authentication clarity**~~: **DONE** — `learner` and `teacher` roles now exist in the RBAC hierarchy with entity bindings (`learner_id`, `teacher_id`, `display_name`, `classroom_ids`) that persist through API keys, bearer tokens, token refresh, and `/api/auth/me`. Principal config format supports `api_key:principal_id:learner:student-uuid:Display Name` and `api_key:principal_id:teacher:teacher-uuid:Name:classroom-1,classroom-2`.
-2. **assignment model ownership**: the LMS plan calls for teacher-assigned learning tasks; neither frontend nor backend currently owns an assignment concept; the backend should decide whether assignments are a thin wrapper around existing learner workspace / progression state or a first-class entity with lifecycle, status, and continue-action metadata.
+2. ~~**assignment model ownership**~~: **DONE end-to-end** — backend has first-class `Assignment` entity with teacher attribution, lifecycle, and paginated endpoints. Frontend now has learner assignment view (`/learn/assignments`) and teacher assignment view (`/teacher/assignments`) with create, start, cancel, pagination, and tests.
 3. ~~**history pagination**~~: **DONE** — all three history endpoints now return `{ items, offset, limit, has_more }` paginated responses with offset-based pagination, limit clamped to 1–100.
 4. keep strengthening backend decision quality (`ORCH-001`, `ADAPT-006`, `DATA-004`, `ADAPT-003`) without changing contract shape.
 5. revisit a true course-level planner only if product needs exceed the current learner `curriculum_progression` read model and local progression ownership.
@@ -203,7 +203,7 @@ The frontend has moved from a contract integration workbench to a three-layer LM
 **What the frontend is now asking for:**
 
 1. **P0**: product-level authentication flow so learners and teachers can log in (the backend auth contract exists but the frontend needs role-to-identity mapping clarity)
-2. **P1**: assignment model ownership so teachers can assign and learners can see assigned work
+2. ~~**P1**: assignment model ownership~~ — **DONE end-to-end**. Backend entity plus frontend learner and teacher assignment views with create, start, cancel, pagination, and tests.
 3. **P1**: history pagination (cursor or offset support on history endpoints)
 
 **What the frontend is NOT asking for:**
