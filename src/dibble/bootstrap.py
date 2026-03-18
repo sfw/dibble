@@ -46,6 +46,9 @@ from dibble.services.learner_progression_service import LearnerProgressionServic
 from dibble.services.learner_summary_service import LearnerSummaryService
 from dibble.services.learner_workspace_service import LearnerWorkspaceService
 from dibble.services.misconception_detector import MisconceptionDetector
+from dibble.services.misconception_remediation_outcome_signals import (
+    MisconceptionRemediationOutcomeSignalService,
+)
 from dibble.services.misconception_remediation_outcomes import (
     MisconceptionRemediationOutcomeTracker,
 )
@@ -207,6 +210,9 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         generated_content_store=generated_content_store,
         cache_ttl_seconds=settings.generation_cache_ttl_seconds,
     )
+    misconception_remediation_outcome_signal_service = (
+        MisconceptionRemediationOutcomeSignalService(audit_store=audit_store)
+    )
     remediation_planner = RemediationPlanner(
         knowledge_component_store,
         MisconceptionDetector(
@@ -214,6 +220,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
             observation_store=observation_store,
             audit_store=audit_store,
             misconception_profile_resolver=LearningMisconceptionProfileResolver(),
+            remediation_outcome_signal_service=misconception_remediation_outcome_signal_service,
         ),
     )
     remediation_workflow_coordinator = RemediationWorkflowCoordinator(

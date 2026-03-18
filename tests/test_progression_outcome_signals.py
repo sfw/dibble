@@ -54,6 +54,7 @@ def test_empty_signal_when_no_outcomes(tmp_path):
     assert signal.transfer_evaluated_count == 0
     assert signal.hold_threshold_adjustment == 0.0
     assert signal.transfer_confidence_adjustment == 0.0
+    assert signal.prerequisite_threshold_adjustment == 0.0
     assert signal.rationale is None
 
 
@@ -315,3 +316,182 @@ def test_threshold_adjustment_is_bounded(tmp_path):
     # Should be capped at _MAX_HOLD_ADJUSTMENT = 0.06
     assert signal.hold_threshold_adjustment <= 0.06
     assert signal.hold_threshold_adjustment > 0.0
+
+
+# ---------- New tests for recency weighting and subtype granularity ----------
+
+
+def test_hold_subtype_breakdowns_tracked(tmp_path):
+    """Different hold subtypes appear as separate breakdowns."""
+    store = _store(tmp_path)
+    student = uuid4()
+
+    # 2 positive hold_target + 2 negative hold_repair_target
+    for _ in range(2):
+        _outcome_event(
+            store,
+            student_id=str(student),
+            action="hold_target",
+            outcome="positive",
+            target_kc_ids=["KC-1"],
+        )
+    for _ in range(2):
+        _outcome_event(
+            store,
+            student_id=str(student),
+            action="hold_repair_target",
+            outcome="negative",
+            target_kc_ids=["KC-1"],
+        )
+
+    service = ProgressionOutcomeSignalService(audit_store=store)
+    signal = service.signal_for_student(student_id=student)
+
+    assert signal.hold_evaluated_count == 4
+    assert len(signal.hold_subtype_breakdowns) == 2
+
+    by_action = {b.action: b for b in signal.hold_subtype_breakdowns}
+    assert "hold_target" in by_action
+    assert "hold_repair_target" in by_action
+    assert by_action["hold_target"].raw_count == 2
+    assert by_action["hold_target"].positive_rate > 0.9
+    assert by_action["hold_repair_target"].raw_count == 2
+    assert by_action["hold_repair_target"].negative_rate > 0.9
+
+
+def test_hold_subtype_rationale_when_multiple_subtypes(tmp_path):
+    """Rationale mentions hold subtypes when more than one is present."""
+    store = _store(tmp_path)
+    student = uuid4()
+
+    for _ in range(2):
+        _outcome_event(
+            store,
+            student_id=str(student),
+            action="hold_target",
+            outcome="positive",
+            target_kc_ids=["KC-1"],
+        )
+    _outcome_event(
+        store,
+        student_id=str(student),
+        action="hold_bridge_target",
+        outcome="negative",
+        target_kc_ids=["KC-1"],
+    )
+
+    service = ProgressionOutcomeSignalService(audit_store=store)
+    signal = service.signal_for_student(student_id=student)
+
+    assert signal.rationale is not None
+    assert "Hold subtypes" in signal.rationale
+    assert "target:" in signal.rationale
+    assert "bridge_target:" in signal.rationale
+
+
+def test_prerequisite_negative_rate_raises_threshold(tmp_path):
+    """When prerequisite rebuilds mostly fail, threshold is raised."""
+    store = _store(tmp_path)
+    student = uuid4()
+
+    for _ in range(4):
+        _outcome_event(
+            store,
+            student_id=str(student),
+            action="rebuild_prerequisite_first",
+            outcome="negative",
+            target_kc_ids=["KC-prereq"],
+        )
+
+    service = ProgressionOutcomeSignalService(audit_store=store)
+    signal = service.signal_for_student(student_id=student)
+
+    assert signal.prerequisite_evaluated_count == 4
+    assert signal.prerequisite_threshold_adjustment > 0.0
+    assert "Prerequisite outcomes" in signal.rationale
+    assert "raising" in signal.rationale
+
+
+def test_prerequisite_positive_rate_lowers_threshold(tmp_path):
+    """When prerequisite rebuilds reliably help, threshold is lowered."""
+    store = _store(tmp_path)
+    student = uuid4()
+
+    for _ in range(4):
+        _outcome_event(
+            store,
+            student_id=str(student),
+            action="rebuild_prerequisite_first",
+            outcome="positive",
+            target_kc_ids=["KC-prereq"],
+        )
+
+    service = ProgressionOutcomeSignalService(audit_store=store)
+    signal = service.signal_for_student(student_id=student)
+
+    assert signal.prerequisite_evaluated_count == 4
+    assert signal.prerequisite_threshold_adjustment < 0.0
+
+
+def test_prerequisite_threshold_adjustment_bounded(tmp_path):
+    """Prerequisite adjustment is bounded at _MAX_PREREQUISITE_ADJUSTMENT."""
+    store = _store(tmp_path)
+    student = uuid4()
+
+    for _ in range(20):
+        _outcome_event(
+            store,
+            student_id=str(student),
+            action="rebuild_prerequisite_first",
+            outcome="negative",
+            target_kc_ids=["KC-prereq"],
+        )
+
+    service = ProgressionOutcomeSignalService(audit_store=store)
+    signal = service.signal_for_student(student_id=student)
+
+    assert signal.prerequisite_threshold_adjustment <= 0.04
+    assert signal.prerequisite_threshold_adjustment > 0.0
+
+
+def test_weighted_rates_present_on_signal(tmp_path):
+    """Signal carries recency-weighted rates alongside raw rates."""
+    store = _store(tmp_path)
+    student = uuid4()
+
+    for _ in range(3):
+        _outcome_event(
+            store,
+            student_id=str(student),
+            action="hold_target",
+            outcome="positive",
+            target_kc_ids=["KC-1"],
+        )
+
+    service = ProgressionOutcomeSignalService(audit_store=store)
+    signal = service.signal_for_student(student_id=student)
+
+    # All events are recent (just created), so weighted rate should match raw rate.
+    assert signal.hold_weighted_positive_rate == signal.hold_positive_rate
+    assert signal.hold_weighted_negative_rate == signal.hold_negative_rate
+
+
+def test_recency_weighted_rationale_present(tmp_path):
+    """Rationale includes recency-weighted percentage breakdown."""
+    store = _store(tmp_path)
+    student = uuid4()
+
+    for _ in range(3):
+        _outcome_event(
+            store,
+            student_id=str(student),
+            action="hold_target",
+            outcome="positive",
+            target_kc_ids=["KC-1"],
+        )
+
+    service = ProgressionOutcomeSignalService(audit_store=store)
+    signal = service.signal_for_student(student_id=student)
+
+    assert signal.rationale is not None
+    assert "recency-weighted" in signal.rationale

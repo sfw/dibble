@@ -516,9 +516,7 @@ def test_fragile_prevents_resource_mastery():
     # Both threshold raise (declining) and quality gate should prevent mastery
     assert result.mastered_resource_count == 0
     # Find the resource in ready list
-    resource = next(
-        (r for r in result.ready_resources if r.resource_id == "R1"), None
-    )
+    resource = next((r for r in result.ready_resources if r.resource_id == "R1"), None)
     assert resource is not None
     assert resource.mastery_quality == "fragile"
     assert "unstable" in (resource.rationale or "")
@@ -611,9 +609,7 @@ def test_multi_kc_resource_blocked_by_worst_signal():
     )
     service = LearnerProgressionService(
         profile_store=StubProfileStore(profile),
-        curriculum_store=StubCurriculumStore(
-            [_resource("R1", ["KC-A", "KC-B"])]
-        ),
+        curriculum_store=StubCurriculumStore([_resource("R1", ["KC-A", "KC-B"])]),
         knowledge_component_store=StubKnowledgeComponentStore(
             [_kc("KC-A"), _kc("KC-B")]
         ),
