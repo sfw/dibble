@@ -177,6 +177,9 @@ Most recent progress:
 39. blocked curriculum-resource rationale now includes prerequisite mastery snapshots plus the titles of blocking resources, so teacher and learner progression surfaces can explain exactly why a resource is still blocked without inventing extra frontend policy.
 40. completed remediation summaries now reuse the same backend-owned follow-up `continue_action` contract as the delivered remediation `workflow_summary`, so workspace resume, intervention packaging, and generation handoff keep the same session id, source generation, and target KC semantics instead of drifting at the moment remediation hands control back to lesson flow.
 41. ordinary lesson progression now also keeps an active `hold_bridge_target` posture ahead of same-session transfer evidence while the within-session controller is still in bridge re-entry, and lesson follow-up planning plus predictive warming now grade that bridge hold as guided re-entry instead of generic repair.
+42. teacher classroom learner cards now also carry a backend-owned `triage_section`, so teacher-action, needs-attention, and on-track grouping no longer depends on frontend interpretation of `attention_level` and intervention availability.
+43. learner workspace payloads now also carry an optional backend-owned `affective_support` message, so break suggestions, nudges, and encouragement can be versioned and tuned in the backend instead of hardcoded against raw frustration and engagement signals in the UI.
+44. backend-owned display labels now also ride alongside `continue_action.kind`, `curriculum_progression.current_stage`, and remediation workflow `phase`, so the frontend can prefer backend framing while preserving machine-readable keys for stability and fallback.
 
 ### Frontend Alignment Update
 

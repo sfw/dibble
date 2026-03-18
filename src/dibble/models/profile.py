@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
+from dibble.contract_labels import continue_action_display_label, stage_display_label
+
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -296,6 +298,7 @@ class LearnerFlowNextStep(BaseModel):
 
 class LearnerContinueAction(BaseModel):
     kind: ContinueActionKind = ContinueActionKind.idle
+    display_label: str | None = None
     method: ContinueActionMethod | None = None
     endpoint: str | None = None
     resource_id: str | None = None
@@ -395,6 +398,8 @@ class LearnerContinueAction(BaseModel):
 
     @model_validator(mode="after")
     def _stabilize_contract(self) -> "LearnerContinueAction":
+        if self.display_label is None:
+            self.display_label = continue_action_display_label(self.kind.value)
         if self.kind == ContinueActionKind.idle:
             self.method = None
             self.endpoint = None
@@ -425,6 +430,7 @@ class LearnerCurriculumProgressionSummary(BaseModel):
     source: str = "knowledge_state_and_flow"
     flow_type: str = "idle"
     current_stage: str = "idle"
+    stage_display_label: str | None = None
     progression_action: str = "monitor"
     active_target_kc_ids: list[str] = Field(default_factory=list)
     resource_count: int = Field(default=0, ge=0)
@@ -439,6 +445,12 @@ class LearnerCurriculumProgressionSummary(BaseModel):
     ready_resources: list[CurriculumResourceProgressSummary] = Field(default_factory=list)
     rationale: str | None = None
     updated_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def _stabilize_stage_display_label(self) -> "LearnerCurriculumProgressionSummary":
+        if self.stage_display_label is None:
+            self.stage_display_label = stage_display_label(self.current_stage)
+        return self
 
 
 class LearnerFlowSummary(BaseModel):

@@ -1115,6 +1115,11 @@ def test_remediation_session_endpoints_advance_multi_step_workflow(client, stude
     assert session_response.status_code == 200
     session_payload = session_response.json()
     assert session_payload["current_step_index"] == 1
+    assert [step["phase_display_label"] for step in session_payload["steps"]] == [
+        "Step back support",
+        "Building foundations",
+        "Trying it yourself",
+    ]
     assert [step["status"] for step in session_payload["steps"]] == ["completed", "active", "pending"]
     assert session_payload["summary"]["status"] == "in_progress"
     assert session_payload["summary"]["current_phase"] == "repair"

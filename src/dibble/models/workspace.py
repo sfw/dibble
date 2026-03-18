@@ -22,11 +22,18 @@ class LearnerWorkspaceArtifact(BaseModel):
     rationale: str | None = None
 
 
+class AffectiveSupportMessage(BaseModel):
+    kind: str
+    title: str
+    detail: str
+
+
 class LearnerWorkspace(BaseModel):
     student_id: UUID
     summary: ProfileSummary
     active_artifact: LearnerWorkspaceArtifact = Field(default_factory=LearnerWorkspaceArtifact)
     continue_action: LearnerContinueAction = Field(default_factory=LearnerContinueAction)
+    affective_support: AffectiveSupportMessage | None = None
     generated_content: GeneratedContent | None = None
     remediation_session: RemediationWorkflowSession | None = None
     socratic_session: SocraticAssessmentSession | None = None
