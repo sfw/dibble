@@ -3,6 +3,7 @@ import { useNavigate, useOutletContext, useParams } from 'react-router'
 import { ChevronLeft, MessageCircle, Send } from 'lucide-react'
 import type { LearnerContext } from '../../shells/LearnerShell'
 import { PageContainer } from '../../components/shell/PageContainer'
+import { ErrorBanner } from '@/components/ui/error-banner'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useSocraticWorkspace } from '../../hooks/useSocraticWorkspace'
@@ -150,9 +151,7 @@ export function SocraticCheck() {
         </Button>
       </div>
 
-      {socratic.error && (
-        <p className="text-sm text-red-600">{socratic.error}</p>
-      )}
+      <ErrorBanner message={socratic.error} />
     </PageContainer>
   )
 }

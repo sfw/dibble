@@ -3,6 +3,7 @@ import { useNavigate, useOutletContext } from 'react-router'
 import { ArrowRight, BookOpen, ChevronLeft } from 'lucide-react'
 import type { LearnerContext } from '../../shells/LearnerShell'
 import { PageContainer } from '../../components/shell/PageContainer'
+import { ErrorBanner } from '@/components/ui/error-banner'
 import { AffectiveSupport } from '../../components/content/AffectiveSupport'
 import { StreamingContent } from '../../components/content/StreamingContent'
 import { Button } from '@/components/ui/button'
@@ -87,7 +88,9 @@ export function ContinueLearning() {
         <StreamingContent blocks={displayBlocks} streaming={isStreaming} />
       )}
 
-      {!loading && !hasContent && !isStreaming && (
+      <ErrorBanner message={generation.error} />
+
+      {!loading && !hasContent && !isStreaming && !generation.error && (
         <div className="rounded-xl border bg-white p-8 text-center text-muted-foreground">
           <p>No content available yet. Your next lesson is being prepared.</p>
         </div>

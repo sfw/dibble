@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router'
 import { Reports } from './Reports'
@@ -95,6 +96,7 @@ const learnerB = makeLearner({
   engagement: 'low',
   frustration: 'high',
   attention_level: 'high',
+  attention_reasons: ['high_frustration', 'teacher_intervention_available'],
   curriculum_progression: {
     status: 'active',
     source: 'flow',
@@ -195,57 +197,102 @@ describe('Reports', () => {
     expect(screen.getByText('Total learners')).toBeInTheDocument()
     expect(screen.getByText('Active now')).toBeInTheDocument()
     expect(screen.getByText('Need attention')).toBeInTheDocument()
-    // "Blocked" appears in both summary card and classroom progress cards
     expect(screen.getAllByText('Blocked').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('Interventions')).toBeInTheDocument()
-    // 5 total learners and 5 active — both render as "5"
     expect(screen.getAllByText('5')).toHaveLength(2)
   })
 
   it('renders classroom progress cards', () => {
     renderReports()
-    expect(screen.getByText('Math 7A')).toBeInTheDocument()
-    expect(screen.getByText('Math 7B')).toBeInTheDocument()
+    // "Math 7A" appears in both the classroom card and the deep-dive header
+    expect(screen.getAllByText('Math 7A').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Math 7B').length).toBeGreaterThanOrEqual(1)
   })
 
   it('renders stage distribution for loaded classroom', () => {
     renderReports()
     expect(screen.getByText('Stage distribution')).toBeInTheDocument()
-    expect(screen.getByText('Repair')).toBeInTheDocument()
-    expect(screen.getByText('Transfer')).toBeInTheDocument()
+    // Stage names appear in both distribution chart and learner table
+    expect(screen.getAllByText('Repair').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Transfer').length).toBeGreaterThanOrEqual(1)
   })
 
   it('renders engagement and frustration overview', () => {
     renderReports()
     expect(screen.getByText('Engagement & frustration')).toBeInTheDocument()
-    expect(screen.getByText('Engagement')).toBeInTheDocument()
-    expect(screen.getByText('Frustration')).toBeInTheDocument()
+    // "Engagement" and "Frustration" appear in both the overview and the learner table headers
+    expect(screen.getAllByText('Engagement').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Frustration').length).toBeGreaterThanOrEqual(1)
   })
 
   it('renders recent activity totals', () => {
     renderReports()
     expect(screen.getByText('Recent activity')).toBeInTheDocument()
     expect(screen.getByText('Lessons generated')).toBeInTheDocument()
-    // 5 + 2 = 7 total generations
     expect(screen.getByText('7')).toBeInTheDocument()
   })
 
   it('renders attention levels', () => {
     renderReports()
     expect(screen.getByText('Attention levels')).toBeInTheDocument()
-    expect(screen.getByText('Urgent')).toBeInTheDocument()
-    expect(screen.getByText('On track')).toBeInTheDocument()
+    // "Urgent" and "On track" appear in both the attention summary and the learner table
+    expect(screen.getAllByText('Urgent').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('On track').length).toBeGreaterThanOrEqual(1)
   })
 
-  it('shows loading state when no classrooms', () => {
+  it('shows loading skeleton when no classrooms loaded yet', () => {
     renderReports({ classrooms: [], loading: true })
-    expect(screen.getByText('Loading report data...')).toBeInTheDocument()
+    // PageSkeleton renders pulse-animated skeleton elements
+    expect(screen.queryByText('Reports')).not.toBeInTheDocument()
+  })
+
+  it('shows error banner when error is set', () => {
+    renderReports({ error: 'Failed to load classrooms' })
+    expect(screen.getByText('Failed to load classrooms')).toBeInTheDocument()
   })
 
   it('shows classroom learner count in breakdown header', () => {
     renderReports()
     expect(screen.getByText('Math 7A — learner breakdown')).toBeInTheDocument()
-    // "2 learners" appears in both the classroom progress card and the breakdown badge
     expect(screen.getAllByText('2 learners').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('renders per-learner drill-down table', () => {
+    renderReports()
+    expect(screen.getByText('All learners')).toBeInTheDocument()
+    expect(screen.getByText('student-1')).toBeInTheDocument()
+    expect(screen.getByText('student-2')).toBeInTheDocument()
+  })
+
+  it('renders attention reasons in learner table', () => {
+    renderReports()
+    expect(screen.getByText('High frustration')).toBeInTheDocument()
+    expect(screen.getByText('Intervention ready')).toBeInTheDocument()
+  })
+
+  it('renders sortable column headers in learner table', () => {
+    renderReports()
+    expect(screen.getByRole('button', { name: /Learner/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Stage/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Mastery/i })).toBeInTheDocument()
+  })
+
+  it('expands attention level to show learner drill-down', async () => {
+    const user = userEvent.setup()
+    renderReports()
+    // Click the "Urgent" attention level row (has count 1)
+    const urgentButton = screen.getAllByText('Urgent')[0].closest('button')
+    if (urgentButton) {
+      await user.click(urgentButton)
+    }
+    // student-2 is in the attention drill-down and in the main table
+    expect(screen.getAllByText('student-2').length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('renders classroom selector when multiple classrooms exist', () => {
+    renderReports()
+    expect(screen.getByText('Deep-dive into:')).toBeInTheDocument()
+    const select = screen.getByRole('combobox')
+    expect(select).toBeInTheDocument()
   })
 })
