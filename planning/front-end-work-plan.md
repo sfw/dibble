@@ -82,10 +82,10 @@ Contract-hardening in use:
 
 | Priority | Gap | Impact on frontend |
 |---|---|---|
-| P0 | No product-level authentication or user identity | Learners and teachers cannot log in; role is selected manually; no session persistence across browser reloads |
+| ~~P0~~ | ~~No product-level authentication or user identity~~ | **RESOLVED** — backend now supports `learner` and `teacher` roles with entity bindings (`learner_id`, `teacher_id`, `display_name`, `classroom_ids`) through API keys, bearer tokens, and `/api/auth/me`. Frontend auth types and API functions added. Frontend still needs login screen and role-aware redirect. |
 | P1 | No assignment model or lifecycle | Cannot frame learning work as teacher-assigned tasks; learner and teacher views lack an assignment container |
 | P1 | Teacher reporting is a placeholder | `/teacher/reports` shows "Coming soon"; no class-level progress, trend, or standards mastery views |
-| P1 | No pagination on history endpoints | History views hardcoded to `limit=20` with no load-more or infinite scroll |
+| ~~P1~~ | ~~No pagination on history endpoints~~ | **RESOLVED** — backend returns `{ items, offset, limit, has_more }` paginated responses. Frontend types, API functions, hook, and test mocks updated. Frontend still needs load-more / infinite scroll UI. |
 | P2 | Course-level progression planning is lighter than a true course planner | UI should trust learner `curriculum_progression` and avoid inventing cross-unit sequencing logic |
 | P2 | No multimodal artifact payload contract | Content cards should stay extensible without assuming diagrams or interactives yet |
 | P2 | No learner-to-learner or teacher-to-learner messaging | No in-app communication channel |
@@ -182,17 +182,19 @@ Contract-hardening in use:
 
 ### In progress
 
-- reviewing all planning documents and updating work plans to reflect current codebase reality
-- identifying the next highest-value product work across frontend and backend
+- backend auth contract now supports learner/teacher roles with entity bindings; frontend needs login screen, role-aware redirect, and session persistence
+- backend history pagination is live; frontend needs load-more / infinite scroll UI
 
 ### Next up
 
-1. product-level authentication integration so learners and teachers can log in
-2. hide orchestration inputs from the learner shell so Continue Learning feels like a real learning flow
-3. build real teacher reporting to replace the placeholder
-4. design the assignment model with backend coordination
-5. add history pagination
-6. keep this work plan and `from-front-to-back-needs.md` updated together
+1. build a login screen using the new `POST /api/auth/token`, `GET /api/auth/me`, and `POST /api/auth/token/refresh` contracts
+2. add role-aware redirect: learner principals go to `/learn`, teacher principals go to `/teacher`
+3. persist bearer token and identity in browser storage for session continuity
+4. add load-more or infinite scroll to history views using the new `offset`/`has_more` pagination contract
+5. hide orchestration inputs from the learner shell so Continue Learning feels like a real learning flow
+6. build real teacher reporting to replace the placeholder
+7. design the assignment model with backend coordination
+8. keep this work plan and `from-front-to-back-needs.md` updated together
 
 ## LMS Interface Progress
 

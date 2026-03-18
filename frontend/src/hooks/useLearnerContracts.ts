@@ -65,7 +65,7 @@ export function useLearnerContracts({
     setError('')
 
     try {
-      const [nextGenerationHistory, nextSocraticHistory, nextRemediationHistory, nextIntervention] =
+      const [generationPage, socraticPage, remediationPage, nextIntervention] =
         await Promise.all([
           getGenerationHistory(config, targetLearnerId),
           getSocraticHistory(config, targetLearnerId),
@@ -73,9 +73,9 @@ export function useLearnerContracts({
           getTeacherInterventionAction(config, targetLearnerId),
         ])
 
-      setGenerationHistory(nextGenerationHistory)
-      setSocraticHistory(nextSocraticHistory)
-      setRemediationHistory(nextRemediationHistory)
+      setGenerationHistory(generationPage.items)
+      setSocraticHistory(socraticPage.items)
+      setRemediationHistory(remediationPage.items)
       setIntervention(nextIntervention)
       onDataSourceChange('live')
     } catch (caughtError) {

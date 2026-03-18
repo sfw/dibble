@@ -150,13 +150,13 @@ function stubLiveFetch({
         return jsonResponse(demoProfile)
       }
       if (url.includes(`/api/learners/${SAMPLE_STUDENT_ID}/history/generations`)) {
-        return jsonResponse(demoGenerationHistory)
+        return jsonResponse({ items: demoGenerationHistory, offset: 0, limit: 20, has_more: false })
       }
       if (url.includes(`/api/learners/${SAMPLE_STUDENT_ID}/history/socratic-sessions`)) {
-        return jsonResponse(demoSocraticHistory)
+        return jsonResponse({ items: demoSocraticHistory, offset: 0, limit: 20, has_more: false })
       }
       if (url.includes(`/api/learners/${SAMPLE_STUDENT_ID}/history/remediation-sessions`)) {
-        return jsonResponse(demoRemediationHistory)
+        return jsonResponse({ items: demoRemediationHistory, offset: 0, limit: 20, has_more: false })
       }
       if (url.endsWith(`/api/learners/${SAMPLE_STUDENT_ID}/intervention-action`) && method === 'POST') {
         if (failTeacherDecisionPost) {

@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 
 from dibble.models.profile import LearnerContinueAction, LearnerFlowNextStep
 
+MAX_HISTORY_LIMIT = 100
+
 
 class LearnerGenerationHistoryEntry(BaseModel):
     generation_id: str
@@ -59,3 +61,24 @@ class LearnerRemediationSessionHistoryEntry(BaseModel):
     continue_action: LearnerContinueAction = Field(default_factory=LearnerContinueAction)
     created_at: datetime
     updated_at: datetime
+
+
+class LearnerGenerationHistoryPage(BaseModel):
+    items: list[LearnerGenerationHistoryEntry]
+    offset: int
+    limit: int
+    has_more: bool
+
+
+class LearnerSocraticSessionHistoryPage(BaseModel):
+    items: list[LearnerSocraticSessionHistoryEntry]
+    offset: int
+    limit: int
+    has_more: bool
+
+
+class LearnerRemediationSessionHistoryPage(BaseModel):
+    items: list[LearnerRemediationSessionHistoryEntry]
+    offset: int
+    limit: int
+    has_more: bool

@@ -1,14 +1,16 @@
 import type {
+  AuthIdentity,
+  AuthToken,
   FrontendConfig,
   GeneratedContent,
   GenerationRequestPayload,
   GenerationStreamEvent,
   LearnerCurriculumProgressionSummary,
-  LearnerGenerationHistoryEntry,
+  LearnerGenerationHistoryPage,
   LearnerFlowSummary,
   LearnerProfileV2,
-  LearnerRemediationSessionHistoryEntry,
-  LearnerSocraticSessionHistoryEntry,
+  LearnerRemediationSessionHistoryPage,
+  LearnerSocraticSessionHistoryPage,
   LearnerWorkspace,
   ProfileSummary,
   RemediationWorkflowAdvanceResponse,
@@ -103,30 +105,30 @@ export function getLearnerProgression(config: FrontendConfig, studentId: string)
   )
 }
 
-export function getGenerationHistory(config: FrontendConfig, studentId: string, limit = 20) {
-  return requestJson<LearnerGenerationHistoryEntry[]>(
+export function getGenerationHistory(config: FrontendConfig, studentId: string, limit = 20, offset = 0) {
+  return requestJson<LearnerGenerationHistoryPage>(
     config,
-    `/api/learners/${studentId}/history/generations?limit=${limit}`,
+    `/api/learners/${studentId}/history/generations?limit=${limit}&offset=${offset}`,
     {
       headers: buildHeaders(config, false),
     },
   )
 }
 
-export function getSocraticHistory(config: FrontendConfig, studentId: string, limit = 20) {
-  return requestJson<LearnerSocraticSessionHistoryEntry[]>(
+export function getSocraticHistory(config: FrontendConfig, studentId: string, limit = 20, offset = 0) {
+  return requestJson<LearnerSocraticSessionHistoryPage>(
     config,
-    `/api/learners/${studentId}/history/socratic-sessions?limit=${limit}`,
+    `/api/learners/${studentId}/history/socratic-sessions?limit=${limit}&offset=${offset}`,
     {
       headers: buildHeaders(config, false),
     },
   )
 }
 
-export function getRemediationHistory(config: FrontendConfig, studentId: string, limit = 20) {
-  return requestJson<LearnerRemediationSessionHistoryEntry[]>(
+export function getRemediationHistory(config: FrontendConfig, studentId: string, limit = 20, offset = 0) {
+  return requestJson<LearnerRemediationSessionHistoryPage>(
     config,
-    `/api/learners/${studentId}/history/remediation-sessions?limit=${limit}`,
+    `/api/learners/${studentId}/history/remediation-sessions?limit=${limit}&offset=${offset}`,
     {
       headers: buildHeaders(config, false),
     },
@@ -323,4 +325,33 @@ function parseSseRecord(record: string): GenerationStreamEvent | null {
     event: eventName || 'message',
     ...payload,
   }
+}
+
+export function getAuthIdentity(config: FrontendConfig) {
+  return requestJson<AuthIdentity>(config, '/api/auth/me', {
+    headers: buildHeaders(config, false),
+  })
+}
+
+export function issueAuthToken(config: FrontendConfig) {
+  return requestJson<AuthToken>(config, '/api/auth/token', {
+    method: 'POST',
+    headers: buildHeaders(config, false),
+  })
+}
+
+export function refreshAuthToken(config: FrontendConfig, refreshToken: string) {
+  return requestJson<AuthToken>(config, '/api/auth/token/refresh', {
+    method: 'POST',
+    headers: buildHeaders(config),
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  })
+}
+
+export function revokeAuthToken(config: FrontendConfig, refreshToken?: string) {
+  return requestJson<{ status: string }>(config, '/api/auth/token/revoke', {
+    method: 'POST',
+    headers: buildHeaders(config),
+    body: JSON.stringify({ refresh_token: refreshToken ?? null }),
+  })
 }

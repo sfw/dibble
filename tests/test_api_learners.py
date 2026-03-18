@@ -442,7 +442,7 @@ def test_continue_action_contract_stays_consistent_across_lesson_surfaces(client
     intervention_payload = intervention_response.json()
 
     lesson_continue_action = generation_payload["workflow_summary"]["continue_action"]
-    history_entry = next(entry for entry in history_payload if entry["generation_id"] == generation_payload["generation_id"])
+    history_entry = next(entry for entry in history_payload["items"] if entry["generation_id"] == generation_payload["generation_id"])
 
     assert_continue_action_contract(
         lesson_continue_action,
@@ -727,9 +727,9 @@ def test_learner_history_endpoints_expose_generation_socratic_and_remediation_hi
     assert remediation_history_response.status_code == 200
     assert remediation_session_response.status_code == 200
 
-    generations_payload = generations_response.json()
-    socratic_history_payload = socratic_history_response.json()
-    remediation_history_payload = remediation_history_response.json()
+    generations_payload = generations_response.json()["items"]
+    socratic_history_payload = socratic_history_response.json()["items"]
+    remediation_history_payload = remediation_history_response.json()["items"]
     remediation_session_payload = remediation_session_response.json()
     lesson_history_entry = next(
         entry for entry in generations_payload if entry["generation_id"] == lesson_response.json()["generation_id"]
@@ -817,7 +817,7 @@ def test_socratic_rationale_stays_aligned_across_flow_workspace_history_and_inte
     assert workspace_payload["summary"]["current_flow"]["rationale"] == canonical_rationale
     assert workspace_payload["active_artifact"]["rationale"] == canonical_rationale
     assert workspace_payload["socratic_session"]["summary"]["rationale"] == canonical_rationale
-    assert history_payload[0]["rationale"] == canonical_rationale
+    assert history_payload["items"][0]["rationale"] == canonical_rationale
     assert intervention_payload["rationale"] == canonical_rationale
     assert intervention_payload["proposed_action"]["rationale"] == canonical_rationale
     assert intervention_payload["available_options"][0]["rationale"] == canonical_rationale
@@ -930,7 +930,7 @@ def test_held_remediation_generation_history_stays_aligned_with_session_summary(
 
     held_generation_id = held_response.json()["content"]["generation_id"]
     remediation_generation_entry = next(
-        entry for entry in generations_response.json() if entry["generation_id"] == held_generation_id
+        entry for entry in generations_response.json()["items"] if entry["generation_id"] == held_generation_id
     )
     session_summary = remediation_session_response.json()["summary"]
     workspace_payload = workspace_response.json()

@@ -4,9 +4,13 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from dibble.models.history import (
+    MAX_HISTORY_LIMIT,
     LearnerGenerationHistoryEntry,
+    LearnerGenerationHistoryPage,
     LearnerRemediationSessionHistoryEntry,
+    LearnerRemediationSessionHistoryPage,
     LearnerSocraticSessionHistoryEntry,
+    LearnerSocraticSessionHistoryPage,
 )
 from dibble.models.profile import LearnerContinueAction, LearnerFlowNextStep
 from dibble.services.protocols import GeneratedContentStore, RemediationSessionStore, SocraticSessionStore
@@ -24,17 +28,22 @@ class LearnerHistoryService:
         *,
         student_id: UUID,
         limit: int | None = None,
-    ) -> list[LearnerGenerationHistoryEntry]:
+        offset: int = 0,
+    ) -> LearnerGenerationHistoryPage:
+        safe_limit = _clamp_limit(limit if limit is not None else self.default_limit)
+        safe_offset = max(0, offset)
         entries = self.generated_content_store.list_recent_for_student(
             student_id=str(student_id),
-            limit=limit or self.default_limit,
+            limit=safe_limit + 1,
+            offset=safe_offset,
             include_predictive_warm=False,
         )
-        history: list[LearnerGenerationHistoryEntry] = []
-        for content in entries:
+        has_more = len(entries) > safe_limit
+        items: list[LearnerGenerationHistoryEntry] = []
+        for content in entries[:safe_limit]:
             workflow_summary = content.workflow_summary
             request_context = content.request_context
-            history.append(
+            items.append(
                 LearnerGenerationHistoryEntry(
                     generation_id=content.generation_id,
                     learning_session_id=self._maybe_str(
@@ -72,19 +81,26 @@ class LearnerHistoryService:
                     created_at=content.created_at,
                 )
             )
-        return history
+        return LearnerGenerationHistoryPage(
+            items=items, offset=safe_offset, limit=safe_limit, has_more=has_more,
+        )
 
     def list_socratic_session_history(
         self,
         *,
         student_id: UUID,
         limit: int | None = None,
-    ) -> list[LearnerSocraticSessionHistoryEntry]:
+        offset: int = 0,
+    ) -> LearnerSocraticSessionHistoryPage:
+        safe_limit = _clamp_limit(limit if limit is not None else self.default_limit)
+        safe_offset = max(0, offset)
         sessions = self.socratic_session_store.list_recent_for_student(
             student_id=str(student_id),
-            limit=limit or self.default_limit,
+            limit=safe_limit + 1,
+            offset=safe_offset,
         )
-        return [
+        has_more = len(sessions) > safe_limit
+        items = [
             LearnerSocraticSessionHistoryEntry(
                 session_id=session.session_id,
                 learning_session_id=session.learning_session_id,
@@ -102,20 +118,28 @@ class LearnerHistoryService:
                 created_at=session.created_at,
                 updated_at=session.updated_at,
             )
-            for session in sessions
+            for session in sessions[:safe_limit]
         ]
+        return LearnerSocraticSessionHistoryPage(
+            items=items, offset=safe_offset, limit=safe_limit, has_more=has_more,
+        )
 
     def list_remediation_session_history(
         self,
         *,
         student_id: UUID,
         limit: int | None = None,
-    ) -> list[LearnerRemediationSessionHistoryEntry]:
+        offset: int = 0,
+    ) -> LearnerRemediationSessionHistoryPage:
+        safe_limit = _clamp_limit(limit if limit is not None else self.default_limit)
+        safe_offset = max(0, offset)
         sessions = self.remediation_session_store.list_recent_for_student(
             student_id=str(student_id),
-            limit=limit or self.default_limit,
+            limit=safe_limit + 1,
+            offset=safe_offset,
         )
-        return [
+        has_more = len(sessions) > safe_limit
+        items = [
             LearnerRemediationSessionHistoryEntry(
                 session_id=session.session_id,
                 target_kc_id=session.target_kc_id,
@@ -133,8 +157,11 @@ class LearnerHistoryService:
                 created_at=session.created_at,
                 updated_at=session.updated_at,
             )
-            for session in sessions
+            for session in sessions[:safe_limit]
         ]
+        return LearnerRemediationSessionHistoryPage(
+            items=items, offset=safe_offset, limit=safe_limit, has_more=has_more,
+        )
 
     @staticmethod
     def _maybe_str(value: object) -> str | None:
@@ -157,3 +184,7 @@ class LearnerHistoryService:
         if session.completed_generation_ids:
             return str(session.completed_generation_ids[-1])
         return None
+
+
+def _clamp_limit(limit: int) -> int:
+    return max(1, min(limit, MAX_HISTORY_LIMIT))
