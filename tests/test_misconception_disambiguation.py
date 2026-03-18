@@ -1,10 +1,15 @@
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from dibble.models.curriculum import KnowledgeComponentUpsert
+from dibble.models.generation import MisconceptionSignal
 from dibble.models.profile import LearnerProfile
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
 from dibble.services.misconception_detector import MisconceptionDetector
+from dibble.services.misconception_disambiguation import (
+    MisconceptionDisambiguationService,
+)
 from dibble.services.misconception_profiles import LearningMisconceptionProfileResolver
 from dibble.services.remediation_planner import RemediationPlanner
 from dibble.storage import ensure_database
@@ -230,3 +235,44 @@ def test_remediation_planner_uses_primary_misconception_targets_per_kc(tmp_path)
         plan.module_blueprint["primary_misconception_id"] == "fraction-part-role-swap"
     )
     assert plan.module_blueprint["repair_target_kc_ids"] == ["KC-3"]
+
+
+def test_disambiguation_decays_recurrence_bonus_for_old_signals():
+    """A signal with high recurrence but old last_seen_at should score lower
+    than the same signal with recent last_seen_at."""
+    now = datetime.now(timezone.utc)
+    service = MisconceptionDisambiguationService()
+
+    recent_signal = MisconceptionSignal(
+        kc_id="KC-2",
+        category="known_misconception",
+        confidence=0.75,
+        rationale="test",
+        source="catalog",
+        misconception_id="misconception-a",
+        evidence_terms=["term1"],
+        recurrence_count=4,
+        recurrence_session_count=3,
+        last_seen_at=now - timedelta(days=2),
+    )
+    old_signal = MisconceptionSignal(
+        kc_id="KC-2",
+        category="known_misconception",
+        confidence=0.75,
+        rationale="test",
+        source="catalog",
+        misconception_id="misconception-b",
+        evidence_terms=["term2"],
+        recurrence_count=4,
+        recurrence_session_count=3,
+        last_seen_at=now - timedelta(days=90),
+    )
+
+    term_counts = {"term1": 1, "term2": 1}
+    recent_score = service._score(recent_signal, term_counts=term_counts)
+    old_score = service._score(old_signal, term_counts=term_counts)
+
+    # The old signal's recurrence bonus should be attenuated by the decay factor
+    assert recent_score > old_score
+    # Both should still be positive
+    assert old_score > 0

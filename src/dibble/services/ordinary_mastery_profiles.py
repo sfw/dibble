@@ -24,6 +24,7 @@ class OrdinaryMasteryProfileSnapshot:
     low_support_success_rate: float = 0.0
     high_support_dependency_rate: float = 0.0
     mastery_trend: str = "stable"
+    mastery_volatility: float = 0.0
     rationale: str | None = None
 
 
@@ -85,6 +86,11 @@ class OrdinaryMasteryProfileBuilder:
         mastery_trend = self._mastery_trend(
             mastery_scores=mastery_scores, weights=weights
         )
+        mastery_volatility = self._mastery_volatility(
+            mastery_scores=mastery_scores,
+            weights=weights,
+            average_observed_mastery=average_observed_mastery,
+        )
         signal = self._signal_label(
             matched_observation_count=len(matched_events),
             matched_session_count=matched_session_count,
@@ -108,6 +114,7 @@ class OrdinaryMasteryProfileBuilder:
             low_support_success_rate=low_support_success_rate,
             high_support_dependency_rate=high_support_dependency_rate,
             mastery_trend=mastery_trend,
+            mastery_volatility=mastery_volatility,
             rationale=self._rationale(
                 signal=signal,
                 average_observed_mastery=average_observed_mastery,
@@ -116,6 +123,7 @@ class OrdinaryMasteryProfileBuilder:
                 low_support_success_rate=low_support_success_rate,
                 high_support_dependency_rate=high_support_dependency_rate,
                 mastery_trend=mastery_trend,
+                mastery_volatility=mastery_volatility,
             ),
         )
 
@@ -211,6 +219,31 @@ class OrdinaryMasteryProfileBuilder:
             or int(event.payload.get("error_count", 0)) >= 1
             or self._mastery_score(event) < 0.66
         )
+
+    def _mastery_volatility(
+        self,
+        *,
+        mastery_scores: list[float],
+        weights: list[float],
+        average_observed_mastery: float,
+    ) -> float:
+        """Compute recency-weighted standard deviation of mastery scores.
+
+        Returns a value in [0.0, 1.0] representing how much the learner's
+        mastery fluctuates.  A volatility above ~0.12 indicates meaningful
+        instability; above ~0.18 indicates the mastery signal is unreliable.
+        """
+        if len(mastery_scores) < 2:
+            return 0.0
+        total_weight = sum(weights) or 1.0
+        weighted_variance = (
+            sum(
+                w * (score - average_observed_mastery) ** 2
+                for score, w in zip(mastery_scores, weights)
+            )
+            / total_weight
+        )
+        return round(_clamp(weighted_variance**0.5), 2)
 
     def _mastery_trend(
         self,
@@ -327,34 +360,40 @@ class OrdinaryMasteryProfileBuilder:
         low_support_success_rate: float,
         high_support_dependency_rate: float,
         mastery_trend: str = "stable",
+        mastery_volatility: float = 0.0,
     ) -> str:
         trend_fragment = ""
         if mastery_trend == "improving":
             trend_fragment = " Recent observations are trending upward."
         elif mastery_trend == "declining":
             trend_fragment = " Recent observations are trending downward."
+        volatility_fragment = ""
+        if mastery_volatility >= 0.18:
+            volatility_fragment = " Mastery scores are highly volatile, so the signal is less trustworthy."
+        elif mastery_volatility >= 0.12:
+            volatility_fragment = " Mastery scores show meaningful instability."
         if signal == "durable_mastery":
             return (
                 f"Recent ordinary practice evidence stayed strong across {matched_observation_count} observations "
                 f"and {matched_session_count} sessions (average mastery {average_observed_mastery:.2f}, "
                 f"low-support success rate {low_support_success_rate:.2f}), so future ordinary writeback can trust "
-                f"similar low-support successes a bit more.{trend_fragment}"
+                f"similar low-support successes a bit more.{trend_fragment}{volatility_fragment}"
             )
         if signal == "support_dependent":
             return (
                 f"Recent ordinary practice evidence remained support-heavy across {matched_observation_count} observations "
                 f"(high-support dependency rate {high_support_dependency_rate:.2f}), so future ordinary writeback should "
-                f"discount more scaffolded successes.{trend_fragment}"
+                f"discount more scaffolded successes.{trend_fragment}{volatility_fragment}"
             )
         if signal == "emerging_mastery":
             return (
                 f"Recent ordinary practice evidence is moving in the right direction across {matched_session_count} sessions "
-                f"(average mastery {average_observed_mastery:.2f}), but durable mastery is not yet stable.{trend_fragment}"
+                f"(average mastery {average_observed_mastery:.2f}), but durable mastery is not yet stable.{trend_fragment}{volatility_fragment}"
             )
         if signal == "fragile":
             return (
                 f"Recent ordinary practice evidence remains inconsistent (average mastery {average_observed_mastery:.2f}, "
-                f"low-support success rate {low_support_success_rate:.2f}), so durable mastery should stay conservative.{trend_fragment}"
+                f"low-support success rate {low_support_success_rate:.2f}), so durable mastery should stay conservative.{trend_fragment}{volatility_fragment}"
             )
         return (
             f"Only light ordinary practice evidence is available ({matched_observation_count} matching observations), "
@@ -426,6 +465,7 @@ class OrdinaryMasteryProfileRecorder:
                         "low_support_success_rate": snapshot.low_support_success_rate,
                         "high_support_dependency_rate": snapshot.high_support_dependency_rate,
                         "mastery_trend": snapshot.mastery_trend,
+                        "mastery_volatility": snapshot.mastery_volatility,
                         "ordinary_mastery_profile_rationale": snapshot.rationale,
                     },
                 )
@@ -492,6 +532,7 @@ class OrdinaryMasterySignalService:
                 event.payload.get("high_support_dependency_rate", 0.0)
             ),
             mastery_trend=str(event.payload.get("mastery_trend", "stable")),
+            mastery_volatility=float(event.payload.get("mastery_volatility", 0.0)),
             rationale=(
                 str(event.payload.get("ordinary_mastery_profile_rationale"))
                 if event.payload.get("ordinary_mastery_profile_rationale") is not None

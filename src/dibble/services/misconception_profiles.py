@@ -201,10 +201,31 @@ class LearningMisconceptionProfileResolver:
                 datetime.now(timezone.utc),
                 lookback_days=self.recency_window_days,
             )
+            # ADAPT-003: Apply temporal decay to recurrence counts so old
+            # misconceptions don't carry the same recurrence weight as recent
+            # ones.  Use the last_seen_at timestamp (when the misconception was
+            # last observed in a remediation run) to compute a decay factor.
+            # Recent misconceptions keep full counts; stale ones are attenuated.
+            last_seen_at = _datetime_or_none(event.payload.get("last_seen_at"))
+            recurrence_decay = _recurrence_decay(
+                last_seen_at=last_seen_at,
+                reference_time=datetime.now(timezone.utc),
+            )
+            decayed_occurrence_count = max(
+                1, round(current_occurrence_count * recurrence_decay)
+            )
+            decayed_session_count = max(
+                1, round(current_session_count * recurrence_decay)
+            )
+            recurrence_signal = _recurrence_signal(
+                matched_signal_count=decayed_occurrence_count,
+                matched_session_count=decayed_session_count,
+                average_confidence=average_confidence,
+            )
             confidence = min(
                 0.99,
                 (average_confidence * event_recency)
-                + min(0.18, current_occurrence_count * 0.05),
+                + min(0.18, decayed_occurrence_count * 0.05),
             )
             if recurrence_signal == "relapsing":
                 confidence = min(0.99, confidence + 0.05)
@@ -218,7 +239,7 @@ class LearningMisconceptionProfileResolver:
                     rationale=(
                         "Prior remediation runs repeatedly surfaced this misconception pattern"
                         + (
-                            f" ({recurrence_signal} across {current_session_count} sessions)"
+                            f" ({recurrence_signal} across {decayed_session_count} sessions)"
                             if recurrence_signal in {"recurring", "relapsing"}
                             else ""
                         )
@@ -241,13 +262,44 @@ class LearningMisconceptionProfileResolver:
                         event.payload.get("remediation_hint")
                     ),
                     evidence_terms=matched_terms or sorted(prior_terms),
-                    recurrence_count=current_occurrence_count,
-                    recurrence_session_count=current_session_count,
+                    recurrence_count=decayed_occurrence_count,
+                    recurrence_session_count=decayed_session_count,
                     recurrence_signal=recurrence_signal,
-                    last_seen_at=_datetime_or_none(event.payload.get("last_seen_at")),
+                    last_seen_at=last_seen_at,
                 )
             )
         return signals
+
+
+def _recurrence_decay(
+    *,
+    last_seen_at: datetime | None,
+    reference_time: datetime,
+) -> float:
+    """Return a [0.33, 1.0] decay factor for misconception recurrence counts.
+
+    Recent misconceptions (< 14 days) keep full counts.  Older ones are
+    attenuated so that a misconception not seen for 60+ days does not carry
+    the same recurrence weight as one seen yesterday.
+
+    Decay bands:
+      - Within 14 days  -> 1.0 (no decay)
+      - 14-30 days      -> 0.8
+      - 30-60 days      -> 0.55
+      - Beyond 60 days  -> 0.33
+    """
+    if last_seen_at is None:
+        return 1.0
+    days_since = max(0.0, (reference_time - last_seen_at).total_seconds() / 86_400)
+    if days_since <= 14.0:
+        return 1.0
+    if days_since <= 30.0:
+        fraction = (days_since - 14.0) / 16.0
+        return 1.0 - fraction * (1.0 - 0.8)
+    if days_since <= 60.0:
+        fraction = (days_since - 30.0) / 30.0
+        return 0.8 - fraction * (0.8 - 0.55)
+    return 0.33
 
 
 def _recurrence_signal(

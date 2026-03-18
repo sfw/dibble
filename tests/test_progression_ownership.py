@@ -1222,3 +1222,100 @@ def test_stable_trend_does_not_trigger_early_stuck_detection():
     # With stable trend and only 4 observations / 2 sessions, no stuck signal
     assert "extended hold" not in (decision.rationale or "")
     assert "declining hold" not in (decision.rationale or "")
+
+
+def test_progression_ownership_high_volatility_lowers_hold_threshold():
+    """A learner with high mastery volatility should be held more aggressively
+    because the aggregate mastery signal is unreliable."""
+    student_id = uuid4()
+
+    # Use KC-1 (no prerequisites) to avoid prerequisite redirects.
+    # With confidence 0.60 and no volatility, a fragile signal at target stage
+    # would NOT trigger a hold because the default fragile threshold is 0.65.
+    # But with high volatility (>= 0.18), the threshold drops by 0.07 * evidence_scale,
+    # making it 0.58 — now the hold triggers.
+    service = ProgressionOwnershipService(
+        knowledge_component_store=StubKnowledgeComponentStore(),
+        strategy_signal_service=StubStrategySignalService(
+            LearnerStrategySummary(
+                signal="insufficient",
+                source="insufficient",
+            )
+        ),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(
+            WithinSessionAdaptationSummary()
+        ),
+        ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
+            OrdinaryMasterySummary(
+                signal="fragile",
+                source="ordinary_mastery_profile",
+                confidence=0.60,
+                matched_observation_count=6,
+                matched_session_count=3,
+                average_observed_mastery=0.48,
+                mastery_volatility=0.22,
+                rationale="Ordinary practice highly volatile.",
+            )
+        ),
+    )
+
+    decision = service.resolve_request(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            target_kc_ids=["KC-1"],
+            target_lo_ids=["LO-1"],
+            requested_content_type="practice_problem",
+        ),
+    )
+
+    assert decision.action == "hold_target"
+    assert decision.source == "ordinary_mastery_profile"
+    assert "volatility" in (decision.rationale or "")
+
+
+def test_progression_ownership_no_volatility_penalty_when_low():
+    """A learner with low volatility should not get a volatility-driven hold
+    that would not have happened without it."""
+    student_id = uuid4()
+
+    # Use KC-1 (no prerequisites) to avoid prerequisite redirects.
+    # Fragile with confidence 0.60 and low volatility — should NOT hold at
+    # the default fragile target threshold of 0.65.
+    service = ProgressionOwnershipService(
+        knowledge_component_store=StubKnowledgeComponentStore(),
+        strategy_signal_service=StubStrategySignalService(
+            LearnerStrategySummary(
+                signal="insufficient",
+                source="insufficient",
+            )
+        ),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(
+            WithinSessionAdaptationSummary()
+        ),
+        ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
+            OrdinaryMasterySummary(
+                signal="fragile",
+                source="ordinary_mastery_profile",
+                confidence=0.60,
+                matched_observation_count=6,
+                matched_session_count=3,
+                average_observed_mastery=0.48,
+                mastery_volatility=0.05,
+                rationale="Ordinary practice low volatility.",
+            )
+        ),
+    )
+
+    decision = service.resolve_request(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            target_kc_ids=["KC-1"],
+            target_lo_ids=["LO-1"],
+            requested_content_type="practice_problem",
+        ),
+    )
+
+    # Confidence 0.60 < fragile threshold 0.65, and no volatility penalty
+    assert decision.action == "stay_on_requested_target"

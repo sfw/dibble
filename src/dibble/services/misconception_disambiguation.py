@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from dibble.models.generation import MisconceptionSignal
 
@@ -54,9 +55,15 @@ class MisconceptionDisambiguationService:
             "catalog": 8.0,
             "heuristic": 0.0,
         }.get(signal.source, 0.0)
+        # ADAPT-003: Decay the recurrence bonus based on how recently the
+        # misconception was last observed.  A misconception not seen for 60+
+        # days should not dominate disambiguation scoring the way a recent one
+        # does.
+        recurrence_decay = _last_seen_decay(signal.last_seen_at)
         recurrence_bonus = min(
             30.0,
-            (signal.recurrence_session_count * 7.0) + (signal.recurrence_count * 2.0),
+            ((signal.recurrence_session_count * 7.0) + (signal.recurrence_count * 2.0))
+            * recurrence_decay,
         )
         evidence_bonus = min(18.0, len(signal.evidence_terms) * 4.0)
         repair_target_bonus = (
@@ -111,6 +118,28 @@ def _is_disambiguation_candidate(signal: MisconceptionSignal) -> bool:
     return (
         signal.category == "known_misconception" and signal.misconception_id is not None
     )
+
+
+def _last_seen_decay(last_seen_at: datetime | None) -> float:
+    """Return a [0.33, 1.0] decay factor for disambiguation recurrence scoring.
+
+    Mirrors the decay bands in ``misconception_profiles._recurrence_decay``
+    so that both the profile resolver and the disambiguation scorer agree
+    on how much weight old recurrence evidence carries.
+    """
+    if last_seen_at is None:
+        return 1.0
+    now = datetime.now(timezone.utc)
+    days_since = max(0.0, (now - last_seen_at).total_seconds() / 86_400)
+    if days_since <= 14.0:
+        return 1.0
+    if days_since <= 30.0:
+        fraction = (days_since - 14.0) / 16.0
+        return 1.0 - fraction * (1.0 - 0.8)
+    if days_since <= 60.0:
+        fraction = (days_since - 30.0) / 30.0
+        return 0.8 - fraction * (0.8 - 0.55)
+    return 0.33
 
 
 def _term_counts(signals: list[MisconceptionSignal]) -> dict[str, int]:

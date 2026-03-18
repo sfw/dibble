@@ -280,3 +280,102 @@ def test_mastery_trend_persisted_and_read_back(tmp_path):
         target_lo_ids=["LO-T"],
     )
     assert summary.mastery_trend == "improving"
+
+
+def test_mastery_volatility_zero_for_consistent_scores():
+    builder = OrdinaryMasteryProfileBuilder()
+    # All scores are identical — volatility should be 0.
+    mastery_scores = [0.70, 0.70, 0.70, 0.70]
+    weights = [1.0, 0.95, 0.90, 0.85]
+    volatility = builder._mastery_volatility(
+        mastery_scores=mastery_scores,
+        weights=weights,
+        average_observed_mastery=0.70,
+    )
+    assert volatility == 0.0
+
+
+def test_mastery_volatility_high_for_oscillating_scores():
+    builder = OrdinaryMasteryProfileBuilder()
+    # Large swings: 0.8 -> 0.4 -> 0.8 -> 0.4 — this is highly volatile.
+    mastery_scores = [0.80, 0.40, 0.80, 0.40]
+    weights = [1.0, 0.95, 0.90, 0.85]
+    avg = round(sum(s * w for s, w in zip(mastery_scores, weights)) / sum(weights), 2)
+    volatility = builder._mastery_volatility(
+        mastery_scores=mastery_scores,
+        weights=weights,
+        average_observed_mastery=avg,
+    )
+    assert volatility >= 0.18  # should be highly volatile
+
+
+def test_mastery_volatility_moderate_for_mild_instability():
+    builder = OrdinaryMasteryProfileBuilder()
+    # Moderate swings: 0.70, 0.55, 0.68, 0.52 — meaningful instability.
+    mastery_scores = [0.70, 0.55, 0.68, 0.52]
+    weights = [1.0, 0.95, 0.90, 0.85]
+    avg = round(sum(s * w for s, w in zip(mastery_scores, weights)) / sum(weights), 2)
+    volatility = builder._mastery_volatility(
+        mastery_scores=mastery_scores,
+        weights=weights,
+        average_observed_mastery=avg,
+    )
+    assert 0.05 < volatility < 0.18
+
+
+def test_mastery_volatility_zero_for_single_score():
+    builder = OrdinaryMasteryProfileBuilder()
+    assert (
+        builder._mastery_volatility(
+            mastery_scores=[0.65], weights=[1.0], average_observed_mastery=0.65
+        )
+        == 0.0
+    )
+
+
+def test_mastery_volatility_persisted_and_read_back(tmp_path):
+    database_path = str(tmp_path / "volatility-roundtrip.db")
+    ensure_database(database_path)
+    audit_store = SQLiteAuditStore(database_path)
+    student_id = str(uuid4())
+    recorder = OrdinaryMasteryProfileRecorder(audit_store=audit_store)
+
+    # Create oscillating observations across two sessions.
+    observation_events = []
+    scores = [0.80, 0.42, 0.78, 0.40, 0.82, 0.44]
+    sessions = ["s1", "s1", "s1", "s2", "s2", "s2"]
+    for session_id, score in zip(sessions, scores):
+        observation_events.append(
+            audit_store.append(
+                event_type="learner.observe",
+                status="success",
+                student_id=student_id,
+                payload={
+                    "task_type": "practice",
+                    "completed": True,
+                    "support_level": "low",
+                    "hints_used": 0,
+                    "error_count": 0,
+                    "learning_session_id": session_id,
+                    "target_kc_ids": ["KC-V"],
+                    "target_lo_ids": ["LO-V"],
+                    "observation_mastery_applied": True,
+                    "observation_inferred_mastery": score,
+                    "observation_average_recent_mastery": score,
+                },
+            )
+        )
+
+    recorded = recorder.record_from_observation_events(
+        observation_events=[observation_events[-1]]
+    )
+    assert len(recorded) == 1
+    assert recorded[0].payload["mastery_volatility"] >= 0.15
+
+    # Read it back through the signal service.
+    summary = OrdinaryMasterySignalService(audit_store=audit_store).latest_for_student(
+        student_id=UUID(student_id),
+        target_kc_ids=["KC-V"],
+        target_lo_ids=["LO-V"],
+    )
+    assert summary.mastery_volatility >= 0.15
