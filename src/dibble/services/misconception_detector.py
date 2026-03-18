@@ -142,7 +142,25 @@ class MisconceptionDetector:
         for component in prerequisite_components:
             mastery = profile.knowledge_state.kc_mastery.get(component.kc_id, 0.0)
             overlap_terms = self._overlap_terms(component.name, component.tags, evidence_terms)
-            mastery_gap = max(0.75 - mastery, 0.0)
+            # ADAPT-003: Adapt the prerequisite mastery threshold based on
+            # recent behavioral evidence.  If the learner is recently
+            # struggling on this prerequisite (high struggle, no successes),
+            # lower the threshold so weaker prerequisites are flagged more
+            # aggressively.  Conversely, recent low-support successes raise
+            # the threshold so a borderline prerequisite that the learner
+            # is actually recovering on is less likely to trigger.
+            behavioral_summary = behavioral_evidence_by_kc.get(component.kc_id)
+            prerequisite_threshold = 0.75
+            if behavioral_summary is not None:
+                if behavioral_summary.struggle_count >= 2 and behavioral_summary.low_support_success_count == 0:
+                    prerequisite_threshold = 0.82
+                elif behavioral_summary.struggle_count >= 1 and behavioral_summary.low_support_success_count == 0:
+                    prerequisite_threshold = 0.78
+                elif behavioral_summary.low_support_success_count >= 2 and behavioral_summary.struggle_count == 0:
+                    prerequisite_threshold = 0.68
+                elif behavioral_summary.low_support_success_count >= 1 and behavioral_summary.struggle_count == 0:
+                    prerequisite_threshold = 0.72
+            mastery_gap = max(prerequisite_threshold - mastery, 0.0)
             if mastery_gap <= 0 and not overlap_terms:
                 continue
             relation = prerequisite_relations_by_id.get(component.kc_id)

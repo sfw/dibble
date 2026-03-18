@@ -394,18 +394,25 @@ class ProgressionOwnershipService:
         # growing independence even if the overall average is still shaky.
         # Conversely, a very high support-dependency rate tightens the hold so
         # borderline cases are not released prematurely.
+        #
+        # The bonus/penalty is scaled by evidence depth so sparse observation
+        # windows don't earn the full adjustment.  A learner with only 1–2
+        # observations shouldn't get the same threshold shift as one with 6+.
         effective_support_dependent_threshold = support_dependent_threshold
         effective_fragile_threshold = fragile_threshold
+        evidence_scale = min(1.0, summary.matched_observation_count / 4)
         if summary.low_support_success_rate >= 0.5:
-            effective_support_dependent_threshold += 0.08
-            effective_fragile_threshold += 0.08
+            scaled_bonus = 0.08 * evidence_scale
+            effective_support_dependent_threshold += scaled_bonus
+            effective_fragile_threshold += scaled_bonus
         if summary.high_support_dependency_rate >= 0.7:
+            scaled_penalty = 0.06 * evidence_scale
             effective_support_dependent_threshold = max(
-                effective_support_dependent_threshold - 0.06,
-                support_dependent_threshold - 0.06,
+                effective_support_dependent_threshold - scaled_penalty,
+                support_dependent_threshold - scaled_penalty,
             )
             effective_fragile_threshold = max(
-                effective_fragile_threshold - 0.06, fragile_threshold - 0.06
+                effective_fragile_threshold - scaled_penalty, fragile_threshold - scaled_penalty
             )
 
         # ADAPT-006: Mastery trend adjusts hold aggressiveness.  An improving
