@@ -2,9 +2,16 @@
 
 This repository now includes a working MVP backend slice for the revised adaptive learning platform.
 
+## Repository Layout
+
+- `src/dibble/`: FastAPI backend and adaptive-learning services
+- `frontend/`: React + Vite + TypeScript frontend workspace for learner, teacher, classroom, and integration-shell product surfaces
+- `planning/`: revised spec, backend gap analysis, and frontend/back-to-front planning notes
+
 ## What Exists
 
 - FastAPI application in `src/dibble/`
+- React + Vite frontend in `frontend/` with learner overview, generation, Socratic, remediation, teacher intervention, classroom triage, and contract-smoke surfaces
 - SQLite-backed persistence for learner profiles and curriculum resources
 - Learner profile model aligned to the revised spec's richer profile design
 - Observation-driven affective, cognitive-load, and metacognitive state inference folded into the learner profile and adaptive routing decisions
@@ -130,6 +137,23 @@ Run tests:
 
 ```bash
 env UV_CACHE_DIR=.uv-cache uv run pytest
+```
+
+Run the frontend locally:
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+Run the frontend verification suite:
+
+```bash
+cd frontend
+npm run test:run
+npm run lint
+npm run build
 ```
 
 Install the local git hooks:

@@ -90,6 +90,8 @@ These are valid backend directions, but they are not current frontend blockers a
 - They meaningfully improve misconception-path grounding, ordinary-work and same-session rationale snapshots, stage-aware teacher labels/rationales, held-remediation parity, and cross-surface workflow rationale preference without introducing a new frontend contract seam.
 - The frontend-facing result is positive: the contracts now read more like product decisions and less like raw debug state.
 - The remaining opportunity is semantic consistency and rationale trustworthiness, not endpoint expansion.
+- A local live smoke pass against the rebased backend also succeeded for learner summary/flow, progression, workspace, generation history, intervention, and classroom surfaces after seeding one learner/classroom scenario.
+- That smoke pass did not surface a new backend blocker; the latest backend stack looked contract-stable enough for frontend merge readiness.
 
 ## Frontend Guardrails While This Stance Holds
 
