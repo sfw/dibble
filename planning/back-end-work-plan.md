@@ -139,7 +139,9 @@ Based on `planning/4 - revised-spec/implementation-roadmap.md`, `planning/5 - de
 
 Most recent progress:
 
-1. durable ordinary mastery lookup is now target-scoped instead of falling back to unrelated KC history, so cross-session ordinary-work evidence no longer bleeds across unrelated progression decisions.
+1. a unified recency weighting utility (`recency_weight`) now provides smooth time-decayed scoring across ordinary mastery aggregation, misconception profile confidence, and observation evidence writeback, so recent evidence contributes more than stale evidence consistently across all decision tracks.
+2. repair hold thresholds are now asymmetrically lower than target hold thresholds (ADAPT-006): `support_dependent` holds repair at 0.45 confidence versus 0.55 for target, and `fragile` holds repair at 0.55 versus 0.65, because a learner explicitly in a remediation arc should be held more conservatively.
+3. durable ordinary mastery lookup is now target-scoped instead of falling back to unrelated KC history, so cross-session ordinary-work evidence no longer bleeds across unrelated progression decisions.
 2. durable support-dependent or fragile ordinary evidence on a backend-applied repair target can now sharpen a prerequisite redirect into an explicit `hold_repair_target` state with inspectable rationale.
 3. ordinary progression evidence now follows the backend-applied repair or bridge target, so hold and return decisions can be earned on the KC the learner actually practiced.
 4. stage-specific holds such as `hold_repair_target` and `hold_bridge_target` now survive the evidence pass instead of collapsing into a generic target hold.

@@ -1,6 +1,15 @@
+import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 
 import { labelForView, resolveContinueActionView } from '../app/workspace'
+import {
+  ClassroomFilterBar,
+  type AttentionFilter,
+  type InterventionFilter,
+  type LayoutMode,
+} from '../components/ClassroomFilterBar'
+import { CollapsibleTriageSection } from '../components/CollapsibleTriageSection'
+import { CompactLearnerCard } from '../components/CompactLearnerCard'
 import { EmptyState, MetricList, PanelNotice, Pill, SectionHeader } from '../components/primitives'
 import {
   formatAttentionReason,
@@ -33,10 +42,39 @@ export function ClassroomView({
   handoffLoadingStudentId?: string | null
   showDebugPanels?: boolean
 }) {
+  const [searchQuery, setSearchQuery] = useState('')
+  const [attentionFilter, setAttentionFilter] = useState<AttentionFilter>('all')
+  const [interventionFilter, setInterventionFilter] = useState<InterventionFilter>('all')
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>('card')
+
   const triageSections = buildTriageSections(classroom.learners)
   const resumeReadyCount = classroom.learners.filter(
     (learner) => resolveContinueActionView(learner.current_flow.continue_action.kind) !== null,
   ).length
+
+  const filteredSections = useMemo(() => {
+    return triageSections.map((section) => ({
+      ...section,
+      learners: section.learners.filter((learner) => {
+        if (searchQuery && !learner.student_id.toLowerCase().includes(searchQuery.toLowerCase())) {
+          return false
+        }
+        if (attentionFilter !== 'all' && learner.attention_level !== attentionFilter) {
+          return false
+        }
+        if (
+          interventionFilter === 'has_intervention' &&
+          learner.intervention.proposal_status !== 'available'
+        ) {
+          return false
+        }
+        return true
+      }),
+    }))
+  }, [triageSections, searchQuery, attentionFilter, interventionFilter])
+
+  const totalCount = classroom.learners.length
+  const filteredCount = filteredSections.reduce((sum, s) => sum + s.learners.length, 0)
 
   return (
     <section className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.92fr)]">
@@ -94,99 +132,119 @@ export function ClassroomView({
             title="Move from classroom posture to learner action handoff"
             description="This queue stays summary-first: teachers can review backend-owned intervention readiness, see blocked progression separately from active work, and hand off directly into the right learner surface."
           />
-          <div className="flex flex-col gap-4">
-            {triageSections.map((section) => (
-              <section key={section.key} className="flex flex-col gap-4">
-                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <h3>{section.title}</h3>
-                    <p className="muted">{section.description}</p>
-                  </div>
-                  <Pill label={`${section.learners.length} learners`} tone={section.tone} />
-                </div>
-                <div className="flex flex-col gap-4">
-                  {section.learners.length === 0 ? (
-                    <EmptyState
-                      title="No learners in this queue"
-                      description="The backend classroom contract did not return any learners for this triage bucket."
+          <ClassroomFilterBar
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            attentionFilter={attentionFilter}
+            onAttentionFilterChange={setAttentionFilter}
+            interventionFilter={interventionFilter}
+            onInterventionFilterChange={setInterventionFilter}
+            layoutMode={layoutMode}
+            onLayoutModeChange={setLayoutMode}
+            filteredCount={filteredCount}
+            totalCount={totalCount}
+          />
+          <div className="mt-4 flex flex-col gap-4">
+            {filteredSections.map((section) => (
+              <CollapsibleTriageSection
+                key={section.key}
+                title={section.title}
+                description={section.description}
+                tone={section.tone}
+                count={section.learners.length}
+                defaultExpanded={section.key !== 'on-track'}
+              >
+                {section.learners.length === 0 ? (
+                  <EmptyState
+                    title="No learners in this queue"
+                    description="The backend classroom contract did not return any learners for this triage bucket."
+                  />
+                ) : layoutMode === 'compact' ? (
+                  section.learners.map((learner) => (
+                    <CompactLearnerCard
+                      key={learner.student_id}
+                      learner={learner}
+                      isOpening={learner.student_id === handoffLoadingStudentId}
+                      onOpenTeacher={onOpenTeacher}
+                      onContinueLearner={onContinueLearner}
                     />
-                  ) : (
-                    section.learners.map((learner) => {
-                      const continueView = resolveContinueActionView(learner.current_flow.continue_action.kind)
-                      const isOpening = learner.student_id === handoffLoadingStudentId
+                  ))
+                ) : (
+                  section.learners.map((learner) => {
+                    const continueView = resolveContinueActionView(learner.current_flow.continue_action.kind)
+                    const isOpening = learner.student_id === handoffLoadingStudentId
 
-                      return (
-                        <article key={learner.student_id} className="history-card triage-card">
-                          <div className="history-card__meta">
-                            <div>
-                              <strong>{learner.student_id}</strong>
-                              <p className="muted">
-                                Grade {learner.grade_level} • {formatContractLabel(learner.attention_level)} attention
-                              </p>
-                            </div>
-                            <div className="flex flex-wrap gap-3">
-                              <Pill label={formatContractLabel(learner.current_flow.flow_type)} tone="neutral" />
-                              <Pill
-                                label={formatContractLabel(learner.curriculum_progression.status)}
-                                tone={toneForProgression(learner.curriculum_progression.status)}
-                              />
-                              <Pill
-                                label={formatContractLabel(learner.intervention.proposal_status)}
-                                tone={toneForIntervention(learner.intervention.proposal_status)}
-                              />
-                            </div>
+                    return (
+                      <article key={learner.student_id} className="history-card triage-card">
+                        <div className="history-card__meta">
+                          <div>
+                            <strong>{learner.student_id}</strong>
+                            <p className="muted">
+                              Grade {learner.grade_level} • {formatContractLabel(learner.attention_level)} attention
+                            </p>
                           </div>
-                          <div className="summary-card__grid">
-                            <div>
-                              <span>Current phase</span>
-                              <strong>{formatContractLabel(learner.current_flow.current_phase)}</strong>
-                            </div>
-                            <div>
-                              <span>Current resource</span>
-                              <strong>{learner.curriculum_progression.current_resource?.title ?? 'Not active'}</strong>
-                            </div>
-                            <div>
-                              <span>Recommended teacher action</span>
-                              <strong>{formatContinueAction(learner.intervention.recommended_action_kind)}</strong>
-                            </div>
-                            <div>
-                              <span>Next learner handoff</span>
-                              <strong>{continueView ? labelForView(continueView) : 'Teacher review first'}</strong>
-                            </div>
+                          <div className="flex flex-wrap gap-3">
+                            <Pill label={formatContractLabel(learner.current_flow.flow_type)} tone="neutral" />
+                            <Pill
+                              label={formatContractLabel(learner.curriculum_progression.status)}
+                              tone={toneForProgression(learner.curriculum_progression.status)}
+                            />
+                            <Pill
+                              label={formatContractLabel(learner.intervention.proposal_status)}
+                              tone={toneForIntervention(learner.intervention.proposal_status)}
+                            />
                           </div>
-                          <p>{describeLearnerRationale(learner)}</p>
-                          <div className="flex flex-wrap items-center gap-3">
-                            {learner.attention_reasons.map((reason) => (
-                              <Pill key={reason} label={formatAttentionReason(reason)} tone="warning" />
-                            ))}
+                        </div>
+                        <div className="summary-card__grid">
+                          <div>
+                            <span>Current phase</span>
+                            <strong>{formatContractLabel(learner.current_flow.current_phase)}</strong>
+                          </div>
+                          <div>
+                            <span>Current resource</span>
+                            <strong>{learner.curriculum_progression.current_resource?.title ?? 'Not active'}</strong>
+                          </div>
+                          <div>
+                            <span>Recommended teacher action</span>
+                            <strong>{formatContinueAction(learner.intervention.recommended_action_kind)}</strong>
+                          </div>
+                          <div>
+                            <span>Next learner handoff</span>
+                            <strong>{continueView ? labelForView(continueView) : 'Teacher review first'}</strong>
+                          </div>
+                        </div>
+                        <p>{describeLearnerRationale(learner)}</p>
+                        <div className="flex flex-wrap items-center gap-3">
+                          {learner.attention_reasons.map((reason) => (
+                            <Pill key={reason} label={formatAttentionReason(reason)} tone="warning" />
+                          ))}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onOpenTeacher(learner.student_id)}
+                            disabled={isOpening}
+                          >
+                            {isOpening ? 'Opening learner…' : 'Open teacher triage'}
+                          </Button>
+                          {continueView ? (
                             <Button
                               type="button"
-                              variant="outline"
                               size="sm"
-                              onClick={() => onOpenTeacher(learner.student_id)}
+                              onClick={() =>
+                                onContinueLearner(learner.student_id, learner.current_flow.continue_action.kind)
+                              }
                               disabled={isOpening}
                             >
-                              {isOpening ? 'Opening learner…' : 'Open teacher triage'}
+                              {isOpening ? 'Opening learner…' : `Continue ${labelForView(continueView)}`}
                             </Button>
-                            {continueView ? (
-                              <Button
-                                type="button"
-                                size="sm"
-                                onClick={() =>
-                                  onContinueLearner(learner.student_id, learner.current_flow.continue_action.kind)
-                                }
-                                disabled={isOpening}
-                              >
-                                {isOpening ? 'Opening learner…' : `Continue ${labelForView(continueView)}`}
-                              </Button>
-                            ) : null}
-                          </div>
-                        </article>
-                      )
-                    })
-                  )}
-                </div>
-              </section>
+                          ) : null}
+                        </div>
+                      </article>
+                    )
+                  })
+                )}
+              </CollapsibleTriageSection>
             ))}
           </div>
         </div>

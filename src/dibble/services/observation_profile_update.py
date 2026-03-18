@@ -10,6 +10,7 @@ from dibble.models.profile import LearnerProfile, OrdinaryMasterySummary
 from dibble.models.remediation import RemediationWorkflowSession, RemediationWorkflowStep
 from dibble.services.knowledge_state_migration import KnowledgeStateMigrator
 from dibble.services.ordinary_mastery_profiles import OrdinaryMasterySignalService
+from dibble.services.recency import recency_weight
 
 
 def _clamp(value: float, *, lower: float = 0.0, upper: float = 1.0) -> float:
@@ -537,16 +538,23 @@ class ObservationProfileUpdater:
         if durable_mastery.high_support_dependency_rate >= 0.6 and observation.support_level == ObservationSupportLevel.high:
             durable_adjustment -= 0.02
         durable_adjustment *= 0.6 + (durable_mastery.confidence * 0.4)
+        # Apply recency factor: recent observations get full weight, older
+        # ones are discounted smoothly so that stale evidence fades without
+        # disappearing entirely.
+        recency_factor = recency_weight(observation.created_at, datetime.now(timezone.utc))
         return round(
             _clamp(
-                (base_weight * support_factor * linkage_factor)
-                + completion_bonus
-                + confidence_bonus
-                + mastery_bonus
-                + consistency_bonus
-                + independent_consistency_bonus
-                - support_dependence_penalty
-                + durable_adjustment,
+                (
+                    (base_weight * support_factor * linkage_factor)
+                    + completion_bonus
+                    + confidence_bonus
+                    + mastery_bonus
+                    + consistency_bonus
+                    + independent_consistency_bonus
+                    - support_dependence_penalty
+                    + durable_adjustment
+                )
+                * recency_factor,
                 lower=0.08,
                 upper=0.42,
             ),

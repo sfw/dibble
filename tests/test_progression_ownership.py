@@ -679,3 +679,151 @@ def test_progression_ownership_uses_durable_ordinary_mastery_to_hold_repair_targ
         "Keep the learner on the repair target instead of returning to the target KC yet. "
         "Ordinary mastery signal support_dependent at 0.79 confidence; average observed mastery 0.59."
     )
+
+
+def test_asymmetric_repair_hold_support_dependent_triggers_at_lower_confidence():
+    """ADAPT-006: repair targets use 0.45 threshold for support_dependent
+    instead of the regular 0.55, so a confidence of 0.48 should hold repair
+    but NOT hold a regular target."""
+    student_id = uuid4()
+
+    # At confidence 0.48 for repair stage -> should hold
+    repair_service = ProgressionOwnershipService(
+        knowledge_component_store=StubKnowledgeComponentStore(),
+        strategy_signal_service=StubStrategySignalService(
+            LearnerStrategySummary(
+                signal="support_intensive",
+                source="strategy_profile",
+                recovery_focus="prerequisite_rebuild",
+                recommended_next_action="rebuild_prerequisite",
+                rationale="Rebuild the prerequisite before returning to the target.",
+            )
+        ),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
+            OrdinaryMasterySummary(
+                signal="support_dependent",
+                source="ordinary_mastery_profile",
+                confidence=0.48,
+                average_observed_mastery=0.55,
+                rationale="Repair target still support-dependent at moderate confidence.",
+            )
+        ),
+    )
+
+    repair_decision = repair_service.resolve_request(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            target_kc_ids=["KC-3"],
+            target_lo_ids=["LO-1"],
+            requested_content_type="practice_problem",
+        ),
+    )
+
+    # Repair stage should hold because 0.48 >= 0.45
+    assert repair_decision.action == "hold_repair_target"
+    assert repair_decision.source == "ordinary_mastery_profile"
+    assert repair_decision.target_stage == "repair"
+
+    # At the same confidence for target stage -> should NOT hold
+    target_service = ProgressionOwnershipService(
+        knowledge_component_store=StubKnowledgeComponentStore(),
+        strategy_signal_service=StubStrategySignalService(LearnerStrategySummary()),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
+            OrdinaryMasterySummary(
+                signal="support_dependent",
+                source="ordinary_mastery_profile",
+                confidence=0.48,
+                average_observed_mastery=0.55,
+                rationale="Target still support-dependent at moderate confidence.",
+            )
+        ),
+    )
+
+    target_decision = target_service.resolve_request(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            target_kc_ids=["KC-1"],
+            target_lo_ids=["LO-1"],
+            requested_content_type="practice_problem",
+        ),
+    )
+
+    # Target stage should NOT hold because 0.48 < 0.55
+    assert target_decision.action != "hold_target"
+
+
+def test_asymmetric_repair_hold_fragile_triggers_at_lower_confidence():
+    """ADAPT-006: repair targets use 0.55 threshold for fragile instead of
+    the regular 0.65, so a confidence of 0.58 should hold repair but NOT
+    hold a regular target."""
+    student_id = uuid4()
+
+    # At confidence 0.58 for repair stage -> should hold
+    repair_service = ProgressionOwnershipService(
+        knowledge_component_store=StubKnowledgeComponentStore(),
+        strategy_signal_service=StubStrategySignalService(
+            LearnerStrategySummary(
+                signal="support_intensive",
+                source="strategy_profile",
+                recovery_focus="prerequisite_rebuild",
+                recommended_next_action="rebuild_prerequisite",
+                rationale="Rebuild the prerequisite before returning to the target.",
+            )
+        ),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
+            OrdinaryMasterySummary(
+                signal="fragile",
+                source="ordinary_mastery_profile",
+                confidence=0.58,
+                average_observed_mastery=0.48,
+                rationale="Repair target still fragile at moderate confidence.",
+            )
+        ),
+    )
+
+    repair_decision = repair_service.resolve_request(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            target_kc_ids=["KC-3"],
+            target_lo_ids=["LO-1"],
+            requested_content_type="practice_problem",
+        ),
+    )
+
+    assert repair_decision.action == "hold_repair_target"
+    assert repair_decision.source == "ordinary_mastery_profile"
+    assert repair_decision.target_stage == "repair"
+
+    # At the same confidence for target stage -> should NOT hold
+    target_service = ProgressionOwnershipService(
+        knowledge_component_store=StubKnowledgeComponentStore(),
+        strategy_signal_service=StubStrategySignalService(LearnerStrategySummary()),
+        within_session_adaptation_service=StubWithinSessionAdaptationService(WithinSessionAdaptationSummary()),
+        ordinary_mastery_signal_service=StubOrdinaryMasterySignalService(
+            OrdinaryMasterySummary(
+                signal="fragile",
+                source="ordinary_mastery_profile",
+                confidence=0.58,
+                average_observed_mastery=0.48,
+                rationale="Target still fragile at moderate confidence.",
+            )
+        ),
+    )
+
+    target_decision = target_service.resolve_request(
+        student_id=student_id,
+        request=GenerationRequest(
+            student_id=student_id,
+            target_kc_ids=["KC-1"],
+            target_lo_ids=["LO-1"],
+            requested_content_type="practice_problem",
+        ),
+    )
+
+    assert target_decision.action != "hold_target"
