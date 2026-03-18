@@ -4,6 +4,11 @@ import { LearnerShell } from './shells/LearnerShell'
 import { TeacherShell } from './shells/TeacherShell'
 import { StaffShell } from './shells/StaffShell'
 import { LearnerHome } from './views/learner/LearnerHome'
+import { ContinueLearning } from './views/learner/ContinueLearning'
+import { SocraticCheck } from './views/learner/SocraticCheck'
+import { RemediationSession } from './views/learner/RemediationSession'
+import { Progress } from './views/learner/Progress'
+import { History } from './views/learner/History'
 
 function Placeholder({ label }: { label: string }) {
   return (
@@ -26,11 +31,11 @@ export const router = createBrowserRouter([
     element: <LearnerShell />,
     children: [
       { index: true, element: <LearnerHome /> },
-      { path: 'continue', element: <Placeholder label="Continue Learning" /> },
-      { path: 'socratic/:sessionId', element: <Placeholder label="Socratic Check" /> },
-      { path: 'remediation/:sessionId', element: <Placeholder label="Remediation Session" /> },
-      { path: 'progress', element: <Placeholder label="Progress" /> },
-      { path: 'history', element: <Placeholder label="History" /> },
+      { path: 'continue', element: <ContinueLearning /> },
+      { path: 'socratic/:sessionId', element: <SocraticCheck /> },
+      { path: 'remediation/:sessionId', element: <RemediationSession /> },
+      { path: 'progress', element: <Progress /> },
+      { path: 'history', element: <History /> },
     ],
   },
 
