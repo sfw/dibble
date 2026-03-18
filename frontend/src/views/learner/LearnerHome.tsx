@@ -68,7 +68,7 @@ export function LearnerHome() {
                 {learnerArtifact(artifact.kind)}
               </p>
               <h2 className="mt-1 text-lg font-semibold">
-                {learnerContinueAction(continueAction.kind)}
+                {learnerContinueAction(continueAction.kind, continueAction.display_label)}
               </h2>
               {artifact.content_type && (
                 <p className="mt-0.5 text-sm text-muted-foreground">
@@ -98,7 +98,7 @@ export function LearnerHome() {
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <FocusItem
             label="Current stage"
-            value={learnerStage(progression.current_stage)}
+            value={learnerStage(progression.current_stage, progression.stage_display_label)}
           />
           <FocusItem
             label="Working on"

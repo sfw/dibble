@@ -70,8 +70,9 @@ export function toneForIntervention(status: string): TriageTone {
 /**
  * Selects the most relevant rationale string to display for a learner.
  *
- * TEMPORARY SHIM: The backend should provide a single `display_rationale` field
- * on TeacherLearnerCard so the frontend does not choose between rationale sources.
+ * Prefers intervention decision status, then curriculum progression rationale,
+ * then flow next-step rationale, then flow rationale. A backend-owned
+ * `display_rationale` field on TeacherLearnerCard would simplify this.
  */
 export function describeLearnerRationale(learner: TeacherLearnerCard): string {
   if (learner.intervention.latest_decision_status) {

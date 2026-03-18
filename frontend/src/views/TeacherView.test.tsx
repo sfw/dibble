@@ -51,7 +51,7 @@ describe('TeacherView', () => {
     expect(screen.getByText('Latest recorded decision')).toBeInTheDocument()
     expect(screen.getByText('backend-connected')).toBeInTheDocument()
     expect(screen.getByText('Debug explainability payload')).toBeInTheDocument()
-    expect(screen.getByText('What the frontend still cannot delegate cleanly to the backend')).toBeInTheDocument()
+    expect(screen.getByText('Product-expansion areas not yet built')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Approve' }))
     await user.click(screen.getByRole('button', { name: 'Return to classroom' }))

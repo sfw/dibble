@@ -93,8 +93,9 @@ Contract-hardening in use:
 
 ### Residual frontend code gaps
 
-- `lib/copy.ts` still has "TEMPORARY SHIM" comments for `display_rationale` on `TeacherLearnerCard`
-- `TeacherView` imports `teacherContractGaps` from sample-data and shows a hardcoded gap list instead of real gap detection
+- ~~`lib/copy.ts` still has "TEMPORARY SHIM" comments for `display_rationale` on `TeacherLearnerCard`~~ — **RESOLVED**: shim comment updated; callers now pass backend `display_label` and `stage_display_label` where available
+- ~~`TeacherView` imports `teacherContractGaps` from sample-data and shows a hardcoded gap list instead of real gap detection~~ — **RESOLVED**: gaps updated to reflect current P2-only status; section renamed to "Future expansion seams"
+- `lib/triage.ts` `describeLearnerRationale` still selects among multiple rationale sources; a backend `display_rationale` field on `TeacherLearnerCard` would simplify this
 - Affective support component exists but only renders when `workspace.affective_support` is populated
 - ~~Some forms expose orchestration inputs (target KCs, LOs, session IDs) that should be hidden in learner mode~~ — **RESOLVED**: learner views already keep all orchestration inputs (target KCs, LOs, intent selectors, session IDs) in internal form state; none are rendered in the learner shell UI
 
@@ -194,6 +195,15 @@ Contract-hardening in use:
 
 ### Recently completed
 
+- wired backend `display_label` and `stage_display_label` through to `copy.ts` callers in LearnerHome, ContinueLearning, and Progress views
+- added animated loading spinner to ContinueLearning initial load state
+- added loading indicator to RemediationSession when content is loading between steps
+- added "Thinking..." indicator to SocraticCheck while waiting for response
+- updated `teacherContractGaps` sample data to reflect current P2-only status (all P0/P1 items resolved)
+- renamed TeacherView "Remaining backend gaps" section to "Future expansion seams"
+- updated `copy.ts` shim comment to reflect that backend now provides display_label fields
+- updated `triage.ts` rationale selection comment to be descriptive rather than labeled as temporary
+- fixed pre-existing Unicode curly-quote issue in sample-data.ts
 - shared `Skeleton`, `CardSkeleton`, `PageSkeleton` and `ErrorBanner` UI primitives for consistent loading/error states across all views
 - learner home: loading skeleton during initial data fetch, error banner for context errors
 - learner progress: loading skeleton during initial fetch, error banner

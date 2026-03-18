@@ -56,7 +56,7 @@ export function Progress() {
             detail={`${progression.mastered_resource_count} of ${progression.resource_count} mastered`}
           />
           <div className="grid grid-cols-3 gap-3">
-            <StatBox label="Stage" value={learnerStage(progression.current_stage)} />
+            <StatBox label="Stage" value={learnerStage(progression.current_stage, progression.stage_display_label)} />
             <StatBox label="Ready" value={String(progression.ready_resource_count)} />
             <StatBox label="Blocked" value={String(progression.blocked_resource_count)} />
           </div>
