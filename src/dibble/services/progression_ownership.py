@@ -569,6 +569,8 @@ class ProgressionOwnershipService:
         fragments = [f"Ordinary mastery signal {summary.signal} at {summary.confidence:.2f} confidence"]
         if summary.average_observed_mastery is not None:
             fragments.append(f"average observed mastery {summary.average_observed_mastery:.2f}")
+        if summary.mastery_trend != "stable":
+            fragments.append(f"trend {summary.mastery_trend}")
         if summary.low_support_success_rate > 0.0:
             fragments.append(f"low-support success rate {summary.low_support_success_rate:.2f}")
         if summary.high_support_dependency_rate > 0.0:

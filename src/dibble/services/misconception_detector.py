@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from dibble.models.curriculum import KnowledgeComponent
 from dibble.models.generation import MisconceptionSignal
@@ -11,6 +12,7 @@ from dibble.services.knowledge_component_graph import KnowledgeComponentGraph
 from dibble.services.misconception_disambiguation import MisconceptionDisambiguationService
 from dibble.services.misconception_profiles import LearningMisconceptionProfileResolver
 from dibble.services.protocols import AuditStore, KnowledgeComponentStore, ObservationStore
+from dibble.services.recency import recency_weight
 
 
 _WORD_PATTERN = re.compile(r"[A-Za-z0-9']+")
@@ -329,6 +331,7 @@ class MisconceptionDetector:
             for misconception in component.common_misconceptions:
                 relevant_kc_ids.extend(misconception.prerequisite_kc_ids)
         observations = self.observation_store.list_recent(student_id=str(profile.student_id), limit=30)
+        now = datetime.now(timezone.utc)
         summaries: dict[str, BehavioralEvidenceSummary] = {}
         for kc_id in _unique_items(relevant_kc_ids):
             matched_observations = [
@@ -340,9 +343,14 @@ class MisconceptionDetector:
             ]
             if not matched_observations:
                 continue
-            struggle_count = sum(1 for observation in matched_observations if self._is_behavioral_struggle(observation))
-            low_support_success_count = sum(
-                1 for observation in matched_observations if self._is_behavioral_low_support_success(observation)
+            # Apply recency weighting so recent struggles/successes matter more
+            # than stale observations at the tail of the window.
+            observation_weights = [recency_weight(obs.created_at, now) for obs in matched_observations]
+            struggle_count = round(
+                sum(w for obs, w in zip(matched_observations, observation_weights) if self._is_behavioral_struggle(obs))
+            )
+            low_support_success_count = round(
+                sum(w for obs, w in zip(matched_observations, observation_weights) if self._is_behavioral_low_support_success(obs))
             )
             confidence_adjustment = self._behavioral_confidence_adjustment(
                 struggle_count=struggle_count,

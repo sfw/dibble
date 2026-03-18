@@ -23,6 +23,7 @@ class OrdinaryMasteryProfileSnapshot:
     average_observed_mastery: float | None = None
     low_support_success_rate: float = 0.0
     high_support_dependency_rate: float = 0.0
+    mastery_trend: str = "stable"
     rationale: str | None = None
 
 
@@ -69,12 +70,14 @@ class OrdinaryMasteryProfileBuilder:
         matched_session_count = len(session_ids) if session_ids else min(1, len(matched_events))
         low_support_success_rate = self._low_support_success_rate(events=matched_events, weights=weights)
         high_support_dependency_rate = self._high_support_dependency_rate(events=matched_events, weights=weights)
+        mastery_trend = self._mastery_trend(mastery_scores=mastery_scores, weights=weights)
         signal = self._signal_label(
             matched_observation_count=len(matched_events),
             matched_session_count=matched_session_count,
             average_observed_mastery=average_observed_mastery,
             low_support_success_rate=low_support_success_rate,
             high_support_dependency_rate=high_support_dependency_rate,
+            mastery_trend=mastery_trend,
         )
         confidence = self._confidence(
             signal=signal,
@@ -90,6 +93,7 @@ class OrdinaryMasteryProfileBuilder:
             average_observed_mastery=average_observed_mastery,
             low_support_success_rate=low_support_success_rate,
             high_support_dependency_rate=high_support_dependency_rate,
+            mastery_trend=mastery_trend,
             rationale=self._rationale(
                 signal=signal,
                 average_observed_mastery=average_observed_mastery,
@@ -97,6 +101,7 @@ class OrdinaryMasteryProfileBuilder:
                 matched_session_count=matched_session_count,
                 low_support_success_rate=low_support_success_rate,
                 high_support_dependency_rate=high_support_dependency_rate,
+                mastery_trend=mastery_trend,
             ),
         )
 
@@ -174,6 +179,36 @@ class OrdinaryMasteryProfileBuilder:
             )
         )
 
+    def _mastery_trend(
+        self,
+        *,
+        mastery_scores: list[float],
+        weights: list[float],
+    ) -> str:
+        """Detect whether mastery is improving, stable, or declining.
+
+        Splits recency-weighted scores into a recent half and an older half,
+        then compares their weighted averages.  A threshold of 0.06 prevents
+        noise from flipping the trend on small fluctuations.
+        """
+        if len(mastery_scores) < 3:
+            return "stable"
+        # mastery_scores are already ordered newest-first (matching the
+        # reverse-chronological event sort in _matched_observation_events).
+        midpoint = len(mastery_scores) // 2
+        recent_scores = mastery_scores[:midpoint]
+        recent_weights = weights[:midpoint]
+        older_scores = mastery_scores[midpoint:]
+        older_weights = weights[midpoint:]
+        recent_avg = sum(s * w for s, w in zip(recent_scores, recent_weights)) / (sum(recent_weights) or 1.0)
+        older_avg = sum(s * w for s, w in zip(older_scores, older_weights)) / (sum(older_weights) or 1.0)
+        delta = recent_avg - older_avg
+        if delta >= 0.06:
+            return "improving"
+        if delta <= -0.06:
+            return "declining"
+        return "stable"
+
     def _signal_label(
         self,
         *,
@@ -182,10 +217,14 @@ class OrdinaryMasteryProfileBuilder:
         average_observed_mastery: float,
         low_support_success_rate: float,
         high_support_dependency_rate: float,
+        mastery_trend: str = "stable",
     ) -> str:
         if matched_observation_count < 2:
             return "insufficient"
         if high_support_dependency_rate >= 0.6 and low_support_success_rate <= 0.35:
+            # A declining trend locks in support_dependent even when the rate
+            # is borderline; an improving trend does not override it because
+            # the dependency rate is still dominant.
             return "support_dependent"
         if (
             matched_observation_count >= self.minimum_stable_observation_count
@@ -194,13 +233,24 @@ class OrdinaryMasteryProfileBuilder:
             and low_support_success_rate >= 0.5
             and high_support_dependency_rate <= 0.25
         ):
+            # Even durable mastery can be downgraded to emerging if the recent
+            # trend is clearly declining — the learner may be losing ground.
+            if mastery_trend == "declining" and average_observed_mastery < 0.78:
+                return "emerging_mastery"
             return "durable_mastery"
         if average_observed_mastery >= 0.62 and low_support_success_rate >= 0.3:
             return "emerging_mastery"
         if average_observed_mastery < 0.52:
+            # An improving trend can rescue a borderline-fragile learner whose
+            # older observations drag the average down.
+            if mastery_trend == "improving" and average_observed_mastery >= 0.44:
+                return "emerging_mastery"
             return "fragile"
         if matched_session_count >= 2 and high_support_dependency_rate <= 0.35:
             return "emerging_mastery"
+        # A declining trend on a borderline average tips toward fragile.
+        if mastery_trend == "declining":
+            return "fragile"
         return "fragile"
 
     def _confidence(
@@ -239,29 +289,35 @@ class OrdinaryMasteryProfileBuilder:
         matched_session_count: int,
         low_support_success_rate: float,
         high_support_dependency_rate: float,
+        mastery_trend: str = "stable",
     ) -> str:
+        trend_fragment = ""
+        if mastery_trend == "improving":
+            trend_fragment = " Recent observations are trending upward."
+        elif mastery_trend == "declining":
+            trend_fragment = " Recent observations are trending downward."
         if signal == "durable_mastery":
             return (
                 f"Recent ordinary practice evidence stayed strong across {matched_observation_count} observations "
                 f"and {matched_session_count} sessions (average mastery {average_observed_mastery:.2f}, "
                 f"low-support success rate {low_support_success_rate:.2f}), so future ordinary writeback can trust "
-                "similar low-support successes a bit more."
+                f"similar low-support successes a bit more.{trend_fragment}"
             )
         if signal == "support_dependent":
             return (
                 f"Recent ordinary practice evidence remained support-heavy across {matched_observation_count} observations "
                 f"(high-support dependency rate {high_support_dependency_rate:.2f}), so future ordinary writeback should "
-                "discount more scaffolded successes."
+                f"discount more scaffolded successes.{trend_fragment}"
             )
         if signal == "emerging_mastery":
             return (
                 f"Recent ordinary practice evidence is moving in the right direction across {matched_session_count} sessions "
-                f"(average mastery {average_observed_mastery:.2f}), but durable mastery is not yet stable."
+                f"(average mastery {average_observed_mastery:.2f}), but durable mastery is not yet stable.{trend_fragment}"
             )
         if signal == "fragile":
             return (
                 f"Recent ordinary practice evidence remains inconsistent (average mastery {average_observed_mastery:.2f}, "
-                f"low-support success rate {low_support_success_rate:.2f}), so durable mastery should stay conservative."
+                f"low-support success rate {low_support_success_rate:.2f}), so durable mastery should stay conservative.{trend_fragment}"
             )
         return (
             f"Only light ordinary practice evidence is available ({matched_observation_count} matching observations), "
@@ -319,6 +375,7 @@ class OrdinaryMasteryProfileRecorder:
                         "average_observed_mastery": snapshot.average_observed_mastery,
                         "low_support_success_rate": snapshot.low_support_success_rate,
                         "high_support_dependency_rate": snapshot.high_support_dependency_rate,
+                        "mastery_trend": snapshot.mastery_trend,
                         "ordinary_mastery_profile_rationale": snapshot.rationale,
                     },
                 )
@@ -369,6 +426,7 @@ class OrdinaryMasterySignalService:
             ),
             low_support_success_rate=float(event.payload.get("low_support_success_rate", 0.0)),
             high_support_dependency_rate=float(event.payload.get("high_support_dependency_rate", 0.0)),
+            mastery_trend=str(event.payload.get("mastery_trend", "stable")),
             rationale=(
                 str(event.payload.get("ordinary_mastery_profile_rationale"))
                 if event.payload.get("ordinary_mastery_profile_rationale") is not None

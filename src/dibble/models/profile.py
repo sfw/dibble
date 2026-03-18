@@ -231,6 +231,7 @@ class OrdinaryMasterySummary(BaseModel):
     average_observed_mastery: float | None = Field(default=None, ge=0.0, le=1.0)
     low_support_success_rate: float = Field(default=0.0, ge=0.0, le=1.0)
     high_support_dependency_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    mastery_trend: str = "stable"
     rationale: str | None = None
     updated_at: datetime | None = None
 
