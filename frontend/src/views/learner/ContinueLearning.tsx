@@ -93,7 +93,20 @@ export function ContinueLearning() {
         <StreamingContent blocks={displayBlocks} streaming={isStreaming} />
       )}
 
-      <ErrorBanner message={generation.error} />
+      {generation.error && (
+        <div className="flex flex-col gap-2">
+          <ErrorBanner message={generation.error} />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleContinue}
+            disabled={loading || isStreaming}
+            className="self-start"
+          >
+            Try again
+          </Button>
+        </div>
+      )}
 
       {!loading && !hasContent && !isStreaming && !generation.error && (
         <div className="rounded-xl border bg-white p-8 text-center text-muted-foreground animate-scale-in">

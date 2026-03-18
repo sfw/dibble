@@ -193,12 +193,14 @@ The frontend has moved from a contract integration workbench to a three-layer LM
 **What the frontend now has:**
 
 1. a role-based React Router app with learner (`/learn`), teacher (`/teacher`), and staff (`/staff`) shells
-2. learner shell: home, continue-learning, Socratic check, remediation session, progress, history views
-3. teacher shell: dashboard, classroom detail, learner detail, intervention workspace
+2. learner shell: home, continue-learning, Socratic check, remediation session, progress (with full resource breakdown by state), history (with type filter tabs), assignments
+3. teacher shell: dashboard, classroom detail, learner detail, intervention workspace, reports (with per-learner mastery heatmap), assignments
 4. staff shell: the original workbench, repositioned as internal tooling
 5. content rendering components (ContentBlock, StreamingContent, AffectiveSupport)
 6. vocabulary translation layer preferring backend-provided `display_label` fields
 7. all backend-owned contracts integrated: summary, flow, workspace, history, progression, workflow_summary, intervention, remediation, Socratic, classroom, continue_action, triage_section, affective_support, display_label, machine-readable error codes
+8. learner interaction polish: all three core interaction views (SocraticCheck, RemediationSession, ContinueLearning) now have accessibility improvements, form validation, error retry buttons, and empty state handling
+9. 30 test files with 199 tests
 
 **What the frontend is now asking for:**
 
