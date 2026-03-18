@@ -84,7 +84,7 @@ Contract-hardening in use:
 |---|---|---|
 | ~~P0~~ | ~~No product-level authentication or user identity~~ | **RESOLVED** — backend supports `learner` and `teacher` roles with entity bindings. Frontend now has login screen (`/login`), `useAuth` hook with bearer token persistence and refresh, `AuthGuard` gating `/learn` and `/teacher` routes, role-aware redirect, logout from shell headers, and `AuthContext` for app-wide auth state. |
 | ~~P1~~ | ~~No assignment model or lifecycle~~ | **RESOLVED** — backend has a first-class `Assignment` entity. Frontend now has learner assignment view (`/learn/assignments`) with active/past grouping, start action, and pagination; teacher assignment view (`/teacher/assignments`) with create form, cancel action, and pagination; `useAssignments` hooks for both roles; nav links in both shells; and tests. |
-| P1 | Teacher reporting is a placeholder | `/teacher/reports` shows "Coming soon"; no class-level progress, trend, or standards mastery views |
+| ~~P1~~ | ~~Teacher reporting is a placeholder~~ | **RESOLVED** — `/teacher/reports` now shows a real reporting surface with cross-classroom summary metrics, per-classroom progress cards with stacked distribution bars, and per-classroom deep-dive sections for stage distribution, engagement/frustration overview, activity totals, and attention levels. Reports nav link added to teacher shell. Tests cover all report sections. |
 | ~~P1~~ | ~~No pagination on history endpoints~~ | **RESOLVED** — backend returns `{ items, offset, limit, has_more }` paginated responses. Frontend `useLearnerContracts` hook now tracks pagination state and exposes `loadMoreHistory`. History view shows a "Load more" button when more entries are available. |
 | P2 | Course-level progression planning is lighter than a true course planner | UI should trust learner `curriculum_progression` and avoid inventing cross-unit sequencing logic |
 | P2 | No multimodal artifact payload contract | Content cards should stay extensible without assuming diagrams or interactives yet |
@@ -96,7 +96,7 @@ Contract-hardening in use:
 - `lib/copy.ts` still has "TEMPORARY SHIM" comments for `display_rationale` on `TeacherLearnerCard`
 - `TeacherView` imports `teacherContractGaps` from sample-data and shows a hardcoded gap list instead of real gap detection
 - Affective support component exists but only renders when `workspace.affective_support` is populated
-- Some forms expose orchestration inputs (target KCs, LOs, session IDs) that should be hidden in learner mode
+- ~~Some forms expose orchestration inputs (target KCs, LOs, session IDs) that should be hidden in learner mode~~ — **RESOLVED**: learner views already keep all orchestration inputs (target KCs, LOs, intent selectors, session IDs) in internal form state; none are rendered in the learner shell UI
 
 ## Execution Priorities
 
@@ -183,16 +183,19 @@ Contract-hardening in use:
 
 ### In progress
 
-- hide orchestration inputs from the learner shell so Continue Learning feels like a real learning flow
+- learner experience polish: loading states, transitions, error recovery
+- teacher reporting depth: trends, standards mastery, per-learner evidence timelines
 
 ### Next up
 
-1. hide orchestration inputs from the learner shell so Continue Learning feels like a real learning flow
-2. build real teacher reporting to replace the placeholder
+1. polish learner flow transitions and loading states for product-grade feel
+2. deepen teacher reporting with trend lines and per-learner drill-in
 3. keep this work plan and `from-front-to-back-needs.md` updated together
 
 ### Recently completed
 
+- teacher reports view (`/teacher/reports`) with cross-classroom summary, per-classroom progress cards, stage distribution, engagement/frustration overview, activity totals, and attention levels — with Reports nav link in teacher shell and 9 tests
+- confirmed learner shell already hides all orchestration inputs; no UI changes needed
 - learner assignment view (`/learn/assignments`) with active/past grouping, start action, due dates, and load-more pagination
 - teacher assignment view (`/teacher/assignments`) with create form, student selection, cancel action, and load-more pagination
 - `useLearnerAssignments` and `useTeacherAssignments` hooks with fetch, create, status update, and pagination
@@ -227,7 +230,7 @@ Built:
 - `History` with generation, Socratic, and remediation tabs
 
 Remaining:
-- hide orchestration inputs from learner forms
+- ~~hide orchestration inputs from learner forms~~ — **DONE**: all orchestration inputs already internal-only
 - polish transitions and loading states
 - learner-safe error recovery
 
@@ -241,16 +244,18 @@ Built:
 - Classroom-to-learner drill-in and return navigation
 
 Remaining:
-- teacher reporting surface
+- ~~teacher reporting surface~~ — **DONE**: `/teacher/reports` with cross-classroom and per-classroom reporting
 - artifact review (see actual generated content a learner received)
-- assignment management layer
+- ~~assignment management layer~~ — **DONE**: teacher and learner assignment views
 - richer class-level progress and trend views
 
 ### Phase 3: assignments, reporting, and operational completeness — IN PROGRESS
 
 - ~~assignment framing layer~~ — **DONE**: learner and teacher assignment views with create, start, cancel, and pagination
-- teacher reporting with trends and standards mastery
-- class-level progress review
+- ~~teacher reporting placeholder~~ — **DONE**: `/teacher/reports` now shows class-level progress, learner distribution, engagement/frustration, activity totals, and attention levels across classrooms
+- ~~hide orchestration inputs from learner shell~~ — **DONE**: confirmed all orchestration inputs are already internal-only; no UI exposure
+- teacher reporting depth: trends and standards mastery
+- class-level progress review with trend lines
 - role-aware navigation polish
 
 ### Phase 4: product depth expansion — FUTURE
