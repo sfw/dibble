@@ -19,6 +19,7 @@ export interface LearnerFlowNextStep {
 
 export interface LearnerContinueAction {
   kind: ContinueActionKind
+  display_label?: string | null
   method?: ContinueActionMethod | null
   endpoint?: string | null
   resource_id?: string | null
@@ -181,6 +182,7 @@ export interface LearnerCurriculumProgressionSummary {
   source: string
   flow_type: string
   current_stage: string
+  stage_display_label?: string | null
   progression_action: string
   active_target_kc_ids: string[]
   resource_count: number
@@ -553,11 +555,18 @@ export interface LearnerWorkspaceArtifact {
   rationale?: string | null
 }
 
+export interface AffectiveSupportMessage {
+  kind: string
+  title: string
+  detail: string
+}
+
 export interface LearnerWorkspace {
   student_id: string
   summary: ProfileSummary
   active_artifact: LearnerWorkspaceArtifact
   continue_action: LearnerContinueAction
+  affective_support?: AffectiveSupportMessage | null
   generated_content?: GeneratedContent | null
   remediation_session?: RemediationWorkflowSession | null
   socratic_session?: SocraticAssessmentSession | null
@@ -683,6 +692,7 @@ export interface TeacherLearnerCard {
   recent_activity: RecentLearnerActivity
   intervention: TeacherLearnerInterventionSummary
   attention_level: string
+  triage_section: string
   attention_reasons: string[]
 }
 

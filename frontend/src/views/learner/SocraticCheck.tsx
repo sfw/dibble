@@ -19,7 +19,7 @@ const confidenceLevels = [
 
 export function SocraticCheck() {
   const { sessionId } = useParams<{ sessionId: string }>()
-  const { config, workspace, summary } = useOutletContext<LearnerContext>()
+  const { config, workspace } = useOutletContext<LearnerContext>()
   const navigate = useNavigate()
 
   const [, setDataSource] = useState<DataSource>('demo')
@@ -78,7 +78,7 @@ export function SocraticCheck() {
       </header>
 
       {/* Affective state support */}
-      <AffectiveSupport summary={summary} />
+      <AffectiveSupport message={workspace.affective_support} />
 
       {/* Conversation thread */}
       <div className="flex flex-col gap-3">

@@ -11,7 +11,7 @@ import { useGenerationWorkspace } from '../../hooks/useGenerationWorkspace'
 import type { DataSource } from '../../app/workspace'
 
 export function ContinueLearning() {
-  const { config, workspace, flow, progression, summary, loading } = useOutletContext<LearnerContext>()
+  const { config, workspace, flow, progression, loading } = useOutletContext<LearnerContext>()
   const navigate = useNavigate()
 
   const [, setDataSource] = useState<DataSource>('demo')
@@ -74,7 +74,7 @@ export function ContinueLearning() {
       </header>
 
       {/* Affective state support */}
-      <AffectiveSupport summary={summary} />
+      <AffectiveSupport message={workspace.affective_support} />
 
       {/* Content canvas — streaming-aware with block type rendering */}
       {loading && !hasContent && !isStreaming && (

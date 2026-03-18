@@ -3,8 +3,7 @@ import { buildTriageSections, describeLearnerRationale, toneForIntervention, ton
 import type { TeacherLearnerCard } from '../types'
 
 function makeLearnerCard(overrides: Partial<{
-  intervention_status: string
-  attention_level: string
+  triage_section: string
 }>): TeacherLearnerCard {
   return {
     student_id: 'student-1',
@@ -60,20 +59,19 @@ function makeLearnerCard(overrides: Partial<{
     },
     intervention: {
       action_key: 'action-1',
-      proposal_status: overrides.intervention_status === 'available' ? 'available' : 'unavailable',
+      proposal_status: 'unavailable',
       recommended_action_kind: 'generate_follow_up',
       option_count: 2,
     },
-    attention_level: overrides.attention_level ?? 'low',
+    attention_level: 'low',
+    triage_section: overrides.triage_section ?? 'on_track',
     attention_reasons: [],
   }
 }
 
 describe('buildTriageSections', () => {
-  it('sorts learners with available intervention into teacher-action', () => {
-    const learners = [
-      makeLearnerCard({ intervention_status: 'available' }),
-    ]
+  it('sorts teacher_action learners into the first section', () => {
+    const learners = [makeLearnerCard({ triage_section: 'teacher_action' })]
     const sections = buildTriageSections(learners)
     expect(sections[0].key).toBe('teacher-action')
     expect(sections[0].learners).toHaveLength(1)
@@ -81,10 +79,8 @@ describe('buildTriageSections', () => {
     expect(sections[2].learners).toHaveLength(0)
   })
 
-  it('sorts high-attention learners into needs-attention section', () => {
-    const learners = [
-      makeLearnerCard({ attention_level: 'high' }),
-    ]
+  it('sorts needs_attention learners into the second section', () => {
+    const learners = [makeLearnerCard({ triage_section: 'needs_attention' })]
     const sections = buildTriageSections(learners)
     expect(sections[0].learners).toHaveLength(0)
     expect(sections[1].key).toBe('needs-attention')
@@ -92,29 +88,17 @@ describe('buildTriageSections', () => {
     expect(sections[2].learners).toHaveLength(0)
   })
 
-  it('sorts medium-attention learners into needs-attention section', () => {
-    const learners = [
-      makeLearnerCard({ attention_level: 'medium' }),
-    ]
-    const sections = buildTriageSections(learners)
-    expect(sections[1].key).toBe('needs-attention')
-    expect(sections[1].learners).toHaveLength(1)
-  })
-
-  it('sorts low-attention learners into on-track', () => {
-    const learners = [makeLearnerCard({})]
+  it('sorts on_track learners into the third section', () => {
+    const learners = [makeLearnerCard({ triage_section: 'on_track' })]
     const sections = buildTriageSections(learners)
     expect(sections[2].key).toBe('on-track')
     expect(sections[2].learners).toHaveLength(1)
   })
 
-  it('prioritizes intervention over attention level', () => {
-    const learners = [
-      makeLearnerCard({ intervention_status: 'available', attention_level: 'high' }),
-    ]
+  it('falls back to on-track for unknown triage_section values', () => {
+    const learners = [makeLearnerCard({ triage_section: 'something_new' })]
     const sections = buildTriageSections(learners)
-    expect(sections[0].learners).toHaveLength(1)
-    expect(sections[1].learners).toHaveLength(0)
+    expect(sections[2].learners).toHaveLength(1)
   })
 })
 

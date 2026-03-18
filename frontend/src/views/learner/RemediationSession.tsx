@@ -12,7 +12,7 @@ import { AffectiveSupport } from '../../components/content/AffectiveSupport'
 import type { DataSource } from '../../app/workspace'
 
 export function RemediationSession() {
-  const { config, workspace, summary } = useOutletContext<LearnerContext>()
+  const { config, workspace } = useOutletContext<LearnerContext>()
   const navigate = useNavigate()
 
   const [, setDataSource] = useState<DataSource>('demo')
@@ -92,7 +92,7 @@ export function RemediationSession() {
       )}
 
       {/* Affective state support */}
-      <AffectiveSupport summary={summary} />
+      <AffectiveSupport message={workspace.affective_support} />
 
       {/* Content from generated blocks */}
       {contentBlocks.length > 0 && (

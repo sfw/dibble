@@ -12,61 +12,39 @@ Use it to answer:
 
 ## Current Frontend Reality
 
-- There are three active P1 backend asks: triage section ownership, affective support messages, and display labels on machine-readable keys. All three have working frontend shims, so they are not blockers, but the frontend is currently making pedagogical decisions that should be backend-owned.
+- The three P1 backend asks (triage section ownership, affective support messages, display labels) are now resolved. The backend provides `triage_section` on `TeacherLearnerCard`, `affective_support` on `LearnerWorkspace`, and `display_label`/`stage_display_label` on `LearnerContinueAction`/`LearnerCurriculumProgressionSummary`. The frontend shims have been removed and replaced with direct rendering of backend-provided fields.
 - The frontend is already building on backend-owned learner summary, `current_flow`, learner workspace, learner history, generation `workflow_summary`, Socratic session summaries, remediation session summaries, learner progression, teacher intervention, classroom, `continue_action`, and machine-readable error contracts.
 - The main frontend work right now is implementation depth, workflow polish, explainability curation, and behavioral test coverage on top of those existing backend contracts.
 - The backend should keep owning progression, mastery, intervention, and resume decisions. The frontend should render those decisions, not reconstruct or soften them locally.
-- The frontend should not interpret raw signals or machine-readable keys to make pedagogical decisions. Where it currently does, it is documented as a temporary shim awaiting backend ownership.
+- The frontend no longer interprets raw signals or machine-readable keys to make pedagogical decisions. The `copy.ts` lookup tables remain as backwards-compatible fallbacks but prefer backend-provided labels when available.
 
-## What The Frontend Needs From The Backend Right Now
+## Resolved P1 Backend Asks
 
-The frontend has identified three areas where it is currently making decisions that should be backend-owned. These are documented as temporary frontend shims that should be replaced once the backend provides the corresponding contracts.
+All three P1 frontend-to-backend asks are now complete:
 
-### P1: Backend-owned triage sections on TeacherLearnerCard
+### Resolved: Backend-owned triage sections on TeacherLearnerCard
 
-**Current state:** The frontend groups learners into triage sections (needs teacher action, needs attention, on track) by interpreting `attention_level` and `intervention.proposal_status` locally in `lib/triage.ts`. This sorting logic is a backend decision about which learners a teacher should focus on.
+**Backend provides:** `triage_section` field on `TeacherLearnerCard` with values `teacher_action`, `needs_attention`, `on_track`.
 
-**Ask:** Add a `triage_section` field (or equivalent) to `TeacherLearnerCard` so the backend owns the categorization. Values like `teacher_action`, `needs_attention`, `on_track` would let the frontend group without interpreting signals. The backend already computes `attention_level` — this is a small step further to also own the grouping decision.
+**Frontend integration:** `lib/triage.ts:buildTriageSections()` now groups by `triage_section` directly — no signal interpretation.
 
-**Frontend shim location:** `frontend/src/lib/triage.ts:buildTriageSections()`
+### Resolved: Backend-owned affective support messages
 
-### P1: Backend-owned affective support messages
+**Backend provides:** `affective_support` field on `LearnerWorkspace` with `{ kind, title, detail }` or `null`.
 
-**Current state:** The frontend interprets raw `frustration` and `engagement` signal levels to decide when to show support messages ("It's okay to take a break", "You're on a roll!") in `components/content/AffectiveSupport.tsx`. The thresholds, priority order, and message content are all hardcoded pedagogical decisions.
+**Frontend integration:** `components/content/AffectiveSupport.tsx` renders the backend-provided message directly — no frustration/engagement threshold logic.
 
-**Ask:** Add an optional `affective_support` field to the learner workspace or profile summary:
-```
-affective_support?: {
-  kind: 'break_suggestion' | 'nudge' | 'encouragement'
-  title: string
-  detail: string
-} | null
-```
-When null, the frontend shows nothing. When present, the frontend renders the message. This lets the backend own the pedagogical rules for when and what to show, and makes them configurable, versionable, and A/B testable.
+### Resolved: Backend-owned display labels alongside machine-readable keys
 
-**Frontend shim location:** `frontend/src/components/content/AffectiveSupport.tsx:resolveAffectiveMessage()`
+**Backend provides:** `display_label` on `LearnerContinueAction`, `stage_display_label` on `LearnerCurriculumProgressionSummary`.
 
-### P1: Backend-owned display labels alongside machine-readable keys
+**Frontend integration:** `lib/copy.ts` functions accept and prefer `backendLabel` parameter. Local lookup tables remain as backwards-compatible fallbacks only.
 
-**Current state:** The frontend maintains hardcoded lookup tables in `lib/copy.ts` that map backend keys to role-appropriate display strings (e.g. `repair` → `"Building foundations"` for learners, `repair` → `"Repair"` for teachers). These are pedagogical framing decisions — the choice to call the repair stage "Building foundations" for a learner is a product/pedagogy decision, not a presentation concern.
-
-**Ask:** Add optional `display_label` fields alongside machine-readable keys on learner-facing and teacher-facing contracts. For example:
-- `continue_action.kind` → also provide `continue_action.display_label`
-- `curriculum_progression.current_stage` → also provide `curriculum_progression.stage_display_label`
-- `remediation_step.phase` → also provide `remediation_step.phase_display_label`
-
-The frontend `copy.ts` functions already accept an optional `backendLabel` parameter and will prefer the backend-provided label when available, falling back to the local table only for backwards compatibility.
-
-**Frontend shim location:** `frontend/src/lib/copy.ts` (all lookup tables)
-
-### Backend marching order
+### Ongoing backend marching order
 
 1. preserve the existing frontend-facing contract set
-2. add `triage_section` to `TeacherLearnerCard`
-3. add `affective_support` to learner workspace/profile
-4. add `display_label` fields alongside machine-readable keys on learner and teacher contracts
-5. keep cross-surface parity and vocabulary stability strong
-6. continue improving backend decision quality without pushing policy back into the UI
+2. keep cross-surface parity and vocabulary stability strong
+3. continue improving backend decision quality without pushing policy back into the UI
 
 ## Preserve And Harden
 

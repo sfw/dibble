@@ -1,58 +1,51 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { AffectiveSupport } from './AffectiveSupport'
-import type { ProfileSummary, SignalLevel } from '../../types'
-
-function makeSummary(overrides: { engagement?: SignalLevel; frustration?: SignalLevel } = {}): ProfileSummary {
-  return {
-    student_id: 'test-student',
-    grade_level: '5',
-    profile_version: '1',
-    kc_count: 10,
-    lo_count: 5,
-    engagement: overrides.engagement ?? 'medium',
-    frustration: overrides.frustration ?? 'low',
-    total_load: 0.5,
-    confidence_calibration: 0.7,
-    help_seeking: 'low',
-    calibration: {} as ProfileSummary['calibration'],
-    progress: {} as ProfileSummary['progress'],
-    strategy: {} as ProfileSummary['strategy'],
-    state_profile: {} as ProfileSummary['state_profile'],
-    trait_profile: {} as ProfileSummary['trait_profile'],
-    recent_activity: { generation_count: 0, observation_count: 0, socratic_assessment_count: 0 },
-    current_flow: {} as ProfileSummary['current_flow'],
-    curriculum_progression: {} as ProfileSummary['curriculum_progression'],
-    updated_at: '2026-01-01T00:00:00Z',
-  }
-}
 
 describe('AffectiveSupport', () => {
-  it('shows break message when frustration is high', () => {
-    render(<AffectiveSupport summary={makeSummary({ frustration: 'high' })} />)
+  it('shows break suggestion', () => {
+    render(
+      <AffectiveSupport
+        message={{ kind: 'break_suggestion', title: "It's okay to take a break", detail: 'Take your time.' }}
+      />,
+    )
     expect(screen.getByText("It's okay to take a break")).toBeInTheDocument()
   })
 
-  it('shows nudge message when frustration is medium', () => {
-    render(<AffectiveSupport summary={makeSummary({ frustration: 'medium' })} />)
+  it('shows nudge', () => {
+    render(
+      <AffectiveSupport
+        message={{ kind: 'nudge', title: 'Need a different approach?', detail: 'Try the hints.' }}
+      />,
+    )
     expect(screen.getByText('Need a different approach?')).toBeInTheDocument()
   })
 
-  it('shows encouragement when engagement is high and frustration is low', () => {
-    render(<AffectiveSupport summary={makeSummary({ engagement: 'high', frustration: 'low' })} />)
+  it('shows encouragement', () => {
+    render(
+      <AffectiveSupport
+        message={{ kind: 'encouragement', title: "You're on a roll!", detail: 'Keep going.' }}
+      />,
+    )
     expect(screen.getByText("You're on a roll!")).toBeInTheDocument()
   })
 
-  it('prioritizes frustration over engagement', () => {
-    render(<AffectiveSupport summary={makeSummary({ engagement: 'high', frustration: 'high' })} />)
-    expect(screen.getByText("It's okay to take a break")).toBeInTheDocument()
-    expect(screen.queryByText("You're on a roll!")).not.toBeInTheDocument()
+  it('renders nothing when message is null', () => {
+    const { container } = render(<AffectiveSupport message={null} />)
+    expect(container.innerHTML).toBe('')
   })
 
-  it('renders nothing when both signals are neutral', () => {
-    const { container } = render(
-      <AffectiveSupport summary={makeSummary({ engagement: 'medium', frustration: 'low' })} />,
-    )
+  it('renders nothing when message is undefined', () => {
+    const { container } = render(<AffectiveSupport />)
     expect(container.innerHTML).toBe('')
+  })
+
+  it('handles unknown kind gracefully', () => {
+    render(
+      <AffectiveSupport
+        message={{ kind: 'new_kind', title: 'Something new', detail: 'From the backend.' }}
+      />,
+    )
+    expect(screen.getByText('Something new')).toBeInTheDocument()
   })
 })

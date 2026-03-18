@@ -13,28 +13,15 @@ export interface TriageSection {
 /**
  * Groups learners into triage sections for teacher review.
  *
- * BACKEND-OWNED DECISION: Triage categorization should be a backend responsibility.
- * The backend already provides `attention_level` and `intervention.proposal_status`
- * on each TeacherLearnerCard. This function groups by those backend-provided fields
- * rather than re-deriving categories from raw progression or attention data.
- *
- * When the backend provides a `triage_section` field on TeacherLearnerCard, this
- * function should simply group by that field and stop interpreting signals locally.
+ * Uses the backend-provided `triage_section` field on each TeacherLearnerCard.
+ * The backend owns the categorization decision — the frontend only groups
+ * and assigns display metadata (title, description, tone).
  */
 export function buildTriageSections(learners: TeacherLearnerCard[]): TriageSection[] {
-  // Group by backend-provided attention_level and intervention status.
-  // The backend owns the decision about which learners need attention — we only
-  // sort into display groups based on the backend's classification.
-  const teacherAction = learners.filter(
-    (learner) => learner.intervention.proposal_status === 'available',
-  )
-  const needsAttention = learners.filter(
-    (learner) =>
-      learner.intervention.proposal_status !== 'available' &&
-      (learner.attention_level === 'high' || learner.attention_level === 'medium'),
-  )
+  const teacherAction = learners.filter((l) => l.triage_section === 'teacher_action')
+  const needsAttention = learners.filter((l) => l.triage_section === 'needs_attention')
   const onTrack = learners.filter(
-    (learner) => !teacherAction.includes(learner) && !needsAttention.includes(learner),
+    (l) => l.triage_section !== 'teacher_action' && l.triage_section !== 'needs_attention',
   )
 
   return [
@@ -64,9 +51,6 @@ export function buildTriageSections(learners: TeacherLearnerCard[]): TriageSecti
 
 /**
  * Maps a backend-provided progression status to a display tone.
- *
- * TEMPORARY SHIM: The backend should provide a `progression_tone` or equivalent
- * field so the frontend does not interpret status strings.
  */
 export function toneForProgression(status: string): TriageTone {
   if (status.includes('blocked')) return 'warning'
@@ -76,8 +60,6 @@ export function toneForProgression(status: string): TriageTone {
 
 /**
  * Maps a backend-provided intervention status to a display tone.
- *
- * TEMPORARY SHIM: The backend should provide a display tone alongside the status.
  */
 export function toneForIntervention(status: string): TriageTone {
   if (status === 'available') return 'accent'
