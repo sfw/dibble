@@ -337,7 +337,15 @@ class ProgressionOwnershipService:
         hold_action = self._ordinary_mastery_hold_action(target_stage=target_stage)
         if hold_action is None:
             return OrdinaryProgressionDecision(summary=summary)
-        if summary.signal == "support_dependent" and summary.confidence >= 0.55:
+
+        # ADAPT-006: Repair targets use lower confidence thresholds because
+        # the learner is explicitly in a remediation arc and should be held
+        # more cautiously — releasing too early risks the same misconception
+        # resurfacing on the original target.
+        support_dependent_threshold = 0.45 if target_stage == "repair" else 0.55
+        fragile_threshold = 0.55 if target_stage == "repair" else 0.65
+
+        if summary.signal == "support_dependent" and summary.confidence >= support_dependent_threshold:
             return OrdinaryProgressionDecision(
                 decision=hold_action,
                 rationale=self._ordinary_mastery_hold_rationale(
@@ -352,7 +360,7 @@ class ProgressionOwnershipService:
                 ),
                 summary=summary,
             )
-        if summary.signal == "fragile" and summary.confidence >= 0.65:
+        if summary.signal == "fragile" and summary.confidence >= fragile_threshold:
             return OrdinaryProgressionDecision(
                 decision=hold_action,
                 rationale=self._ordinary_mastery_hold_rationale(

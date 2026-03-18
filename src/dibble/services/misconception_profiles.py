@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from dibble.models.generation import MisconceptionSignal
 from dibble.models.telemetry import AuditEvent
 from dibble.services.protocols import AuditStore
+from dibble.services.recency import recency_weight
 
 
 @dataclass(slots=True)
@@ -54,8 +55,23 @@ class LearningMisconceptionProfileRecorder:
                 if _signal_key(candidate_signal) == signal_key
             }
 
+            reference_time = remediation_event.created_at
+            signal_weights = [
+                recency_weight(event.created_at, reference_time, lookback_days=self.recency_window_days)
+                for event in remediation_events
+                for candidate_signal in _misconception_signals(event)
+                if _signal_key(candidate_signal) == signal_key
+            ]
+            # Fallback to uniform weights if length mismatch (defensive)
+            if len(signal_weights) != len(matched_signals):
+                signal_weights = [1.0] * len(matched_signals)
+            total_signal_weight = sum(signal_weights) or 1.0
             average_confidence = round(
-                sum(float(item.get("confidence", 0.0)) for item in matched_signals) / len(matched_signals),
+                sum(
+                    float(item.get("confidence", 0.0)) * w
+                    for item, w in zip(matched_signals, signal_weights)
+                )
+                / total_signal_weight,
                 2,
             )
             evidence_terms = sorted(
@@ -145,7 +161,13 @@ class LearningMisconceptionProfileResolver:
                 matched_session_count=current_session_count,
                 average_confidence=average_confidence,
             )
-            confidence = min(0.99, average_confidence + min(0.18, current_occurrence_count * 0.05))
+            event_recency = recency_weight(
+                event.created_at, datetime.now(timezone.utc), lookback_days=self.recency_window_days,
+            )
+            confidence = min(
+                0.99,
+                (average_confidence * event_recency) + min(0.18, current_occurrence_count * 0.05),
+            )
             if recurrence_signal == "relapsing":
                 confidence = min(0.99, confidence + 0.05)
             signals.append(

@@ -7,6 +7,7 @@ from uuid import UUID
 from dibble.models.profile import OrdinaryMasterySummary
 from dibble.models.telemetry import AuditEvent
 from dibble.services.protocols import AuditStore
+from dibble.services.recency import recency_weight
 
 
 def _clamp(value: float, *, low: float = 0.0, high: float = 1.0) -> float:
@@ -50,16 +51,24 @@ class OrdinaryMasteryProfileBuilder:
         if not matched_events:
             return None
 
+        reference_time = observation_event.created_at
+        weights = [
+            recency_weight(event.created_at, reference_time, lookback_days=self.recency_window_days)
+            for event in matched_events
+        ]
         mastery_scores = [self._mastery_score(event) for event in matched_events]
-        average_observed_mastery = round(sum(mastery_scores) / len(mastery_scores), 2)
+        total_weight = sum(weights) or 1.0
+        average_observed_mastery = round(
+            sum(score * w for score, w in zip(mastery_scores, weights)) / total_weight, 2
+        )
         session_ids = {
             str(event.payload.get("learning_session_id"))
             for event in matched_events
             if event.payload.get("learning_session_id")
         }
         matched_session_count = len(session_ids) if session_ids else min(1, len(matched_events))
-        low_support_success_rate = self._low_support_success_rate(events=matched_events)
-        high_support_dependency_rate = self._high_support_dependency_rate(events=matched_events)
+        low_support_success_rate = self._low_support_success_rate(events=matched_events, weights=weights)
+        high_support_dependency_rate = self._high_support_dependency_rate(events=matched_events, weights=weights)
         signal = self._signal_label(
             matched_observation_count=len(matched_events),
             matched_session_count=matched_session_count,
@@ -128,13 +137,23 @@ class OrdinaryMasteryProfileBuilder:
             value = event.payload.get("observation_average_recent_mastery")
         return round(_clamp(float(value or 0.0)), 2)
 
-    def _low_support_success_rate(self, *, events: list[AuditEvent]) -> float:
-        successes = sum(1 for event in events if self._is_low_support_success(event))
-        return round(successes / len(events), 2)
+    def _low_support_success_rate(
+        self, *, events: list[AuditEvent], weights: list[float] | None = None,
+    ) -> float:
+        if weights is None:
+            weights = [1.0] * len(events)
+        total = sum(weights) or 1.0
+        weighted_successes = sum(w for event, w in zip(events, weights) if self._is_low_support_success(event))
+        return round(weighted_successes / total, 2)
 
-    def _high_support_dependency_rate(self, *, events: list[AuditEvent]) -> float:
-        dependencies = sum(1 for event in events if self._is_high_support_dependency(event))
-        return round(dependencies / len(events), 2)
+    def _high_support_dependency_rate(
+        self, *, events: list[AuditEvent], weights: list[float] | None = None,
+    ) -> float:
+        if weights is None:
+            weights = [1.0] * len(events)
+        total = sum(weights) or 1.0
+        weighted_deps = sum(w for event, w in zip(events, weights) if self._is_high_support_dependency(event))
+        return round(weighted_deps / total, 2)
 
     def _is_low_support_success(self, event: AuditEvent) -> bool:
         return (

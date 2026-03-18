@@ -122,7 +122,7 @@ Contract-hardening in use:
 ### P1: teacher experience depth
 
 - ~~Build a real teacher reporting surface with class-level progress, mastery trends, and per-learner evidence timelines~~ — **DONE**: `/teacher/reports` with cross-classroom summaries, per-classroom analytics, per-learner mastery heatmap, and learner drill-down table
-- Improve classroom detail density so teachers can scan 30 learners efficiently
+- ~~Improve classroom detail density so teachers can scan 30 learners efficiently~~ — **DONE**: collapsible triage sections, compact card mode, filter bar
 - ~~Add teacher-to-learner drill-in for artifact review~~ — **DONE**: `LearnerDetail` evidence timeline with expandable entries and artifact review panel
 - Add trend lines to reports when backend exposes historical snapshots
 
@@ -191,12 +191,16 @@ Contract-hardening in use:
 
 ### Next up
 
-1. improve classroom detail density for scanning 30+ learners
-2. add trend lines to teacher reports when backend exposes historical snapshots
-3. keep this work plan and `from-front-to-back-needs.md` updated together
+1. add trend lines to teacher reports when backend exposes historical snapshots
+2. keep this work plan and `from-front-to-back-needs.md` updated together
 
 ### Recently completed
 
+- teacher classroom detail density: collapsible triage sections with learner count badges (on-track collapsed by default), compact card mode toggle (grid/list), and filter bar with student ID search, attention level dropdown, and intervention toggle — all three features with tests
+- `CollapsibleTriageSection` component with chevron disclosure, smooth CSS grid-rows animation, and `aria-expanded` accessibility
+- `CompactLearnerCard` component with dense single-row layout, expandable detail on click, and reduced padding
+- `ClassroomFilterBar` component with text search, Radix Select for attention level, intervention toggle, layout mode switch, and "N of M learners" count
+- ClassroomView tests expanded to cover collapsible sections, filter bar, and compact layout
 - learner SocraticCheck: added accessibility (aria radiogroup on confidence picker, aria-checked/aria-label on each option), form validation (submit disabled when empty), error retry button
 - learner RemediationSession: added form validation (continue disabled when response empty), empty state for sessions with no steps, error retry button, accessibility (aria-current on active step, aria-label on step indicators)
 - learner ContinueLearning: added error retry button
