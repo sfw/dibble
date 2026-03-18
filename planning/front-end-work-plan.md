@@ -63,7 +63,7 @@ The frontend is a React 19 + Vite + TypeScript app with:
 - **Custom hooks** for data fetching and workflow state (`useLearnerWorkspace`, `useLearnerContracts`, `useGenerationWorkspace`, `useSocraticWorkspace`, `useRemediationWorkspace`, `useTeacherClassroom`)
 - **Copy/vocabulary translation layer** (`lib/copy.ts`) preferring backend-provided `display_label` fields with local fallbacks
 - **Demo fallback** for offline development (staff mode only by default)
-- **30 test files** with 218 tests via Vitest + React Testing Library
+- **34 test files** with 262 tests via Vitest + React Testing Library
 
 ## Backend Contracts In Use
 
@@ -118,6 +118,7 @@ Contract-hardening in use:
 - ~~`lib/triage.ts` `describeLearnerRationale` still selects among multiple rationale sources; a backend `display_rationale` field on `TeacherLearnerCard` would simplify this~~ — **RESOLVED**: backend now provides `display_rationale` on `TeacherLearnerCard`; frontend prefers it with backwards-compatible fallback
 - Affective support component exists but only renders when `workspace.affective_support` is populated
 - ~~Some forms expose orchestration inputs (target KCs, LOs, session IDs) that should be hidden in learner mode~~ — **RESOLVED**: learner views already keep all orchestration inputs (target KCs, LOs, intent selectors, session IDs) in internal form state; none are rendered in the learner shell UI
+- ~~Missing view tests for LearnerHome, Dashboard, ClassroomDetail, InterventionWorkspace~~ — **RESOLVED**: all 4 views now have test suites (44 new tests total)
 
 ## Execution Priorities
 
@@ -199,6 +200,10 @@ Contract-hardening in use:
 
 ### Recently completed
 
+- `LearnerHome.test.tsx` test suite (12 tests) covering welcome/idle greeting, resume button, focus section, progress summary, activity count, flow rationale, loading skeleton, error banner, navigation, and disabled state
+- `Dashboard.test.tsx` test suite (8 tests) covering heading, aggregate stats, classroom cards, teacher labels, mini stats, loading state, empty state, and classroom links
+- `ClassroomDetail.test.tsx` test suite (11 tests) covering title, teacher label, header badges, triage sections, learner rows, intervene button, review buttons, back navigation, loading state, empty groups, and learner detail links
+- `InterventionWorkspace.test.tsx` test suite (13 tests) covering header, back link, proposed action, evidence context, decision controls, note textarea, option cards, recommended badges, option selection, and target KC badges
 - learner Progress: mastery quality badges — `ResourceCard` now renders "Needs independent practice" (amber) and "Unstable mastery" (orange) badges when the backend `mastery_quality` field is `support_dependent` or `fragile`, with rationale text shown alongside the badge; 2 new tests cover both badge variants
 - teacher classroom detail density: collapsible triage sections with learner count badges (on-track collapsed by default), compact card mode toggle (grid/list), and filter bar with student ID search, attention level dropdown, and intervention toggle — all three features with tests
 - `CollapsibleTriageSection` component with chevron disclosure, smooth CSS grid-rows animation, and `aria-expanded` accessibility

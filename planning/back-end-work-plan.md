@@ -233,7 +233,7 @@ The frontend has moved from a contract integration workbench to a three-layer LM
 6. vocabulary translation layer preferring backend-provided `display_label` fields
 7. all backend-owned contracts integrated: summary, flow, workspace, history, progression, workflow_summary, intervention, remediation, Socratic, classroom, continue_action, triage_section, affective_support, display_label, machine-readable error codes
 8. learner interaction polish: all three core interaction views (SocraticCheck, RemediationSession, ContinueLearning) now have accessibility improvements, form validation, error retry buttons, and empty state handling
-9. 30 test files with 215 tests
+9. 34 test files with 262 tests
 
 **What the frontend is now asking for:**
 
