@@ -37,6 +37,7 @@ from dibble.services.ordinary_mastery_profiles import OrdinaryMasteryProfileReco
 from dibble.services.predictive_content_invalidator import PredictiveContentInvalidator
 from dibble.services.predictive_warm_scheduler import PredictiveWarmScheduler
 from dibble.services.protocols import (
+    AssignmentStore,
     AuditStore,
     CurriculumStore,
     KnowledgeComponentStore,
@@ -87,6 +88,7 @@ def build_api_error_response(exc: HTTPException) -> JSONResponse:
 
 
 class ApiServices(Protocol):
+    assignment_store: AssignmentStore
     profile_store: ProfileStore
     classroom_store: ClassroomStore
     curriculum_store: CurriculumStore

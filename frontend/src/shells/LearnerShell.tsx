@@ -1,9 +1,9 @@
 import { useCallback, useState } from 'react'
 import { NavLink, Outlet } from 'react-router'
-import { BookOpen, Clock, Home, TrendingUp } from 'lucide-react'
+import { BookOpen, Clock, Home, LogOut, TrendingUp } from 'lucide-react'
 import { useLearnerWorkspace } from '../hooks/useLearnerWorkspace'
 import { useLearnerContracts } from '../hooks/useLearnerContracts'
-import { usePersistentConfig } from '../hooks/usePersistentConfig'
+import { useAuthContext } from '../contexts/AuthContext'
 import type { DataSource } from '../app/workspace'
 import type {
   FrontendConfig,
@@ -25,6 +25,9 @@ export interface LearnerContext {
   generationHistory: LearnerGenerationHistoryEntry[]
   socraticHistory: LearnerSocraticSessionHistoryEntry[]
   remediationHistory: LearnerRemediationSessionHistoryEntry[]
+  hasMoreHistory: boolean
+  loadingMore: boolean
+  loadMoreHistory: () => Promise<void>
   loading: boolean
   error: string
 }
@@ -36,16 +39,23 @@ const navItems = [
 ]
 
 export function LearnerShell() {
-  const { config } = usePersistentConfig()
+  const auth = useAuthContext()
 
-  // Learner shell always uses demo fallback and hides debug panels
-  const learnerConfig: FrontendConfig = { ...config, useDemoFallback: true, showDebugPanels: false }
+  // Build config from auth state — bearer token from auth, no demo fallback in authenticated mode
+  const learnerConfig: FrontendConfig = {
+    baseUrl: 'http://127.0.0.1:8000',
+    apiKey: '',
+    bearerToken: auth.getToken(),
+    useDemoFallback: !auth.authenticated,
+    showDebugPanels: false,
+  }
 
   const [, setDataSource] = useState<DataSource>('demo')
   const handleDataSourceChange = useCallback((source: DataSource) => setDataSource(source), [])
 
   const learner = useLearnerWorkspace({
     config: learnerConfig,
+    initialLearnerId: auth.identity?.learner_id ?? undefined,
     onDataSourceChange: handleDataSourceChange,
   })
 
@@ -64,6 +74,9 @@ export function LearnerShell() {
     generationHistory: contracts.generationHistory,
     socraticHistory: contracts.socraticHistory,
     remediationHistory: contracts.remediationHistory,
+    hasMoreHistory: contracts.hasMoreHistory,
+    loadingMore: contracts.loadingMore,
+    loadMoreHistory: contracts.loadMoreHistory,
     loading: learner.loading || contracts.loading,
     error: learner.error || contracts.error,
   }
@@ -94,6 +107,17 @@ export function LearnerShell() {
             </NavLink>
           ))}
         </nav>
+        <div className="ml-auto flex items-center gap-3">
+          {auth.identity?.display_name && (
+            <span className="text-sm text-muted-foreground">{auth.identity.display_name}</span>
+          )}
+          <button
+            onClick={() => void auth.logout().then(() => window.location.assign('/login'))}
+            className="flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
       </header>
       <main className="flex-1 p-6">
         <Outlet context={context} />

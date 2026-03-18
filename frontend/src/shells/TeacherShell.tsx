@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react'
 import { NavLink, Outlet } from 'react-router'
-import { GraduationCap, LayoutDashboard, School } from 'lucide-react'
+import { GraduationCap, LayoutDashboard, LogOut, School } from 'lucide-react'
 import { useTeacherClassroom } from '../hooks/useTeacherClassroom'
-import { usePersistentConfig } from '../hooks/usePersistentConfig'
+import { useAuthContext } from '../contexts/AuthContext'
 import type { DataSource } from '../app/workspace'
 import { TeacherBreadcrumbs } from '../components/shell/Breadcrumbs'
 import type {
@@ -27,8 +27,14 @@ const navItems = [
 ]
 
 export function TeacherShell() {
-  const { config } = usePersistentConfig()
-  const teacherConfig: FrontendConfig = { ...config, useDemoFallback: true, showDebugPanels: false }
+  const auth = useAuthContext()
+  const teacherConfig: FrontendConfig = {
+    baseUrl: 'http://127.0.0.1:8000',
+    apiKey: '',
+    bearerToken: auth.getToken(),
+    useDemoFallback: !auth.authenticated,
+    showDebugPanels: false,
+  }
 
   const [, setDataSource] = useState<DataSource>('demo')
   const handleDataSourceChange = useCallback((source: DataSource) => setDataSource(source), [])
@@ -74,6 +80,17 @@ export function TeacherShell() {
             </NavLink>
           ))}
         </nav>
+        <div className="ml-auto flex items-center gap-3">
+          {auth.identity?.display_name && (
+            <span className="text-sm text-muted-foreground">{auth.identity.display_name}</span>
+          )}
+          <button
+            onClick={() => void auth.logout().then(() => window.location.assign('/login'))}
+            className="flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
       </header>
       <main className="flex-1 p-6">
         <TeacherBreadcrumbs />

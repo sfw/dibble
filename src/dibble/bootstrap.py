@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from dibble.config import Settings
 from dibble.plugins.contracts import RouterPlugin
 from dibble.plugins.loader import build_generation_plugins
+from dibble.services.assignment_store import SQLiteAssignmentStore
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.auth import AuthService
 from dibble.services.auth_sessions import SQLiteAuthSessionStore
@@ -59,6 +60,7 @@ from dibble.services.progression_ownership import ProgressionOwnershipService
 from dibble.services.provider_health import SQLiteProviderHealthStore
 from dibble.services.profile_store import SQLiteProfileStore
 from dibble.services.protocols import (
+    AssignmentStore,
     AuditStore,
     ClassroomStore,
     CurriculumStore,
@@ -89,6 +91,7 @@ from dibble.storage import ensure_database
 
 @dataclass(slots=True)
 class ApplicationServices:
+    assignment_store: AssignmentStore
     profile_store: ProfileStore
     classroom_store: ClassroomStore
     curriculum_store: CurriculumStore
@@ -133,6 +136,7 @@ class ApplicationServices:
 def build_application_services(settings: Settings) -> ApplicationServices:
     ensure_database(settings.database_path)
 
+    assignment_store = SQLiteAssignmentStore(settings.database_path)
     profile_store = SQLiteProfileStore(settings.database_path)
     classroom_store = SQLiteClassroomStore(settings.database_path)
     curriculum_store = SQLiteCurriculumStore(settings.database_path)
@@ -313,6 +317,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     )
 
     return ApplicationServices(
+        assignment_store=assignment_store,
         profile_store=profile_store,
         classroom_store=classroom_store,
         curriculum_store=curriculum_store,

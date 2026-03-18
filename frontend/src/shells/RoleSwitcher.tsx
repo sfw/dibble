@@ -1,5 +1,6 @@
-import { Link } from 'react-router'
-import { BookOpen, GraduationCap, Wrench } from 'lucide-react'
+import { Link, Navigate } from 'react-router'
+import { BookOpen, GraduationCap, LogIn, Wrench } from 'lucide-react'
+import { useAuthContext } from '../contexts/AuthContext'
 
 const roles = [
   {
@@ -32,6 +33,15 @@ const toneClasses: Record<string, string> = {
 }
 
 export function RoleSwitcher() {
+  const auth = useAuthContext()
+
+  // If already authenticated, redirect to the appropriate shell
+  if (auth.authenticated && auth.identity) {
+    if (auth.identity.role === 'learner') return <Navigate to="/learn" replace />
+    if (auth.identity.role === 'teacher') return <Navigate to="/teacher" replace />
+    return <Navigate to="/staff" replace />
+  }
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-8 p-6">
       <header className="text-center">
@@ -52,6 +62,14 @@ export function RoleSwitcher() {
           </Link>
         ))}
       </div>
+
+      <Link
+        to="/login"
+        className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <LogIn className="h-4 w-4" />
+        Sign in with an API key
+      </Link>
     </div>
   )
 }

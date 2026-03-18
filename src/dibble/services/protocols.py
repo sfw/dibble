@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Protocol
 from uuid import UUID
 
+from dibble.models.assignment import Assignment
 from dibble.models.classroom import Classroom, ClassroomUpsert
 from dibble.models.curriculum import CurriculumResource, CurriculumResourceUpsert, KnowledgeComponent, KnowledgeComponentUpsert
 from dibble.models.assessment import SocraticAssessmentSession
@@ -15,6 +16,15 @@ from dibble.models.telemetry import AuditEvent, ProviderHealthEvent, ProviderSta
 from dibble.services.auth_sessions import StoredAuthSession
 from dibble.services.provider_health import ProviderRoutingSnapshot
 from dibble.services.retrieval.embedding_store import StoredEmbedding
+
+
+class AssignmentStore(Protocol):
+    def upsert(self, assignment: Assignment) -> Assignment: ...
+    def get(self, assignment_id: str) -> Assignment | None: ...
+    def list_for_student(self, *, student_id: str, limit: int = 20, offset: int = 0) -> list[Assignment]: ...
+    def count_for_student(self, *, student_id: str) -> int: ...
+    def list_for_classroom(self, *, classroom_id: str, limit: int = 50, offset: int = 0) -> list[Assignment]: ...
+    def list_for_teacher(self, *, teacher_id: str, limit: int = 50, offset: int = 0) -> list[Assignment]: ...
 
 
 class ProfileStore(Protocol):

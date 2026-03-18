@@ -753,6 +753,39 @@ export type LearnerGenerationHistoryPage = HistoryPage<LearnerGenerationHistoryE
 export type LearnerSocraticSessionHistoryPage = HistoryPage<LearnerSocraticSessionHistoryEntry>
 export type LearnerRemediationSessionHistoryPage = HistoryPage<LearnerRemediationSessionHistoryEntry>
 
+export type AssignmentStatus = 'assigned' | 'in_progress' | 'completed' | 'canceled'
+
+export interface Assignment {
+  assignment_id: string
+  student_id: string
+  teacher_id: string
+  classroom_id?: string | null
+  title: string
+  description: string
+  status: AssignmentStatus
+  target_resource_id?: string | null
+  target_kc_ids: string[]
+  target_lo_ids: string[]
+  due_at?: string | null
+  created_at: string
+  started_at?: string | null
+  completed_at?: string | null
+  updated_at: string
+}
+
+export interface AssignmentCreate {
+  student_id: string
+  classroom_id?: string | null
+  title: string
+  description?: string
+  target_resource_id?: string | null
+  target_kc_ids?: string[]
+  target_lo_ids?: string[]
+  due_at?: string | null
+}
+
+export type AssignmentPage = HistoryPage<Assignment>
+
 export interface FrontendConfig {
   baseUrl: string
   apiKey: string

@@ -218,7 +218,7 @@ The key product guardrail remains: the frontend renders backend-owned workflow d
 
 The frontend ask has shifted from "no new contracts" to "three concrete product-level needs plus continued quality work":
 
-1. **P0: authentication flow** — the backend auth contract exists but needs to clearly support learner and teacher login, role-to-identity mapping, and session persistence. This is the single biggest product gap.
+1. ~~**P0: authentication flow**~~ — **DONE end-to-end**. Backend auth contract exists with `learner` and `teacher` roles. Frontend now has login screen, `useAuth` hook, `AuthGuard` route protection, bearer token persistence, role-aware redirect, and logout.
 2. **P1: assignment model** — neither frontend nor backend owns assignments yet. The backend should decide whether this is a thin wrapper around workspace/progression or a first-class entity.
 3. **P1: history pagination** — small contract extension for cursor or offset support on history endpoints.
 4. the backend should continue preserving and hardening existing stable contracts.
@@ -273,7 +273,7 @@ The next backend agent should work from this priority order:
 
 1. ~~**P0: authentication clarity**~~ — **DONE**. `learner` and `teacher` roles now exist with entity bindings that persist through the full token lifecycle. `/api/auth/me` returns role, `learner_id`/`teacher_id`, `display_name`, and `classroom_ids`. Test coverage added for learner/teacher auth, RBAC, bearer tokens, and refresh with entity preservation.
 2. ~~**P1: history pagination**~~ — **DONE**. All three history endpoints now return `{ items, offset, limit, has_more }` with offset-based pagination, limit clamped to 1–100. Frontend types, API functions, hook, and test mocks updated.
-3. **P1: assignment model decision** — decide whether assignments should be a thin read-model wrapper around existing workspace/progression state or a first-class entity. If the latter, design the entity and API surface. Document the decision in this file and in `from-front-to-back-needs.md`.
+3. ~~**P1: assignment model decision**~~ — **DONE**. Assignments are a first-class entity (`Assignment` model) with teacher attribution, learner targeting, lifecycle status (`assigned` → `in_progress` → `completed` → `canceled`), and `continue_action`-style pagination. API: `POST /api/assignments` (teacher creates), `GET /api/assignments/{id}`, `PATCH /api/assignments/{id}` (status update), `GET /api/learners/{id}/assignments` (paginated learner view), `GET /api/teachers/assignments` (paginated teacher view). SQLite-backed store with student, teacher, and classroom queries.
 4. **Quality work** — if P1 items are done, choose the most justified decision-quality pass from `ORCH-001`, `ADAPT-006`, `DATA-004`, or `ADAPT-003`, with a bias toward improvements that strengthen backend-owned next-step consistency, mastery-loop trust, ordinary-work evidence use, or misconception precision without changing contract shape.
 5. avoid frontend-only sequencing policy, avoid reopening stable contract seams without a concrete bug, avoid dashboard-style teacher analytics unless current classroom summaries prove insufficient.
 6. for each justified pass: add focused tests, update `README.md`, update this document, run `uv run ruff check .`, run `uv run pytest`, and make a coherent focused commit.
@@ -330,7 +330,7 @@ The backend adaptive learning engine is mature and the frontend has evolved from
 
 2. **Assignment model** (P1): Core LMS functionality. Teachers need to assign work; learners need to see what's assigned. The backend should own this concept.
 
-3. **History pagination** (P1): Small contract extension that becomes necessary once real learners generate more than 20 history entries.
+3. ~~**History pagination** (P1)~~: **DONE end-to-end**. Backend provides offset-based pagination. Frontend now has load-more UI.
 
 4. **Continued backend decision quality** (P1): The four ongoing quality tracks (`ORCH-001`, `ADAPT-006`, `DATA-004`, `ADAPT-003`) remain valuable and should continue in parallel with product-completeness work. The adaptive learning engine is the core differentiator.
 
