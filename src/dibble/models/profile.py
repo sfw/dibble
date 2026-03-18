@@ -91,6 +91,7 @@ class LearningPreferences(BaseModel):
 class KnowledgeState(BaseModel):
     lo_mastery: dict[str, float] = Field(default_factory=dict)
     kc_mastery: dict[str, float] = Field(default_factory=dict)
+    kc_last_practiced: dict[str, datetime] = Field(default_factory=dict)
     last_updated: datetime = Field(default_factory=utc_now)
 
 
@@ -103,7 +104,9 @@ class LearnerProfile(BaseModel):
     affective_state: AffectiveState = Field(default_factory=AffectiveState)
     cognitive_load: CognitiveLoadState = Field(default_factory=CognitiveLoadState)
     metacognitive_state: MetacognitiveState = Field(default_factory=MetacognitiveState)
-    learning_preferences: LearningPreferences = Field(default_factory=LearningPreferences)
+    learning_preferences: LearningPreferences = Field(
+        default_factory=LearningPreferences
+    )
     accommodations: list[str] = Field(default_factory=list)
     updated_at: datetime = Field(default_factory=utc_now)
 
@@ -122,7 +125,9 @@ class LearnerProfileV2(BaseModel):
     affective_state: AffectiveState = Field(default_factory=AffectiveState)
     cognitive_load: CognitiveLoadState = Field(default_factory=CognitiveLoadState)
     metacognitive_state: MetacognitiveState = Field(default_factory=MetacognitiveState)
-    learning_preferences: LearningPreferences = Field(default_factory=LearningPreferences)
+    learning_preferences: LearningPreferences = Field(
+        default_factory=LearningPreferences
+    )
     accommodations: list[str] = Field(default_factory=list)
 
     @classmethod
@@ -139,7 +144,9 @@ class LearnerProfileV2(BaseModel):
             profile.metacognitive_state.confidence_calibration != 0.5,
             profile.metacognitive_state.help_seeking_effectiveness != 0.5,
         ]
-        completeness_score = sum(1 for item in signals_present if item) / len(signals_present)
+        completeness_score = sum(1 for item in signals_present if item) / len(
+            signals_present
+        )
 
         return cls(
             profile_metadata=ProfileMetadata(
@@ -404,7 +411,9 @@ class LearnerContinueAction(BaseModel):
         if self.kind == ContinueActionKind.idle:
             self.method = None
             self.endpoint = None
-            self.resource_id = None if self.resource_id in {"", None} else self.resource_id
+            self.resource_id = (
+                None if self.resource_id in {"", None} else self.resource_id
+            )
             self.request_payload = {}
             return self
         if self.method is None:
@@ -442,8 +451,12 @@ class LearnerCurriculumProgressionSummary(BaseModel):
     mastered_resource_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
     current_resource: CurriculumResourceProgressSummary | None = None
     next_resource: CurriculumResourceProgressSummary | None = None
-    blocked_resources: list[CurriculumResourceProgressSummary] = Field(default_factory=list)
-    ready_resources: list[CurriculumResourceProgressSummary] = Field(default_factory=list)
+    blocked_resources: list[CurriculumResourceProgressSummary] = Field(
+        default_factory=list
+    )
+    ready_resources: list[CurriculumResourceProgressSummary] = Field(
+        default_factory=list
+    )
     rationale: str | None = None
     updated_at: datetime | None = None
 
@@ -475,7 +488,9 @@ class LearnerFlowSummary(BaseModel):
     progression_source: str = "insufficient"
     next_step_source: str = "insufficient"
     next_step: LearnerFlowNextStep = Field(default_factory=LearnerFlowNextStep)
-    continue_action: LearnerContinueAction = Field(default_factory=LearnerContinueAction)
+    continue_action: LearnerContinueAction = Field(
+        default_factory=LearnerContinueAction
+    )
     updated_at: datetime | None = None
 
 
@@ -490,14 +505,24 @@ class ProfileSummary(BaseModel):
     total_load: float
     confidence_calibration: float
     help_seeking: SignalLevel
-    calibration: LearnerCalibrationSummary = Field(default_factory=LearnerCalibrationSummary)
+    calibration: LearnerCalibrationSummary = Field(
+        default_factory=LearnerCalibrationSummary
+    )
     progress: LearnerProgressSummary = Field(default_factory=LearnerProgressSummary)
     strategy: LearnerStrategySummary = Field(default_factory=LearnerStrategySummary)
-    state_profile: LearnerStateProfileSummary = Field(default_factory=LearnerStateProfileSummary)
-    trait_profile: LearnerTraitProfileSummary = Field(default_factory=LearnerTraitProfileSummary)
-    recent_activity: RecentLearnerActivity = Field(default_factory=RecentLearnerActivity)
+    state_profile: LearnerStateProfileSummary = Field(
+        default_factory=LearnerStateProfileSummary
+    )
+    trait_profile: LearnerTraitProfileSummary = Field(
+        default_factory=LearnerTraitProfileSummary
+    )
+    recent_activity: RecentLearnerActivity = Field(
+        default_factory=RecentLearnerActivity
+    )
     current_flow: LearnerFlowSummary = Field(default_factory=LearnerFlowSummary)
-    curriculum_progression: LearnerCurriculumProgressionSummary = Field(default_factory=LearnerCurriculumProgressionSummary)
+    curriculum_progression: LearnerCurriculumProgressionSummary = Field(
+        default_factory=LearnerCurriculumProgressionSummary
+    )
     updated_at: datetime
 
     @classmethod
@@ -532,6 +557,7 @@ class ProfileSummary(BaseModel):
             trait_profile=trait_profile or LearnerTraitProfileSummary(),
             recent_activity=recent_activity or RecentLearnerActivity(),
             current_flow=current_flow or LearnerFlowSummary(),
-            curriculum_progression=curriculum_progression or LearnerCurriculumProgressionSummary(),
+            curriculum_progression=curriculum_progression
+            or LearnerCurriculumProgressionSummary(),
             updated_at=profile.updated_at,
         )

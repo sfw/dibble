@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from uuid import UUID
 
 from dibble.models.curriculum import CurriculumResource, KnowledgeComponent
@@ -8,14 +9,29 @@ from dibble.models.profile import (
     CurriculumResourceProgressSummary,
     LearnerCurriculumProgressionSummary,
     LearnerFlowSummary,
+    OrdinaryMasterySummary,
 )
 from dibble.services.learner_flow_service import LearnerFlowService
-from dibble.services.protocols import CurriculumStore, KnowledgeComponentStore, ProfileStore
+from dibble.services.mastery_decay import decayed_kc_mastery
+from dibble.services.protocols import (
+    CurriculumStore,
+    KnowledgeComponentStore,
+    ProfileStore,
+)
 from dibble.services.workflow_rationale import combine_rationales
 
 MASTERY_THRESHOLD = 0.8
 PREREQUISITE_READY_THRESHOLD = 0.65
 ACTIVE_RESOURCE_LIMIT = 3
+
+# ORCH-001: Trend-aware threshold adjustments.  An improving trend on a
+# resource's KCs makes mastery easier to reach (lower threshold) so the
+# learner can advance sooner.  A declining trend makes it harder so the
+# learner is held until the decline stabilises.
+TREND_MASTERY_BONUS = 0.04  # improving: lower mastery threshold
+TREND_MASTERY_PENALTY = 0.03  # declining: raise mastery threshold
+TREND_PREREQUISITE_BONUS = 0.03  # improving: lower prerequisite threshold
+TREND_PREREQUISITE_PENALTY = 0.04  # declining: raise prerequisite threshold
 
 
 @dataclass(slots=True)
@@ -34,13 +50,18 @@ class LearnerProgressionService:
     curriculum_store: CurriculumStore
     knowledge_component_store: KnowledgeComponentStore
     learner_flow_service: LearnerFlowService
+    ordinary_mastery_signal_service: object | None = None
 
-    def build_for_student(self, *, student_id: UUID) -> LearnerCurriculumProgressionSummary | None:
+    def build_for_student(
+        self, *, student_id: UUID
+    ) -> LearnerCurriculumProgressionSummary | None:
         profile = self.profile_store.get(student_id)
         if profile is None:
             return None
 
-        resources = sorted(self.curriculum_store.list(), key=lambda resource: resource.resource_id)
+        resources = sorted(
+            self.curriculum_store.list(), key=lambda resource: resource.resource_id
+        )
         if not resources:
             flow = self.learner_flow_service.build_for_student(student_id=student_id)
             return LearnerCurriculumProgressionSummary(
@@ -53,16 +74,35 @@ class LearnerProgressionService:
             )
 
         flow = self.learner_flow_service.build_for_student(student_id=student_id)
-        components = {component.kc_id: component for component in self.knowledge_component_store.list()}
-        active_target_kc_ids = list(flow.active_target_kc_ids or flow.next_step.target_kc_ids)
+        components = {
+            component.kc_id: component
+            for component in self.knowledge_component_store.list()
+        }
+        active_target_kc_ids = list(
+            flow.active_target_kc_ids or flow.next_step.target_kc_ids
+        )
         deferred_target_kc_ids = self._deferred_target_kc_ids(flow=flow)
         resource_by_id = {resource.resource_id: resource for resource in resources}
         kc_to_resource_ids = self._kc_to_resource_ids(resources=resources)
+
+        # DATA-004: Apply time-based mastery decay so KCs that have not been
+        # practiced recently are discounted before resource classification.
+        now = datetime.now(timezone.utc)
+        effective_kc_mastery = decayed_kc_mastery(
+            profile.knowledge_state.kc_mastery,
+            profile.knowledge_state.kc_last_practiced,
+            reference_time=now,
+        )
+
+        # ORCH-001: Collect per-KC ordinary mastery trend signals so resource
+        # classification can adjust thresholds for improving/declining KCs.
+        kc_trends = self._kc_trends(student_id=student_id, components=components)
+
         entries = [
             self._resource_entry(
                 resource=resource,
                 components=components,
-                kc_mastery=profile.knowledge_state.kc_mastery,
+                kc_mastery=effective_kc_mastery,
                 lo_mastery=profile.knowledge_state.lo_mastery,
                 flow=flow,
                 active_target_kc_ids=active_target_kc_ids,
@@ -70,6 +110,7 @@ class LearnerProgressionService:
                 current_stage=flow.target_stage,
                 resource_by_id=resource_by_id,
                 kc_to_resource_ids=kc_to_resource_ids,
+                kc_trends=kc_trends,
             )
             for resource in resources
         ]
@@ -77,7 +118,10 @@ class LearnerProgressionService:
         for entry in entries:
             entry.depth = self._resource_depth(
                 resource_id=entry.summary.resource_id,
-                dependency_map={item.summary.resource_id: item.dependency_resource_ids for item in entries},
+                dependency_map={
+                    item.summary.resource_id: item.dependency_resource_ids
+                    for item in entries
+                },
                 cache=depth_cache,
                 visiting=set(),
             )
@@ -112,7 +156,9 @@ class LearnerProgressionService:
             rationale = blocked_resources[0].summary.rationale
         else:
             status = "catalog_mastered"
-            rationale = "Current mapped curriculum resources appear sufficiently mastered."
+            rationale = (
+                "Current mapped curriculum resources appear sufficiently mastered."
+            )
 
         return LearnerCurriculumProgressionSummary(
             status=status,
@@ -126,14 +172,16 @@ class LearnerProgressionService:
             blocked_resource_count=len(blocked_resources),
             active_resource_count=len(active_resources),
             mastered_resource_ratio=(
-                round(len(mastered_resources) / len(entries), 2)
-                if entries
-                else 0.0
+                round(len(mastered_resources) / len(entries), 2) if entries else 0.0
             ),
             current_resource=current_resource,
             next_resource=next_resource,
-            blocked_resources=[entry.summary for entry in blocked_resources[:ACTIVE_RESOURCE_LIMIT]],
-            ready_resources=[entry.summary for entry in ready_resources[:ACTIVE_RESOURCE_LIMIT]],
+            blocked_resources=[
+                entry.summary for entry in blocked_resources[:ACTIVE_RESOURCE_LIMIT]
+            ],
+            ready_resources=[
+                entry.summary for entry in ready_resources[:ACTIVE_RESOURCE_LIMIT]
+            ],
             rationale=rationale,
             updated_at=flow.updated_at or profile.updated_at,
         )
@@ -151,8 +199,19 @@ class LearnerProgressionService:
         current_stage: str,
         resource_by_id: dict[str, CurriculumResource],
         kc_to_resource_ids: dict[str, list[str]],
+        kc_trends: dict[str, str] | None = None,
     ) -> ResourcePlanningEntry:
         required_kc_ids = list(resource.knowledge_component_ids)
+
+        # ORCH-001: Compute trend-adjusted thresholds for this resource.
+        resource_mastery_threshold, resource_prerequisite_threshold = (
+            self._trend_adjusted_thresholds(
+                kc_ids=required_kc_ids,
+                components=components,
+                kc_trends=kc_trends or {},
+            )
+        )
+
         mastery_ratio = self._mastery_ratio(
             kc_ids=required_kc_ids,
             lo_ids=resource.learning_objective_ids,
@@ -163,9 +222,12 @@ class LearnerProgressionService:
             kc_ids=required_kc_ids,
             components=components,
             kc_mastery=kc_mastery,
+            prerequisite_threshold=resource_prerequisite_threshold,
         )
         current_flow_match_count = len(set(required_kc_ids) & set(active_target_kc_ids))
-        deferred_flow_match_count = len(set(required_kc_ids) & set(deferred_target_kc_ids))
+        deferred_flow_match_count = len(
+            set(required_kc_ids) & set(deferred_target_kc_ids)
+        )
         current_flow_aligned = current_flow_match_count > 0
         dependency_resource_ids = self._dependency_resource_ids(
             resource=resource,
@@ -174,8 +236,18 @@ class LearnerProgressionService:
         )
         if current_flow_aligned:
             state = "active"
-            rationale = flow.rationale or "The current learner flow is focused on this curriculum resource."
-        elif self._is_mastered(kc_ids=required_kc_ids, lo_ids=resource.learning_objective_ids, kc_mastery=kc_mastery, lo_mastery=lo_mastery):
+            rationale = (
+                flow.rationale
+                or "The current learner flow is focused on this curriculum resource."
+            )
+        elif self._is_mastered(
+            kc_ids=required_kc_ids,
+            lo_ids=resource.learning_objective_ids,
+            kc_mastery=kc_mastery,
+            lo_mastery=lo_mastery,
+            mastery_threshold=resource_mastery_threshold,
+            prerequisite_threshold=resource_prerequisite_threshold,
+        ):
             state = "mastered"
             rationale = "Mastery across this resource's mapped targets is strong enough to treat it as complete."
         elif self._is_deferred_target_being_unlocked(
@@ -193,14 +265,17 @@ class LearnerProgressionService:
                 )
                 for kc_id in blocked_prerequisites
             )
-            rationale = combine_rationales(
-                (
-                    f"The current learner flow is actively repairing prerequisite KCs {blocked_labels} for this resource, "
-                    "so it remains the planned next curriculum focus instead of falling behind unrelated ready work."
-                ),
-                self._deferred_target_rationale(flow=flow, resource=resource),
-                "The backend can move here as soon as the current learner flow releases the active target.",
-            ) or "The backend can move here as soon as the current learner flow releases the active target."
+            rationale = (
+                combine_rationales(
+                    (
+                        f"The current learner flow is actively repairing prerequisite KCs {blocked_labels} for this resource, "
+                        "so it remains the planned next curriculum focus instead of falling behind unrelated ready work."
+                    ),
+                    self._deferred_target_rationale(flow=flow, resource=resource),
+                    "The backend can move here as soon as the current learner flow releases the active target.",
+                )
+                or "The backend can move here as soon as the current learner flow releases the active target."
+            )
         elif blocked_prerequisites:
             state = "blocked"
             blocked_labels = ", ".join(
@@ -222,25 +297,31 @@ class LearnerProgressionService:
                 "instead of becoming the next curriculum focus."
             )
             if blocking_resource_titles:
-                rationale = combine_rationales(
-                    rationale,
-                    f"This resource is still waiting behind {', '.join(blocking_resource_titles)}.",
-                ) or rationale
+                rationale = (
+                    combine_rationales(
+                        rationale,
+                        f"This resource is still waiting behind {', '.join(blocking_resource_titles)}.",
+                    )
+                    or rationale
+                )
         else:
             state = "ready"
-            rationale = combine_rationales(
-                "Prerequisites are met, so this resource is available as the next curriculum focus.",
-                (
-                    self._deferred_target_rationale(flow=flow, resource=resource)
-                    if deferred_flow_match_count > 0
-                    else None
-                ),
-                (
-                    "The backend can move here as soon as the current learner flow releases the active target."
-                    if flow.status != "idle"
-                    else None
-                ),
-            ) or "Prerequisites are met, so this resource is available as the next curriculum focus."
+            rationale = (
+                combine_rationales(
+                    "Prerequisites are met, so this resource is available as the next curriculum focus.",
+                    (
+                        self._deferred_target_rationale(flow=flow, resource=resource)
+                        if deferred_flow_match_count > 0
+                        else None
+                    ),
+                    (
+                        "The backend can move here as soon as the current learner flow releases the active target."
+                        if flow.status != "idle"
+                        else None
+                    ),
+                )
+                or "Prerequisites are met, so this resource is available as the next curriculum focus."
+            )
 
         return ResourcePlanningEntry(
             summary=CurriculumResourceProgressSummary(
@@ -261,7 +342,9 @@ class LearnerProgressionService:
             deferred_flow_match_count=deferred_flow_match_count,
         )
 
-    def _kc_to_resource_ids(self, *, resources: list[CurriculumResource]) -> dict[str, list[str]]:
+    def _kc_to_resource_ids(
+        self, *, resources: list[CurriculumResource]
+    ) -> dict[str, list[str]]:
         index: dict[str, list[str]] = {}
         for resource in resources:
             for kc_id in resource.knowledge_component_ids:
@@ -284,7 +367,10 @@ class LearnerProgressionService:
                 continue
             for prerequisite_id in component.prerequisite_kc_ids:
                 for resource_id in kc_to_resource_ids.get(prerequisite_id, []):
-                    if resource_id != resource.resource_id and resource_id not in dependency_ids:
+                    if (
+                        resource_id != resource.resource_id
+                        and resource_id not in dependency_ids
+                    ):
                         dependency_ids.append(resource_id)
         return dependency_ids
 
@@ -321,11 +407,22 @@ class LearnerProgressionService:
     def _active_priority(self, entry: ResourcePlanningEntry) -> tuple[int, int, str]:
         return (-entry.current_flow_match_count, entry.depth, entry.summary.resource_id)
 
-    def _ready_priority(self, entry: ResourcePlanningEntry) -> tuple[int, int, int, str]:
-        return (-entry.deferred_flow_match_count, entry.depth, len(entry.dependency_resource_ids), entry.summary.resource_id)
+    def _ready_priority(
+        self, entry: ResourcePlanningEntry
+    ) -> tuple[int, int, int, str]:
+        return (
+            -entry.deferred_flow_match_count,
+            entry.depth,
+            len(entry.dependency_resource_ids),
+            entry.summary.resource_id,
+        )
 
     def _blocked_priority(self, entry: ResourcePlanningEntry) -> tuple[int, int, str]:
-        return (len(entry.blocked_prerequisite_kc_ids), entry.depth, entry.summary.resource_id)
+        return (
+            len(entry.blocked_prerequisite_kc_ids),
+            entry.depth,
+            entry.summary.resource_id,
+        )
 
     def _deferred_target_kc_ids(self, *, flow: LearnerFlowSummary) -> list[str]:
         return list(
@@ -410,6 +507,7 @@ class LearnerProgressionService:
         kc_ids: list[str],
         components: dict[str, KnowledgeComponent],
         kc_mastery: dict[str, float],
+        prerequisite_threshold: float = PREREQUISITE_READY_THRESHOLD,
     ) -> list[str]:
         blocked: list[str] = []
         for kc_id in kc_ids:
@@ -417,7 +515,7 @@ class LearnerProgressionService:
             if component is None:
                 continue
             for prerequisite_id in component.prerequisite_kc_ids:
-                if float(kc_mastery.get(prerequisite_id, 0.0)) < PREREQUISITE_READY_THRESHOLD:
+                if float(kc_mastery.get(prerequisite_id, 0.0)) < prerequisite_threshold:
                     blocked.append(prerequisite_id)
         return list(dict.fromkeys(blocked))
 
@@ -428,13 +526,23 @@ class LearnerProgressionService:
         lo_ids: list[str],
         kc_mastery: dict[str, float],
         lo_mastery: dict[str, float],
+        mastery_threshold: float = MASTERY_THRESHOLD,
+        prerequisite_threshold: float = PREREQUISITE_READY_THRESHOLD,
     ) -> bool:
         if kc_ids:
             scores = [float(kc_mastery.get(kc_id, 0.0)) for kc_id in kc_ids]
-            return bool(scores) and min(scores) >= PREREQUISITE_READY_THRESHOLD and sum(scores) / len(scores) >= MASTERY_THRESHOLD
+            return (
+                bool(scores)
+                and min(scores) >= prerequisite_threshold
+                and sum(scores) / len(scores) >= mastery_threshold
+            )
         if lo_ids:
             scores = [float(lo_mastery.get(lo_id, 0.0)) for lo_id in lo_ids]
-            return bool(scores) and min(scores) >= PREREQUISITE_READY_THRESHOLD and sum(scores) / len(scores) >= MASTERY_THRESHOLD
+            return (
+                bool(scores)
+                and min(scores) >= prerequisite_threshold
+                and sum(scores) / len(scores) >= mastery_threshold
+            )
         return False
 
     def _mastery_ratio(
@@ -452,3 +560,72 @@ class LearnerProgressionService:
         if not scores:
             return 0.0
         return round(sum(scores) / len(scores), 2)
+
+    # --- ORCH-001: Trend-aware threshold helpers ---
+
+    def _kc_trends(
+        self,
+        *,
+        student_id: UUID,
+        components: dict[str, KnowledgeComponent],
+    ) -> dict[str, str]:
+        """Return a {kc_id: trend} map for all KCs that have ordinary mastery profiles."""
+        if self.ordinary_mastery_signal_service is None:
+            return {}
+        trends: dict[str, str] = {}
+        for kc_id in components:
+            summary: OrdinaryMasterySummary = (
+                self.ordinary_mastery_signal_service.latest_for_student(
+                    student_id=student_id,
+                    target_kc_ids=[kc_id],
+                    target_lo_ids=[],
+                )
+            )
+            if summary.signal != "insufficient" and summary.mastery_trend != "stable":
+                trends[kc_id] = summary.mastery_trend
+        return trends
+
+    def _trend_adjusted_thresholds(
+        self,
+        *,
+        kc_ids: list[str],
+        components: dict[str, KnowledgeComponent],
+        kc_trends: dict[str, str],
+    ) -> tuple[float, float]:
+        """Return (mastery_threshold, prerequisite_threshold) adjusted for trend signals.
+
+        The adjustment is based on the dominant trend across the resource's
+        required KCs and their prerequisites.  If more KCs are improving than
+        declining, thresholds ease; if more are declining, thresholds tighten.
+        """
+        if not kc_trends:
+            return MASTERY_THRESHOLD, PREREQUISITE_READY_THRESHOLD
+
+        # Collect trends for this resource's KCs and their prerequisites.
+        relevant_kc_ids = set(kc_ids)
+        for kc_id in kc_ids:
+            component = components.get(kc_id)
+            if component is not None:
+                relevant_kc_ids.update(component.prerequisite_kc_ids)
+
+        improving = sum(
+            1 for kc_id in relevant_kc_ids if kc_trends.get(kc_id) == "improving"
+        )
+        declining = sum(
+            1 for kc_id in relevant_kc_ids if kc_trends.get(kc_id) == "declining"
+        )
+
+        if improving == 0 and declining == 0:
+            return MASTERY_THRESHOLD, PREREQUISITE_READY_THRESHOLD
+
+        mastery_threshold = MASTERY_THRESHOLD
+        prerequisite_threshold = PREREQUISITE_READY_THRESHOLD
+
+        if improving > declining:
+            mastery_threshold -= TREND_MASTERY_BONUS
+            prerequisite_threshold -= TREND_PREREQUISITE_BONUS
+        elif declining > improving:
+            mastery_threshold += TREND_MASTERY_PENALTY
+            prerequisite_threshold += TREND_PREREQUISITE_PENALTY
+
+        return mastery_threshold, prerequisite_threshold
