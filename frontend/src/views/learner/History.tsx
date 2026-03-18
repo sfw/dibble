@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react'
 import { useOutletContext } from 'react-router'
 import { BookOpen, Clock, Loader2, MessageCircle, Wrench } from 'lucide-react'
 import type { LearnerContext } from '../../shells/LearnerShell'
@@ -12,6 +13,10 @@ import type {
   LearnerSocraticSessionHistoryEntry,
   LearnerRemediationSessionHistoryEntry,
 } from '../../types'
+
+// ---------------------------------------------------------------------------
+// Timeline construction
+// ---------------------------------------------------------------------------
 
 interface TimelineEntry {
   id: string
@@ -66,6 +71,19 @@ function buildTimeline(
   return entries
 }
 
+// ---------------------------------------------------------------------------
+// Type filter config
+// ---------------------------------------------------------------------------
+
+type FilterType = 'all' | 'lesson' | 'check' | 'practice'
+
+const filterTabs: { key: FilterType; label: string; activeClass: string; dotClass: string }[] = [
+  { key: 'all', label: 'All', activeClass: 'bg-slate-700 text-white', dotClass: '' },
+  { key: 'lesson', label: 'Lessons', activeClass: 'bg-blue-100 text-blue-700', dotClass: 'bg-blue-500' },
+  { key: 'check', label: 'Checks', activeClass: 'bg-violet-100 text-violet-700', dotClass: 'bg-violet-500' },
+  { key: 'practice', label: 'Practice', activeClass: 'bg-amber-100 text-amber-700', dotClass: 'bg-amber-500' },
+]
+
 const typeConfig = {
   lesson: { icon: BookOpen, bgClass: 'bg-blue-100 text-blue-600' },
   check: { icon: MessageCircle, bgClass: 'bg-violet-100 text-violet-600' },
@@ -84,7 +102,25 @@ export function History() {
     error,
   } = useOutletContext<LearnerContext>()
 
-  const timeline = buildTimeline(generationHistory, socraticHistory, remediationHistory)
+  const [filter, setFilter] = useState<FilterType>('all')
+
+  const timeline = useMemo(
+    () => buildTimeline(generationHistory, socraticHistory, remediationHistory),
+    [generationHistory, socraticHistory, remediationHistory],
+  )
+
+  const typeCounts = useMemo(() => {
+    const counts: Record<string, number> = { lesson: 0, check: 0, practice: 0 }
+    for (const entry of timeline) {
+      counts[entry.type] = (counts[entry.type] ?? 0) + 1
+    }
+    return counts
+  }, [timeline])
+
+  const filtered = useMemo(
+    () => (filter === 'all' ? timeline : timeline.filter((e) => e.type === filter)),
+    [timeline, filter],
+  )
 
   return (
     <PageContainer size="narrow" className="flex flex-col gap-6 py-4">
@@ -94,6 +130,35 @@ export function History() {
       </header>
 
       <ErrorBanner message={error} />
+
+      {/* Type filter tabs */}
+      {timeline.length > 0 && (
+        <div className="flex gap-2" role="tablist" aria-label="Filter by type">
+          {filterTabs.map((tab) => {
+            const isActive = filter === tab.key
+            const count = tab.key === 'all' ? timeline.length : typeCounts[tab.key] ?? 0
+            return (
+              <button
+                key={tab.key}
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => setFilter(tab.key)}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                  isActive ? tab.activeClass : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                }`}
+              >
+                {tab.dotClass && (
+                  <span className={`h-2 w-2 rounded-full ${tab.dotClass}`} />
+                )}
+                {tab.label}
+                <span className={`ml-0.5 text-xs ${isActive ? 'opacity-80' : 'opacity-60'}`}>
+                  {count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {loading && timeline.length === 0 ? (
         <div className="flex flex-col gap-3">
@@ -106,9 +171,14 @@ export function History() {
           <Clock className="mx-auto h-8 w-8 mb-2" />
           <p>No activities yet. Start a lesson to see your history here.</p>
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="rounded-xl border bg-white p-8 text-center text-muted-foreground">
+          <Clock className="mx-auto h-8 w-8 mb-2" />
+          <p>No {filter === 'lesson' ? 'lessons' : filter === 'check' ? 'checks' : 'practice sessions'} yet.</p>
+        </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {timeline.map((entry) => {
+          {filtered.map((entry) => {
             const cfg = typeConfig[entry.type]
             const Icon = cfg.icon
             return (

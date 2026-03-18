@@ -209,6 +209,9 @@ export function Reports() {
           {/* Class average mastery banner */}
           <ClassMasteryBanner average={classAverageMastery} learners={learners} />
 
+          {/* Per-learner mastery heatmap */}
+          <LearnerMasteryStrip learners={learners} />
+
           <div className="grid gap-6 lg:grid-cols-2">
             <StageDistribution learners={learners} />
             <MasteryDistribution learners={learners} />
@@ -280,6 +283,71 @@ function ClassMasteryBanner({ average, learners }: { average: number; learners: 
         </div>
       </div>
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Per-learner mastery strip
+// ---------------------------------------------------------------------------
+
+function masteryColor(ratio: number): string {
+  if (ratio < 0.25) return 'bg-red-400'
+  if (ratio < 0.5) return 'bg-amber-400'
+  if (ratio < 0.75) return 'bg-blue-400'
+  return 'bg-emerald-400'
+}
+
+function masteryHoverColor(ratio: number): string {
+  if (ratio < 0.25) return 'hover:bg-red-500'
+  if (ratio < 0.5) return 'hover:bg-amber-500'
+  if (ratio < 0.75) return 'hover:bg-blue-500'
+  return 'hover:bg-emerald-500'
+}
+
+function LearnerMasteryStrip({ learners }: { learners: TeacherLearnerCard[] }) {
+  if (learners.length === 0) return null
+
+  const sorted = [...learners].sort(
+    (a, b) => a.curriculum_progression.mastered_resource_ratio - b.curriculum_progression.mastered_resource_ratio,
+  )
+
+  return (
+    <section className="rounded-xl border bg-white p-5 shadow-sm">
+      <div className="flex items-center gap-3 mb-3">
+        <Users className="h-5 w-5 text-muted-foreground" />
+        <h3 className="font-semibold">Learner mastery overview</h3>
+        <span className="ml-auto text-xs text-muted-foreground">Sorted low → high</span>
+      </div>
+      <div className="flex gap-0.5" role="list" aria-label="Per-learner mastery">
+        {sorted.map((learner) => {
+          const ratio = learner.curriculum_progression.mastered_resource_ratio
+          const pct = Math.round(ratio * 100)
+          return (
+            <Link
+              key={learner.student_id}
+              to={`/teacher/learners/${learner.student_id}`}
+              role="listitem"
+              title={`${learner.student_id}: ${pct}% mastery`}
+              className={`group relative flex-1 rounded-sm transition-all ${masteryColor(ratio)} ${masteryHoverColor(ratio)}`}
+              style={{ minWidth: '8px', height: '28px' }}
+            >
+              <span className="pointer-events-none absolute -top-8 left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded bg-slate-800 px-2 py-1 text-xs text-white shadow-lg group-hover:block">
+                {learner.student_id}: {pct}%
+              </span>
+            </Link>
+          )
+        })}
+      </div>
+      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-red-400" />{'<'}25%</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-amber-400" />25–50%</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-blue-400" />50–75%</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-emerald-400" />75%+</span>
+        </div>
+        <span>Click to view learner</span>
+      </div>
+    </section>
   )
 }
 
