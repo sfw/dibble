@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useSocraticWorkspace } from '../../hooks/useSocraticWorkspace'
 import type { DataSource } from '../../app/workspace'
-import type { GeneratedBlock } from '../../types'
+import { ContentBlock } from '../../components/content/ContentBlock'
+import { AffectiveSupport } from '../../components/content/AffectiveSupport'
 
 const confidenceLevels = [
   { value: '0.25', label: 'Not sure', emoji: '🤔' },
@@ -18,7 +19,7 @@ const confidenceLevels = [
 
 export function SocraticCheck() {
   const { sessionId } = useParams<{ sessionId: string }>()
-  const { config, workspace } = useOutletContext<LearnerContext>()
+  const { config, workspace, summary } = useOutletContext<LearnerContext>()
   const navigate = useNavigate()
 
   const [, setDataSource] = useState<DataSource>('demo')
@@ -76,6 +77,9 @@ export function SocraticCheck() {
         </div>
       </header>
 
+      {/* Affective state support */}
+      <AffectiveSupport summary={summary} />
+
       {/* Conversation thread */}
       <div className="flex flex-col gap-3">
         {conversationHistory.map((entry, index) => (
@@ -100,7 +104,7 @@ export function SocraticCheck() {
           </summary>
           <div className="mt-3 flex flex-col gap-2">
             {hints.map((block, index) => (
-              <HintCard key={index} block={block} />
+              <ContentBlock key={index} block={block} />
             ))}
           </div>
         </details>
@@ -166,15 +170,6 @@ function ChatBubble({ role, text }: { role: string; text: string }) {
       >
         {text}
       </div>
-    </div>
-  )
-}
-
-function HintCard({ block }: { block: GeneratedBlock }) {
-  return (
-    <div className="rounded-lg bg-white p-3 text-sm">
-      {block.title && <p className="mb-1 font-medium">{block.title}</p>}
-      <p className="text-muted-foreground">{block.body}</p>
     </div>
   )
 }

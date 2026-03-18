@@ -91,6 +91,43 @@ export function InterventionWorkspace() {
         </div>
       </section>
 
+      {/* Evidence context */}
+      <section className="rounded-xl border bg-white p-6 shadow-sm">
+        <h2 className="mb-4 font-semibold">Evidence context</h2>
+        <div className="space-y-3">
+          {intervention.rationale && (
+            <div className="rounded-lg bg-slate-50 px-4 py-3">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Rationale</p>
+              <p className="mt-1 text-sm">{intervention.rationale}</p>
+            </div>
+          )}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-lg bg-slate-50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Stage</p>
+              <p className="font-medium">{teacherStage(intervention.target_stage)}</p>
+            </div>
+            <div className="rounded-lg bg-slate-50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Phase</p>
+              <p className="font-medium">{intervention.current_phase}</p>
+            </div>
+            <div className="rounded-lg bg-slate-50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Progression</p>
+              <p className="font-medium">{intervention.progression_action}</p>
+            </div>
+          </div>
+          {intervention.active_target_kc_ids.length > 0 && (
+            <div className="rounded-lg bg-slate-50 px-4 py-3">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Target knowledge components</p>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {intervention.active_target_kc_ids.map((kc) => (
+                  <Badge key={kc} variant="outline" className="text-xs">{kc}</Badge>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
       {/* Alternative options */}
       {intervention.available_options.length > 0 && (
         <section className="rounded-xl border bg-white p-6 shadow-sm">

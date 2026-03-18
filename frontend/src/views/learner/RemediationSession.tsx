@@ -7,11 +7,12 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useRemediationWorkspace } from '../../hooks/useRemediationWorkspace'
 import { learnerRemediationPhase } from '../../lib/copy'
+import { ContentBlock } from '../../components/content/ContentBlock'
+import { AffectiveSupport } from '../../components/content/AffectiveSupport'
 import type { DataSource } from '../../app/workspace'
-import type { GeneratedBlock } from '../../types'
 
 export function RemediationSession() {
-  const { config, workspace } = useOutletContext<LearnerContext>()
+  const { config, workspace, summary } = useOutletContext<LearnerContext>()
   const navigate = useNavigate()
 
   const [, setDataSource] = useState<DataSource>('demo')
@@ -90,6 +91,9 @@ export function RemediationSession() {
         </div>
       )}
 
+      {/* Affective state support */}
+      <AffectiveSupport summary={summary} />
+
       {/* Content from generated blocks */}
       {contentBlocks.length > 0 && (
         <div className="flex flex-col gap-4">
@@ -157,18 +161,5 @@ function StepDot({ index, currentIndex, label }: { index: number; currentIndex: 
         {label}
       </span>
     </div>
-  )
-}
-
-function ContentBlock({ block }: { block: GeneratedBlock }) {
-  return (
-    <article className="rounded-xl border bg-white p-6 shadow-sm">
-      {block.title && <h2 className="mb-3 text-lg font-semibold">{block.title}</h2>}
-      <div className="text-base leading-relaxed">
-        {block.body.split('\n').map((paragraph, i) => (
-          paragraph.trim() ? <p key={i} className="mb-2 last:mb-0">{paragraph}</p> : null
-        ))}
-      </div>
-    </article>
   )
 }
