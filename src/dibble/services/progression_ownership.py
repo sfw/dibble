@@ -11,6 +11,10 @@ from dibble.models.generation import (
 from dibble.models.profile import OrdinaryMasterySummary
 from dibble.services.kc_sequence_planner import KcSequencePlanner
 from dibble.services.observation_profile_update import ObservationProfileUpdater
+from dibble.services.progression_outcome_signals import (
+    ProgressionOutcomeSignal,
+    ProgressionOutcomeSignalService,
+)
 from dibble.services.protocols import (
     AuditStore,
     KnowledgeComponentStore,
@@ -64,6 +68,7 @@ class ProgressionOwnershipService:
     audit_store: AuditStore | None = None
     observation_profile_updater: ObservationProfileUpdater | None = None
     ordinary_mastery_signal_service: object | None = None
+    progression_outcome_signal_service: ProgressionOutcomeSignalService | None = None
     kc_sequence_planner: KcSequencePlanner | None = None
 
     def __post_init__(self) -> None:
@@ -163,15 +168,23 @@ class ProgressionOwnershipService:
             request=stage_request,
             session_summary=session,
         )
+        outcome_signal = self._outcome_signal(
+            student_id=student_id,
+            target_kc_ids=applied_target_kc_ids,
+        )
         ordinary_mastery_decision = self._ordinary_mastery_decision(
             student_id=student_id,
             request=stage_request,
             current_action=action,
             target_stage=target_stage,
+            outcome_signal=outcome_signal,
         )
         bridge_hold_active = action == "hold_bridge_target"
         if (
-            self._should_prefer_transfer(evidence_decision=evidence_decision)
+            self._should_prefer_transfer(
+                evidence_decision=evidence_decision,
+                outcome_signal=outcome_signal,
+            )
             and not bridge_hold_active
         ):
             action = "attempt_transfer"
@@ -350,6 +363,19 @@ class ProgressionOwnershipService:
             session_rationale=session_summary.rationale,
         )
 
+    def _outcome_signal(
+        self,
+        *,
+        student_id: UUID,
+        target_kc_ids: list[str],
+    ) -> ProgressionOutcomeSignal:
+        if self.progression_outcome_signal_service is None:
+            return ProgressionOutcomeSignal()
+        return self.progression_outcome_signal_service.signal_for_student(
+            student_id=student_id,
+            target_kc_ids=target_kc_ids or None,
+        )
+
     def _ordinary_mastery_decision(
         self,
         *,
@@ -357,6 +383,7 @@ class ProgressionOwnershipService:
         request: GenerationRequest,
         current_action: str,
         target_stage: str,
+        outcome_signal: ProgressionOutcomeSignal | None = None,
     ) -> OrdinaryProgressionDecision:
         if self.ordinary_mastery_signal_service is None:
             return OrdinaryProgressionDecision()
@@ -442,6 +469,19 @@ class ProgressionOwnershipService:
             volatility_penalty = 0.04 * evidence_scale
             effective_support_dependent_threshold -= volatility_penalty
             effective_fragile_threshold -= volatility_penalty
+
+        # ADAPT-006 + DATA-004: Outcome-based threshold adjustment.
+        # If prior hold decisions for this learner have mostly failed (negative
+        # outcomes), raise the threshold so holds are harder to trigger.
+        # If holds have been reliably positive, lower it to hold more easily.
+        if (
+            outcome_signal is not None
+            and outcome_signal.hold_threshold_adjustment != 0.0
+        ):
+            effective_support_dependent_threshold += (
+                outcome_signal.hold_threshold_adjustment
+            )
+            effective_fragile_threshold += outcome_signal.hold_threshold_adjustment
 
         if (
             summary.signal == "support_dependent"
@@ -537,10 +577,21 @@ class ProgressionOwnershipService:
             gate_reason,
         )
 
-    def _should_prefer_transfer(self, *, evidence_decision) -> bool:
+    def _should_prefer_transfer(
+        self,
+        *,
+        evidence_decision,
+        outcome_signal: ProgressionOutcomeSignal | None = None,
+    ) -> bool:
+        # ADAPT-006: Outcome-based transfer confidence adjustment.
+        # If prior transfers have been premature, require more confidence.
+        # If they've been reliably succeeding, lower the bar slightly.
+        transfer_threshold = 0.6
+        if outcome_signal is not None:
+            transfer_threshold += outcome_signal.transfer_confidence_adjustment
         return (
             evidence_decision.decision == "attempt_transfer"
-            and evidence_decision.confidence >= 0.6
+            and evidence_decision.confidence >= transfer_threshold
         )
 
     def _transfer_rationale(

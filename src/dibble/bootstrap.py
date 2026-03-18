@@ -46,6 +46,9 @@ from dibble.services.learner_progression_service import LearnerProgressionServic
 from dibble.services.learner_summary_service import LearnerSummaryService
 from dibble.services.learner_workspace_service import LearnerWorkspaceService
 from dibble.services.misconception_detector import MisconceptionDetector
+from dibble.services.misconception_remediation_outcomes import (
+    MisconceptionRemediationOutcomeTracker,
+)
 from dibble.services.misconception_profiles import (
     LearningMisconceptionProfileRecorder,
     LearningMisconceptionProfileResolver,
@@ -60,6 +63,7 @@ from dibble.services.predictive_content_invalidator import PredictiveContentInva
 from dibble.services.predictive_content_warming import PredictiveContentWarmer
 from dibble.services.predictive_warm_queue_store import SQLitePredictiveWarmQueueStore
 from dibble.services.predictive_warm_scheduler import PredictiveWarmScheduler
+from dibble.services.progression_outcome_signals import ProgressionOutcomeSignalService
 from dibble.services.progression_outcome_tracker import ProgressionOutcomeTracker
 from dibble.services.progression_ownership import ProgressionOwnershipService
 from dibble.services.provider_health import SQLiteProviderHealthStore
@@ -142,6 +146,7 @@ class ApplicationServices:
     predictive_warm_scheduler: PredictiveWarmScheduler
     mastery_snapshot_service: MasterySnapshotService
     progression_outcome_tracker: ProgressionOutcomeTracker
+    misconception_remediation_outcome_tracker: MisconceptionRemediationOutcomeTracker
     within_session_adaptation_service: WithinSessionAdaptationService
     router_plugin: RouterPlugin
 
@@ -177,6 +182,9 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         audit_store=audit_store
     )
     ordinary_mastery_signal_service = OrdinaryMasterySignalService(
+        audit_store=audit_store
+    )
+    progression_outcome_signal_service = ProgressionOutcomeSignalService(
         audit_store=audit_store
     )
     within_session_adaptation_service = WithinSessionAdaptationService(
@@ -236,6 +244,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         audit_store=audit_store,
         observation_profile_updater=observation_profile_updater,
         ordinary_mastery_signal_service=ordinary_mastery_signal_service,
+        progression_outcome_signal_service=progression_outcome_signal_service,
     )
     state_inference_service = LearnerStateInferenceService(
         state_profile_signal_service=learner_state_signal_service
@@ -324,8 +333,10 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     misconception_profile_recorder = LearningMisconceptionProfileRecorder(
         audit_store=audit_store
     )
-    progression_outcome_tracker = ProgressionOutcomeTracker(
-        audit_store=audit_store
+    progression_outcome_tracker = ProgressionOutcomeTracker(audit_store=audit_store)
+    misconception_remediation_outcome_tracker = MisconceptionRemediationOutcomeTracker(
+        audit_store=audit_store,
+        remediation_session_store=remediation_session_store,
     )
     content_warmer = ContentWarmer(
         profile_store,
@@ -417,6 +428,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         predictive_warm_scheduler=predictive_warm_scheduler,
         mastery_snapshot_service=mastery_snapshot_service,
         progression_outcome_tracker=progression_outcome_tracker,
+        misconception_remediation_outcome_tracker=misconception_remediation_outcome_tracker,
         within_session_adaptation_service=within_session_adaptation_service,
         router_plugin=router_plugin,
     )

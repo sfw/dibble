@@ -130,6 +130,16 @@ def build_learner_router(context: ApiContext) -> APIRouter:
         )
         if progression_outcomes:
             services.progression_outcome_tracker.record_outcomes(progression_outcomes)
+        remediation_outcomes = (
+            services.misconception_remediation_outcome_tracker.evaluate_recent_sessions(
+                student_id=str(student_id),
+                current_kc_mastery=updated_profile.knowledge_state.kc_mastery,
+            )
+        )
+        if remediation_outcomes:
+            services.misconception_remediation_outcome_tracker.record_outcomes(
+                remediation_outcomes
+            )
         observation_audit_event = services.audit_store.append(
             event_type="learner.observe",
             status="success",
