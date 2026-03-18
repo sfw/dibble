@@ -90,9 +90,7 @@ class TestStrategyVsStateProfile:
                     signal="independence_ready",
                     trajectory_state="accelerating",
                 ),
-                state_profile=LearnerStateProfileSummary(
-                    signal="support_needed"
-                ),
+                state_profile=LearnerStateProfileSummary(signal="support_needed"),
             )
         )
         assert result.high_count == 1
@@ -109,9 +107,7 @@ class TestStrategyVsStateProfile:
                     signal="support_intensive",
                     trajectory_state="relapsing",
                 ),
-                state_profile=LearnerStateProfileSummary(
-                    signal="independence_ready"
-                ),
+                state_profile=LearnerStateProfileSummary(signal="independence_ready"),
             )
         )
         assert result.medium_count == 1
@@ -196,9 +192,7 @@ class TestProgressVsMasteryTrend:
         svc = CrossSignalConsistencyService()
         result = svc.evaluate(
             **_defaults(
-                progress=LearnerProgressSummary(
-                    signal="improving", progress_delta=0.1
-                ),
+                progress=LearnerProgressSummary(signal="improving", progress_delta=0.1),
                 state_profile=LearnerStateProfileSummary(
                     signal="support_needed",
                     progress_signal="declining",
@@ -256,9 +250,7 @@ class TestTraitStabilityVsConfidence:
             )
         )
         divergence_from_traits = [
-            d
-            for d in result.divergences
-            if "trait" in d.signal_a
+            d for d in result.divergences if "trait" in d.signal_a
         ]
         assert len(divergence_from_traits) == 0
 

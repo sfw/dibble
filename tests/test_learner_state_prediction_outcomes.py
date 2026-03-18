@@ -116,9 +116,7 @@ def test_positive_overload_when_completion_stays_low(tmp_path):
     student = str(uuid4())
     tracker = LearnerStatePredictionOutcomeTracker(audit_store=store)
 
-    _observation_with_prediction(
-        store, student_id=student, signal="overload"
-    )
+    _observation_with_prediction(store, student_id=student, signal="overload")
     _subsequent_observation(store, student_id=student, completed=False)
     _subsequent_observation(store, student_id=student, completed=False)
     _subsequent_observation(store, student_id=student, completed=False)
@@ -135,9 +133,7 @@ def test_negative_overload_when_learner_recovers(tmp_path):
     student = str(uuid4())
     tracker = LearnerStatePredictionOutcomeTracker(audit_store=store)
 
-    _observation_with_prediction(
-        store, student_id=student, signal="overload"
-    )
+    _observation_with_prediction(store, student_id=student, signal="overload")
     _subsequent_observation(store, student_id=student, completed=True)
     _subsequent_observation(store, student_id=student, completed=True)
     _subsequent_observation(store, student_id=student, completed=True)
@@ -154,9 +150,7 @@ def test_positive_disengagement_when_low_completion_continues(tmp_path):
     student = str(uuid4())
     tracker = LearnerStatePredictionOutcomeTracker(audit_store=store)
 
-    _observation_with_prediction(
-        store, student_id=student, signal="disengagement"
-    )
+    _observation_with_prediction(store, student_id=student, signal="disengagement")
     _subsequent_observation(store, student_id=student, completed=False)
     _subsequent_observation(store, student_id=student, completed=False)
 
@@ -171,9 +165,7 @@ def test_negative_disengagement_when_learner_re_engages(tmp_path):
     student = str(uuid4())
     tracker = LearnerStatePredictionOutcomeTracker(audit_store=store)
 
-    _observation_with_prediction(
-        store, student_id=student, signal="disengagement"
-    )
+    _observation_with_prediction(store, student_id=student, signal="disengagement")
     _subsequent_observation(store, student_id=student, completed=True)
     _subsequent_observation(store, student_id=student, completed=True)
 
@@ -238,9 +230,7 @@ def test_insufficient_subsequent_observations_returns_empty(tmp_path):
     student = str(uuid4())
     tracker = LearnerStatePredictionOutcomeTracker(audit_store=store)
 
-    _observation_with_prediction(
-        store, student_id=student, signal="overload"
-    )
+    _observation_with_prediction(store, student_id=student, signal="overload")
     # Only one subsequent
     _subsequent_observation(store, student_id=student, completed=False)
 
@@ -254,9 +244,7 @@ def test_steady_signals_are_skipped(tmp_path):
     student = str(uuid4())
     tracker = LearnerStatePredictionOutcomeTracker(audit_store=store)
 
-    _observation_with_prediction(
-        store, student_id=student, signal="steady"
-    )
+    _observation_with_prediction(store, student_id=student, signal="steady")
     _subsequent_observation(store, student_id=student, completed=True)
     _subsequent_observation(store, student_id=student, completed=True)
 
@@ -269,9 +257,7 @@ def test_already_evaluated_predictions_are_skipped(tmp_path):
     student = str(uuid4())
     tracker = LearnerStatePredictionOutcomeTracker(audit_store=store)
 
-    _observation_with_prediction(
-        store, student_id=student, signal="overload"
-    )
+    _observation_with_prediction(store, student_id=student, signal="overload")
     _subsequent_observation(store, student_id=student, completed=False)
     _subsequent_observation(store, student_id=student, completed=False)
 
@@ -289,9 +275,7 @@ def test_record_outcomes_persists_audit_events(tmp_path):
     student = str(uuid4())
     tracker = LearnerStatePredictionOutcomeTracker(audit_store=store)
 
-    _observation_with_prediction(
-        store, student_id=student, signal="overload"
-    )
+    _observation_with_prediction(store, student_id=student, signal="overload")
     _subsequent_observation(store, student_id=student, completed=False)
     _subsequent_observation(store, student_id=student, completed=False)
 

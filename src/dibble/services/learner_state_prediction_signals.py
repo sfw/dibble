@@ -96,9 +96,7 @@ class LearnerStatePredictionSignalService:
         reference_time = events[0].created_at if events else None
 
         for event in events:
-            classification = str(
-                event.payload.get("predicted_signal", "unknown")
-            )
+            classification = str(event.payload.get("predicted_signal", "unknown"))
             is_positive = event.status == "positive"
             weight = (
                 recency_weight(event.created_at, reference_time)
@@ -150,9 +148,7 @@ class LearnerStatePredictionSignalService:
 
         # Identify weakest and strongest classification
         evaluable = {
-            k: v
-            for k, v in per_classification.items()
-            if v.evaluated_count >= 2
+            k: v for k, v in per_classification.items() if v.evaluated_count >= 2
         }
         weakest = (
             min(evaluable.values(), key=lambda v: v.accuracy_rate).classification

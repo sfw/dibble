@@ -5,6 +5,7 @@ import { TeacherShell } from './shells/TeacherShell'
 import { StaffShell } from './shells/StaffShell'
 import { AuthGuard } from './components/shell/AuthGuard'
 import { Login } from './views/Login'
+import { Setup } from './views/Setup'
 
 // Learner views
 import { LearnerHome } from './views/learner/LearnerHome'
@@ -23,6 +24,10 @@ import { InterventionWorkspace } from './views/teacher/InterventionWorkspace'
 import { TeacherAssignments } from './views/teacher/Assignments'
 import { Reports } from './views/teacher/Reports'
 
+// Staff views
+import { StaffWorkbench } from './views/staff/StaffWorkbench'
+import { UserManagement } from './views/staff/UserManagement'
+
 export const router = createBrowserRouter([
   {
     path: '/',
@@ -32,6 +37,11 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     element: <Login />,
+  },
+
+  {
+    path: '/setup',
+    element: <Setup />,
   },
 
   // Learner shell — requires learner or higher role
@@ -72,7 +82,7 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // Staff shell — wraps the existing tab-based workbench, requires admin
+  // Staff shell — requires admin/editor/viewer
   {
     path: '/staff',
     element: (
@@ -80,6 +90,10 @@ export const router = createBrowserRouter([
         <StaffShell />
       </AuthGuard>
     ),
+    children: [
+      { index: true, element: <StaffWorkbench /> },
+      { path: 'users', element: <UserManagement /> },
+    ],
   },
 
   // Catch-all redirect to role switcher

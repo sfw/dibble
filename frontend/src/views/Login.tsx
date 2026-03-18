@@ -6,20 +6,24 @@ import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card'
 import { useAuthContext } from '../contexts/AuthContext'
+import { useConfigContext } from '../contexts/ConfigContext'
+
+type LoginMode = 'student' | 'staff'
 
 export function Login() {
   const navigate = useNavigate()
   const auth = useAuthContext()
-  const [apiKey, setApiKey] = useState('')
-  const [baseUrl, setBaseUrl] = useState('http://127.0.0.1:8000')
+  const { baseUrl, setBaseUrl } = useConfigContext()
+  const [mode, setMode] = useState<LoginMode>('student')
+  const [credential, setCredential] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
-    if (!apiKey.trim()) return
+    if (!credential.trim()) return
 
     try {
-      const identity = await auth.login(apiKey.trim(), baseUrl.trim())
+      const identity = await auth.login(credential.trim(), baseUrl.trim())
       if (identity.role === 'learner') {
         navigate('/learn', { replace: true })
       } else if (identity.role === 'teacher') {
@@ -43,26 +47,72 @@ export function Login() {
       </header>
 
       <Card className="w-full max-w-sm">
-        <CardHeader>
+        <CardHeader className="pb-3">
+          <div className="flex rounded-lg border bg-muted p-1">
+            <button
+              type="button"
+              onClick={() => { setMode('student'); setCredential('') }}
+              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                mode === 'student'
+                  ? 'bg-white text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Student
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMode('staff'); setCredential('') }}
+              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                mode === 'staff'
+                  ? 'bg-white text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Staff
+            </button>
+          </div>
           <CardTitle className="text-lg">Sign in</CardTitle>
-          <CardDescription>Enter your API key to get started.</CardDescription>
+          <CardDescription>
+            {mode === 'student'
+              ? 'Enter the passphrase your teacher gave you.'
+              : 'Enter your API key to get started.'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="api-key">API key</Label>
-              <Input
-                id="api-key"
-                type="password"
-                placeholder="Enter your API key"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                autoFocus
-                autoComplete="current-password"
-              />
+              {mode === 'student' ? (
+                <>
+                  <Label htmlFor="passphrase">Passphrase</Label>
+                  <Input
+                    id="passphrase"
+                    type="text"
+                    placeholder="e.g. blue tiger runs fast"
+                    value={credential}
+                    onChange={(e) => setCredential(e.target.value)}
+                    autoFocus
+                    autoComplete="off"
+                    className="text-lg tracking-wide"
+                  />
+                </>
+              ) : (
+                <>
+                  <Label htmlFor="api-key">API key</Label>
+                  <Input
+                    id="api-key"
+                    type="password"
+                    placeholder="Enter your API key"
+                    value={credential}
+                    onChange={(e) => setCredential(e.target.value)}
+                    autoFocus
+                    autoComplete="current-password"
+                  />
+                </>
+              )}
             </div>
 
-            {showAdvanced && (
+            {mode === 'staff' && showAdvanced && (
               <div className="flex flex-col gap-2">
                 <Label htmlFor="base-url">Server URL</Label>
                 <Input
@@ -79,7 +129,7 @@ export function Login() {
               <p className="text-sm text-destructive">{auth.error}</p>
             )}
 
-            <Button type="submit" disabled={auth.loading || !apiKey.trim()}>
+            <Button type="submit" disabled={auth.loading || !credential.trim()}>
               {auth.loading ? (
                 'Signing in...'
               ) : (
@@ -90,13 +140,15 @@ export function Login() {
               )}
             </Button>
 
-            <button
-              type="button"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {showAdvanced ? 'Hide advanced settings' : 'Advanced settings'}
-            </button>
+            {mode === 'staff' && (
+              <button
+                type="button"
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showAdvanced ? 'Hide advanced settings' : 'Advanced settings'}
+              </button>
+            )}
           </form>
         </CardContent>
       </Card>

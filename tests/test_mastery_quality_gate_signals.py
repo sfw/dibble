@@ -215,9 +215,8 @@ def test_quality_gate_confidence_adjustment_in_progression():
             from dibble.services.mastery_quality_gate_signals import (
                 MasteryQualityGateSignal,
             )
-            return MasteryQualityGateSignal(
-                confidence_threshold_adjustment=-0.05
-            )
+
+            return MasteryQualityGateSignal(confidence_threshold_adjustment=-0.05)
 
     service = LearnerProgressionService(
         profile_store=None,

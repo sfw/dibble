@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router'
 import { BarChart3, ClipboardList, GraduationCap, LayoutDashboard, LogOut, School } from 'lucide-react'
 import { useTeacherClassroom } from '../hooks/useTeacherClassroom'
 import { useAuthContext } from '../contexts/AuthContext'
+import { useConfigContext } from '../contexts/ConfigContext'
 import type { DataSource } from '../app/workspace'
 import { TeacherBreadcrumbs } from '../components/shell/Breadcrumbs'
 import type {
@@ -30,8 +31,9 @@ const navItems = [
 
 export function TeacherShell() {
   const auth = useAuthContext()
+  const { baseUrl } = useConfigContext()
   const teacherConfig: FrontendConfig = {
-    baseUrl: 'http://127.0.0.1:8000',
+    baseUrl,
     apiKey: '',
     bearerToken: auth.getToken(),
     useDemoFallback: !auth.authenticated,

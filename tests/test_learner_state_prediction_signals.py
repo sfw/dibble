@@ -186,12 +186,22 @@ def test_mixed_classifications_overall_accuracy(tmp_path):
     service = LearnerStatePredictionSignalService(audit_store=store)
 
     # 2 correct overload, 1 wrong overload
-    _outcome_event(store, student_id=student, predicted_signal="overload", outcome="positive")
-    _outcome_event(store, student_id=student, predicted_signal="overload", outcome="positive")
-    _outcome_event(store, student_id=student, predicted_signal="overload", outcome="negative")
+    _outcome_event(
+        store, student_id=student, predicted_signal="overload", outcome="positive"
+    )
+    _outcome_event(
+        store, student_id=student, predicted_signal="overload", outcome="positive"
+    )
+    _outcome_event(
+        store, student_id=student, predicted_signal="overload", outcome="negative"
+    )
     # 1 correct disengagement, 1 wrong disengagement
-    _outcome_event(store, student_id=student, predicted_signal="disengagement", outcome="positive")
-    _outcome_event(store, student_id=student, predicted_signal="disengagement", outcome="negative")
+    _outcome_event(
+        store, student_id=student, predicted_signal="disengagement", outcome="positive"
+    )
+    _outcome_event(
+        store, student_id=student, predicted_signal="disengagement", outcome="negative"
+    )
 
     signal = service.signal_for_student(student_id=student)
 

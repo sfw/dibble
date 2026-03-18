@@ -63,9 +63,7 @@ class LearnerSummaryService:
         trait_profile = self.trait_profile_signal_service.latest_for_student(
             student_id=student_id
         )
-        state_prediction_reliability = self._state_prediction_reliability(
-            student_id
-        )
+        state_prediction_reliability = self._state_prediction_reliability(student_id)
 
         return ProfileSummary.from_profile(
             profile,

@@ -93,17 +93,13 @@ class MasteryQualityGateOutcomeTracker:
                 if to_state == "mastered":
                     # This is a gate release — resource achieved mastery
                     if resource_id not in gate_releases:
-                        gate_releases[resource_id] = _parse_timestamp(
-                            event.created_at
-                        )
+                        gate_releases[resource_id] = _parse_timestamp(event.created_at)
                 elif to_state in {"ready", "active"}:
                     gate_holds.append(
                         {
                             "event_id": event.event_id,
                             "resource_id": resource_id,
-                            "mastery_ratio": float(
-                                payload.get("mastery_ratio", 0.0)
-                            ),
+                            "mastery_ratio": float(payload.get("mastery_ratio", 0.0)),
                             "gate_signal": str(
                                 payload.get("to_mastery_quality", "unknown")
                             ),

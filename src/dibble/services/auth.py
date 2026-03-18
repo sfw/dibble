@@ -9,10 +9,16 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from dibble.config import Settings
-from dibble.models.auth import AuthIdentity, AuthSession, AuthToken, AuthTokenClaims
+from dibble.models.auth import (
+    AuthIdentity,
+    AuthSession,
+    AuthToken,
+    AuthTokenClaims,
+    User,
+)
 from dibble.services.access_control import allows_role
 from dibble.services.auth_sessions import StoredAuthSession
-from dibble.services.protocols import AuthSessionStore
+from dibble.services.protocols import AuthSessionStore, UserStore
 
 
 class AuthenticationError(RuntimeError):
@@ -31,27 +37,35 @@ class TokenConfigurationError(RuntimeError):
     """Raised when bearer token features are requested without configuration."""
 
 
-@dataclass(frozen=True, slots=True)
-class ApiKeyPrincipal:
-    api_key: str
-    principal_id: str
-    role: str
-    learner_id: str | None = None
-    teacher_id: str | None = None
-    display_name: str | None = None
-    classroom_ids: tuple[str, ...] = ()
+def hash_credential(value: str) -> str:
+    """Hash an API key or passphrase with SHA-256."""
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _identity_from_user(user: User) -> AuthIdentity:
+    scheme = (
+        "passphrase" if user.passphrase_hash and not user.api_key_hash else "api_key"
+    )
+    return AuthIdentity(
+        principal_id=user.user_id,
+        role=user.role,
+        auth_scheme=scheme,
+        learner_id=user.learner_id,
+        teacher_id=user.teacher_id,
+        display_name=user.display_name,
+        classroom_ids=list(user.classroom_ids),
+    )
 
 
 @dataclass(slots=True)
 class AuthService:
     enabled: bool = False
-    principals: tuple[ApiKeyPrincipal, ...] = ()
-    header_name: str = "X-API-Key"
     token_secret: str | None = None
     token_issuer: str = "dibble"
     token_ttl_seconds: int = 3600
     refresh_ttl_seconds: int = 604800
     session_store: AuthSessionStore | None = None
+    user_store: UserStore | None = None
 
     @classmethod
     def from_settings(
@@ -59,16 +73,16 @@ class AuthService:
         settings: Settings,
         *,
         session_store: AuthSessionStore | None = None,
+        user_store: UserStore | None = None,
     ) -> "AuthService":
         return cls(
             enabled=settings.auth_enabled,
-            principals=_build_principals(settings),
-            header_name=settings.auth_header_name,
             token_secret=settings.auth_token_secret,
             token_issuer=settings.auth_token_issuer,
             token_ttl_seconds=settings.auth_token_ttl_seconds,
             refresh_ttl_seconds=settings.auth_refresh_ttl_seconds,
             session_store=session_store,
+            user_store=user_store,
         )
 
     def authenticate(self, provided_key: str | None) -> AuthIdentity:
@@ -76,24 +90,23 @@ class AuthService:
             return AuthIdentity(
                 principal_id="anonymous", role="admin", auth_scheme="disabled"
             )
-        if not self.principals:
+        if not provided_key:
+            raise AuthenticationError("A credential is required for this endpoint.")
+        if not self.user_store:
             raise AuthenticationError(
-                "Authentication is enabled but no API keys are configured."
+                "Authentication is enabled but no user store is configured."
             )
 
-        for principal in self.principals:
-            if provided_key == principal.api_key:
-                return AuthIdentity(
-                    principal_id=principal.principal_id,
-                    role=principal.role,
-                    auth_scheme="api_key",
-                    learner_id=principal.learner_id,
-                    teacher_id=principal.teacher_id,
-                    display_name=principal.display_name,
-                    classroom_ids=list(principal.classroom_ids),
-                )
+        credential_hash = hash_credential(provided_key)
+        user = self.user_store.get_by_api_key_hash(credential_hash)
+        if user is None:
+            user = self.user_store.get_by_passphrase_hash(credential_hash)
+        if user is None:
+            raise AuthenticationError(
+                "A valid API key or passphrase is required for this endpoint."
+            )
 
-        raise AuthenticationError("A valid API key is required for this endpoint.")
+        return _identity_from_user(user)
 
     def authenticate_request(
         self, *, provided_key: str | None, bearer_token: str | None
@@ -392,56 +405,6 @@ class AuthService:
 
     def _hash_token(self, token: str) -> str:
         return hashlib.sha256(token.encode("utf-8")).hexdigest()
-
-
-def _build_principals(settings: Settings) -> tuple[ApiKeyPrincipal, ...]:
-    if settings.auth_principals:
-        principals: list[ApiKeyPrincipal] = []
-        for entry in settings.auth_principals:
-            parts = entry.split(":")
-            if len(parts) < 3:
-                continue
-            api_key, principal_id, role = parts[0], parts[1], parts[2].lower()
-            if not api_key or not principal_id or not role:
-                continue
-            learner_id: str | None = None
-            teacher_id: str | None = None
-            display_name: str | None = None
-            classroom_ids: tuple[str, ...] = ()
-            if role == "learner" and len(parts) >= 4 and parts[3]:
-                learner_id = parts[3]
-                if len(parts) >= 5 and parts[4]:
-                    display_name = parts[4]
-            elif role == "teacher" and len(parts) >= 4 and parts[3]:
-                teacher_id = parts[3]
-                if len(parts) >= 5 and parts[4]:
-                    display_name = parts[4]
-                if len(parts) >= 6 and parts[5]:
-                    classroom_ids = tuple(
-                        cid.strip() for cid in parts[5].split(",") if cid.strip()
-                    )
-            principals.append(
-                ApiKeyPrincipal(
-                    api_key=api_key,
-                    principal_id=principal_id,
-                    role=role,
-                    learner_id=learner_id,
-                    teacher_id=teacher_id,
-                    display_name=display_name,
-                    classroom_ids=classroom_ids,
-                )
-            )
-        if principals:
-            return tuple(principals)
-
-    return tuple(
-        ApiKeyPrincipal(
-            api_key=api_key,
-            principal_id=f"principal-{index + 1}",
-            role="admin",
-        )
-        for index, api_key in enumerate(settings.auth_api_keys)
-    )
 
 
 def _urlsafe_b64encode(value: bytes) -> str:

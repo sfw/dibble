@@ -160,7 +160,10 @@ def _check_affective_cognitive_coherence(
         return divergences
 
     # High overload risk paired with independence-ready
-    if state_profile.overload_risk >= 0.7 and state_profile.signal == "independence_ready":
+    if (
+        state_profile.overload_risk >= 0.7
+        and state_profile.signal == "independence_ready"
+    ):
         divergences.append(
             SignalDivergence(
                 signal_a="state_profile.overload_risk",
@@ -201,10 +204,7 @@ def _check_prediction_reliability_vs_confidence(
     if state_prediction.evaluated_count < 3:
         return divergences
 
-    if (
-        state_prediction.weighted_accuracy < 0.5
-        and state_profile.confidence >= 0.7
-    ):
+    if state_prediction.weighted_accuracy < 0.5 and state_profile.confidence >= 0.7:
         divergences.append(
             SignalDivergence(
                 signal_a="state_prediction_reliability",
@@ -234,10 +234,7 @@ def _check_progress_vs_mastery_trend(
         return divergences
 
     # Progress improving but state profile progress declining
-    if (
-        progress.signal == "improving"
-        and state_profile.progress_signal == "declining"
-    ):
+    if progress.signal == "improving" and state_profile.progress_signal == "declining":
         divergences.append(
             SignalDivergence(
                 signal_a="progress",
@@ -255,10 +252,7 @@ def _check_progress_vs_mastery_trend(
         )
 
     # Reverse case
-    if (
-        progress.signal == "declining"
-        and state_profile.progress_signal == "improving"
-    ):
+    if progress.signal == "declining" and state_profile.progress_signal == "improving":
         divergences.append(
             SignalDivergence(
                 signal_a="progress",
@@ -286,7 +280,10 @@ def _check_trait_stability_vs_confidence(
     if not _has_data(trait_profile.signal):
         return divergences
 
-    if trait_profile.trait_stability < 0.3 and trait_profile.challenge_evidence_strength >= 0.7:
+    if (
+        trait_profile.trait_stability < 0.3
+        and trait_profile.challenge_evidence_strength >= 0.7
+    ):
         divergences.append(
             SignalDivergence(
                 signal_a="trait_profile.trait_stability",
@@ -325,27 +322,21 @@ class CrossSignalConsistencyService:
         divergences: list[SignalDivergence] = []
 
         divergences.extend(_check_progress_vs_strategy(progress, strategy))
-        divergences.extend(
-            _check_strategy_vs_state_profile(strategy, state_profile)
-        )
+        divergences.extend(_check_strategy_vs_state_profile(strategy, state_profile))
         divergences.extend(_check_affective_cognitive_coherence(state_profile))
         divergences.extend(
             _check_prediction_reliability_vs_confidence(
                 state_prediction_reliability, state_profile
             )
         )
-        divergences.extend(
-            _check_progress_vs_mastery_trend(progress, state_profile)
-        )
+        divergences.extend(_check_progress_vs_mastery_trend(progress, state_profile))
         divergences.extend(_check_trait_stability_vs_confidence(trait_profile))
 
         high = sum(1 for d in divergences if d.severity == "high")
         medium = sum(1 for d in divergences if d.severity == "medium")
         low = sum(1 for d in divergences if d.severity == "low")
 
-        total_penalty = sum(
-            _SEVERITY_PENALTY.get(d.severity, 0.0) for d in divergences
-        )
+        total_penalty = sum(_SEVERITY_PENALTY.get(d.severity, 0.0) for d in divergences)
         coherence_score = round(max(0.0, 1.0 - total_penalty), 3)
 
         if not divergences:

@@ -65,13 +65,16 @@ class ResourceStateTransitionTracker:
             prev_state = prev["state"] if prev else "unseen"
             prev_quality = prev.get("mastery_quality") if prev else None
 
-            if prev_state == resource.state and prev_quality == resource.mastery_quality:
+            if (
+                prev_state == resource.state
+                and prev_quality == resource.mastery_quality
+            ):
                 continue
 
-            quality_gate_involved = (
-                resource.mastery_quality in {"support_dependent", "fragile"}
-                or (prev_quality in {"support_dependent", "fragile"} if prev else False)
-            )
+            quality_gate_involved = resource.mastery_quality in {
+                "support_dependent",
+                "fragile",
+            } or (prev_quality in {"support_dependent", "fragile"} if prev else False)
 
             rationale = self._transition_rationale(
                 from_state=prev_state,
@@ -97,9 +100,7 @@ class ResourceStateTransitionTracker:
 
         return transitions
 
-    def record_transitions(
-        self, transitions: list[ResourceStateTransition]
-    ) -> None:
+    def record_transitions(self, transitions: list[ResourceStateTransition]) -> None:
         """Persist transitions as audit events."""
         for t in transitions:
             self.audit_store.append(
@@ -118,9 +119,7 @@ class ResourceStateTransitionTracker:
                 },
             )
 
-    def _previous_states(
-        self, *, student_id: str
-    ) -> dict[str, dict[str, object]]:
+    def _previous_states(self, *, student_id: str) -> dict[str, dict[str, object]]:
         """Reconstruct the most recent known state per resource from
         prior ``curriculum.resource.transition`` events."""
         events = self.audit_store.list(limit=self.max_lookback_events)
@@ -161,16 +160,15 @@ class ResourceStateTransitionTracker:
 
         if from_quality != to_quality:
             if to_quality in {"support_dependent", "fragile"}:
-                parts.append(
-                    f"Quality gate now active ({to_quality})."
-                )
-            elif from_quality in {"support_dependent", "fragile"} and to_quality not in {
+                parts.append(f"Quality gate now active ({to_quality}).")
+            elif from_quality in {
+                "support_dependent",
+                "fragile",
+            } and to_quality not in {
                 "support_dependent",
                 "fragile",
             }:
-                parts.append(
-                    f"Quality gate cleared (was {from_quality})."
-                )
+                parts.append(f"Quality gate cleared (was {from_quality}).")
 
         if resource_rationale:
             parts.append(resource_rationale)

@@ -16,7 +16,7 @@ from dibble.services.auth import (
 )
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.content_workflow import ContentWorkflowService
-from dibble.services.protocols import ClassroomStore
+from dibble.services.protocols import ClassroomStore, UserStore
 from dibble.services.cognitive_trait_inference import CognitiveTraitInferenceService
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.generation_mode_calibration import GenerationModeCalibrator
@@ -49,6 +49,7 @@ from dibble.services.protocols import (
     SocraticSessionStore,
 )
 from dibble.services.remediation_planner import RemediationPlanner
+from dibble.services.setup_config import SetupConfigService
 from dibble.services.socratic_assessment import SocraticAssessmentService
 from dibble.services.socratic_profile_update import SocraticProfileUpdater
 from dibble.services.state_inference import LearnerStateInferenceService
@@ -133,6 +134,8 @@ class ApiServices(Protocol):
     predictive_content_invalidator: PredictiveContentInvalidator
     predictive_warm_scheduler: PredictiveWarmScheduler
     within_session_adaptation_service: WithinSessionAdaptationService
+    user_store: UserStore
+    setup_config_service: SetupConfigService
 
 
 @dataclass(slots=True)
@@ -142,9 +145,7 @@ class ApiContext:
     def require_access(self, *allowed_roles: str):
         async def dependency(
             request: Request,
-            api_key: str | None = Header(
-                default=None, alias=self.services.auth_service.header_name
-            ),
+            api_key: str | None = Header(default=None, alias="X-API-Key"),
             authorization: str | None = Header(default=None, alias="Authorization"),
         ) -> AuthIdentity:
             bearer_token = None
@@ -166,7 +167,7 @@ class ApiContext:
                     payload={
                         "path": request.url.path,
                         "method": request.method,
-                        "header_name": self.services.auth_service.header_name,
+                        "header_name": "X-API-Key",
                         "required_roles": list(allowed_roles or ("viewer",)),
                     },
                 )
@@ -184,7 +185,7 @@ class ApiContext:
                     payload={
                         "path": request.url.path,
                         "method": request.method,
-                        "header_name": self.services.auth_service.header_name,
+                        "header_name": "X-API-Key",
                         "principal_id": identity.principal_id
                         if identity is not None
                         else None,
