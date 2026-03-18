@@ -177,6 +177,12 @@ export function recordTeacherInterventionAction(
   )
 }
 
+export function getGeneratedContent(config: FrontendConfig, generationId: string) {
+  return requestJson<GeneratedContent>(config, `/api/content/${generationId}`, {
+    headers: buildHeaders(config, false),
+  })
+}
+
 export function generateContent(config: FrontendConfig, payload: GenerationRequestPayload) {
   return requestJson<GeneratedContent>(config, '/api/content/generate', {
     method: 'POST',
