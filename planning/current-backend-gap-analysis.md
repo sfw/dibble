@@ -175,6 +175,7 @@ Most recent progress:
 37. lesson `current_flow` now preserves deferred and transfer target KC ids even when a persisted `workflow_summary` is the primary read-model source, so progression, summary, and classroom surfaces do not lose the backend-owned return target during repair or bridge holds.
 38. curriculum progression now uses a dependency-aware frontier ranking instead of a thin unlocked-resource sort, so a deferred return target can stay ahead of unrelated ready resources while the backend is actively repairing its prerequisites.
 39. blocked curriculum-resource rationale now includes prerequisite mastery snapshots plus the titles of blocking resources, so teacher and learner progression surfaces can explain exactly why a resource is still blocked without inventing extra frontend policy.
+40. completed remediation summaries now reuse the same backend-owned follow-up `continue_action` contract as the delivered remediation `workflow_summary`, so workspace resume, intervention packaging, and generation handoff keep the same session id, source generation, and target KC semantics instead of drifting at the moment remediation hands control back to lesson flow.
 
 ### Frontend Alignment Update
 

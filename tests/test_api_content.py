@@ -1022,11 +1022,24 @@ def test_remediation_session_endpoints_advance_multi_step_workflow(client, stude
     assert return_payload["session"]["summary"]["next_step"]["action"] == "complete"
     assert return_payload["session"]["summary"]["next_step"]["content_type"] is None
     assert return_payload["session"]["summary"]["continue_action"]["kind"] == "generate_follow_up"
+    assert return_payload["session"]["summary"]["continue_action"]["generation_id"] == return_payload["content"][
+        "generation_id"
+    ]
+    assert return_payload["session"]["summary"]["continue_action"]["learning_session_id"] == remediation_session_id
+    assert return_payload["session"]["summary"]["continue_action"]["request_payload"]["learning_session_id"] == (
+        remediation_session_id
+    )
+    assert return_payload["session"]["summary"]["continue_action"]["request_payload"]["source_generation_id"] == (
+        return_payload["content"]["generation_id"]
+    )
     assert return_payload["session"]["summary"]["continue_action"]["request_payload"]["requested_content_type"] == "practice_problem"
     assert return_payload["content"]["workflow_summary"]["flow_type"] == "remediation"
     assert return_payload["content"]["workflow_summary"]["delivered_phase"] == "return"
     assert return_payload["content"]["workflow_summary"]["next_step"]["action"] == "complete"
     assert return_payload["content"]["workflow_summary"]["continue_action"]["kind"] == "generate_follow_up"
+    assert return_payload["content"]["workflow_summary"]["continue_action"] == return_payload["session"]["summary"][
+        "continue_action"
+    ]
 
     completed_response = client.post(
         f"/api/remedial/sessions/{remediation_session_id}/advance",
