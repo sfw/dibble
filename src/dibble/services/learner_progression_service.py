@@ -276,7 +276,8 @@ class LearnerProgressionService:
                 # to consider the resource truly mastered.
                 state = "ready"
                 quality_label = (
-                    "scaffolded" if mastery_quality == "support_dependent"
+                    "scaffolded"
+                    if mastery_quality == "support_dependent"
                     else "unstable"
                 )
                 rationale = (

@@ -17,6 +17,10 @@ from dibble.services.misconception_disambiguation import (
     MisconceptionDisambiguationService,
 )
 from dibble.services.misconception_profiles import LearningMisconceptionProfileResolver
+from dibble.services.misconception_remediation_outcome_signals import (
+    MisconceptionRemediationOutcomeSignalBundle,
+    MisconceptionRemediationOutcomeSignalService,
+)
 from dibble.services.protocols import (
     AuditStore,
     KnowledgeComponentStore,
@@ -90,6 +94,8 @@ class MisconceptionDetector:
         | None = None,
         misconception_disambiguation_service: MisconceptionDisambiguationService
         | None = None,
+        remediation_outcome_signal_service: MisconceptionRemediationOutcomeSignalService
+        | None = None,
     ) -> None:
         self.knowledge_component_store = knowledge_component_store
         self.observation_store = observation_store
@@ -98,6 +104,7 @@ class MisconceptionDetector:
         self.misconception_disambiguation_service = (
             misconception_disambiguation_service or MisconceptionDisambiguationService()
         )
+        self.remediation_outcome_signal_service = remediation_outcome_signal_service
 
     def detect(
         self,
@@ -127,6 +134,7 @@ class MisconceptionDetector:
             prerequisite_components=prerequisite_components,
             related_components=[*prerequisite_components, target_component],
         )
+        remediation_outcome_bundle = self._remediation_outcome_bundle(profile)
         signals: list[MisconceptionSignal] = []
 
         if (
@@ -156,6 +164,7 @@ class MisconceptionDetector:
                     profile=profile,
                     evidence_terms=evidence_terms,
                     behavioral_evidence_by_kc=behavioral_evidence_by_kc,
+                    remediation_outcome_bundle=remediation_outcome_bundle,
                 )
             )
 
@@ -205,6 +214,9 @@ class MisconceptionDetector:
                 )
             behavioral_summary = behavioral_evidence_by_kc.get(component.kc_id)
 
+            remediation_adjustment = (
+                remediation_outcome_bundle.confidence_adjustment_for_kc(component.kc_id)
+            )
             confidence = min(
                 0.95,
                 0.42
@@ -215,7 +227,11 @@ class MisconceptionDetector:
                     behavioral_summary.confidence_adjustment
                     if behavioral_summary is not None
                     else 0.0
-                ),
+                )
+                + remediation_adjustment,
+            )
+            remediation_signal = remediation_outcome_bundle.signal_for_kc(
+                component.kc_id
             )
             rationale = (
                 f"{component.name} looks like a prerequisite gap because mastery is {mastery:.2f}"
@@ -233,6 +249,12 @@ class MisconceptionDetector:
                     f" {behavioral_summary.rationale_fragment}"
                     if behavioral_summary is not None
                     and behavioral_summary.rationale_fragment is not None
+                    else ""
+                )
+                + (
+                    f" {remediation_signal.rationale}"
+                    if remediation_signal is not None
+                    and remediation_signal.rationale is not None
                     else ""
                 )
             )
@@ -256,6 +278,9 @@ class MisconceptionDetector:
         )
         if target_mastery < 0.85 or target_overlap:
             target_behavioral_summary = behavioral_evidence_by_kc.get(target_kc_id)
+            target_remediation_adjustment = (
+                remediation_outcome_bundle.confidence_adjustment_for_kc(target_kc_id)
+            )
             confidence = min(
                 0.9,
                 0.4
@@ -265,10 +290,14 @@ class MisconceptionDetector:
                     target_behavioral_summary.confidence_adjustment
                     if target_behavioral_summary is not None
                     else 0.0
-                ),
+                )
+                + target_remediation_adjustment,
             )
             target_name = (
                 target_component.name if target_component is not None else target_kc_id
+            )
+            target_remediation_signal = remediation_outcome_bundle.signal_for_kc(
+                target_kc_id
             )
             signals.append(
                 MisconceptionSignal(
@@ -286,6 +315,12 @@ class MisconceptionDetector:
                             f" {target_behavioral_summary.rationale_fragment}"
                             if target_behavioral_summary is not None
                             and target_behavioral_summary.rationale_fragment is not None
+                            else ""
+                        )
+                        + (
+                            f" {target_remediation_signal.rationale}"
+                            if target_remediation_signal is not None
+                            and target_remediation_signal.rationale is not None
                             else ""
                         )
                     ),
@@ -319,6 +354,16 @@ class MisconceptionDetector:
         )
         return signals
 
+    def _remediation_outcome_bundle(
+        self, profile: LearnerProfile
+    ) -> MisconceptionRemediationOutcomeSignalBundle:
+        """Load remediation outcome signals for the learner, if available."""
+        if self.remediation_outcome_signal_service is None:
+            return MisconceptionRemediationOutcomeSignalBundle(signals_by_kc={})
+        return self.remediation_outcome_signal_service.signal_bundle_for_student(
+            student_id=profile.student_id,
+        )
+
     def _overlap_terms(
         self, name: str, tags: list[str], evidence_terms: set[str]
     ) -> list[str]:
@@ -334,6 +379,7 @@ class MisconceptionDetector:
         profile: LearnerProfile,
         evidence_terms: set[str],
         behavioral_evidence_by_kc: dict[str, BehavioralEvidenceSummary],
+        remediation_outcome_bundle: MisconceptionRemediationOutcomeSignalBundle,
     ) -> list[MisconceptionSignal]:
         signals: list[MisconceptionSignal] = []
         mastery = profile.knowledge_state.kc_mastery.get(component.kc_id, 0.0)
@@ -361,6 +407,9 @@ class MisconceptionDetector:
                 recommended_kc_ids=misconception.prerequisite_kc_ids,
                 behavioral_evidence_by_kc=behavioral_evidence_by_kc,
             )
+            catalog_remediation_adjustment = (
+                remediation_outcome_bundle.confidence_adjustment_for_kc(component.kc_id)
+            )
             confidence = min(
                 0.98,
                 0.5
@@ -372,7 +421,11 @@ class MisconceptionDetector:
                     behavioral_summary.confidence_adjustment
                     if behavioral_summary is not None
                     else 0.0
-                ),
+                )
+                + catalog_remediation_adjustment,
+            )
+            catalog_remediation_signal = remediation_outcome_bundle.signal_for_kc(
+                component.kc_id
             )
             signals.append(
                 MisconceptionSignal(
@@ -386,6 +439,12 @@ class MisconceptionDetector:
                             f" {behavioral_summary.rationale_fragment}"
                             if behavioral_summary is not None
                             and behavioral_summary.rationale_fragment is not None
+                            else ""
+                        )
+                        + (
+                            f" {catalog_remediation_signal.rationale}"
+                            if catalog_remediation_signal is not None
+                            and catalog_remediation_signal.rationale is not None
                             else ""
                         )
                     ),
