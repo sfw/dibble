@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { issueAuthToken, refreshAuthToken, revokeAuthToken } from '../api'
+import { getAuthIdentity, issueAuthToken, refreshAuthToken, revokeAuthToken } from '../api'
 import type { AuthIdentity, AuthToken, FrontendConfig } from '../types'
 
 const AUTH_STORAGE_KEY = 'dibble-auth'
 
 interface StoredAuth {
+  apiKey: string
   accessToken: string
+  authMode: 'api_key' | 'bearer'
   refreshToken: string | null
   identity: AuthIdentity
   expiresAt: number // epoch ms
@@ -16,9 +18,19 @@ function loadStoredAuth(): StoredAuth | null {
   try {
     const raw = window.localStorage.getItem(AUTH_STORAGE_KEY)
     if (!raw) return null
-    const parsed = JSON.parse(raw) as StoredAuth
-    if (!parsed.accessToken || !parsed.identity) return null
-    return parsed
+    const parsed = JSON.parse(raw) as Partial<StoredAuth>
+    const normalized: StoredAuth = {
+      apiKey: parsed.apiKey ?? '',
+      accessToken: parsed.accessToken ?? '',
+      authMode: parsed.authMode ?? (parsed.accessToken ? 'bearer' : 'api_key'),
+      refreshToken: parsed.refreshToken ?? null,
+      identity: parsed.identity as AuthIdentity,
+      expiresAt: parsed.expiresAt ?? Number.MAX_SAFE_INTEGER,
+    }
+    if (!normalized.identity) return null
+    if (normalized.authMode === 'api_key' && !normalized.apiKey) return null
+    if (normalized.authMode !== 'api_key' && !normalized.accessToken) return null
+    return normalized
   } catch {
     return null
   }
@@ -34,10 +46,23 @@ function clearAuth(): void {
 
 function tokenToStored(token: AuthToken): StoredAuth {
   return {
+    apiKey: '',
     accessToken: token.access_token,
+    authMode: 'bearer',
     refreshToken: token.refresh_token ?? null,
     identity: token.identity,
     expiresAt: Date.now() + token.expires_in * 1000,
+  }
+}
+
+function apiKeyToStored(identity: AuthIdentity, apiKey: string): StoredAuth {
+  return {
+    apiKey,
+    accessToken: '',
+    authMode: 'api_key',
+    refreshToken: null,
+    identity,
+    expiresAt: Number.MAX_SAFE_INTEGER,
   }
 }
 
@@ -50,6 +75,7 @@ export interface AuthState {
   logout: () => Promise<void>
   /** Returns the current valid bearer token, refreshing if needed. */
   getToken: () => string
+  getApiKey: () => string
 }
 
 export function useAuth(baseUrl: string): AuthState {
@@ -61,6 +87,7 @@ export function useAuth(baseUrl: string): AuthState {
   // On mount, check if the stored token is still valid; try refresh if expired
   useEffect(() => {
     if (!stored) return
+    if (stored.authMode !== 'bearer') return
     if (stored.expiresAt > Date.now()) return
 
     // Token expired — try refresh
@@ -102,11 +129,25 @@ export function useAuth(baseUrl: string): AuthState {
           useDemoFallback: false,
           showDebugPanels: false,
         }
-        const token = await issueAuthToken(config)
-        const next = tokenToStored(token)
+        let next: StoredAuth
+        try {
+          const token = await issueAuthToken(config)
+          next = tokenToStored(token)
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Login failed'
+          const canUseApiKeySession =
+            message.includes('auth_token_unavailable') ||
+            message.includes('DIBBLE_AUTH_TOKEN_SECRET')
+          if (!canUseApiKeySession) {
+            throw err
+          }
+
+          const identity = await getAuthIdentity(config)
+          next = apiKeyToStored(identity, apiKey)
+        }
         saveAuth(next)
         setStored(next)
-        return token.identity
+        return next.identity
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Login failed'
         setError(message)
@@ -119,7 +160,7 @@ export function useAuth(baseUrl: string): AuthState {
   )
 
   const logout = useCallback(async () => {
-    if (stored) {
+    if (stored?.authMode === 'bearer') {
       try {
         const config: FrontendConfig = {
           baseUrl,
@@ -140,6 +181,7 @@ export function useAuth(baseUrl: string): AuthState {
 
   const getToken = useCallback((): string => {
     if (!stored) return ''
+    if (stored.authMode !== 'bearer') return ''
 
     // If token is still valid (with 60s buffer), return it
     if (stored.expiresAt > Date.now() + 60_000) {
@@ -175,6 +217,13 @@ export function useAuth(baseUrl: string): AuthState {
     return stored.accessToken
   }, [baseUrl, stored])
 
+  const getApiKey = useCallback((): string => {
+    if (!stored || stored.authMode !== 'api_key') {
+      return ''
+    }
+    return stored.apiKey
+  }, [stored])
+
   return {
     identity: stored?.identity ?? null,
     authenticated: stored !== null,
@@ -183,5 +232,6 @@ export function useAuth(baseUrl: string): AuthState {
     login,
     logout,
     getToken,
+    getApiKey,
   }
 }

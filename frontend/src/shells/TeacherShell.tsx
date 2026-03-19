@@ -34,7 +34,7 @@ export function TeacherShell() {
   const { baseUrl } = useConfigContext()
   const teacherConfig: FrontendConfig = {
     baseUrl,
-    apiKey: '',
+    apiKey: auth.getApiKey(),
     bearerToken: auth.getToken(),
     useDemoFallback: !auth.authenticated,
     showDebugPanels: false,

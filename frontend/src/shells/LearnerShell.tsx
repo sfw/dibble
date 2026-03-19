@@ -47,7 +47,7 @@ export function LearnerShell() {
   // Build config from auth state — bearer token from auth, no demo fallback in authenticated mode
   const learnerConfig: FrontendConfig = {
     baseUrl,
-    apiKey: '',
+    apiKey: auth.getApiKey(),
     bearerToken: auth.getToken(),
     useDemoFallback: !auth.authenticated,
     showDebugPanels: false,
