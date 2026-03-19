@@ -35,7 +35,7 @@ def build_assignment_router(context: ApiContext) -> APIRouter:
             assignment_id=str(uuid4()),
             student_id=payload.student_id,
             teacher_id=teacher_id,
-            classroom_id=payload.classroom_id,
+            section_id=payload.section_id,
             title=payload.title,
             description=payload.description,
             target_resource_id=payload.target_resource_id,

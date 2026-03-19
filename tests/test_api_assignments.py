@@ -55,7 +55,7 @@ def test_assignment_routes_use_authenticated_principal_id_for_teacher_identity(t
             headers=headers,
             json={
                 "student_id": student_id,
-                "classroom_id": "CLS-A",
+                "section_id": "CLS-A",
                 "title": "Equivalent Fractions Practice",
             },
         )

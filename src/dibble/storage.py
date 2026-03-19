@@ -144,7 +144,7 @@ CREATE TABLE IF NOT EXISTS assignments (
     assignment_id TEXT PRIMARY KEY,
     student_id TEXT NOT NULL,
     teacher_id TEXT NOT NULL,
-    classroom_id TEXT,
+    section_id TEXT,
     status TEXT NOT NULL,
     payload TEXT NOT NULL,
     updated_at TEXT NOT NULL

@@ -13,12 +13,12 @@ class SQLiteAssignmentStore:
         with sqlite3.connect(self.database_path) as connection:
             connection.execute(
                 """
-                INSERT INTO assignments(assignment_id, student_id, teacher_id, classroom_id, status, payload, updated_at)
+                INSERT INTO assignments(assignment_id, student_id, teacher_id, section_id, status, payload, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(assignment_id) DO UPDATE SET
                     student_id = excluded.student_id,
                     teacher_id = excluded.teacher_id,
-                    classroom_id = excluded.classroom_id,
+                    section_id = excluded.section_id,
                     status = excluded.status,
                     payload = excluded.payload,
                     updated_at = excluded.updated_at
@@ -27,7 +27,7 @@ class SQLiteAssignmentStore:
                     assignment.assignment_id,
                     assignment.student_id,
                     assignment.teacher_id,
-                    assignment.classroom_id,
+                    assignment.section_id,
                     assignment.status.value,
                     assignment.model_dump_json(),
                     assignment.updated_at.isoformat(),
@@ -70,19 +70,19 @@ class SQLiteAssignmentStore:
             ).fetchone()
         return row[0] if row else 0
 
-    def list_for_classroom(
-        self, *, classroom_id: str, limit: int = 50, offset: int = 0
+    def list_for_section(
+        self, *, section_id: str, limit: int = 50, offset: int = 0
     ) -> list[Assignment]:
         with sqlite3.connect(self.database_path) as connection:
             rows = connection.execute(
                 """
                 SELECT payload
                 FROM assignments
-                WHERE classroom_id = ?
+                WHERE section_id = ?
                 ORDER BY updated_at DESC, assignment_id DESC
                 LIMIT ? OFFSET ?
                 """,
-                (classroom_id, limit, offset),
+                (section_id, limit, offset),
             ).fetchall()
         return [Assignment.model_validate_json(row[0]) for row in rows]
 

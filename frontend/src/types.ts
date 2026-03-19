@@ -795,7 +795,7 @@ export interface Assignment {
   assignment_id: string
   student_id: string
   teacher_id: string
-  classroom_id?: string | null
+  section_id?: string | null
   title: string
   description: string
   status: AssignmentStatus
@@ -811,7 +811,7 @@ export interface Assignment {
 
 export interface AssignmentCreate {
   student_id: string
-  classroom_id?: string | null
+  section_id?: string | null
   title: string
   description?: string
   target_resource_id?: string | null
