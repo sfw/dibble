@@ -150,6 +150,21 @@ def test_auth_can_issue_and_accept_bearer_tokens(tmp_path):
     assert me_response.json()["principal_id"] == "editor-user"
 
 
+def test_auth_token_endpoint_returns_503_without_token_secret(tmp_path):
+    app, db_path = _make_app(tmp_path, token_secret=None)
+    _seed_user(db_path, api_key="editor-key", role="editor", user_id="editor-user")
+
+    with TestClient(app) as client:
+        response = client.post("/api/auth/token", headers={"X-API-Key": "editor-key"})
+
+    assert_machine_readable_error(
+        response,
+        status_code=503,
+        code="auth_token_unavailable",
+        detail="Bearer token issuance requires DIBBLE_AUTH_TOKEN_SECRET.",
+    )
+
+
 def test_bearer_token_forbidden_response_preserves_identity_and_error_contract(
     tmp_path, student_id
 ):

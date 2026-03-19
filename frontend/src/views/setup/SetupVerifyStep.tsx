@@ -10,15 +10,27 @@ interface Props {
   onBack: () => void
 }
 
+function buildEffectiveConfig(config: SetupConfigureRequest): SetupConfigureRequest {
+  if (config.embedding_model?.trim() && !config.embedding_api_base?.trim()) {
+    return {
+      ...config,
+      embedding_api_base: config.llm_api_base,
+    }
+  }
+
+  return config
+}
+
 export function SetupVerifyStep({ baseUrl, config, onSuccess, onBack }: Props) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const effectiveConfig = buildEffectiveConfig(config)
 
   async function handleSave() {
     setSaving(true)
     setError('')
     try {
-      const response = await postSetupConfigure(baseUrl, config)
+      const response = await postSetupConfigure(baseUrl, effectiveConfig)
       onSuccess(response.config_path)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save configuration')
@@ -32,26 +44,43 @@ export function SetupVerifyStep({ baseUrl, config, onSuccess, onBack }: Props) {
       <div className="rounded-lg border bg-muted/50 p-4">
         <h3 className="mb-2 text-sm font-medium">Configuration summary</h3>
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-          {config.llm_api_base && (
+          {effectiveConfig.llm_api_base && (
             <>
               <dt className="text-muted-foreground">API base</dt>
-              <dd className="font-mono text-xs">{config.llm_api_base}</dd>
+              <dd className="font-mono text-xs">{effectiveConfig.llm_api_base}</dd>
             </>
           )}
           <dt className="text-muted-foreground">API key</dt>
           <dd className="font-mono text-xs">
-            {config.llm_api_key ? `${config.llm_api_key.slice(0, 7)}...` : '(not set)'}
+            {effectiveConfig.llm_api_key ? `${effectiveConfig.llm_api_key.slice(0, 7)}...` : '(not set)'}
           </dd>
-          {config.llm_model && (
+          {effectiveConfig.llm_model && (
             <>
               <dt className="text-muted-foreground">Model</dt>
-              <dd className="font-mono text-xs">{config.llm_model}</dd>
+              <dd className="font-mono text-xs">{effectiveConfig.llm_model}</dd>
             </>
           )}
-          <dt className="text-muted-foreground">Embedding key</dt>
-          <dd className="font-mono text-xs">
-            {config.embedding_api_key ? `${config.embedding_api_key.slice(0, 7)}...` : '(same as LLM)'}
-          </dd>
+          {effectiveConfig.embedding_model ? (
+            <>
+              <dt className="text-muted-foreground">Embedding base</dt>
+              <dd className="font-mono text-xs">
+                {effectiveConfig.embedding_api_base ?? '(same as LLM)'}
+              </dd>
+              <dt className="text-muted-foreground">Embedding key</dt>
+              <dd className="font-mono text-xs">
+                {effectiveConfig.embedding_api_key
+                  ? `${effectiveConfig.embedding_api_key.slice(0, 7)}...`
+                  : '(inherits LLM key)'}
+              </dd>
+              <dt className="text-muted-foreground">Embedding model</dt>
+              <dd className="font-mono text-xs">{effectiveConfig.embedding_model}</dd>
+            </>
+          ) : (
+            <>
+              <dt className="text-muted-foreground">Embeddings</dt>
+              <dd className="font-mono text-xs">(local fallback)</dd>
+            </>
+          )}
         </dl>
       </div>
 

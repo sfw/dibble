@@ -50,6 +50,7 @@ from dibble.services.protocols import (
 )
 from dibble.services.remediation_planner import RemediationPlanner
 from dibble.services.setup_config import SetupConfigService
+from dibble.services.setup_model_catalog import SetupModelCatalogService
 from dibble.services.socratic_assessment import SocraticAssessmentService
 from dibble.services.socratic_profile_update import SocraticProfileUpdater
 from dibble.services.state_inference import LearnerStateInferenceService
@@ -136,6 +137,7 @@ class ApiServices(Protocol):
     within_session_adaptation_service: WithinSessionAdaptationService
     user_store: UserStore
     setup_config_service: SetupConfigService
+    setup_model_catalog_service: SetupModelCatalogService
 
 
 @dataclass(slots=True)

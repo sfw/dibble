@@ -5,6 +5,8 @@ import type {
   CreateInitialAdminResponse,
   SetupConfigureRequest,
   SetupConfigureResponse,
+  SetupModelCatalogRequest,
+  SetupModelCatalogResponse,
   SetupStatus,
   UserCreateRequest,
   UserCreateResponse,
@@ -454,6 +456,21 @@ export async function postSetupConfigure(
     throw new Error(`Setup configure request failed: ${response.status}`)
   }
   return (await response.json()) as SetupConfigureResponse
+}
+
+export async function postSetupModelCatalog(
+  baseUrl: string,
+  payload: SetupModelCatalogRequest,
+): Promise<SetupModelCatalogResponse> {
+  const response = await fetch(`${baseUrl}/api/setup/models`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) {
+    throw new Error(`Setup model catalog request failed: ${response.status}`)
+  }
+  return (await response.json()) as SetupModelCatalogResponse
 }
 
 export async function postSetupAdmin(

@@ -53,7 +53,7 @@ function useConfig(): FrontendConfig {
   const { baseUrl } = useConfigContext()
   return {
     baseUrl,
-    apiKey: '',
+    apiKey: auth.getApiKey(),
     bearerToken: auth.getToken(),
     useDemoFallback: false,
     showDebugPanels: false,

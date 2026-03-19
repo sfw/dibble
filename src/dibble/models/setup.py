@@ -22,6 +22,7 @@ class SetupConfigureRequest(BaseModel):
     llm_api_base: str | None = None
     llm_api_key: str | None = None
     llm_model: str | None = None
+    embedding_api_base: str | None = None
     embedding_api_key: str | None = None
     embedding_model: str | None = None
     database_path: str | None = None
@@ -42,3 +43,12 @@ class CreateInitialAdminResponse(BaseModel):
     api_key: str
     display_name: str | None = None
     role: str
+
+
+class SetupModelCatalogRequest(BaseModel):
+    api_base: str
+    api_key: str
+
+
+class SetupModelCatalogResponse(BaseModel):
+    models: list[str]

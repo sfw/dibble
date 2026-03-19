@@ -13,6 +13,7 @@ const unauthenticated: AuthState = {
   login: vi.fn(),
   logout: vi.fn(),
   getToken: vi.fn().mockReturnValue(''),
+  getApiKey: vi.fn().mockReturnValue(''),
 }
 
 function renderSwitcher(auth: AuthState = unauthenticated) {

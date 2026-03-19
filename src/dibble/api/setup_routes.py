@@ -8,6 +8,8 @@ from dibble.models.setup import (
     CreateInitialAdminResponse,
     SetupConfigureRequest,
     SetupConfigureResponse,
+    SetupModelCatalogRequest,
+    SetupModelCatalogResponse,
     SetupStatus,
 )
 
@@ -31,6 +33,16 @@ def build_setup_router(context: ApiContext) -> APIRouter:
     )
     def configure(payload: SetupConfigureRequest) -> SetupConfigureResponse:
         return context.services.setup_config_service.write_config(payload)
+
+    @router.post(
+        "/models",
+        response_model=SetupModelCatalogResponse,
+        dependencies=_admin_guard(),
+    )
+    def list_models(
+        payload: SetupModelCatalogRequest,
+    ) -> SetupModelCatalogResponse:
+        return context.services.setup_model_catalog_service.list_models(payload)
 
     @router.post("/admin", response_model=CreateInitialAdminResponse)
     def create_initial_admin(
