@@ -9,6 +9,19 @@ interface Props {
   onNext: () => void
 }
 
+function normalizeBaseUrl(value: string): string {
+  const trimmed = value.trim().replace(/\/+$/, '')
+  if (!trimmed) {
+    return ''
+  }
+
+  if (/^[a-z][a-z\d+.-]*:\/\//i.test(trimmed)) {
+    return trimmed
+  }
+
+  return `http://${trimmed}`
+}
+
 export function SetupConnectStep({ baseUrl, onBaseUrlChange, onNext }: Props) {
   const [draftBaseUrl, setDraftBaseUrl] = useState(baseUrl)
   const [checking, setChecking] = useState(false)
@@ -20,12 +33,12 @@ export function SetupConnectStep({ baseUrl, onBaseUrlChange, onNext }: Props) {
   }, [baseUrl])
 
   async function handleCheck() {
-    const trimmedBaseUrl = draftBaseUrl.trim()
+    const normalizedBaseUrl = normalizeBaseUrl(draftBaseUrl)
     setChecking(true)
     setError('')
     setConnected(false)
     try {
-      const response = await fetch(`${trimmedBaseUrl}/health`)
+      const response = await fetch(`${normalizedBaseUrl}/health`)
       if (!response.ok) {
         throw new Error(`Server returned ${response.status}`)
       }
@@ -33,7 +46,8 @@ export function SetupConnectStep({ baseUrl, onBaseUrlChange, onNext }: Props) {
       if (data.status !== 'ok') {
         throw new Error('Unexpected health response')
       }
-      onBaseUrlChange(trimmedBaseUrl)
+      onBaseUrlChange(normalizedBaseUrl)
+      setDraftBaseUrl(normalizedBaseUrl)
       setConnected(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not reach server')
@@ -58,7 +72,8 @@ export function SetupConnectStep({ baseUrl, onBaseUrlChange, onNext }: Props) {
           }}
         />
         <p className="text-xs text-muted-foreground">
-          The URL where your Dibble backend is running.
+          The URL where your Dibble backend is running. If you omit the scheme, Dibble uses
+          `http://`.
         </p>
       </div>
 
