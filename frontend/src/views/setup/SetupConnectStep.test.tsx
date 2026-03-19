@@ -55,4 +55,30 @@ describe('SetupConnectStep', () => {
     expect(onBaseUrlChange).toHaveBeenCalledWith('http://localhost:9000')
     expect(screen.getByText('Connected successfully.')).toBeInTheDocument()
   })
+
+  it('normalizes a bare host and port before testing the connection', async () => {
+    const onBaseUrlChange = vi.fn()
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'ok' }),
+    })
+    globalThis.fetch = fetchMock as typeof fetch
+
+    render(
+      <SetupConnectStep
+        baseUrl="http://127.0.0.1:8000"
+        onBaseUrlChange={onBaseUrlChange}
+        onNext={vi.fn()}
+      />,
+    )
+
+    const input = screen.getByLabelText('Server URL')
+    await userEvent.clear(input)
+    await userEvent.type(input, '127.0.0.1:8000')
+    await userEvent.click(screen.getByRole('button', { name: 'Test connection' }))
+
+    expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:8000/health')
+    expect(onBaseUrlChange).toHaveBeenCalledWith('http://127.0.0.1:8000')
+    expect(input).toHaveValue('http://127.0.0.1:8000')
+  })
 })
