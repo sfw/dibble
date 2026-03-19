@@ -4,6 +4,7 @@ import {
   getAdminSectionMemberships,
   listAdminCourses,
   listAdminSections,
+  listStrands,
   listUsers,
   upsertAdminCourse,
   updateAdminSectionMemberships,
@@ -12,6 +13,8 @@ import {
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
+import { Combobox } from '../../components/ui/combobox'
+import type { ComboboxOption } from '../../components/ui/combobox'
 import { ErrorBanner } from '../../components/ui/error-banner'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
@@ -20,6 +23,7 @@ import type {
   AdminSectionSummary,
   CourseUpsert,
   SectionUpsert,
+  Strand,
   UserSummary,
 } from '../../types'
 import { useStaffApiConfig } from './useStaffApiConfig'
@@ -62,6 +66,7 @@ export function AcademicCatalog() {
   const [courses, setCourses] = useState<AdminCourseSummary[]>([])
   const [sections, setSections] = useState<AdminSectionSummary[]>([])
   const [users, setUsers] = useState<UserSummary[]>([])
+  const [strandList, setStrandList] = useState<Strand[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [membershipLoading, setMembershipLoading] = useState(false)
@@ -83,14 +88,16 @@ export function AcademicCatalog() {
     setLoading(true)
     setError('')
     try {
-      const [coursesResult, sectionsResult, usersResult] = await Promise.all([
+      const [coursesResult, sectionsResult, usersResult, strandsResult] = await Promise.all([
         listAdminCourses(apiConfig),
         listAdminSections(apiConfig),
         listUsers(apiConfig),
+        listStrands(apiConfig),
       ])
       setCourses(coursesResult)
       setSections(sectionsResult)
       setUsers(usersResult)
+      setStrandList(strandsResult)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load academic catalog')
     } finally {
@@ -103,10 +110,36 @@ export function AcademicCatalog() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiConfig.baseUrl, apiConfig.apiKey, apiConfig.bearerToken])
 
-  const courseOptions = useMemo(
-    () => courses.map((course) => ({ value: course.course_id, label: course.title })),
+  // Derive which course IDs have curriculum strands loaded
+  const courseIdsWithCurriculum = useMemo(
+    () => new Set(strandList.map((s) => s.course_id)),
+    [strandList],
+  )
+
+  const courseOptions: ComboboxOption[] = useMemo(
+    () =>
+      courses.map((course) => ({
+        value: course.course_id,
+        label: course.title,
+        detail: [course.subject, course.grade_band].filter(Boolean).join(' / ') || course.course_id,
+      })),
     [courses],
   )
+
+  // Build curriculum options from strands grouped by course
+  const curriculumOptions: ComboboxOption[] = useMemo(() => {
+    const courseIds = [...new Set(strandList.map((s) => s.course_id))]
+    return courseIds.map((cid) => {
+      const strandCount = strandList.filter((s) => s.course_id === cid).length
+      const course = courses.find((c) => c.course_id === cid)
+      return {
+        value: cid,
+        label: course?.title ?? cid,
+        detail: `${strandCount} strand${strandCount !== 1 ? 's' : ''} loaded`,
+      }
+    })
+  }, [strandList, courses])
+
   const teacherOptions = useMemo(
     () => users.filter((user) => user.role === 'teacher'),
     [users],
@@ -240,7 +273,7 @@ export function AcademicCatalog() {
           <div className="space-y-2">
             <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Manage reusable courses and taught sections.</h1>
             <p className="max-w-3xl text-sm leading-6 text-slate-600">
-              Courses define the instructional container. Sections are the actual taught offerings that teachers and learners belong to.
+              Courses define the instructional container and link to a loaded curriculum. Sections are the actual taught offerings that teachers and learners belong to.
             </p>
           </div>
         </div>
@@ -260,6 +293,7 @@ export function AcademicCatalog() {
       )}
 
       <section className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+        {/* ---- COURSES ---- */}
         <Card>
           <CardHeader>
             <CardDescription>Courses</CardDescription>
@@ -276,7 +310,8 @@ export function AcademicCatalog() {
                   id="course-id"
                   value={courseDraft.course_id}
                   onChange={(event) => setCourseDraft((current) => ({ ...current, course_id: event.target.value }))}
-                  placeholder="MATH-5"
+                  placeholder="MATH-7"
+                  disabled={!!editingCourseId}
                 />
               </div>
               <div className="flex flex-col gap-2">
@@ -285,16 +320,16 @@ export function AcademicCatalog() {
                   id="course-title"
                   value={courseDraft.title}
                   onChange={(event) => setCourseDraft((current) => ({ ...current, title: event.target.value }))}
-                  placeholder="Grade 5 Mathematics"
+                  placeholder="Grade 7 Mathematics"
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="course-subject">Course subject</Label>
+                <Label htmlFor="course-subject">Subject</Label>
                 <Input
                   id="course-subject"
                   value={courseDraft.subject ?? ''}
                   onChange={(event) => setCourseDraft((current) => ({ ...current, subject: event.target.value }))}
-                  placeholder="math"
+                  placeholder="mathematics"
                 />
               </div>
               <div className="flex flex-col gap-2">
@@ -303,27 +338,32 @@ export function AcademicCatalog() {
                   id="course-grade-band"
                   value={courseDraft.grade_band ?? ''}
                   onChange={(event) => setCourseDraft((current) => ({ ...current, grade_band: event.target.value }))}
-                  placeholder="5"
+                  placeholder="7"
                 />
               </div>
               <div className="flex flex-col gap-2 md:col-span-2">
-                <Label htmlFor="course-package">Curriculum package</Label>
-                <Input
-                  id="course-package"
+                <Label>Curriculum</Label>
+                <Combobox
+                  options={curriculumOptions}
                   value={courseDraft.curriculum_package_id ?? ''}
-                  onChange={(event) =>
-                    setCourseDraft((current) => ({ ...current, curriculum_package_id: event.target.value }))
+                  onValueChange={(val) =>
+                    setCourseDraft((current) => ({ ...current, curriculum_package_id: val }))
                   }
-                  placeholder="core-math-2026"
+                  placeholder="Select a loaded curriculum..."
+                  searchPlaceholder="Search curricula..."
+                  emptyMessage="No curricula loaded. Use the Curriculum page to import one."
                 />
+                <p className="text-xs text-slate-500">
+                  Links this course to a loaded curriculum package. Manage curricula on the Curriculum page.
+                </p>
               </div>
               <div className="flex flex-col gap-2 md:col-span-2">
-                <Label htmlFor="course-tags">Course tags</Label>
+                <Label htmlFor="course-tags">Tags</Label>
                 <Input
                   id="course-tags"
                   value={courseTagsInput}
                   onChange={(event) => setCourseTagsInput(event.target.value)}
-                  placeholder="fractions, intervention, grade-5"
+                  placeholder="alberta, k-9, 2022-curriculum"
                 />
               </div>
             </div>
@@ -350,6 +390,7 @@ export function AcademicCatalog() {
                   <tr>
                     <th className="px-4 py-3">Course</th>
                     <th className="px-4 py-3">Subject</th>
+                    <th className="px-4 py-3">Curriculum</th>
                     <th className="px-4 py-3">Sections</th>
                     <th className="px-4 py-3">Actions</th>
                   </tr>
@@ -362,6 +403,22 @@ export function AcademicCatalog() {
                         <div className="text-xs text-slate-500">{course.course_id}</div>
                       </td>
                       <td className="px-4 py-3 text-slate-600">{course.subject ?? '-'}</td>
+                      <td className="px-4 py-3">
+                        {course.curriculum_package_id ? (
+                          <Badge
+                            variant="secondary"
+                            className={
+                              courseIdsWithCurriculum.has(course.curriculum_package_id)
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }
+                          >
+                            {course.curriculum_package_id}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-slate-400">None</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-slate-600">{course.section_count}</td>
                       <td className="px-4 py-3">
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => startCourseEdit(course)} title="Edit course">
@@ -372,7 +429,7 @@ export function AcademicCatalog() {
                   ))}
                   {!loading && courses.length === 0 && (
                     <tr>
-                      <td className="px-4 py-6 text-center text-slate-500" colSpan={4}>
+                      <td className="px-4 py-6 text-center text-slate-500" colSpan={5}>
                         No courses yet.
                       </td>
                     </tr>
@@ -383,6 +440,7 @@ export function AcademicCatalog() {
           </CardContent>
         </Card>
 
+        {/* ---- SECTIONS ---- */}
         <Card>
           <CardHeader>
             <CardDescription>Sections</CardDescription>
@@ -399,16 +457,21 @@ export function AcademicCatalog() {
                   id="section-id"
                   value={sectionDraft.section_id}
                   onChange={(event) => setSectionDraft((current) => ({ ...current, section_id: event.target.value }))}
-                  placeholder="SEC-5A"
+                  placeholder="SEC-7A"
+                  disabled={!!editingSectionId}
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="section-course-id">Section course ID</Label>
-                <Input
-                  id="section-course-id"
+                <Label>Course</Label>
+                <Combobox
+                  options={courseOptions}
                   value={sectionDraft.course_id}
-                  onChange={(event) => setSectionDraft((current) => ({ ...current, course_id: event.target.value }))}
-                  placeholder={courseOptions[0]?.value ?? 'MATH-5'}
+                  onValueChange={(val) =>
+                    setSectionDraft((current) => ({ ...current, course_id: val }))
+                  }
+                  placeholder="Select a course..."
+                  searchPlaceholder="Search courses..."
+                  emptyMessage="No courses yet. Create a course first."
                 />
               </div>
               <div className="flex flex-col gap-2 md:col-span-2">
@@ -417,7 +480,7 @@ export function AcademicCatalog() {
                   id="section-title"
                   value={sectionDraft.title}
                   onChange={(event) => setSectionDraft((current) => ({ ...current, title: event.target.value }))}
-                  placeholder="Grade 5A"
+                  placeholder="Period 2 — Math 7"
                 />
               </div>
               <div className="flex flex-col gap-2">
@@ -426,25 +489,25 @@ export function AcademicCatalog() {
                   id="section-grade-level"
                   value={sectionDraft.grade_level ?? ''}
                   onChange={(event) => setSectionDraft((current) => ({ ...current, grade_level: event.target.value }))}
-                  placeholder="5"
+                  placeholder="7"
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="section-subject">Section subject</Label>
+                <Label htmlFor="section-subject">Subject</Label>
                 <Input
                   id="section-subject"
                   value={sectionDraft.subject ?? ''}
                   onChange={(event) => setSectionDraft((current) => ({ ...current, subject: event.target.value }))}
-                  placeholder="math"
+                  placeholder="mathematics"
                 />
               </div>
               <div className="flex flex-col gap-2 md:col-span-2">
-                <Label htmlFor="section-tags">Section tags</Label>
+                <Label htmlFor="section-tags">Tags</Label>
                 <Input
                   id="section-tags"
                   value={sectionTagsInput}
                   onChange={(event) => setSectionTagsInput(event.target.value)}
-                  placeholder="cohort-a, fractions"
+                  placeholder="period-2, cohort-a"
                 />
               </div>
               <div className="flex flex-col gap-2 md:col-span-2">

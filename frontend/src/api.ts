@@ -27,6 +27,9 @@ import type {
   AssignmentStatus,
   AuthIdentity,
   AuthToken,
+  Strand,
+  Outcome,
+  KnowledgeComponent,
   SectionMasteryTrendsResponse,
   FrontendConfig,
   GeneratedContent,
@@ -439,6 +442,34 @@ export function getLearnerMasteryHistory(config: FrontendConfig, studentId: stri
 
 export function getSectionMasteryTrends(config: FrontendConfig, sectionId: string, days = 30) {
   return requestJson<SectionMasteryTrendsResponse>(config, `/api/teachers/sections/${sectionId}/mastery-trends?days=${days}`)
+}
+
+// ---------------------------------------------------------------------------
+// Curriculum
+// ---------------------------------------------------------------------------
+
+export function listStrands(config: FrontendConfig) {
+  return requestJson<Strand[]>(config, '/api/curriculum/strands/', {
+    headers: buildHeaders(config, false),
+  })
+}
+
+export function listStrandsForCourse(config: FrontendConfig, courseId: string) {
+  return requestJson<Strand[]>(config, `/api/curriculum/strands/course/${courseId}`, {
+    headers: buildHeaders(config, false),
+  })
+}
+
+export function listOutcomes(config: FrontendConfig) {
+  return requestJson<Outcome[]>(config, '/api/curriculum/outcomes', {
+    headers: buildHeaders(config, false),
+  })
+}
+
+export function listKnowledgeComponents(config: FrontendConfig) {
+  return requestJson<KnowledgeComponent[]>(config, '/api/knowledge-components', {
+    headers: buildHeaders(config, false),
+  })
 }
 
 // ---------------------------------------------------------------------------

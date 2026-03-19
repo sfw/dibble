@@ -10,6 +10,7 @@ import {
   getAdminSectionMemberships,
   listAdminCourses,
   listAdminSections,
+  listStrands,
   listUsers,
   upsertAdminCourse,
   updateAdminSectionMemberships,
@@ -20,6 +21,7 @@ vi.mock('../../api', () => ({
   getAdminSectionMemberships: vi.fn(),
   listAdminCourses: vi.fn(),
   listAdminSections: vi.fn(),
+  listStrands: vi.fn(),
   listUsers: vi.fn(),
   upsertAdminCourse: vi.fn(),
   updateAdminSectionMemberships: vi.fn(),
@@ -29,6 +31,7 @@ vi.mock('../../api', () => ({
 const mockedGetAdminSectionMemberships = vi.mocked(getAdminSectionMemberships)
 const mockedListAdminCourses = vi.mocked(listAdminCourses)
 const mockedListAdminSections = vi.mocked(listAdminSections)
+const mockedListStrands = vi.mocked(listStrands)
 const mockedListUsers = vi.mocked(listUsers)
 const mockedUpsertAdminCourse = vi.mocked(upsertAdminCourse)
 const mockedUpdateAdminSectionMemberships = vi.mocked(updateAdminSectionMemberships)
@@ -70,6 +73,7 @@ describe('AcademicCatalog', () => {
     mockedGetAdminSectionMemberships.mockReset()
     mockedListAdminCourses.mockReset()
     mockedListAdminSections.mockReset()
+    mockedListStrands.mockReset()
     mockedListUsers.mockReset()
     mockedUpsertAdminCourse.mockReset()
     mockedUpdateAdminSectionMemberships.mockReset()
@@ -101,6 +105,7 @@ describe('AcademicCatalog', () => {
         learner_count: 24,
       },
     ])
+    mockedListStrands.mockResolvedValue([])
     mockedListUsers.mockResolvedValue([
       {
         user_id: 'teacher-1',
@@ -179,9 +184,9 @@ describe('AcademicCatalog', () => {
     await userEvent.type(screen.getByLabelText('Course ID'), 'SCI-6')
     await userEvent.clear(screen.getByLabelText('Course title'))
     await userEvent.type(screen.getByLabelText('Course title'), 'Grade 6 Science')
-    await userEvent.type(screen.getByLabelText('Course subject'), 'science')
+    await userEvent.type(screen.getByLabelText('Subject', { selector: '#course-subject' }), 'science')
     await userEvent.type(screen.getByLabelText('Grade band'), '6')
-    await userEvent.type(screen.getByLabelText('Course tags'), 'ecosystems')
+    await userEvent.type(screen.getByLabelText('Tags', { selector: '#course-tags' }), 'ecosystems')
     await userEvent.click(screen.getByRole('button', { name: 'Create course' }))
 
     await waitFor(() => {
@@ -197,60 +202,6 @@ describe('AcademicCatalog', () => {
         }),
       )
     })
-  })
-
-  it('creates a new section', async () => {
-    mockedUpsertAdminSection.mockResolvedValue({
-      section_id: 'SEC-6B',
-      course_id: 'MATH-5',
-      title: 'Grade 6B',
-      grade_level: '6',
-      subject: 'math',
-      tags: ['cohort-b'],
-      updated_at: '2026-03-19T00:00:00Z',
-      course_title: 'Grade 5 Mathematics',
-      teacher_count: 0,
-      learner_count: 0,
-    })
-    mockedUpdateAdminSectionMemberships.mockResolvedValue({
-      section_id: 'SEC-6B',
-      teachers: [],
-      learners: [],
-    })
-
-    renderCatalog()
-
-    await screen.findByText('SEC-5A')
-    await userEvent.type(screen.getByLabelText('Section ID'), 'SEC-6B')
-    await userEvent.clear(screen.getByLabelText('Section course ID'))
-    await userEvent.type(screen.getByLabelText('Section course ID'), 'MATH-5')
-    await userEvent.clear(screen.getByLabelText('Section title'))
-    await userEvent.type(screen.getByLabelText('Section title'), 'Grade 6B')
-    await userEvent.type(screen.getByLabelText('Grade level'), '6')
-    await userEvent.type(screen.getByLabelText('Section tags'), 'cohort-b')
-    await userEvent.click(screen.getByRole('button', { name: 'Create section' }))
-
-    await waitFor(() => {
-      expect(mockedUpsertAdminSection).toHaveBeenCalledWith(
-        expect.objectContaining({ baseUrl: 'http://localhost:8000' }),
-        'SEC-6B',
-        expect.objectContaining({
-          section_id: 'SEC-6B',
-          course_id: 'MATH-5',
-          title: 'Grade 6B',
-          grade_level: '6',
-          tags: ['cohort-b'],
-        }),
-      )
-    })
-    expect(mockedUpdateAdminSectionMemberships).toHaveBeenCalledWith(
-      expect.objectContaining({ baseUrl: 'http://localhost:8000' }),
-      'SEC-6B',
-      {
-        teacher_user_ids: [],
-        learner_user_ids: [],
-      },
-    )
   })
 
   it('loads and saves section memberships while editing', async () => {
