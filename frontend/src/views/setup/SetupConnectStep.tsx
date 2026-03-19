@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
@@ -9,17 +9,36 @@ interface Props {
   onNext: () => void
 }
 
+function normalizeBaseUrl(value: string): string {
+  const trimmed = value.trim().replace(/\/+$/, '')
+  if (!trimmed) {
+    return ''
+  }
+
+  if (/^[a-z][a-z\d+.-]*:\/\//i.test(trimmed)) {
+    return trimmed
+  }
+
+  return `http://${trimmed}`
+}
+
 export function SetupConnectStep({ baseUrl, onBaseUrlChange, onNext }: Props) {
+  const [draftBaseUrl, setDraftBaseUrl] = useState(baseUrl)
   const [checking, setChecking] = useState(false)
   const [error, setError] = useState('')
   const [connected, setConnected] = useState(false)
 
+  useEffect(() => {
+    setDraftBaseUrl(baseUrl)
+  }, [baseUrl])
+
   async function handleCheck() {
+    const normalizedBaseUrl = normalizeBaseUrl(draftBaseUrl)
     setChecking(true)
     setError('')
     setConnected(false)
     try {
-      const response = await fetch(`${baseUrl.trim()}/health`)
+      const response = await fetch(`${normalizedBaseUrl}/health`)
       if (!response.ok) {
         throw new Error(`Server returned ${response.status}`)
       }
@@ -27,6 +46,8 @@ export function SetupConnectStep({ baseUrl, onBaseUrlChange, onNext }: Props) {
       if (data.status !== 'ok') {
         throw new Error('Unexpected health response')
       }
+      onBaseUrlChange(normalizedBaseUrl)
+      setDraftBaseUrl(normalizedBaseUrl)
       setConnected(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not reach server')
@@ -43,14 +64,16 @@ export function SetupConnectStep({ baseUrl, onBaseUrlChange, onNext }: Props) {
           id="setup-base-url"
           type="url"
           placeholder="http://127.0.0.1:8000"
-          value={baseUrl}
+          value={draftBaseUrl}
           onChange={(e) => {
-            onBaseUrlChange(e.target.value)
+            setDraftBaseUrl(e.target.value)
+            setError('')
             setConnected(false)
           }}
         />
         <p className="text-xs text-muted-foreground">
-          The URL where your Dibble backend is running.
+          The URL where your Dibble backend is running. If you omit the scheme, Dibble uses
+          `http://`.
         </p>
       </div>
 
@@ -63,7 +86,7 @@ export function SetupConnectStep({ baseUrl, onBaseUrlChange, onNext }: Props) {
         <Button
           variant="outline"
           onClick={() => void handleCheck()}
-          disabled={checking || !baseUrl.trim()}
+          disabled={checking || !draftBaseUrl.trim()}
         >
           {checking ? 'Checking...' : 'Test connection'}
         </Button>
