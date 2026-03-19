@@ -5,16 +5,16 @@ from dibble.services.knowledge_component_graph import KnowledgeComponentGraph
 def test_knowledge_component_graph_tracks_multi_hop_prerequisites_and_dependents():
     graph = KnowledgeComponentGraph(
         [
-            _build_component("KC-1", parent_lo_id="LO-1", difficulty=0.35),
+            _build_component("KC-1", outcome_id="LO-1", difficulty=0.35),
             _build_component(
                 "KC-2",
-                parent_lo_id="LO-1",
+                outcome_id="LO-1",
                 prerequisite_kc_ids=["KC-1"],
                 difficulty=0.45,
             ),
             _build_component(
                 "KC-3",
-                parent_lo_id="LO-2",
+                outcome_id="LO-2",
                 prerequisite_kc_ids=["KC-2"],
                 difficulty=0.58,
             ),
@@ -36,19 +36,19 @@ def test_knowledge_component_graph_tracks_multi_hop_prerequisites_and_dependents
 def test_knowledge_component_graph_estimates_missing_kc_mastery_from_lo_and_neighbors():
     graph = KnowledgeComponentGraph(
         [
-            _build_component("KC-1", parent_lo_id="LO-1", difficulty=0.32),
+            _build_component("KC-1", outcome_id="LO-1", difficulty=0.32),
             _build_component(
                 "KC-2",
-                parent_lo_id="LO-1",
+                outcome_id="LO-1",
                 prerequisite_kc_ids=["KC-1"],
                 difficulty=0.55,
             ),
         ]
     )
 
-    estimate = graph.estimate_kc_from_lo(
-        component=graph.components_for_lo("LO-1")[1],
-        lo_mastery=0.72,
+    estimate = graph.estimate_kc_from_outcome(
+        component=graph.components_for_outcome("LO-1")[1],
+        outcome_mastery=0.72,
         kc_mastery={"KC-1": 0.76},
     )
 
@@ -58,26 +58,26 @@ def test_knowledge_component_graph_estimates_missing_kc_mastery_from_lo_and_neig
 def test_knowledge_component_graph_surfaces_same_lo_bridge_candidates():
     graph = KnowledgeComponentGraph(
         [
-            _build_component("KC-1", parent_lo_id="LO-1", difficulty=0.28),
+            _build_component("KC-1", outcome_id="LO-1", difficulty=0.28),
             _build_component(
                 "KC-2",
-                parent_lo_id="LO-2",
+                outcome_id="LO-2",
                 prerequisite_kc_ids=["KC-1"],
                 difficulty=0.48,
             ),
             _build_component(
                 "KC-3",
-                parent_lo_id="LO-2",
+                outcome_id="LO-2",
                 prerequisite_kc_ids=["KC-1"],
                 difficulty=0.6,
             ),
             _build_component(
                 "KC-4",
-                parent_lo_id="LO-2",
+                outcome_id="LO-2",
                 prerequisite_kc_ids=["KC-5"],
                 difficulty=0.92,
             ),
-            _build_component("KC-5", parent_lo_id="LO-3", difficulty=0.42),
+            _build_component("KC-5", outcome_id="LO-3", difficulty=0.42),
         ]
     )
 
@@ -87,7 +87,7 @@ def test_knowledge_component_graph_surfaces_same_lo_bridge_candidates():
     assert [relation.component.kc_id for relation in siblings] == ["KC-2", "KC-4"]
     assert [relation.component.kc_id for relation in bridges] == ["KC-2"]
     assert bridges[0].path_weight > siblings[0].path_weight
-    assert bridges[0].relation_kind == "same_lo"
+    assert bridges[0].relation_kind == "same_outcome"
 
 
 def test_knowledge_component_graph_surfaces_curated_local_neighbors_across_taxonomy():
@@ -95,14 +95,14 @@ def test_knowledge_component_graph_surfaces_curated_local_neighbors_across_taxon
         [
             _build_component(
                 "KC-1",
-                parent_lo_id="LO-1",
+                outcome_id="LO-1",
                 concept_family="fraction-sense",
                 taxonomy_cluster_id="fractions-core",
                 difficulty=0.24,
             ),
             _build_component(
                 "KC-2",
-                parent_lo_id="LO-2",
+                outcome_id="LO-2",
                 prerequisite_kc_ids=["KC-1"],
                 concept_family="fraction-equivalence",
                 taxonomy_cluster_id="fractions-core",
@@ -111,7 +111,7 @@ def test_knowledge_component_graph_surfaces_curated_local_neighbors_across_taxon
             ),
             _build_component(
                 "KC-3",
-                parent_lo_id="LO-2",
+                outcome_id="LO-2",
                 prerequisite_kc_ids=["KC-1"],
                 concept_family="fraction-equivalence",
                 taxonomy_cluster_id="fractions-core",
@@ -120,7 +120,7 @@ def test_knowledge_component_graph_surfaces_curated_local_neighbors_across_taxon
             ),
             _build_component(
                 "KC-4",
-                parent_lo_id="LO-3",
+                outcome_id="LO-3",
                 prerequisite_kc_ids=["KC-1"],
                 concept_family="fraction-equivalence",
                 taxonomy_cluster_id="fractions-core",
@@ -145,7 +145,7 @@ def test_knowledge_component_graph_surfaces_curated_local_neighbors_across_taxon
 def _build_component(
     kc_id: str,
     *,
-    parent_lo_id: str,
+    outcome_id: str,
     prerequisite_kc_ids: list[str] | None = None,
     difficulty: float = 0.5,
     taxonomy_cluster_id: str | None = None,
@@ -155,7 +155,7 @@ def _build_component(
     return KnowledgeComponent(
         kc_id=kc_id,
         name=kc_id,
-        parent_lo_id=parent_lo_id,
+        outcome_id=outcome_id,
         grade_level="5",
         subject="math",
         taxonomy_cluster_id=taxonomy_cluster_id,

@@ -49,7 +49,9 @@ class TestSetupConfigure:
 
 
 class TestSetupModels:
-    def test_list_models(self, client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_list_models(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         from dibble.models.setup import SetupModelCatalogResponse
         from dibble.services.setup_model_catalog import SetupModelCatalogService
 

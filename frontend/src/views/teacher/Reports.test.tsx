@@ -84,14 +84,14 @@ function makeLearner(overrides: Partial<TeacherLearnerCard> & { student_id: stri
       current_stage: 'target',
       progression_action: 'hold_target',
       active_target_kc_ids: [],
-      resource_count: 5,
-      mastered_resource_count: 2,
-      ready_resource_count: 1,
-      blocked_resource_count: 1,
-      active_resource_count: 1,
-      mastered_resource_ratio: 0.4,
-      blocked_resources: [],
-      ready_resources: [],
+      outcome_count: 5,
+      mastered_outcome_count: 2,
+      ready_outcome_count: 1,
+      blocked_outcome_count: 1,
+      active_outcome_count: 1,
+      mastered_outcome_ratio: 0.4,
+      blocked_outcomes: [],
+      ready_outcomes: [],
     },
     recent_activity: {
       generation_count: 3,
@@ -123,19 +123,18 @@ const learnerA = makeLearner({
     current_stage: 'transfer',
     progression_action: 'advance_to_transfer',
     active_target_kc_ids: [],
-    resource_count: 5,
-    mastered_resource_count: 4,
-    ready_resource_count: 0,
-    blocked_resource_count: 0,
-    active_resource_count: 1,
-    mastered_resource_ratio: 0.8,
-    blocked_resources: [],
-    ready_resources: [
+    outcome_count: 5,
+    mastered_outcome_count: 4,
+    ready_outcome_count: 0,
+    blocked_outcome_count: 0,
+    active_outcome_count: 1,
+    mastered_outcome_ratio: 0.8,
+    blocked_outcomes: [],
+    ready_outcomes: [
       {
-        resource_id: 'res-1',
+        outcome_id: 'res-1',
         title: 'Fractions Basics',
         state: 'ready',
-        learning_objective_ids: ['lo-1'],
         knowledge_component_ids: ['kc-1'],
         blocked_prerequisite_kc_ids: [],
         mastery_ratio: 0.9,
@@ -160,19 +159,18 @@ const learnerB = makeLearner({
     current_stage: 'repair',
     progression_action: 'hold_repair_target',
     active_target_kc_ids: [],
-    resource_count: 5,
-    mastered_resource_count: 1,
-    ready_resource_count: 0,
-    blocked_resource_count: 2,
-    active_resource_count: 2,
-    mastered_resource_ratio: 0.2,
-    blocked_resources: [],
-    ready_resources: [],
-    current_resource: {
-      resource_id: 'res-2',
+    outcome_count: 5,
+    mastered_outcome_count: 1,
+    ready_outcome_count: 0,
+    blocked_outcome_count: 2,
+    active_outcome_count: 2,
+    mastered_outcome_ratio: 0.2,
+    blocked_outcomes: [],
+    ready_outcomes: [],
+    current_outcome: {
+      outcome_id: 'res-2',
       title: 'Decimal Operations',
       state: 'active',
-      learning_objective_ids: ['lo-2'],
       knowledge_component_ids: ['kc-2'],
       blocked_prerequisite_kc_ids: [],
       mastery_ratio: 0.3,
@@ -395,7 +393,7 @@ describe('Reports', () => {
 
   it('renders resource mastery breakdown', () => {
     renderReports()
-    expect(screen.getByText('Resource mastery')).toBeInTheDocument()
+    expect(screen.getByText('Outcome mastery')).toBeInTheDocument()
     // Resources from learner fixture data
     expect(screen.getByText('Decimal Operations')).toBeInTheDocument()
     expect(screen.getByText('Fractions Basics')).toBeInTheDocument()

@@ -67,25 +67,24 @@ def build_profile(
     }
 
 
-def build_curriculum_resource(
-    resource_id="CURR-1",
+def build_outcome(
+    outcome_id="CURR-1",
     *,
     title="Equivalent Fractions Foundations",
-    learning_objective_ids=None,
+    strand_id="STRAND-1",
     knowledge_component_ids=None,
     tags=None,
-    body="Use visual fraction models to explain why equivalent fractions name the same amount.",
+    description="Use visual fraction models to explain why equivalent fractions name the same amount.",
 ):
     return {
-        "resource_id": resource_id,
+        "outcome_id": outcome_id,
         "title": title,
+        "strand_id": strand_id,
         "grade_level": "5",
         "subject": "math",
-        "learning_objective_ids": learning_objective_ids or ["LO-1"],
         "knowledge_component_ids": knowledge_component_ids or ["KC-1"],
         "tags": tags or ["fractions", "equivalent fractions", "remediation"],
-        "body": body,
-        "source_type": "curriculum_standard",
+        "description": description,
     }
 
 
@@ -93,7 +92,7 @@ def build_knowledge_component(
     kc_id="KC-1",
     *,
     prerequisite_kc_ids=None,
-    parent_lo_id="LO-1",
+    outcome_id="LO-1",
     name="Understand equivalent fractions with visual models",
     common_misconceptions=None,
     taxonomy_cluster_id=None,
@@ -103,7 +102,7 @@ def build_knowledge_component(
     return {
         "kc_id": kc_id,
         "name": name,
-        "parent_lo_id": parent_lo_id,
+        "outcome_id": outcome_id,
         "grade_level": "5",
         "subject": "math",
         "taxonomy_cluster_id": taxonomy_cluster_id,

@@ -9,19 +9,33 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-class CurriculumResourceUpsert(BaseModel):
-    resource_id: str
+class StrandUpsert(BaseModel):
+    strand_id: str
+    course_id: str
+    parent_strand_id: str | None = None
     title: str
+    description: str = ""
+    sort_order: int = 0
+    tags: list[str] = Field(default_factory=list)
+
+
+class Strand(StrandUpsert):
+    updated_at: datetime = Field(default_factory=utc_now)
+
+
+class OutcomeUpsert(BaseModel):
+    outcome_id: str
+    title: str
+    strand_id: str
     grade_level: str
     subject: str
-    learning_objective_ids: list[str] = Field(default_factory=list)
+    description: str
     knowledge_component_ids: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
-    body: str
-    source_type: str = "curriculum_standard"
+    sort_order: int = 0
 
 
-class CurriculumResource(CurriculumResourceUpsert):
+class Outcome(OutcomeUpsert):
     updated_at: datetime = Field(default_factory=utc_now)
 
 
@@ -37,7 +51,7 @@ class KnowledgeComponentMisconception(BaseModel):
 class KnowledgeComponentUpsert(BaseModel):
     kc_id: str
     name: str
-    parent_lo_id: str
+    outcome_id: str
     grade_level: str
     subject: str
     taxonomy_cluster_id: str | None = None

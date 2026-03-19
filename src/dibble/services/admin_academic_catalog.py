@@ -7,7 +7,11 @@ from dibble.models.classroom import Classroom, ClassroomUpsert
 from dibble.models.classroom_membership import ClassroomMembershipRole
 from dibble.models.course import Course, CourseUpsert
 from dibble.models.section import Section, SectionUpsert
-from dibble.services.protocols import ClassroomMembershipStore, ClassroomStore, CourseStore
+from dibble.services.protocols import (
+    ClassroomMembershipStore,
+    ClassroomStore,
+    CourseStore,
+)
 
 
 @dataclass(slots=True)

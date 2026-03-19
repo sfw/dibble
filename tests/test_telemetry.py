@@ -84,7 +84,7 @@ def test_telemetry_snapshot_includes_provider_health(tmp_path):
         route,
         [
             GroundingReference(
-                resource_id="CURR-1",
+                outcome_id="CURR-1",
                 title="Equivalent Fractions Foundations",
                 grade_level="5",
                 score=1.0,

@@ -48,11 +48,12 @@ from dibble.services.predictive_warm_scheduler import PredictiveWarmScheduler
 from dibble.services.protocols import (
     AssignmentStore,
     AuditStore,
-    CurriculumStore,
     KnowledgeComponentStore,
     ObservationStore,
+    OutcomeStore,
     ProfileStore,
     SocraticSessionStore,
+    StrandStore,
 )
 from dibble.services.remediation_planner import RemediationPlanner
 from dibble.services.setup_config import SetupConfigService
@@ -106,7 +107,8 @@ class ApiServices(Protocol):
     classroom_store: ClassroomStore
     course_store: CourseStore
     classroom_membership_store: ClassroomMembershipStore
-    curriculum_store: CurriculumStore
+    outcome_store: OutcomeStore
+    strand_store: StrandStore
     knowledge_component_store: KnowledgeComponentStore
     audit_store: AuditStore
     observation_store: ObservationStore

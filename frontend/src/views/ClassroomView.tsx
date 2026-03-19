@@ -201,8 +201,8 @@ export function ClassroomView({
                             <strong>{formatContractLabel(learner.current_flow.current_phase)}</strong>
                           </div>
                           <div>
-                            <span>Current resource</span>
-                            <strong>{learner.curriculum_progression.current_resource?.title ?? 'Not active'}</strong>
+                            <span>Current outcome</span>
+                            <strong>{learner.curriculum_progression.current_outcome?.title ?? 'Not active'}</strong>
                           </div>
                           <div>
                             <span>Recommended teacher action</span>

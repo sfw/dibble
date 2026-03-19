@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from dibble.models.curriculum import CurriculumResource
+from dibble.models.curriculum import Outcome
 from dibble.services.grounding_context import extract_grounding_excerpt
 from dibble.services.retrieval.text import salient_tokens
 from dibble.services.retrieval.vectorizer import HashedTextVectorizer
@@ -38,10 +38,10 @@ class GroundingPassageSelector:
         self,
         *,
         query_text: str,
-        resource: CurriculumResource,
+        outcome: Outcome,
         matched_terms: list[str],
     ) -> GroundingPassageMatch | None:
-        candidates = self._candidate_passages(resource.body)
+        candidates = self._candidate_passages(outcome.description)
         if not candidates:
             return None
 
@@ -88,8 +88,8 @@ class GroundingPassageSelector:
             score=round(best[0], 2),
         )
 
-    def _candidate_passages(self, body: str) -> list[str]:
-        normalized = _WHITESPACE_PATTERN.sub(" ", body).strip()
+    def _candidate_passages(self, description: str) -> list[str]:
+        normalized = _WHITESPACE_PATTERN.sub(" ", description).strip()
         if not normalized:
             return []
         sentences = [

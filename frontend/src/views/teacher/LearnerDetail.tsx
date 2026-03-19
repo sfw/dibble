@@ -209,7 +209,7 @@ export function LearnerDetail() {
             <StatItem label="Frustration" value={summary.frustration} />
             <StatItem
               label="Progress"
-              value={formatPercent(progression.mastered_resource_ratio)}
+              value={formatPercent(progression.mastered_outcome_ratio)}
             />
             <StatItem label="Stage" value={teacherStage(progression.current_stage)} />
             <StatItem label="Progression" value={teacherProgressionAction(progression.progression_action)} />
@@ -229,7 +229,7 @@ export function LearnerDetail() {
                 {teacherArtifact(workspace.active_artifact.kind)}
               </p>
               <p className="mt-1 font-medium">
-                {progression.current_resource?.title ?? 'No active resource'}
+                {progression.current_outcome?.title ?? 'No active outcome'}
               </p>
               <p className="mt-0.5 text-sm text-muted-foreground">
                 Phase: {flow.current_phase} &middot; {flow.session_phase}

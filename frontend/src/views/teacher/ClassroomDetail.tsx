@@ -114,7 +114,7 @@ function LearnerRow({ learner }: { learner: TeacherLearnerCard }) {
         <span>&middot;</span>
         <span>{teacherStage(learner.curriculum_progression.current_stage)}</span>
         <span>&middot;</span>
-        <span>{formatPercent(learner.curriculum_progression.mastered_resource_ratio)}</span>
+        <span>{formatPercent(learner.curriculum_progression.mastered_outcome_ratio)}</span>
       </div>
 
       {/* Actions */}

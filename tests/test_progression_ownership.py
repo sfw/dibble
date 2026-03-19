@@ -20,7 +20,7 @@ class StubKnowledgeComponentStore:
             "KC-1": KnowledgeComponent(
                 kc_id="KC-1",
                 name="Prerequisite fraction model reading",
-                parent_lo_id="LO-1",
+                outcome_id="LO-1",
                 grade_level="5",
                 subject="math",
                 prerequisite_kc_ids=[],
@@ -32,7 +32,7 @@ class StubKnowledgeComponentStore:
             "KC-2": KnowledgeComponent(
                 kc_id="KC-2",
                 name="Bridge equivalent fractions",
-                parent_lo_id="LO-1",
+                outcome_id="LO-1",
                 grade_level="5",
                 subject="math",
                 prerequisite_kc_ids=["KC-1"],
@@ -44,7 +44,7 @@ class StubKnowledgeComponentStore:
             "KC-3": KnowledgeComponent(
                 kc_id="KC-3",
                 name="Target equivalent fractions",
-                parent_lo_id="LO-1",
+                outcome_id="LO-1",
                 grade_level="5",
                 subject="math",
                 prerequisite_kc_ids=["KC-1"],

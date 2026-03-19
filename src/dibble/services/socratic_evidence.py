@@ -10,7 +10,7 @@ from dibble.models.assessment import (
     SocraticEvidenceStrength,
     SocraticNextAction,
 )
-from dibble.services.protocols import CurriculumStore
+from dibble.services.protocols import OutcomeStore
 from dibble.services.retrieval.text import salient_tokens
 
 
@@ -40,7 +40,7 @@ def _clamp(value: float, *, lower: float = 0.0, upper: float = 1.0) -> float:
 
 @dataclass(slots=True)
 class SocraticEvidenceScorer:
-    curriculum_store: CurriculumStore
+    outcome_store: OutcomeStore
 
     def evaluate(
         self,
@@ -145,18 +145,18 @@ class SocraticEvidenceScorer:
         for value in context_values:
             context_tokens.update(salient_tokens(value))
 
-        for resource in self.curriculum_store.list():
+        for outcome in self.outcome_store.list():
             matches_target = bool(
-                set(resource.knowledge_component_ids) & set(session_kc_ids)
-            ) or bool(set(resource.learning_objective_ids) & set(session_lo_ids))
-            resource_terms = set(salient_tokens(resource.title))
-            resource_terms.update(salient_tokens(resource.body))
-            resource_terms.update(token.lower() for token in resource.tags)
+                set(outcome.knowledge_component_ids) & set(session_kc_ids)
+            )
+            outcome_terms = set(salient_tokens(outcome.title))
+            outcome_terms.update(salient_tokens(outcome.description))
+            outcome_terms.update(token.lower() for token in outcome.tags)
             matches_context = (
-                bool(resource_terms & context_tokens) if context_tokens else False
+                bool(outcome_terms & context_tokens) if context_tokens else False
             )
             if matches_target or matches_context:
-                expected_terms.update(resource_terms)
+                expected_terms.update(outcome_terms)
 
         return expected_terms
 

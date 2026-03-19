@@ -39,8 +39,8 @@ class StubKnowledgeComponentStore:
 def test_knowledge_state_migrator_lifts_prerequisites_and_recomputes_lo_mastery():
     store = StubKnowledgeComponentStore(
         [
-            _build_component("KC-1", parent_lo_id="LO-1"),
-            _build_component("KC-2", parent_lo_id="LO-1", prerequisite_kc_ids=["KC-1"]),
+            _build_component("KC-1", outcome_id="LO-1"),
+            _build_component("KC-2", outcome_id="LO-1", prerequisite_kc_ids=["KC-1"]),
         ]
     )
     migrator = KnowledgeStateMigrator(knowledge_component_store=store)
@@ -64,9 +64,9 @@ def test_knowledge_state_migrator_lifts_prerequisites_and_recomputes_lo_mastery(
 def test_knowledge_state_migrator_dampens_dependents_after_weak_evidence():
     store = StubKnowledgeComponentStore(
         [
-            _build_component("KC-1", parent_lo_id="LO-1"),
-            _build_component("KC-2", parent_lo_id="LO-1", prerequisite_kc_ids=["KC-1"]),
-            _build_component("KC-3", parent_lo_id="LO-2", prerequisite_kc_ids=["KC-2"]),
+            _build_component("KC-1", outcome_id="LO-1"),
+            _build_component("KC-2", outcome_id="LO-1", prerequisite_kc_ids=["KC-1"]),
+            _build_component("KC-3", outcome_id="LO-2", prerequisite_kc_ids=["KC-2"]),
         ]
     )
     migrator = KnowledgeStateMigrator(knowledge_component_store=store)
@@ -88,10 +88,10 @@ def test_knowledge_state_migrator_dampens_dependents_after_weak_evidence():
 def test_knowledge_state_migrator_backfills_missing_kcs_from_lo_mastery():
     store = StubKnowledgeComponentStore(
         [
-            _build_component("KC-1", parent_lo_id="LO-1", difficulty=0.32),
+            _build_component("KC-1", outcome_id="LO-1", difficulty=0.32),
             _build_component(
                 "KC-2",
-                parent_lo_id="LO-1",
+                outcome_id="LO-1",
                 prerequisite_kc_ids=["KC-1"],
                 difficulty=0.58,
             ),
@@ -117,16 +117,16 @@ def test_knowledge_state_migrator_backfills_missing_kcs_from_lo_mastery():
 def test_knowledge_state_migrator_decays_prerequisite_lift_by_graph_distance():
     store = StubKnowledgeComponentStore(
         [
-            _build_component("KC-1", parent_lo_id="LO-1", difficulty=0.28),
+            _build_component("KC-1", outcome_id="LO-1", difficulty=0.28),
             _build_component(
                 "KC-2",
-                parent_lo_id="LO-1",
+                outcome_id="LO-1",
                 prerequisite_kc_ids=["KC-1"],
                 difficulty=0.42,
             ),
             _build_component(
                 "KC-3",
-                parent_lo_id="LO-2",
+                outcome_id="LO-2",
                 prerequisite_kc_ids=["KC-2"],
                 difficulty=0.57,
             ),
@@ -155,14 +155,14 @@ def test_knowledge_state_migrator_decays_prerequisite_lift_by_graph_distance():
 def _build_component(
     kc_id: str,
     *,
-    parent_lo_id: str,
+    outcome_id: str,
     prerequisite_kc_ids: list[str] | None = None,
     difficulty: float = 0.5,
 ) -> KnowledgeComponent:
     return KnowledgeComponent(
         kc_id=kc_id,
         name=kc_id,
-        parent_lo_id=parent_lo_id,
+        outcome_id=outcome_id,
         grade_level="5",
         subject="math",
         prerequisite_kc_ids=prerequisite_kc_ids or [],

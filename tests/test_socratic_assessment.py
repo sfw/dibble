@@ -19,37 +19,37 @@ from tests.support import build_profile
 
 
 @dataclass
-class FakeCurriculumResource:
-    resource_id: str
+class FakeOutcome:
+    outcome_id: str
     title: str
-    learning_objective_ids: list[str]
+    strand_id: str
     knowledge_component_ids: list[str]
-    body: str
+    description: str
     tags: list[str]
 
 
-class FakeCurriculumStore:
+class FakeOutcomeStore:
     def list(self):
         return [
-            FakeCurriculumResource(
-                resource_id="CURR-1",
+            FakeOutcome(
+                outcome_id="CURR-1",
                 title="Equivalent Fractions Foundations",
-                learning_objective_ids=["LO-1"],
+                strand_id="STRAND-1",
                 knowledge_component_ids=["KC-1"],
-                body="Equivalent fractions name the same amount with fraction models.",
+                description="Equivalent fractions name the same amount with fraction models.",
                 tags=["equivalent fractions", "fractions"],
             )
         ]
 
-    def get(self, resource_id: str):
-        if resource_id != "CURR-1":
+    def get(self, outcome_id: str):
+        if outcome_id != "CURR-1":
             return None
-        return FakeCurriculumResource(
-            resource_id="CURR-1",
+        return FakeOutcome(
+            outcome_id="CURR-1",
             title="Equivalent Fractions Foundations",
-            learning_objective_ids=["LO-1"],
+            strand_id="STRAND-1",
             knowledge_component_ids=["KC-1"],
-            body="Equivalent fractions name the same amount with fraction models.",
+            description="Equivalent fractions name the same amount with fraction models.",
             tags=["equivalent fractions", "fractions"],
         )
 
@@ -68,7 +68,7 @@ def build_service(tmp_path, response: GenerationResponse) -> SocraticAssessmentS
     return SocraticAssessmentService(
         generation_engine=FakeGenerationEngine(response),
         session_store=SQLiteSocraticSessionStore(database_path),
-        evidence_scorer=SocraticEvidenceScorer(FakeCurriculumStore()),
+        evidence_scorer=SocraticEvidenceScorer(FakeOutcomeStore()),
         turn_policy=SocraticTurnPolicy(),
     )
 
@@ -97,7 +97,7 @@ def test_socratic_assessment_requests_probe_without_learner_response(tmp_path):
         curriculum_context=["Equivalent fractions"],
         grounding=[
             GroundingReference(
-                resource_id="CURR-1",
+                outcome_id="CURR-1",
                 title="Equivalent Fractions Foundations",
                 grade_level="5",
                 score=0.9,
@@ -155,7 +155,7 @@ def test_socratic_assessment_advances_when_response_is_grounded(tmp_path):
         curriculum_context=["Equivalent fractions"],
         grounding=[
             GroundingReference(
-                resource_id="CURR-1",
+                outcome_id="CURR-1",
                 title="Equivalent Fractions Foundations",
                 grade_level="5",
                 score=0.9,
@@ -213,7 +213,7 @@ def test_socratic_assessment_reuses_persisted_session_history(tmp_path):
         curriculum_context=["Equivalent fractions"],
         grounding=[
             GroundingReference(
-                resource_id="CURR-1",
+                outcome_id="CURR-1",
                 title="Equivalent Fractions Foundations",
                 grade_level="5",
                 score=0.9,

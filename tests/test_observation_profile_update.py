@@ -21,7 +21,7 @@ class StubKnowledgeComponentStore:
             "KC-1": KnowledgeComponent(
                 kc_id="KC-1",
                 name="KC-1",
-                parent_lo_id="LO-1",
+                outcome_id="LO-1",
                 grade_level="5",
                 subject="math",
                 prerequisite_kc_ids=[],
@@ -33,7 +33,7 @@ class StubKnowledgeComponentStore:
             "KC-2": KnowledgeComponent(
                 kc_id="KC-2",
                 name="KC-2",
-                parent_lo_id="LO-1",
+                outcome_id="LO-1",
                 grade_level="5",
                 subject="math",
                 prerequisite_kc_ids=["KC-1"],

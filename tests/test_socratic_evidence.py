@@ -13,29 +13,29 @@ from dibble.models.assessment import (
     SocraticPromptStyle,
     SocraticTurnRecord,
 )
-from dibble.models.curriculum import CurriculumResource
+from dibble.models.curriculum import Outcome
 from dibble.services.socratic_evidence import SocraticEvidenceScorer
 
 
-class FakeCurriculumStore:
-    def list(self) -> list[CurriculumResource]:
+class FakeOutcomeStore:
+    def list(self) -> list[Outcome]:
         return [
-            CurriculumResource(
-                resource_id="CURR-1",
+            Outcome(
+                outcome_id="CURR-1",
                 title="Equivalent Fractions Foundations",
                 grade_level="5",
                 subject="math",
-                learning_objective_ids=["LO-1"],
+                strand_id="STRAND-1",
                 knowledge_component_ids=["KC-1"],
                 tags=["fractions", "equivalent fractions"],
-                body="Use visual fraction models to explain why equivalent fractions name the same amount.",
+                description="Use visual fraction models to explain why equivalent fractions name the same amount.",
             )
         ]
 
 
 def test_socratic_evidence_scores_grounded_reasoning_as_demonstrated():
     student_id = uuid4()
-    scorer = SocraticEvidenceScorer(FakeCurriculumStore())
+    scorer = SocraticEvidenceScorer(FakeOutcomeStore())
     session = SocraticAssessmentSession(
         session_id="session-1",
         student_id=student_id,
@@ -72,7 +72,7 @@ def test_socratic_evidence_scores_grounded_reasoning_as_demonstrated():
 
 def test_socratic_evidence_steps_back_on_overconfident_thin_response():
     student_id = uuid4()
-    scorer = SocraticEvidenceScorer(FakeCurriculumStore())
+    scorer = SocraticEvidenceScorer(FakeOutcomeStore())
     session = SocraticAssessmentSession(
         session_id="session-2",
         student_id=student_id,
@@ -99,7 +99,7 @@ def test_socratic_evidence_steps_back_on_overconfident_thin_response():
 
 def test_socratic_evidence_tracks_progress_against_recent_turns():
     student_id = uuid4()
-    scorer = SocraticEvidenceScorer(FakeCurriculumStore())
+    scorer = SocraticEvidenceScorer(FakeOutcomeStore())
     prior_evaluation = SocraticAssessmentEvaluation(
         evidence_strength=SocraticEvidenceStrength.insufficient,
         inferred_mastery=0.22,

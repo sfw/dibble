@@ -1,6 +1,6 @@
 from tests.support import (
     assert_machine_readable_error,
-    build_curriculum_resource,
+    build_outcome,
     build_profile,
 )
 
@@ -12,7 +12,7 @@ def test_socratic_assessment_starts_with_probe_when_no_learner_response(
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     response = client.post(
         "/api/assessments/socratic",
@@ -71,7 +71,7 @@ def test_socratic_assessment_detects_grounded_reasoning_in_learner_response(
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     response = client.post(
         "/api/assessments/socratic",
@@ -117,7 +117,7 @@ def test_socratic_assessment_session_persists_across_turns(client, student_id):
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     first_response = client.post(
         "/api/assessments/socratic",
@@ -192,7 +192,7 @@ def test_socratic_assessment_updates_profile_and_unblocks_stretch_routing(
             self_monitoring=0.35,
         ),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     before_response = client.post(
         "/api/router/decide",
@@ -250,7 +250,7 @@ def test_socratic_assessment_invalidates_matching_predictive_cache_entries(
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     client.post(
         "/api/worked-examples/generate",
@@ -344,15 +344,15 @@ def test_socratic_assessment_propagates_mastery_to_prerequisites_and_parent_lo(
             self_monitoring=0.35,
         ),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     client.put(
         "/api/knowledge-components/KC-1",
-        json=build_knowledge_component("KC-1", parent_lo_id="LO-1"),
+        json=build_knowledge_component("KC-1", outcome_id="LO-1"),
     )
     client.put(
         "/api/knowledge-components/KC-2",
         json=build_knowledge_component(
-            "KC-2", parent_lo_id="LO-1", prerequisite_kc_ids=["KC-1"]
+            "KC-2", outcome_id="LO-1", prerequisite_kc_ids=["KC-1"]
         ),
     )
 

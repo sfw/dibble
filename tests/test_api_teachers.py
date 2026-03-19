@@ -18,7 +18,7 @@ from dibble.storage import ensure_database
 from tests.support import (
     assert_machine_readable_error,
     build_classroom,
-    build_curriculum_resource,
+    build_outcome,
     build_knowledge_component,
     build_profile,
 )
@@ -107,12 +107,11 @@ def test_teacher_classroom_read_model_packages_learner_cards_and_counts(
         ),
     )
     client.put(
-        "/api/curriculum/resources/CURR-2",
-        json=build_curriculum_resource(
-            resource_id="CURR-2",
+        "/api/curriculum/outcomes/CURR-2",
+        json=build_outcome(
+            "CURR-2",
             title="Equivalent Fraction Practice",
             knowledge_component_ids=["KC-2"],
-            learning_objective_ids=["LO-1"],
         ),
     )
 
@@ -212,7 +211,7 @@ def test_teacher_classroom_read_model_packages_learner_cards_and_counts(
     )
     assert active_card["curriculum_progression"]["status"] in {
         "active_curriculum_focus",
-        "ready_for_next_resource",
+        "ready_for_next_outcome",
     }
     assert active_card["attention_level"] == "medium"
     assert active_card["triage_section"] == "teacher_action"
@@ -234,12 +233,12 @@ def test_teacher_classroom_read_model_packages_learner_cards_and_counts(
         blocked_card["curriculum_progression"]["status"] == "blocked_on_prerequisites"
     )
     assert (
-        blocked_card["curriculum_progression"]["blocked_resources"][0]["resource_id"]
+        blocked_card["curriculum_progression"]["blocked_outcomes"][0]["outcome_id"]
         == "CURR-2"
     )
     assert (
         "stays blocked instead of becoming the next curriculum focus"
-        in blocked_card["curriculum_progression"]["blocked_resources"][0]["rationale"]
+        in blocked_card["curriculum_progression"]["blocked_outcomes"][0]["rationale"]
     )
     assert blocked_card["display_rationale"] is not None
     assert blocked_card["attention_level"] == "medium"
@@ -274,12 +273,11 @@ def test_teacher_classroom_keeps_active_curriculum_rationale_aligned_with_curren
         json=build_knowledge_component("KC-1", name="Identify equivalent fractions"),
     )
     client.put(
-        "/api/curriculum/resources/CURR-1",
-        json=build_curriculum_resource(
-            resource_id="CURR-1",
+        "/api/curriculum/outcomes/CURR-1",
+        json=build_outcome(
+            "CURR-1",
             title="Equivalent Fraction Foundations",
             knowledge_component_ids=["KC-1"],
-            learning_objective_ids=["LO-1"],
         ),
     )
 
@@ -325,7 +323,7 @@ def test_teacher_classroom_keeps_active_curriculum_rationale_aligned_with_curren
         == learner_card["current_flow"]["rationale"]
     )
     assert (
-        learner_card["curriculum_progression"]["current_resource"]["rationale"]
+        learner_card["curriculum_progression"]["current_outcome"]["rationale"]
         == learner_card["current_flow"]["rationale"]
     )
     assert (
@@ -335,7 +333,7 @@ def test_teacher_classroom_keeps_active_curriculum_rationale_aligned_with_curren
     assert learner_card["current_flow"] == summary_payload["current_flow"]
 
 
-def test_teacher_classroom_preserves_deferred_target_next_resource_priority(
+def test_teacher_classroom_preserves_deferred_target_next_outcome_priority(
     client, app_settings
 ):
     student_id = uuid4()
@@ -360,31 +358,30 @@ def test_teacher_classroom_preserves_deferred_target_next_resource_priority(
         "/api/knowledge-components/KC-9",
         json=build_knowledge_component(
             "KC-9",
-            parent_lo_id="LO-9",
+            outcome_id="LO-9",
             name="Recognize unrelated fraction patterns",
         ),
     )
     client.put(
-        "/api/curriculum/resources/CURR-0",
-        json=build_curriculum_resource(
-            resource_id="CURR-0",
+        "/api/curriculum/outcomes/CURR-0",
+        json=build_outcome(
+            "CURR-0",
             title="Unrelated Fraction Extension",
             knowledge_component_ids=["KC-9"],
-            learning_objective_ids=["LO-9"],
         ),
     )
     client.put(
-        "/api/curriculum/resources/CURR-1",
-        json=build_curriculum_resource(
-            resource_id="CURR-1",
+        "/api/curriculum/outcomes/CURR-1",
+        json=build_outcome(
+            "CURR-1",
             title="Equivalent Fraction Foundations",
             knowledge_component_ids=["KC-1"],
         ),
     )
     client.put(
-        "/api/curriculum/resources/CURR-2",
-        json=build_curriculum_resource(
-            resource_id="CURR-2",
+        "/api/curriculum/outcomes/CURR-2",
+        json=build_outcome(
+            "CURR-2",
             title="Equivalent Fraction Practice",
             knowledge_component_ids=["KC-2"],
         ),
@@ -427,19 +424,18 @@ def test_teacher_classroom_preserves_deferred_target_next_resource_priority(
     summary_payload = summary_response.json()
 
     assert (
-        learner_card["curriculum_progression"]["current_resource"]["resource_id"]
+        learner_card["curriculum_progression"]["current_outcome"]["outcome_id"]
         == "CURR-1"
     )
     assert (
-        learner_card["curriculum_progression"]["next_resource"]["resource_id"]
+        learner_card["curriculum_progression"]["next_outcome"]["outcome_id"] == "CURR-2"
+    )
+    assert (
+        learner_card["curriculum_progression"]["ready_outcomes"][0]["outcome_id"]
         == "CURR-2"
     )
     assert (
-        learner_card["curriculum_progression"]["ready_resources"][0]["resource_id"]
-        == "CURR-2"
-    )
-    assert (
-        learner_card["curriculum_progression"]["ready_resources"][1]["resource_id"]
+        learner_card["curriculum_progression"]["ready_outcomes"][1]["outcome_id"]
         == "CURR-0"
     )
     assert (
@@ -539,9 +535,7 @@ def test_teacher_classroom_resolves_learners_from_user_enrollments(client):
     )
 
     classroom_response = client.get("/api/teachers/sections/CLASS-ENROLLED")
-    trends_response = client.get(
-        "/api/teachers/sections/CLASS-ENROLLED/mastery-trends"
-    )
+    trends_response = client.get("/api/teachers/sections/CLASS-ENROLLED/mastery-trends")
 
     assert create_learner.status_code == 200
     assert classroom_response.status_code == 200

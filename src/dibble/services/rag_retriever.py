@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from dibble.models.curriculum import CurriculumResource
+from dibble.models.curriculum import Outcome
 from dibble.models.generation import GenerationRequest, GroundingReference
 from dibble.services.grounding_context import extract_grounding_excerpt
 from dibble.models.profile import LearnerProfile
-from dibble.services.protocols import CurriculumStore, EmbeddingStore
+from dibble.services.protocols import EmbeddingStore, OutcomeStore
 from dibble.services.retrieval.grounding_passages import GroundingPassageSelector
 from dibble.services.retrieval.embedding_store import InMemoryEmbeddingStore
 from dibble.services.retrieval.embeddings import (
@@ -18,14 +18,14 @@ from dibble.services.retrieval.scoring import HybridRetrievalScorer
 class RAGRetriever:
     def __init__(
         self,
-        curriculum_store: CurriculumStore,
+        outcome_store: OutcomeStore,
         *,
         embedding_store: EmbeddingStore | None = None,
         embedder: Embedder | None = None,
         scorer: HybridRetrievalScorer | None = None,
         passage_selector: GroundingPassageSelector | None = None,
     ) -> None:
-        self.curriculum_store = curriculum_store
+        self.outcome_store = outcome_store
         self.embedding_store = embedding_store or InMemoryEmbeddingStore()
         self.embedder = embedder or LocalHashEmbedder()
         self.scorer = scorer or HybridRetrievalScorer()
@@ -37,17 +37,15 @@ class RAGRetriever:
         request: GenerationRequest,
         limit: int = 3,
     ) -> list[GroundingReference]:
-        resources = self.curriculum_store.list()
+        outcomes = self.outcome_store.list()
         query_text = self.scorer.build_query_text(profile, request)
         query_embedding = self.embedder.embed(query_text)
-        scored: list[tuple[float, CurriculumResource, list[str], str | None]] = []
+        scored: list[tuple[float, Outcome, list[str], str | None]] = []
 
-        for resource in resources:
-            retrieval_score = self.scorer.score(profile, request, resource)
-            resource_embedding = self._resource_embedding(resource)
-            embedding_similarity = cosine_similarity(
-                query_embedding, resource_embedding
-            )
+        for outcome in outcomes:
+            retrieval_score = self.scorer.score(profile, request, outcome)
+            outcome_embedding = self._outcome_embedding(outcome)
+            embedding_similarity = cosine_similarity(query_embedding, outcome_embedding)
 
             if (
                 retrieval_score is None
@@ -61,7 +59,7 @@ class RAGRetriever:
             base_score = retrieval_score.score if retrieval_score is not None else 0.0
             passage_match = self.passage_selector.select(
                 query_text=query_text,
-                resource=resource,
+                outcome=outcome,
                 matched_terms=matched_terms,
             )
             score = base_score + (embedding_similarity * 4.0)
@@ -71,43 +69,42 @@ class RAGRetriever:
             scored.append(
                 (
                     score,
-                    resource,
+                    outcome,
                     matched_terms,
                     passage_match.excerpt if passage_match is not None else None,
                 )
             )
 
-        scored.sort(key=lambda item: (-item[0], item[1].resource_id))
+        scored.sort(key=lambda item: (-item[0], item[1].outcome_id))
         return [
             GroundingReference(
-                resource_id=resource.resource_id,
-                title=resource.title,
-                grade_level=resource.grade_level,
-                subject=resource.subject,
-                source_type=resource.source_type,
+                outcome_id=outcome.outcome_id,
+                title=outcome.title,
+                grade_level=outcome.grade_level,
+                subject=outcome.subject,
                 score=score,
                 matched_terms=matched_terms,
                 excerpt=excerpt
                 or extract_grounding_excerpt(
-                    resource.body,
+                    outcome.description,
                     matched_terms=matched_terms,
                 ),
             )
-            for score, resource, matched_terms, excerpt in scored[:limit]
+            for score, outcome, matched_terms, excerpt in scored[:limit]
         ]
 
-    def _resource_embedding(self, resource: CurriculumResource) -> list[float]:
-        cached = self.embedding_store.get(resource.resource_id)
+    def _outcome_embedding(self, outcome: Outcome) -> list[float]:
+        cached = self.embedding_store.get(outcome.outcome_id)
         if (
             cached is not None
-            and cached.source_updated_at == resource.updated_at.isoformat()
+            and cached.source_updated_at == outcome.updated_at.isoformat()
         ):
             return cached.vector
 
-        vector = self.embedder.embed(self.scorer.build_resource_text(resource))
+        vector = self.embedder.embed(self.scorer.build_outcome_text(outcome))
         self.embedding_store.upsert(
-            resource_id=resource.resource_id,
+            resource_id=outcome.outcome_id,
             vector=vector,
-            source_updated_at=resource.updated_at.isoformat(),
+            source_updated_at=outcome.updated_at.isoformat(),
         )
         return vector

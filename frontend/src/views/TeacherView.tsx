@@ -257,7 +257,7 @@ export function TeacherView({
                 <Pill label={formatContractLabel(progression.status)} tone="neutral" />
                 <Pill label={formatContractLabel(progression.current_stage)} tone="accent" />
               </div>
-              <h3>{progression.current_resource?.title ?? 'No active curriculum resource'}</h3>
+              <h3>{progression.current_outcome?.title ?? 'No active curriculum outcome'}</h3>
               <p>{progression.rationale ?? 'No curriculum progression rationale returned.'}</p>
               <div className="summary-card__grid">
                 <div>
@@ -266,25 +266,25 @@ export function TeacherView({
                 </div>
                 <div>
                   <span>Next resource</span>
-                  <strong>{progression.next_resource?.title ?? 'None queued'}</strong>
+                  <strong>{progression.next_outcome?.title ?? 'None queued'}</strong>
                 </div>
                 <div>
                   <span>Blocked resources</span>
-                  <strong>{String(progression.blocked_resource_count)}</strong>
+                  <strong>{String(progression.blocked_outcome_count)}</strong>
                 </div>
                 <div>
                   <span>Mastered ratio</span>
-                  <strong>{formatPercent(progression.mastered_resource_ratio)}</strong>
+                  <strong>{formatPercent(progression.mastered_outcome_ratio)}</strong>
                 </div>
               </div>
             </article>
             <MetricList
               title="Progression counts"
               items={[
-                { label: 'Resources', value: String(progression.resource_count) },
-                { label: 'Ready', value: String(progression.ready_resource_count) },
-                { label: 'Active', value: String(progression.active_resource_count) },
-                { label: 'Blocked', value: String(progression.blocked_resource_count) },
+                { label: 'Outcomes', value: String(progression.outcome_count) },
+                { label: 'Ready', value: String(progression.ready_outcome_count) },
+                { label: 'Active', value: String(progression.active_outcome_count) },
+                { label: 'Blocked', value: String(progression.blocked_outcome_count) },
                 { label: 'Targets', value: progression.active_target_kc_ids.join(', ') || 'none' },
               ]}
             />

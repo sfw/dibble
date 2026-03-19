@@ -43,16 +43,16 @@ def test_kc_sequence_planner_inserts_same_lo_bridge_before_target_return():
     planner = KcSequencePlanner(
         knowledge_component_store=_StubKnowledgeComponentStore(
             [
-                _build_component("KC-1", parent_lo_id="LO-1", difficulty=0.3),
+                _build_component("KC-1", outcome_id="LO-1", difficulty=0.3),
                 _build_component(
                     "KC-2",
-                    parent_lo_id="LO-2",
+                    outcome_id="LO-2",
                     prerequisite_kc_ids=["KC-1"],
                     difficulty=0.46,
                 ),
                 _build_component(
                     "KC-3",
-                    parent_lo_id="LO-2",
+                    outcome_id="LO-2",
                     prerequisite_kc_ids=["KC-1"],
                     difficulty=0.62,
                 ),
@@ -86,14 +86,14 @@ def test_kc_sequence_planner_can_use_curated_taxonomy_neighbor_when_same_lo_brid
             [
                 _build_component(
                     "KC-1",
-                    parent_lo_id="LO-1",
+                    outcome_id="LO-1",
                     concept_family="fraction-sense",
                     taxonomy_cluster_id="fractions-core",
                     difficulty=0.3,
                 ),
                 _build_component(
                     "KC-2",
-                    parent_lo_id="LO-3",
+                    outcome_id="LO-3",
                     prerequisite_kc_ids=["KC-1"],
                     concept_family="fraction-equivalence",
                     taxonomy_cluster_id="fractions-core",
@@ -102,7 +102,7 @@ def test_kc_sequence_planner_can_use_curated_taxonomy_neighbor_when_same_lo_brid
                 ),
                 _build_component(
                     "KC-3",
-                    parent_lo_id="LO-2",
+                    outcome_id="LO-2",
                     prerequisite_kc_ids=["KC-1"],
                     concept_family="fraction-equivalence",
                     taxonomy_cluster_id="fractions-core",
@@ -142,7 +142,7 @@ class _StubKnowledgeComponentStore:
 def _build_component(
     kc_id: str,
     *,
-    parent_lo_id: str,
+    outcome_id: str,
     prerequisite_kc_ids: list[str] | None = None,
     difficulty: float = 0.5,
     taxonomy_cluster_id: str | None = None,
@@ -152,7 +152,7 @@ def _build_component(
     return KnowledgeComponent(
         kc_id=kc_id,
         name=kc_id,
-        parent_lo_id=parent_lo_id,
+        outcome_id=outcome_id,
         grade_level="5",
         subject="math",
         taxonomy_cluster_id=taxonomy_cluster_id,

@@ -26,18 +26,16 @@ def test_get_config_returns_current_settings(tmp_path: Path) -> None:
     assert config.values.auth_enabled is True
 
 
-def test_update_config_can_clear_optional_fields(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_update_config_can_clear_optional_fields(tmp_path: Path, monkeypatch) -> None:
     config_path = tmp_path / "config.toml"
     config_path.write_text(
         "\n".join(
             [
-                '[llm]',
+                "[llm]",
                 'api_base = "https://api.openai.com/v1"',
                 'api_key = "sk-old"',
                 'model = "gpt-4o"',
-                '[embedding]',
+                "[embedding]",
                 'api_key = "embed-old"',
                 'model = "text-embedding-3-small"',
             ]

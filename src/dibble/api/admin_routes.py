@@ -66,9 +66,7 @@ def build_admin_router(context: ApiContext) -> APIRouter:
         return context.services.admin_academic_catalog_service.list_sections()
 
     @router.put("/sections/{section_id}", response_model=AdminSectionSummary)
-    def upsert_section(
-        section_id: str, payload: SectionUpsert
-    ) -> AdminSectionSummary:
+    def upsert_section(section_id: str, payload: SectionUpsert) -> AdminSectionSummary:
         if payload.section_id != section_id:
             raise api_error(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -99,8 +97,10 @@ def build_admin_router(context: ApiContext) -> APIRouter:
         response_model=AdminSectionMembershipSummary,
     )
     def get_section_memberships(section_id: str) -> AdminSectionMembershipSummary:
-        summary = context.services.admin_section_membership_service.get_section_memberships(
-            section_id
+        summary = (
+            context.services.admin_section_membership_service.get_section_memberships(
+                section_id
+            )
         )
         if summary is None:
             raise api_error(

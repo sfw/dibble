@@ -280,7 +280,7 @@ class SocraticAssessmentService:
     ) -> LearnerContinueAction:
         if next_step.content_type == RequestedContentType.assessment_probe.value:
             return LearnerContinueAction.continue_socratic(
-                resource_id=session.session_id,
+                outcome_id=session.session_id,
                 learning_session_id=session.learning_session_id,
                 content_type=next_step.content_type,
                 target_stage=next_step.target_stage,
@@ -296,7 +296,7 @@ class SocraticAssessmentService:
                 rationale=next_step.rationale,
             )
         return LearnerContinueAction.generate_follow_up(
-            resource_id=session.session_id,
+            outcome_id=session.session_id,
             learning_session_id=session.learning_session_id,
             content_type=next_step.content_type,
             target_stage=next_step.target_stage,

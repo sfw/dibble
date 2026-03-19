@@ -49,6 +49,32 @@ CREATE TABLE IF NOT EXISTS curriculum_resource_embeddings (
 );
 """
 
+STRAND_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS strands (
+    strand_id TEXT PRIMARY KEY,
+    payload TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+"""
+
+OUTCOME_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS outcomes (
+    outcome_id TEXT PRIMARY KEY,
+    payload TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+"""
+
+OUTCOME_EMBEDDING_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS outcome_embeddings (
+    outcome_id TEXT PRIMARY KEY,
+    vector TEXT NOT NULL,
+    dimensions INTEGER NOT NULL,
+    source_updated_at TEXT NOT NULL,
+    indexed_at TEXT NOT NULL
+);
+"""
+
 PROVIDER_HEALTH_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS provider_health_events (
     event_id TEXT PRIMARY KEY,
@@ -241,6 +267,9 @@ def ensure_database(database_path: str) -> None:
         connection.execute(MASTERY_SNAPSHOT_TABLE_SQL)
         connection.execute(PREDICTIVE_WARM_QUEUE_TABLE_SQL)
         connection.execute(USER_TABLE_SQL)
+        connection.execute(STRAND_TABLE_SQL)
+        connection.execute(OUTCOME_TABLE_SQL)
+        connection.execute(OUTCOME_EMBEDDING_TABLE_SQL)
         _ensure_sqlite_columns(
             connection,
             table_name="generated_content",
@@ -269,6 +298,7 @@ def ensure_database(database_path: str) -> None:
                 "stale_recovered": "INTEGER NOT NULL DEFAULT 0",
             },
         )
+        _migrate_curriculum_resources_to_outcomes(connection)
         connection.commit()
 
 
@@ -287,4 +317,52 @@ def _ensure_sqlite_columns(
             continue
         connection.execute(
             f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_sql}"
+        )
+
+
+def _migrate_curriculum_resources_to_outcomes(
+    connection: sqlite3.Connection,
+) -> None:
+    """Copy curriculum_resources rows into outcomes if outcomes is empty."""
+    # Check if curriculum_resources table exists.
+    tables = {
+        row[0]
+        for row in connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()
+    }
+    if "curriculum_resources" not in tables:
+        return
+
+    outcome_count = connection.execute("SELECT COUNT(*) FROM outcomes").fetchone()[0]
+    if outcome_count > 0:
+        return
+
+    resource_count = connection.execute(
+        "SELECT COUNT(*) FROM curriculum_resources"
+    ).fetchone()[0]
+    if resource_count == 0:
+        return
+
+    import json
+
+    rows = connection.execute(
+        "SELECT resource_id, payload, updated_at FROM curriculum_resources"
+    ).fetchall()
+    for resource_id, payload_json, updated_at in rows:
+        payload = json.loads(payload_json)
+        # Map old field names to new field names.
+        payload["outcome_id"] = payload.pop("resource_id", resource_id)
+        if "body" in payload:
+            payload["description"] = payload.pop("body")
+        payload.pop("source_type", None)
+        payload.pop("learning_objective_ids", None)
+        if "strand_id" not in payload:
+            payload["strand_id"] = ""
+        connection.execute(
+            """
+            INSERT INTO outcomes(outcome_id, payload, updated_at)
+            VALUES (?, ?, ?)
+            """,
+            (payload["outcome_id"], json.dumps(payload), updated_at),
         )

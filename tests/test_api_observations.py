@@ -233,13 +233,13 @@ def test_observation_endpoint_updates_inferred_state_and_profile(
 def test_observation_endpoint_invalidates_matching_predictive_cache_entries(
     client, student_id
 ):
-    from tests.support import build_curriculum_resource
+    from tests.support import build_outcome
 
     client.put(
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     client.post(
         "/api/worked-examples/generate",

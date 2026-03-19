@@ -868,7 +868,7 @@ class ContentWorkflowService:
             return LearnerContinueAction.idle(rationale=next_step.rationale)
         request_context = generated_content.request_context
         return LearnerContinueAction.generate_follow_up(
-            resource_id=generated_content.generation_id,
+            outcome_id=generated_content.generation_id,
             generation_id=generated_content.generation_id,
             learning_session_id=self._maybe_str(
                 request_context.get("learning_session_id")
@@ -919,7 +919,7 @@ class ContentWorkflowService:
                 }
             )
             return LearnerContinueAction.generate_follow_up(
-                resource_id=session_id,
+                outcome_id=session_id,
                 generation_id=generated_content.generation_id,
                 learning_session_id=self._maybe_str(
                     request_context.get("learning_session_id")
@@ -935,7 +935,7 @@ class ContentWorkflowService:
             )
         return LearnerContinueAction.advance_remediation(
             endpoint=f"/api/remedial/sessions/{session_id}/advance",
-            resource_id=session_id,
+            outcome_id=session_id,
             generation_id=generated_content.generation_id,
             learning_session_id=self._maybe_str(
                 request_context.get("learning_session_id")

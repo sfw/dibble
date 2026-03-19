@@ -1,5 +1,5 @@
 from tests.support import (
-    build_curriculum_resource,
+    build_outcome,
     build_knowledge_component,
     build_profile,
 )
@@ -16,7 +16,7 @@ def test_worked_examples_endpoint_returns_fading_metadata(client, student_id):
             engagement="medium",
         ),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     client.put(
         "/api/knowledge-components/KC-1",
         json=build_knowledge_component(
@@ -98,7 +98,7 @@ def test_problem_endpoint_returns_difficulty_band_metadata(client, student_id):
             engagement="medium",
         ),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     client.put(
         "/api/knowledge-components/KC-1",
         json=build_knowledge_component(
@@ -184,7 +184,7 @@ def test_generation_modes_use_persisted_calibration_profiles(
             engagement="medium",
         ),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     audit_store.append(
         event_type="learning.calibration.profile",
         status="success",
@@ -237,7 +237,7 @@ def test_generation_modes_use_persisted_progress_profiles(
             engagement="medium",
         ),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     audit_store.append(
         event_type="learning.progress.profile",
         status="success",
@@ -293,7 +293,7 @@ def test_warmed_generation_reuses_hydrated_target_kc_hints(client, student_id):
             engagement="medium",
         ),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     client.put(
         "/api/knowledge-components/KC-1",
         json=build_knowledge_component(

@@ -45,7 +45,7 @@ export function ContinueLearning() {
   const hasContent = displayBlocks.length > 0
 
   const masteryPercent = Math.round(
-    (progression.mastered_resource_count / Math.max(progression.resource_count, 1)) * 100,
+    (progression.mastered_outcome_count / Math.max(progression.outcome_count, 1)) * 100,
   )
 
   function handleContinue() {
@@ -73,7 +73,7 @@ export function ContinueLearning() {
             {learnerContentType(artifact.content_type)}
           </p>
           <h1 className="text-xl font-semibold">
-            {progression.current_resource?.title ?? learnerStage(progression.current_stage, progression.stage_display_label)}
+            {progression.current_outcome?.title ?? learnerStage(progression.current_stage, progression.stage_display_label)}
           </h1>
         </div>
       </header>
@@ -119,7 +119,7 @@ export function ContinueLearning() {
         <div className="flex items-baseline justify-between text-sm mb-2">
           <span className="font-medium">{learnerStage(progression.current_stage, progression.stage_display_label)}</span>
           <span className="text-muted-foreground">
-            {progression.mastered_resource_count} of {progression.resource_count} complete
+            {progression.mastered_outcome_count} of {progression.outcome_count} complete
           </span>
         </div>
         <div className="h-2 overflow-hidden rounded-full bg-slate-200">

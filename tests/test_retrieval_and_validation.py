@@ -1,6 +1,6 @@
 from uuid import uuid4
 
-from dibble.models.curriculum import CurriculumResourceUpsert
+from dibble.models.curriculum import OutcomeUpsert
 from dibble.models.generation import (
     GeneratedBlock,
     GenerationRequest,
@@ -8,25 +8,25 @@ from dibble.models.generation import (
 )
 from dibble.models.profile import LearnerProfile
 from dibble.services.content_validator import ContentValidator
-from dibble.services.curriculum_store import SQLiteCurriculumStore
+from dibble.services.outcome_store import SQLiteOutcomeStore
 from dibble.services.rag_retriever import RAGRetriever
 from dibble.services.validation.text import (
     curriculum_alignment_score,
     grounding_coverage_score,
 )
 from dibble.storage import ensure_database
-from tests.support import build_curriculum_resource, build_profile
+from tests.support import build_outcome, build_profile
 
 
 def test_retriever_returns_best_grade_level_match(tmp_path):
     database_path = str(tmp_path / "retrieval.db")
     ensure_database(database_path)
-    store = SQLiteCurriculumStore(database_path)
-    store.upsert(CurriculumResourceUpsert(**build_curriculum_resource("CURR-5")))
+    store = SQLiteOutcomeStore(database_path)
+    store.upsert(OutcomeUpsert(**build_outcome("CURR-5")))
     store.upsert(
-        CurriculumResourceUpsert(
+        OutcomeUpsert(
             **{
-                **build_curriculum_resource("CURR-ALT"),
+                **build_outcome("CURR-ALT"),
                 "grade_level": "6",
                 "title": "Equivalent Fractions Extension",
             }
@@ -44,21 +44,21 @@ def test_retriever_returns_best_grade_level_match(tmp_path):
 
     results = retriever.retrieve(profile, request)
 
-    assert results[0].resource_id == "CURR-5"
+    assert results[0].outcome_id == "CURR-5"
     assert results[0].score > results[1].score
 
 
 def test_retriever_matches_free_text_curriculum_context_without_exact_phrase(tmp_path):
     database_path = str(tmp_path / "retrieval-free-text.db")
     ensure_database(database_path)
-    store = SQLiteCurriculumStore(database_path)
-    store.upsert(CurriculumResourceUpsert(**build_curriculum_resource("CURR-5")))
+    store = SQLiteOutcomeStore(database_path)
+    store.upsert(OutcomeUpsert(**build_outcome("CURR-5")))
     store.upsert(
-        CurriculumResourceUpsert(
+        OutcomeUpsert(
             **{
-                **build_curriculum_resource("CURR-GENERIC"),
+                **build_outcome("CURR-GENERIC"),
                 "title": "Fractions Overview",
-                "body": "Identify numerators and denominators in symbolic fractions.",
+                "description": "Identify numerators and denominators in symbolic fractions.",
                 "tags": ["fractions", "notation"],
                 "knowledge_component_ids": ["KC-9"],
             }
@@ -77,19 +77,19 @@ def test_retriever_matches_free_text_curriculum_context_without_exact_phrase(tmp
 
     results = retriever.retrieve(profile, request)
 
-    assert results[0].resource_id == "CURR-5"
+    assert results[0].outcome_id == "CURR-5"
     assert "fraction" in results[0].matched_terms
 
 
 def test_retriever_adds_deterministic_excerpt_from_matching_sentence(tmp_path):
     database_path = str(tmp_path / "retrieval-excerpt.db")
     ensure_database(database_path)
-    store = SQLiteCurriculumStore(database_path)
+    store = SQLiteOutcomeStore(database_path)
     store.upsert(
-        CurriculumResourceUpsert(
+        OutcomeUpsert(
             **{
-                **build_curriculum_resource("CURR-EXCERPT"),
-                "body": (
+                **build_outcome("CURR-EXCERPT"),
+                "description": (
                     "Students review denominators with simple shapes. "
                     "Use visual fraction models to explain why equivalent fractions name the same amount. "
                     "Then connect the model to the symbolic form."
@@ -119,12 +119,12 @@ def test_retriever_adds_deterministic_excerpt_from_matching_sentence(tmp_path):
 def test_retriever_prefers_semantically_relevant_passage_over_leading_noise(tmp_path):
     database_path = str(tmp_path / "retrieval-passage-focus.db")
     ensure_database(database_path)
-    store = SQLiteCurriculumStore(database_path)
+    store = SQLiteOutcomeStore(database_path)
     store.upsert(
-        CurriculumResourceUpsert(
+        OutcomeUpsert(
             **{
-                **build_curriculum_resource("CURR-PASSAGE"),
-                "body": (
+                **build_outcome("CURR-PASSAGE"),
+                "description": (
                     "Warm up by naming different classroom manipulatives. "
                     "Learners should compare equal partitions and justify that both shapes cover the same region. "
                     "Then connect that area model to symbolic notation for equivalent fractions."
@@ -160,12 +160,12 @@ def test_retriever_prefers_semantically_relevant_passage_over_leading_noise(tmp_
 def test_retriever_uses_passage_signal_to_prefer_more_grounded_resource(tmp_path):
     database_path = str(tmp_path / "retrieval-passage-ranking.db")
     ensure_database(database_path)
-    store = SQLiteCurriculumStore(database_path)
+    store = SQLiteOutcomeStore(database_path)
     store.upsert(
-        CurriculumResourceUpsert(
+        OutcomeUpsert(
             **{
-                **build_curriculum_resource("CURR-NOISY"),
-                "body": (
+                **build_outcome("CURR-NOISY"),
+                "description": (
                     "This unit surveys fraction vocabulary, classroom routines, and several unrelated extensions. "
                     "Much later, learners compare equal partitions to show why two shapes still cover the same region. "
                     "The final note reconnects that area model to equivalent fractions."
@@ -174,11 +174,11 @@ def test_retriever_uses_passage_signal_to_prefer_more_grounded_resource(tmp_path
         )
     )
     store.upsert(
-        CurriculumResourceUpsert(
+        OutcomeUpsert(
             **{
-                **build_curriculum_resource("CURR-GENERIC"),
+                **build_outcome("CURR-GENERIC"),
                 "knowledge_component_ids": ["KC-9"],
-                "body": "Review fraction words and identify numerators and denominators in simple examples.",
+                "description": "Review fraction words and identify numerators and denominators in simple examples.",
             }
         )
     )
@@ -195,7 +195,7 @@ def test_retriever_uses_passage_signal_to_prefer_more_grounded_resource(tmp_path
 
     results = retriever.retrieve(profile, request)
 
-    assert results[0].resource_id == "CURR-NOISY"
+    assert results[0].outcome_id == "CURR-NOISY"
     assert results[0].excerpt is not None
     assert (
         "equal partitions" in results[0].excerpt.lower()
@@ -225,7 +225,7 @@ def test_validator_reports_missing_instruction_block():
         ],
         grounding=[
             GroundingReference(
-                resource_id="CURR-1", title="Fractions", grade_level="5", score=2.0
+                outcome_id="CURR-1", title="Fractions", grade_level="5", score=2.0
             )
         ],
     )
@@ -244,7 +244,7 @@ def test_validator_reports_missing_curriculum_alignment():
         ],
         grounding=[
             GroundingReference(
-                resource_id="CURR-1",
+                outcome_id="CURR-1",
                 title="Equivalent Fractions Foundations",
                 grade_level="5",
                 score=2.0,
@@ -261,7 +261,7 @@ def test_validator_reports_missing_curriculum_alignment():
 def test_curriculum_alignment_score_prefers_grounded_language():
     grounding = [
         GroundingReference(
-            resource_id="CURR-1",
+            outcome_id="CURR-1",
             title="Equivalent Fractions Foundations",
             grade_level="5",
             score=2.0,
@@ -285,7 +285,7 @@ def test_curriculum_alignment_score_prefers_grounded_language():
 def test_grounding_coverage_score_tracks_instruction_language():
     grounding = [
         GroundingReference(
-            resource_id="CURR-1",
+            outcome_id="CURR-1",
             title="Equivalent Fractions Foundations",
             grade_level="5",
             score=2.0,
@@ -322,7 +322,7 @@ def test_validator_reports_instruction_grounding_gap_when_only_summary_is_ground
         ],
         grounding=[
             GroundingReference(
-                resource_id="CURR-1",
+                outcome_id="CURR-1",
                 title="Equivalent Fractions Foundations",
                 grade_level="5",
                 score=2.0,
@@ -359,7 +359,7 @@ def test_validator_reports_reading_level_accessibility_safety_and_math_issues():
         ],
         grounding=[
             GroundingReference(
-                resource_id="CURR-1",
+                outcome_id="CURR-1",
                 title="Equivalent Fractions Foundations",
                 grade_level="5",
                 score=2.0,

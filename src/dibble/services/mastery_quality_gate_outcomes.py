@@ -1,17 +1,17 @@
 """Evaluates whether mastery quality gate decisions led to good outcomes.
 
-The mastery quality gate (ADAPT-006) prevents resources from being marked
+The mastery quality gate (ADAPT-006) prevents outcomes from being marked
 mastered when their KCs show ``support_dependent`` or ``fragile`` evidence.
 This service closes the feedback loop by evaluating whether those gate holds
 actually helped — did the learner eventually demonstrate independent mastery,
 or did the gate just create friction without improving outcomes?
 
-The tracker reads ``curriculum.resource.transition`` events to find:
+The tracker reads ``curriculum.outcome.transition`` events to find:
 1. Gate holds: transitions where quality gate was active (to_state != mastered
    because quality gate prevented it).
-2. Gate releases: subsequent transitions where the same resource achieved
+2. Gate releases: subsequent transitions where the same outcome achieved
    mastered after previously being held by the quality gate.
-3. Gate stalls: resources held by the gate for extended periods without
+3. Gate stalls: outcomes held by the gate for extended periods without
    mastery improvement.
 
 Outcomes are recorded as ``mastery_quality_gate.outcome`` audit events.
@@ -29,7 +29,7 @@ from dibble.services.protocols import AuditStore
 class QualityGateOutcome:
     """A single evaluated quality gate decision outcome."""
 
-    resource_id: str
+    outcome_id: str
     student_id: str
     gate_signal: str  # support_dependent or fragile
     outcome: str  # positive, negative, inconclusive
@@ -61,7 +61,7 @@ class MasteryQualityGateOutcomeTracker:
         self,
         *,
         student_id: str,
-        current_resource_mastery: dict[str, float],
+        current_outcome_mastery: dict[str, float],
     ) -> list[QualityGateOutcome]:
         """Look back at quality gate holds and evaluate whether they helped.
 
@@ -82,23 +82,23 @@ class MasteryQualityGateOutcomeTracker:
             if event.student_id is None or str(event.student_id) != student_id:
                 continue
 
-            if event.event_type == "curriculum.resource.transition":
+            if event.event_type == "curriculum.outcome.transition":
                 payload = event.payload
                 if not payload.get("quality_gate_involved"):
                     continue
 
-                resource_id = str(payload.get("resource_id", ""))
+                outcome_id = str(payload.get("outcome_id", ""))
                 to_state = str(payload.get("to_state", ""))
 
                 if to_state == "mastered":
-                    # This is a gate release — resource achieved mastery
-                    if resource_id not in gate_releases:
-                        gate_releases[resource_id] = _parse_timestamp(event.created_at)
+                    # This is a gate release — outcome achieved mastery
+                    if outcome_id not in gate_releases:
+                        gate_releases[outcome_id] = _parse_timestamp(event.created_at)
                 elif to_state in {"ready", "active"}:
                     gate_holds.append(
                         {
                             "event_id": event.event_id,
-                            "resource_id": resource_id,
+                            "outcome_id": outcome_id,
                             "mastery_ratio": float(payload.get("mastery_ratio", 0.0)),
                             "gate_signal": str(
                                 payload.get("to_mastery_quality", "unknown")
@@ -118,40 +118,40 @@ class MasteryQualityGateOutcomeTracker:
             if hold["event_id"] in already_evaluated:
                 continue
 
-            resource_id = hold["resource_id"]
+            outcome_id = hold["outcome_id"]
             days_since = (now - hold["timestamp"]).total_seconds() / 86_400.0
 
             if days_since < _MIN_DAYS_FOR_EVALUATION:
                 continue
 
-            current_mastery = current_resource_mastery.get(resource_id, 0.0)
+            current_mastery = current_outcome_mastery.get(outcome_id, 0.0)
             mastery_at_gate = hold["mastery_ratio"]
             improvement = current_mastery - mastery_at_gate
 
-            # Count transitions since the gate hold for this resource.
+            # Count transitions since the gate hold for this outcome.
             transitions_since = sum(
                 1
                 for e in events
-                if e.event_type == "curriculum.resource.transition"
+                if e.event_type == "curriculum.outcome.transition"
                 and e.student_id is not None
                 and str(e.student_id) == student_id
-                and e.payload.get("resource_id") == resource_id
+                and e.payload.get("outcome_id") == outcome_id
                 and _parse_timestamp(e.created_at) > hold["timestamp"]
             )
 
             outcome = self._evaluate(
-                resource_id=resource_id,
+                outcome_id=outcome_id,
                 gate_signal=hold["gate_signal"],
                 mastery_at_gate=mastery_at_gate,
                 current_mastery=current_mastery,
                 improvement=improvement,
                 days_since=days_since,
-                released=resource_id in gate_releases,
+                released=outcome_id in gate_releases,
             )
 
             outcomes.append(
                 QualityGateOutcome(
-                    resource_id=resource_id,
+                    outcome_id=outcome_id,
                     student_id=student_id,
                     gate_signal=hold["gate_signal"],
                     outcome=outcome.verdict,
@@ -173,7 +173,7 @@ class MasteryQualityGateOutcomeTracker:
                 status=outcome.outcome,
                 student_id=outcome.student_id,
                 payload={
-                    "resource_id": outcome.resource_id,
+                    "outcome_id": outcome.outcome_id,
                     "gate_signal": outcome.gate_signal,
                     "outcome": outcome.outcome,
                     "mastery_at_gate": outcome.mastery_at_gate,
@@ -187,7 +187,7 @@ class MasteryQualityGateOutcomeTracker:
     def _evaluate(
         self,
         *,
-        resource_id: str,
+        outcome_id: str,
         gate_signal: str,
         mastery_at_gate: float,
         current_mastery: float,
@@ -199,7 +199,7 @@ class MasteryQualityGateOutcomeTracker:
             return _EvalResult(
                 verdict="positive",
                 rationale=(
-                    f"Resource {resource_id} was held by quality gate ({gate_signal}) "
+                    f"Outcome {outcome_id} was held by quality gate ({gate_signal}) "
                     f"and later achieved mastery. Mastery improved from "
                     f"{mastery_at_gate:.2f} to {current_mastery:.2f}."
                 ),
@@ -209,7 +209,7 @@ class MasteryQualityGateOutcomeTracker:
             return _EvalResult(
                 verdict="positive",
                 rationale=(
-                    f"Resource {resource_id} held by quality gate ({gate_signal}) "
+                    f"Outcome {outcome_id} held by quality gate ({gate_signal}) "
                     f"shows mastery improvement from {mastery_at_gate:.2f} to "
                     f"{current_mastery:.2f} (+{improvement:.2f}) — gate hold is helping."
                 ),
@@ -219,7 +219,7 @@ class MasteryQualityGateOutcomeTracker:
             return _EvalResult(
                 verdict="negative",
                 rationale=(
-                    f"Resource {resource_id} held by quality gate ({gate_signal}) "
+                    f"Outcome {outcome_id} held by quality gate ({gate_signal}) "
                     f"for {days_since:.0f} days with no meaningful improvement "
                     f"({mastery_at_gate:.2f} → {current_mastery:.2f}) — "
                     f"gate may be too conservative."
@@ -229,7 +229,7 @@ class MasteryQualityGateOutcomeTracker:
         return _EvalResult(
             verdict="inconclusive",
             rationale=(
-                f"Resource {resource_id} held by quality gate ({gate_signal}) "
+                f"Outcome {outcome_id} held by quality gate ({gate_signal}) "
                 f"for {days_since:.0f} days, mastery at {current_mastery:.2f} "
                 f"(was {mastery_at_gate:.2f}) — not enough evidence yet."
             ),

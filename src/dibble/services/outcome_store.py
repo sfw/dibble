@@ -2,26 +2,26 @@ from __future__ import annotations
 
 import sqlite3
 
-from dibble.models.curriculum import CurriculumResource, CurriculumResourceUpsert
+from dibble.models.curriculum import Outcome, OutcomeUpsert
 
 
-class SQLiteCurriculumStore:
+class SQLiteOutcomeStore:
     def __init__(self, database_path: str) -> None:
         self.database_path = database_path
 
-    def upsert(self, resource: CurriculumResourceUpsert) -> CurriculumResource:
-        persisted = CurriculumResource(**resource.model_dump())
+    def upsert(self, outcome: OutcomeUpsert) -> Outcome:
+        persisted = Outcome(**outcome.model_dump())
         with sqlite3.connect(self.database_path) as connection:
             connection.execute(
                 """
-                INSERT INTO curriculum_resources(resource_id, payload, updated_at)
+                INSERT INTO outcomes(outcome_id, payload, updated_at)
                 VALUES (?, ?, ?)
-                ON CONFLICT(resource_id) DO UPDATE SET
+                ON CONFLICT(outcome_id) DO UPDATE SET
                     payload = excluded.payload,
                     updated_at = excluded.updated_at
                 """,
                 (
-                    persisted.resource_id,
+                    persisted.outcome_id,
                     persisted.model_dump_json(),
                     persisted.updated_at.isoformat(),
                 ),
@@ -29,20 +29,20 @@ class SQLiteCurriculumStore:
             connection.commit()
         return persisted
 
-    def get(self, resource_id: str) -> CurriculumResource | None:
+    def get(self, outcome_id: str) -> Outcome | None:
         with sqlite3.connect(self.database_path) as connection:
             row = connection.execute(
-                "SELECT payload FROM curriculum_resources WHERE resource_id = ?",
-                (resource_id,),
+                "SELECT payload FROM outcomes WHERE outcome_id = ?",
+                (outcome_id,),
             ).fetchone()
         if row is None:
             return None
-        return CurriculumResource.model_validate_json(row[0])
+        return Outcome.model_validate_json(row[0])
 
-    def list(self) -> list[CurriculumResource]:
+    def list(self) -> list[Outcome]:
         with sqlite3.connect(self.database_path) as connection:
             rows = connection.execute(
-                "SELECT payload FROM curriculum_resources ORDER BY updated_at DESC, resource_id ASC"
+                "SELECT payload FROM outcomes ORDER BY updated_at DESC, outcome_id ASC"
             ).fetchall()
 
-        return [CurriculumResource.model_validate_json(row[0]) for row in rows]
+        return [Outcome.model_validate_json(row[0]) for row in rows]
