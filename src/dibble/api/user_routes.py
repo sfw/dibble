@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import secrets
 from datetime import datetime, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter
 
@@ -17,6 +17,7 @@ from dibble.models.auth import (
     UserUpdateRequest,
 )
 from dibble.models.classroom_membership import ClassroomMembershipRole
+from dibble.models.profile import LearnerProfile
 from dibble.services.auth import hash_credential
 from dibble.services.passphrase import generate_passphrase
 
@@ -96,6 +97,17 @@ def build_user_router(context: ApiContext) -> APIRouter:
             section_ids=requested_section_ids,
         )
 
+    def _ensure_learner_profile(user: User) -> None:
+        """Create a default learner profile if one doesn't already exist."""
+        if not _is_learner_role(user.role):
+            return
+        student_id = UUID(user.learner_id or user.user_id)
+        if context.services.profile_store.get(student_id) is not None:
+            return
+        context.services.profile_store.upsert(
+            LearnerProfile(student_id=student_id, grade_level="")
+        )
+
     @router.post("", response_model=UserCreateResponse)
     def create_user(payload: UserCreateRequest) -> UserCreateResponse:
         credential = _generate_credential(payload.role)
@@ -105,6 +117,7 @@ def build_user_router(context: ApiContext) -> APIRouter:
             user,
             requested_section_ids=payload.section_ids or None,
         )
+        _ensure_learner_profile(user)
         return UserCreateResponse(
             user_id=user.user_id,
             credential=credential,
@@ -152,6 +165,7 @@ def build_user_router(context: ApiContext) -> APIRouter:
                 and _membership_role_for_user_role(user.role) is None
             ),
         )
+        _ensure_learner_profile(user)
         return _user_to_summary(user)
 
     @router.delete("/{user_id}")
@@ -202,6 +216,7 @@ def build_user_router(context: ApiContext) -> APIRouter:
                 user,
                 requested_section_ids=user.section_ids or None,
             )
+            _ensure_learner_profile(user)
             results.append(
                 UserCreateResponse(
                     user_id=user.user_id,

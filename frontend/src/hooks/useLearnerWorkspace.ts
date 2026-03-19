@@ -23,7 +23,7 @@ export function useLearnerWorkspace({
   const [flow, setFlow] = useState<LearnerFlowSummary>(demoLearnerFlow)
   const [workspace, setWorkspace] = useState<LearnerWorkspace>(demoLearnerWorkspace)
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(!config.useDemoFallback)
 
   const loadLearnerIds = useCallback(async () => {
     try {
