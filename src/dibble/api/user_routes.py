@@ -97,11 +97,23 @@ def build_user_router(context: ApiContext) -> APIRouter:
             section_ids=requested_section_ids,
         )
 
+    def _resolve_student_id(user: User) -> UUID:
+        """Derive the profile student_id from the user.
+
+        Prefers learner_id if it's a valid UUID, otherwise uses user_id.
+        """
+        if user.learner_id:
+            try:
+                return UUID(user.learner_id)
+            except ValueError:
+                pass
+        return UUID(user.user_id)
+
     def _ensure_learner_profile(user: User) -> None:
         """Create a default learner profile if one doesn't already exist."""
         if not _is_learner_role(user.role):
             return
-        student_id = UUID(user.learner_id or user.user_id)
+        student_id = _resolve_student_id(user)
         if context.services.profile_store.get(student_id) is not None:
             return
         context.services.profile_store.upsert(
