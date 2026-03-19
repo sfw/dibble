@@ -3,6 +3,9 @@ import type {
   BulkUserCreateResponse,
   CreateInitialAdminRequest,
   CreateInitialAdminResponse,
+  SystemConfigResponse,
+  SystemConfigUpdateResponse,
+  SystemConfigValues,
   SetupConfigureRequest,
   SetupConfigureResponse,
   SetupModelCatalogRequest,
@@ -486,6 +489,27 @@ export async function postSetupAdmin(
     throw new Error(`Setup admin request failed: ${response.status}`)
   }
   return (await response.json()) as CreateInitialAdminResponse
+}
+
+// ---------------------------------------------------------------------------
+// Admin config
+// ---------------------------------------------------------------------------
+
+export function getSystemConfig(config: FrontendConfig) {
+  return requestJson<SystemConfigResponse>(config, '/api/admin/config', {
+    headers: buildHeaders(config, false),
+  })
+}
+
+export function updateSystemConfig(
+  config: FrontendConfig,
+  payload: SystemConfigValues,
+) {
+  return requestJson<SystemConfigUpdateResponse>(config, '/api/admin/config', {
+    method: 'PUT',
+    headers: buildHeaders(config),
+    body: JSON.stringify(payload),
+  })
 }
 
 // ---------------------------------------------------------------------------

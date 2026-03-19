@@ -14,6 +14,7 @@ from dibble.services.auth import (
     AuthenticationError,
     AuthorizationError,
 )
+from dibble.services.admin_config import AdminConfigService
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.content_workflow import ContentWorkflowService
 from dibble.services.protocols import ClassroomStore, UserStore
@@ -136,6 +137,7 @@ class ApiServices(Protocol):
     predictive_warm_scheduler: PredictiveWarmScheduler
     within_session_adaptation_service: WithinSessionAdaptationService
     user_store: UserStore
+    admin_config_service: AdminConfigService
     setup_config_service: SetupConfigService
     setup_model_catalog_service: SetupModelCatalogService
 

@@ -6,8 +6,6 @@ import { Label } from '../../components/ui/label'
 import { Badge } from '../../components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
-import { useAuthContext } from '../../contexts/AuthContext'
-import { useConfigContext } from '../../contexts/ConfigContext'
 import {
   listUsers,
   createUser,
@@ -17,6 +15,7 @@ import {
   bulkCreateUsers,
 } from '../../api'
 import type { FrontendConfig, UserSummary, UserCreateRequest, UserCreateResponse } from '../../types'
+import { useStaffApiConfig } from './useStaffApiConfig'
 
 const ROLE_STYLES: Record<string, string> = {
   admin: 'bg-amber-100 text-amber-800',
@@ -49,15 +48,7 @@ function CopyButton({ text }: { text: string }) {
 }
 
 function useConfig(): FrontendConfig {
-  const auth = useAuthContext()
-  const { baseUrl } = useConfigContext()
-  return {
-    baseUrl,
-    apiKey: auth.getApiKey(),
-    bearerToken: auth.getToken(),
-    useDemoFallback: false,
-    showDebugPanels: false,
-  }
+  return useStaffApiConfig()
 }
 
 // ---------------------------------------------------------------------------

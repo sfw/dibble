@@ -223,11 +223,29 @@ def _deep_merge(base: dict[str, Any], updates: dict[str, Any]) -> dict[str, Any]
     """Recursively merge *updates* into *base*, returning a new dict."""
     merged = dict(base)
     for key, value in updates.items():
-        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
-            merged[key] = _deep_merge(merged[key], value)
-        else:
-            merged[key] = value
+        if value is None:
+            merged.pop(key, None)
+            continue
+        if isinstance(value, dict):
+            existing = merged.get(key)
+            merged[key] = _deep_merge(existing if isinstance(existing, dict) else {}, value)
+            continue
+        merged[key] = value
     return merged
+
+
+def _prune_empty_tables(value: Any) -> Any:
+    """Remove empty nested TOML tables after merge/delete operations."""
+    if not isinstance(value, dict):
+        return value
+
+    pruned: dict[str, Any] = {}
+    for key, child in value.items():
+        cleaned = _prune_empty_tables(child)
+        if cleaned is None or cleaned == {}:
+            continue
+        pruned[key] = cleaned
+    return pruned
 
 
 def write_config_toml(updates: dict[str, Any], *, path: Path | None = None) -> Path:
@@ -247,7 +265,7 @@ def write_config_toml(updates: dict[str, Any], *, path: Path | None = None) -> P
 
     # Convert flat updates to sectioned structure, then merge
     sectioned_updates = _unflatten_to_toml(updates)
-    merged = _deep_merge(existing, sectioned_updates)
+    merged = _prune_empty_tables(_deep_merge(existing, sectioned_updates))
 
     with path.open("wb") as fh:
         tomli_w.dump(merged, fh)

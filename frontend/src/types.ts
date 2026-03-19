@@ -915,6 +915,57 @@ export interface SetupConfigureResponse {
   restart_required: boolean
 }
 
+export interface SystemConfigValues {
+  app_name: string
+  app_version: string
+  database_path: string
+  router_plugin: string
+  retriever_plugin: string
+  provider_plugin: string
+  validator_plugin: string
+  llm_api_base: string
+  llm_api_key?: string | null
+  llm_model?: string | null
+  llm_timeout_seconds: number
+  llm_allow_mock_fallback: boolean
+  llm_secondary_api_base?: string | null
+  llm_secondary_api_key?: string | null
+  llm_secondary_model?: string | null
+  llm_secondary_timeout_seconds?: number | null
+  llm_circuit_breaker_threshold: number
+  llm_circuit_breaker_cooldown_seconds: number
+  llm_selection_strategy: string
+  prompt_library_version: string
+  prompt_experiment_enabled: boolean
+  prompt_adaptive_selection_enabled: boolean
+  prompt_variant_override?: string | null
+  embedding_api_base: string
+  embedding_api_key?: string | null
+  embedding_model?: string | null
+  embedding_dimensions: number
+  embedding_timeout_seconds: number
+  embedding_allow_local_fallback: boolean
+  auth_enabled: boolean
+  auth_token_secret?: string | null
+  auth_token_issuer: string
+  auth_token_ttl_seconds: number
+  auth_refresh_ttl_seconds: number
+  generation_cache_ttl_seconds: number
+  predictive_warm_inline_process_limit: number
+}
+
+export interface SystemConfigResponse {
+  config_path: string
+  config_file_exists: boolean
+  values: SystemConfigValues
+}
+
+export interface SystemConfigUpdateResponse {
+  status: 'ok'
+  config_path: string
+  restart_required: boolean
+}
+
 export interface CreateInitialAdminRequest {
   display_name?: string
 }
