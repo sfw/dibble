@@ -18,6 +18,15 @@ vi.mock('../api', () => ({
       classroom_ids: [],
     },
   }),
+  getAuthIdentity: vi.fn().mockResolvedValue({
+    principal_id: 'admin-1',
+    role: 'admin',
+    auth_scheme: 'api_key',
+    learner_id: null,
+    teacher_id: null,
+    display_name: 'Admin User',
+    classroom_ids: [],
+  }),
   refreshAuthToken: vi.fn().mockResolvedValue({
     access_token: 'refreshed-token',
     refresh_token: 'refreshed-refresh',
@@ -80,7 +89,9 @@ describe('useAuth', () => {
 
   it('restores session from localStorage', () => {
     const stored = {
+      apiKey: '',
       accessToken: 'stored-token',
+      authMode: 'bearer',
       refreshToken: 'stored-refresh',
       identity: {
         principal_id: 'learner-1',
@@ -108,5 +119,23 @@ describe('useAuth', () => {
     })
 
     expect(result.current.getToken()).toBe('test-access-token')
+  })
+
+  it('falls back to an API key session when bearer tokens are unavailable', async () => {
+    const { issueAuthToken } = await import('../api')
+    vi.mocked(issueAuthToken).mockRejectedValueOnce(
+      new Error('Bearer token issuance requires DIBBLE_AUTH_TOKEN_SECRET. (auth_token_unavailable)'),
+    )
+
+    const { result } = renderHook(() => useAuth('http://localhost:8000'))
+
+    await act(async () => {
+      await result.current.login('staff-key', 'http://localhost:8000')
+    })
+
+    expect(result.current.authenticated).toBe(true)
+    expect(result.current.identity?.role).toBe('admin')
+    expect(result.current.getToken()).toBe('')
+    expect(result.current.getApiKey()).toBe('staff-key')
   })
 })

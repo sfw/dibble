@@ -30,12 +30,13 @@ def build_auth_router(context: ApiContext) -> APIRouter:
     )
     def issue_access_token(request: Request) -> AuthToken:
         identity = getattr(request.state, "auth_identity", None)
-        if identity is None:
-            return services.auth_service.issue_token(
-                services.auth_service.authenticate(None)
-            )
         try:
-            token = services.auth_service.issue_token(identity)
+            if identity is None:
+                token = services.auth_service.issue_token(
+                    services.auth_service.authenticate(None)
+                )
+            else:
+                token = services.auth_service.issue_token(identity)
         except TokenConfigurationError as exc:
             raise api_error(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -43,10 +44,14 @@ def build_auth_router(context: ApiContext) -> APIRouter:
                 code="auth_token_unavailable",
             ) from exc
 
+        token_identity = token.identity
         services.audit_store.append(
             event_type="auth.token",
             status="issued",
-            payload={"principal_id": identity.principal_id, "role": identity.role},
+            payload={
+                "principal_id": token_identity.principal_id,
+                "role": token_identity.role,
+            },
         )
         return token
 

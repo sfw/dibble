@@ -24,6 +24,7 @@ function renderWithAuth(authOverrides: Partial<AuthState> = {}) {
     }),
     logout: vi.fn().mockResolvedValue(undefined),
     getToken: vi.fn().mockReturnValue(''),
+    getApiKey: vi.fn().mockReturnValue(''),
     ...authOverrides,
   }
 
