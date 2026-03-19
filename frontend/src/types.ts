@@ -766,9 +766,7 @@ export interface AuthIdentity {
   role: string
   auth_scheme: string
   learner_id?: string | null
-  teacher_id?: string | null
   display_name?: string | null
-  classroom_ids: string[]
 }
 
 export interface AuthToken {
@@ -981,7 +979,6 @@ export interface UserCreateRequest {
   display_name?: string
   role: string
   learner_id?: string
-  teacher_id?: string
   classroom_ids?: string[]
 }
 
@@ -997,7 +994,6 @@ export interface UserSummary {
   display_name: string | null
   role: string
   learner_id: string | null
-  teacher_id: string | null
   classroom_ids: string[]
   created_at: string
   updated_at: string
@@ -1007,7 +1003,6 @@ export interface UserUpdateRequest {
   display_name?: string
   role?: string
   learner_id?: string
-  teacher_id?: string
   classroom_ids?: string[]
 }
 

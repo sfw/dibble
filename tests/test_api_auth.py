@@ -20,7 +20,6 @@ def _seed_user(
     role: str,
     user_id: str | None = None,
     learner_id: str | None = None,
-    teacher_id: str | None = None,
     display_name: str | None = None,
     classroom_ids: list[str] | None = None,
 ) -> User:
@@ -32,7 +31,6 @@ def _seed_user(
         role=role,
         api_key_hash=hash_credential(api_key),
         learner_id=learner_id,
-        teacher_id=teacher_id,
         classroom_ids=classroom_ids or [],
         created_at=now,
         updated_at=now,
@@ -279,18 +277,15 @@ def test_learner_principal_carries_entity_binding(tmp_path, student_id):
     assert identity["role"] == "learner"
     assert identity["learner_id"] == str(student_id)
     assert identity["display_name"] == "Alice Student"
-    assert identity["teacher_id"] is None
-    assert identity["classroom_ids"] == []
 
 
-def test_teacher_principal_carries_entity_and_classroom_binding(tmp_path):
+def test_teacher_principal_carries_display_binding(tmp_path):
     app, db_path = _make_app(tmp_path)
     _seed_user(
         db_path,
         api_key="teacher-key",
         role="teacher",
         user_id="teacher-1",
-        teacher_id="T-100",
         display_name="Ms. Smith",
         classroom_ids=["CLS-A", "CLS-B"],
     )
@@ -303,9 +298,7 @@ def test_teacher_principal_carries_entity_and_classroom_binding(tmp_path):
     identity = me_response.json()
     assert identity["principal_id"] == "teacher-1"
     assert identity["role"] == "teacher"
-    assert identity["teacher_id"] == "T-100"
     assert identity["display_name"] == "Ms. Smith"
-    assert identity["classroom_ids"] == ["CLS-A", "CLS-B"]
     assert identity["learner_id"] is None
 
 
@@ -346,7 +339,6 @@ def test_teacher_role_can_read_and_write(tmp_path, student_id):
         api_key="teacher-key",
         role="teacher",
         user_id="teacher-1",
-        teacher_id="T-100",
         display_name="Ms. Smith",
         classroom_ids=["CLS-A"],
     )
@@ -441,7 +433,5 @@ def test_existing_roles_still_work_without_entity_binding(tmp_path, student_id):
 
     assert viewer_me["role"] == "viewer"
     assert viewer_me["learner_id"] is None
-    assert viewer_me["teacher_id"] is None
-    assert viewer_me["classroom_ids"] == []
     assert editor_me["role"] == "editor"
     assert admin_me["role"] == "admin"

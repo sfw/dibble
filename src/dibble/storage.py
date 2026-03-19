@@ -190,10 +190,20 @@ CREATE TABLE IF NOT EXISTS users (
     api_key_hash TEXT UNIQUE,
     passphrase_hash TEXT UNIQUE,
     learner_id TEXT,
-    teacher_id TEXT,
     classroom_ids TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
+);
+"""
+
+CLASSROOM_MEMBERSHIP_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS classroom_memberships (
+    classroom_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (classroom_id, user_id, role)
 );
 """
 
@@ -217,6 +227,7 @@ def ensure_database(database_path: str) -> None:
         connection.execute(REMEDIATION_SESSION_TABLE_SQL)
         connection.execute(WITHIN_SESSION_CONTROLLER_TABLE_SQL)
         connection.execute(CLASSROOM_TABLE_SQL)
+        connection.execute(CLASSROOM_MEMBERSHIP_TABLE_SQL)
         connection.execute(ASSIGNMENT_TABLE_SQL)
         connection.execute(MASTERY_SNAPSHOT_TABLE_SQL)
         connection.execute(PREDICTIVE_WARM_QUEUE_TABLE_SQL)

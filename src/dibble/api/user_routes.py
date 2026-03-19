@@ -16,6 +16,7 @@ from dibble.models.auth import (
     UserSummary,
     UserUpdateRequest,
 )
+from dibble.models.classroom_membership import ClassroomMembershipRole
 from dibble.services.auth import hash_credential
 from dibble.services.passphrase import generate_passphrase
 
@@ -30,6 +31,14 @@ def _generate_credential(role: str) -> str:
     return secrets.token_urlsafe(32)
 
 
+def _membership_role_for_user_role(role: str) -> ClassroomMembershipRole | None:
+    if role == "teacher":
+        return ClassroomMembershipRole.teacher
+    if role == "learner":
+        return ClassroomMembershipRole.learner
+    return None
+
+
 def _build_user(request: UserCreateRequest, credential: str) -> User:
     now = datetime.now(timezone.utc).isoformat()
     credential_hash = hash_credential(credential)
@@ -40,7 +49,6 @@ def _build_user(request: UserCreateRequest, credential: str) -> User:
         api_key_hash=credential_hash if not _is_learner_role(request.role) else None,
         passphrase_hash=credential_hash if _is_learner_role(request.role) else None,
         learner_id=request.learner_id,
-        teacher_id=request.teacher_id,
         classroom_ids=request.classroom_ids,
         created_at=now,
         updated_at=now,
@@ -53,7 +61,6 @@ def _user_to_summary(user: User) -> UserSummary:
         display_name=user.display_name,
         role=user.role,
         learner_id=user.learner_id,
-        teacher_id=user.teacher_id,
         classroom_ids=user.classroom_ids,
         created_at=user.created_at,
         updated_at=user.updated_at,
@@ -63,11 +70,23 @@ def _user_to_summary(user: User) -> UserSummary:
 def build_user_router(context: ApiContext) -> APIRouter:
     router = APIRouter(prefix="/api/users", dependencies=context.deps("admin"))
 
+    def _sync_classroom_memberships(user: User) -> None:
+        context.services.classroom_membership_store.delete_for_user(user.user_id)
+        membership_role = _membership_role_for_user_role(user.role)
+        if membership_role is None or not user.classroom_ids:
+            return
+        context.services.classroom_membership_store.replace_for_user(
+            user_id=user.user_id,
+            role=membership_role,
+            classroom_ids=user.classroom_ids,
+        )
+
     @router.post("", response_model=UserCreateResponse)
     def create_user(payload: UserCreateRequest) -> UserCreateResponse:
         credential = _generate_credential(payload.role)
         user = _build_user(payload, credential)
         context.services.user_store.create(user)
+        _sync_classroom_memberships(user)
         return UserCreateResponse(
             user_id=user.user_id,
             credential=credential,
@@ -102,12 +121,11 @@ def build_user_router(context: ApiContext) -> APIRouter:
             user.role = payload.role
         if payload.learner_id is not None:
             user.learner_id = payload.learner_id
-        if payload.teacher_id is not None:
-            user.teacher_id = payload.teacher_id
         if payload.classroom_ids is not None:
             user.classroom_ids = payload.classroom_ids
         user.updated_at = now
         context.services.user_store.update(user)
+        _sync_classroom_memberships(user)
         return _user_to_summary(user)
 
     @router.delete("/{user_id}")
@@ -117,6 +135,7 @@ def build_user_router(context: ApiContext) -> APIRouter:
             raise api_error(
                 status_code=404, detail="User not found.", code="user_not_found"
             )
+        context.services.classroom_membership_store.delete_for_user(user_id)
         return {"status": "deleted"}
 
     @router.post("/{user_id}/rotate-key", response_model=UserCreateResponse)
@@ -153,6 +172,7 @@ def build_user_router(context: ApiContext) -> APIRouter:
 
         for user, credential in users_with_credentials:
             context.services.user_store.create(user)
+            _sync_classroom_memberships(user)
             results.append(
                 UserCreateResponse(
                     user_id=user.user_id,

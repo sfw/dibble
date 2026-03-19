@@ -6,6 +6,11 @@ from uuid import UUID
 from dibble.models.assignment import Assignment
 from dibble.models.auth import User
 from dibble.models.classroom import Classroom, ClassroomUpsert
+from dibble.models.classroom_membership import (
+    ClassroomMembership,
+    ClassroomMembershipRole,
+    ClassroomMembershipUpsert,
+)
 from dibble.models.curriculum import (
     CurriculumResource,
     CurriculumResourceUpsert,
@@ -73,6 +78,30 @@ class ClassroomStore(Protocol):
     def upsert(self, classroom: ClassroomUpsert) -> Classroom: ...
     def get(self, classroom_id: str) -> Classroom | None: ...
     def list(self) -> list[Classroom]: ...
+
+
+class ClassroomMembershipStore(Protocol):
+    def upsert(self, membership: ClassroomMembershipUpsert) -> ClassroomMembership: ...
+    def replace_for_user(
+        self,
+        *,
+        user_id: str,
+        role: ClassroomMembershipRole,
+        classroom_ids: list[str],
+    ) -> list[ClassroomMembership]: ...
+    def list_classroom_user_ids(
+        self,
+        classroom_id: str,
+        *,
+        role: ClassroomMembershipRole | None = None,
+    ) -> list[str]: ...
+    def list_user_classroom_ids(
+        self,
+        user_id: str,
+        *,
+        role: ClassroomMembershipRole | None = None,
+    ) -> list[str]: ...
+    def delete_for_user(self, user_id: str) -> None: ...
 
 
 class KnowledgeComponentStore(Protocol):

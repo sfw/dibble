@@ -5,6 +5,7 @@ from uuid import UUID
 
 from dibble.contract_labels import triage_section_for
 from dibble.models.classroom import Classroom
+from dibble.models.classroom_membership import ClassroomMembershipRole
 from dibble.models.teacher_actions import TeacherInterventionProposalStatus
 from dibble.models.teacher_classroom import (
     TeacherClassroomOverview,
@@ -16,17 +17,33 @@ from dibble.services.learner_summary_service import LearnerSummaryService
 from dibble.services.teacher_intervention_actions import (
     TeacherInterventionActionService,
 )
+from dibble.services.protocols import ClassroomMembershipStore, UserStore
 
 
 @dataclass(slots=True)
 class TeacherClassroomService:
     learner_summary_service: LearnerSummaryService
     teacher_intervention_action_service: TeacherInterventionActionService
+    classroom_membership_store: ClassroomMembershipStore
+    user_store: UserStore
+
+    def student_ids_for_classroom(self, classroom: Classroom) -> list[str]:
+        learner_user_ids = self.classroom_membership_store.list_classroom_user_ids(
+            classroom.classroom_id,
+            role=ClassroomMembershipRole.learner,
+        )
+        student_ids: list[str] = []
+        for learner_user_id in learner_user_ids:
+            user = self.user_store.get(learner_user_id)
+            student_ids.append(
+                user.learner_id if user and user.learner_id else learner_user_id
+            )
+        return student_ids
 
     def build_classroom(self, classroom: Classroom) -> TeacherClassroomReadModel:
         learners: list[TeacherLearnerCard] = []
         missing_student_ids: list[str] = []
-        for student_id in classroom.student_ids:
+        for student_id in self.student_ids_for_classroom(classroom):
             try:
                 parsed_student_id = UUID(student_id)
             except ValueError:
@@ -143,7 +160,7 @@ class TeacherClassroomService:
         return {
             "classroom_id": classroom.classroom_id,
             "title": classroom.title,
-            "teacher_label": classroom.teacher_label,
+            "teacher_label": self._teacher_label(classroom),
             "grade_level": classroom.grade_level,
             "subject": classroom.subject,
             "learner_count": len(learners),
@@ -154,6 +171,22 @@ class TeacherClassroomService:
             "missing_learner_count": len(missing_student_ids),
             "updated_at": classroom.updated_at,
         }
+
+    def _teacher_label(self, classroom: Classroom) -> str | None:
+        teacher_user_ids = self.classroom_membership_store.list_classroom_user_ids(
+            classroom.classroom_id,
+            role=ClassroomMembershipRole.teacher,
+        )
+        if not teacher_user_ids:
+            return None
+
+        labels: list[str] = []
+        for teacher_user_id in teacher_user_ids:
+            user = self.user_store.get(teacher_user_id)
+            labels.append(
+                (user.display_name or teacher_user_id) if user else teacher_user_id
+            )
+        return ", ".join(labels)
 
     @staticmethod
     def _display_rationale(*, summary, intervention) -> str | None:

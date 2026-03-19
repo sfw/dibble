@@ -18,6 +18,7 @@ from dibble.services.admin_config import AdminConfigService
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.content_workflow import ContentWorkflowService
 from dibble.services.protocols import ClassroomStore, UserStore
+from dibble.services.protocols import ClassroomMembershipStore
 from dibble.services.cognitive_trait_inference import CognitiveTraitInferenceService
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.generation_mode_calibration import GenerationModeCalibrator
@@ -99,6 +100,7 @@ class ApiServices(Protocol):
     assignment_store: AssignmentStore
     profile_store: ProfileStore
     classroom_store: ClassroomStore
+    classroom_membership_store: ClassroomMembershipStore
     curriculum_store: CurriculumStore
     knowledge_component_store: KnowledgeComponentStore
     audit_store: AuditStore

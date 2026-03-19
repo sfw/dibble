@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Request, status
 
 from dibble.api.common import ApiContext, api_error
+from dibble.models.auth import AuthIdentity
 from dibble.models.classroom import Classroom, ClassroomUpsert
+from dibble.models.classroom_membership import ClassroomMembershipRole
 from dibble.models.mastery_history import ClassroomMasteryTrendsResponse
 from dibble.models.teacher_classroom import (
     TeacherClassroomOverview,
@@ -14,6 +16,29 @@ from dibble.models.teacher_classroom import (
 def build_teacher_router(context: ApiContext) -> APIRouter:
     router = APIRouter(prefix="/api/teachers")
     services = context.services
+
+    def _accessible_classrooms(request: Request) -> list[Classroom]:
+        classrooms = services.classroom_store.list()
+        identity = getattr(request.state, "auth_identity", None)
+        if not isinstance(identity, AuthIdentity):
+            return classrooms
+        if identity.role != "teacher":
+            return classrooms
+
+        allowed_ids = set(
+            services.classroom_membership_store.list_user_classroom_ids(
+                identity.principal_id,
+                role=ClassroomMembershipRole.teacher,
+            )
+        )
+        return [
+            classroom
+            for classroom in classrooms
+            if classroom.classroom_id in allowed_ids
+        ]
+
+    def _learner_ids(classroom: Classroom) -> list[str]:
+        return services.teacher_classroom_service.student_ids_for_classroom(classroom)
 
     @router.put(
         "/classrooms/{classroom_id}",
@@ -34,9 +59,9 @@ def build_teacher_router(context: ApiContext) -> APIRouter:
         response_model=list[TeacherClassroomOverview],
         dependencies=context.deps("viewer"),
     )
-    def list_classrooms() -> list[TeacherClassroomOverview]:
+    def list_classrooms(request: Request) -> list[TeacherClassroomOverview]:
         return services.teacher_classroom_service.list_classrooms(
-            services.classroom_store.list()
+            _accessible_classrooms(request)
         )
 
     @router.get(
@@ -44,8 +69,15 @@ def build_teacher_router(context: ApiContext) -> APIRouter:
         response_model=TeacherClassroomReadModel,
         dependencies=context.deps("viewer"),
     )
-    def get_classroom(classroom_id: str) -> TeacherClassroomReadModel:
-        classroom = services.classroom_store.get(classroom_id)
+    def get_classroom(classroom_id: str, request: Request) -> TeacherClassroomReadModel:
+        classroom = next(
+            (
+                candidate
+                for candidate in _accessible_classrooms(request)
+                if candidate.classroom_id == classroom_id
+            ),
+            None,
+        )
         if classroom is None:
             raise api_error(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -60,9 +92,16 @@ def build_teacher_router(context: ApiContext) -> APIRouter:
         dependencies=context.deps("viewer"),
     )
     def get_classroom_mastery_trends(
-        classroom_id: str, days: int = 30
+        classroom_id: str, request: Request, days: int = 30
     ) -> ClassroomMasteryTrendsResponse:
-        classroom = services.classroom_store.get(classroom_id)
+        classroom = next(
+            (
+                candidate
+                for candidate in _accessible_classrooms(request)
+                if candidate.classroom_id == classroom_id
+            ),
+            None,
+        )
         if classroom is None:
             raise api_error(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -71,7 +110,7 @@ def build_teacher_router(context: ApiContext) -> APIRouter:
             )
         return services.mastery_snapshot_service.get_classroom_trends(
             classroom_id=classroom_id,
-            student_ids=classroom.student_ids,
+            student_ids=_learner_ids(classroom),
             days=min(max(1, days), 365),
         )
 

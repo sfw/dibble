@@ -1,4 +1,19 @@
+from datetime import datetime, timezone
 from uuid import uuid4
+
+from fastapi.testclient import TestClient
+
+from dibble.app import create_app
+from dibble.config import Settings
+from dibble.models.auth import User
+from dibble.services.auth import hash_credential
+from dibble.models.classroom_membership import (
+    ClassroomMembershipRole,
+    ClassroomMembershipUpsert,
+)
+from dibble.services.classroom_membership_store import SQLiteClassroomMembershipStore
+from dibble.services.user_store import SQLiteUserStore
+from dibble.storage import ensure_database
 
 from tests.support import (
     assert_machine_readable_error,
@@ -9,7 +24,52 @@ from tests.support import (
 )
 
 
-def test_teacher_classroom_read_model_packages_learner_cards_and_counts(client):
+def _make_authenticated_app(tmp_path):
+    db_path = str(tmp_path / "dibble.db")
+    ensure_database(db_path)
+    settings = Settings(database_path=db_path, auth_enabled=True)
+    return create_app(settings), db_path
+
+
+def _seed_api_user(
+    db_path: str,
+    *,
+    api_key: str | None,
+    role: str,
+    user_id: str,
+    learner_id: str | None = None,
+    display_name: str | None = None,
+    classroom_ids: list[str] | None = None,
+) -> User:
+    store = SQLiteUserStore(db_path)
+    membership_store = SQLiteClassroomMembershipStore(db_path)
+    now = datetime.now(timezone.utc).isoformat()
+    user = store.create(
+        User(
+            user_id=user_id,
+            display_name=display_name,
+            role=role,
+            api_key_hash=hash_credential(api_key) if api_key is not None else None,
+            learner_id=learner_id,
+            classroom_ids=classroom_ids or [],
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    if role in {"teacher", "learner"} and classroom_ids:
+        membership_store.replace_for_user(
+            user_id=user_id,
+            role=ClassroomMembershipRole.teacher
+            if role == "teacher"
+            else ClassroomMembershipRole.learner,
+            classroom_ids=classroom_ids,
+        )
+    return user
+
+
+def test_teacher_classroom_read_model_packages_learner_cards_and_counts(
+    client, app_settings
+):
     active_student_id = uuid4()
     blocked_student_id = uuid4()
 
@@ -71,13 +131,40 @@ def test_teacher_classroom_read_model_packages_learner_cards_and_counts(client):
         json=build_classroom(
             classroom_id="CLASS-1",
             title="Grade 5 Fractions",
-            teacher_label="Ms. Rivera",
-            student_ids=[
-                str(active_student_id),
-                str(blocked_student_id),
-                "missing-student-id",
-            ],
         ),
+    )
+    client.post(
+        "/api/users",
+        json={
+            "display_name": "Ms. Rivera",
+            "role": "teacher",
+            "classroom_ids": ["CLASS-1"],
+        },
+    )
+    client.post(
+        "/api/users",
+        json={
+            "display_name": "Active Learner",
+            "role": "learner",
+            "learner_id": str(active_student_id),
+            "classroom_ids": ["CLASS-1"],
+        },
+    )
+    client.post(
+        "/api/users",
+        json={
+            "display_name": "Blocked Learner",
+            "role": "learner",
+            "learner_id": str(blocked_student_id),
+            "classroom_ids": ["CLASS-1"],
+        },
+    )
+    SQLiteClassroomMembershipStore(app_settings.database_path).upsert(
+        ClassroomMembershipUpsert(
+            classroom_id="CLASS-1",
+            user_id="missing-student-id",
+            role=ClassroomMembershipRole.learner,
+        )
     )
     classroom_response = client.get("/api/teachers/classrooms/CLASS-1")
     list_response = client.get("/api/teachers/classrooms")
@@ -108,6 +195,7 @@ def test_teacher_classroom_read_model_packages_learner_cards_and_counts(client):
 
     assert classroom_payload["classroom_id"] == "CLASS-1"
     assert classroom_payload["title"] == "Grade 5 Fractions"
+    assert classroom_payload["teacher_label"] == "Ms. Rivera"
     assert classroom_payload["learner_count"] == 2
     assert classroom_payload["missing_learner_count"] == 1
     assert classroom_payload["missing_student_ids"] == ["missing-student-id"]
@@ -170,6 +258,7 @@ def test_teacher_classroom_read_model_packages_learner_cards_and_counts(client):
 
 def test_teacher_classroom_keeps_active_curriculum_rationale_aligned_with_current_flow(
     client,
+    app_settings,
 ):
     student_id = uuid4()
 
@@ -208,9 +297,15 @@ def test_teacher_classroom_keeps_active_curriculum_rationale_aligned_with_curren
         json=build_classroom(
             classroom_id="CLASS-ALIGNED",
             title="Aligned Flow Classroom",
-            teacher_label="Ms. Rivera",
-            student_ids=[str(student_id)],
         ),
+    )
+    _seed_api_user(
+        app_settings.database_path,
+        api_key=None,
+        role="learner",
+        user_id="aligned-learner",
+        learner_id=str(student_id),
+        classroom_ids=["CLASS-ALIGNED"],
     )
 
     classroom_response = client.get("/api/teachers/classrooms/CLASS-ALIGNED")
@@ -239,7 +334,9 @@ def test_teacher_classroom_keeps_active_curriculum_rationale_aligned_with_curren
     assert learner_card["current_flow"] == summary_payload["current_flow"]
 
 
-def test_teacher_classroom_preserves_deferred_target_next_resource_priority(client):
+def test_teacher_classroom_preserves_deferred_target_next_resource_priority(
+    client, app_settings
+):
     student_id = uuid4()
 
     client.put(
@@ -307,9 +404,15 @@ def test_teacher_classroom_preserves_deferred_target_next_resource_priority(clie
         json=build_classroom(
             classroom_id="CLASS-DEFERRED",
             title="Deferred Target Classroom",
-            teacher_label="Ms. Rivera",
-            student_ids=[str(student_id)],
         ),
+    )
+    _seed_api_user(
+        app_settings.database_path,
+        api_key=None,
+        role="learner",
+        user_id="deferred-learner",
+        learner_id=str(student_id),
+        classroom_ids=["CLASS-DEFERRED"],
     )
 
     classroom_response = client.get("/api/teachers/classrooms/CLASS-DEFERRED")
@@ -353,3 +456,100 @@ def test_teacher_classroom_not_found_returns_machine_readable_error(client):
         code="classroom_not_found",
         detail="Classroom not found.",
     )
+
+
+def test_teacher_classroom_filters_access_by_teacher_membership(tmp_path):
+    app, db_path = _make_authenticated_app(tmp_path)
+    _seed_api_user(
+        db_path,
+        api_key="admin-key",
+        role="admin",
+        user_id="admin-user",
+    )
+
+    with TestClient(app) as client:
+        admin_headers = {"X-API-Key": "admin-key"}
+        client.put(
+            "/api/teachers/classrooms/CLS-A",
+            headers=admin_headers,
+            json=build_classroom(classroom_id="CLS-A", title="Algebra A"),
+        )
+        client.put(
+            "/api/teachers/classrooms/CLS-B",
+            headers=admin_headers,
+            json=build_classroom(classroom_id="CLS-B", title="Geometry B"),
+        )
+        create_teacher = client.post(
+            "/api/users",
+            headers=admin_headers,
+            json={
+                "display_name": "Ms. Smith",
+                "role": "teacher",
+                "classroom_ids": ["CLS-A"],
+            },
+        )
+        teacher_headers = {"X-API-Key": create_teacher.json()["credential"]}
+
+        list_response = client.get("/api/teachers/classrooms", headers=teacher_headers)
+        allowed_response = client.get(
+            "/api/teachers/classrooms/CLS-A",
+            headers=teacher_headers,
+        )
+        blocked_response = client.get(
+            "/api/teachers/classrooms/CLS-B",
+            headers=teacher_headers,
+        )
+
+    assert create_teacher.status_code == 200
+    assert list_response.status_code == 200
+    assert allowed_response.status_code == 200
+    assert_machine_readable_error(
+        blocked_response,
+        status_code=404,
+        code="classroom_not_found",
+        detail="Classroom not found.",
+    )
+    assert [classroom["classroom_id"] for classroom in list_response.json()] == ["CLS-A"]
+    assert list_response.json()[0]["teacher_label"] == "Ms. Smith"
+
+
+def test_teacher_classroom_resolves_learners_from_user_enrollments(client):
+    student_id = uuid4()
+
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(student_id),
+    )
+    client.put(
+        "/api/teachers/classrooms/CLASS-ENROLLED",
+        json=build_classroom(
+            classroom_id="CLASS-ENROLLED",
+            title="Enrollment Driven Classroom",
+        ),
+    )
+    create_learner = client.post(
+        "/api/users",
+        json={
+            "display_name": "Alice Student",
+            "role": "learner",
+            "learner_id": str(student_id),
+            "classroom_ids": ["CLASS-ENROLLED"],
+        },
+    )
+
+    classroom_response = client.get("/api/teachers/classrooms/CLASS-ENROLLED")
+    trends_response = client.get(
+        "/api/teachers/classrooms/CLASS-ENROLLED/mastery-trends"
+    )
+
+    assert create_learner.status_code == 200
+    assert classroom_response.status_code == 200
+    assert trends_response.status_code == 200
+
+    classroom_payload = classroom_response.json()
+    trends_payload = trends_response.json()
+
+    assert classroom_payload["learner_count"] == 1
+    assert classroom_payload["learners"][0]["student_id"] == str(student_id)
+    assert trends_payload["learner_count"] == 1
+    assert trends_payload["learner_trends"][0]["student_id"] == str(student_id)

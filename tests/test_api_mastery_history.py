@@ -89,7 +89,7 @@ def test_mastery_history_clamps_days(client, student_id):
 def test_classroom_mastery_trends_empty(client, student_id):
     client.put(
         "/api/teachers/classrooms/CLASS-1",
-        json=build_classroom("CLASS-1", student_ids=[]),
+        json=build_classroom("CLASS-1"),
     )
     response = client.get("/api/teachers/classrooms/CLASS-1/mastery-trends")
     assert response.status_code == 200
@@ -118,7 +118,16 @@ def test_classroom_mastery_trends_with_learner_data(client, student_id):
     )
     client.put(
         "/api/teachers/classrooms/CLASS-1",
-        json=build_classroom("CLASS-1", student_ids=[sid]),
+        json=build_classroom("CLASS-1"),
+    )
+    client.post(
+        "/api/users",
+        json={
+            "display_name": "Learner One",
+            "role": "learner",
+            "learner_id": sid,
+            "classroom_ids": ["CLASS-1"],
+        },
     )
     response = client.get("/api/teachers/classrooms/CLASS-1/mastery-trends")
     assert response.status_code == 200
@@ -139,7 +148,7 @@ def test_classroom_mastery_trends_404_unknown_classroom(client):
 def test_classroom_mastery_trends_respects_days_param(client, student_id):
     client.put(
         "/api/teachers/classrooms/CLASS-1",
-        json=build_classroom("CLASS-1", student_ids=[]),
+        json=build_classroom("CLASS-1"),
     )
     response = client.get("/api/teachers/classrooms/CLASS-1/mastery-trends?days=7")
     assert response.status_code == 200
