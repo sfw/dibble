@@ -19,11 +19,13 @@ export function SetupGuard({ mode, children }: SetupGuardProps) {
     )
   }
 
-  if (reachable && status) {
-    if (mode === 'configured' && !status.configured) {
+  if (mode === 'configured') {
+    if (!reachable || !status || !status.configured) {
       return <Navigate to="/setup" replace />
     }
+  }
 
+  if (reachable && status) {
     if (mode === 'unconfigured' && status.configured) {
       return <Navigate to="/login" replace />
     }

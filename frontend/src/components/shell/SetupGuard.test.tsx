@@ -138,4 +138,18 @@ describe('SetupGuard', () => {
 
     expect(screen.getByText('Checking setup...')).toBeInTheDocument()
   })
+
+  it('redirects configured routes to setup when setup status is unreachable', () => {
+    mockedUseSetupStatus.mockReturnValue({
+      status: null,
+      reachable: false,
+      loading: false,
+      error: 'Failed to reach server',
+      refetch: vi.fn(),
+    })
+
+    renderGuard('configured', '/login')
+
+    expect(screen.getByText('setup page')).toBeInTheDocument()
+  })
 })
