@@ -7,7 +7,6 @@ from dibble.app import create_app
 from dibble.config import Settings
 from dibble.models.auth import User
 from dibble.models.classroom_membership import ClassroomMembershipRole
-from dibble.models.profile import LearnerProfile
 from dibble.services.auth import hash_credential
 from dibble.services.classroom_membership_store import SQLiteClassroomMembershipStore
 from dibble.services.profile_store import SQLiteProfileStore
