@@ -19,10 +19,12 @@ cd frontend && npm install
 ## 2. Start the backend
 
 ```bash
-uv run uvicorn dibble.app:create_app --factory --reload --port 8000
+uv run python -m uvicorn --app-dir src dibble.main:app --reload --port 8000
 ```
 
 The API will be available at `http://localhost:8000`. On first start with no configuration, Dibble runs with default settings and mock LLM responses — no API keys required to explore the platform.
+
+`--app-dir src` makes the `src/` layout importable directly, and `python -m uvicorn` ensures the server runs with the same Python interpreter managed by `uv`.
 
 ## 3. Start the frontend
 

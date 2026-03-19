@@ -44,7 +44,7 @@ docs/                Extended technical documentation
 
 ```bash
 uv sync --group dev                                  # install dependencies
-uv run uvicorn dibble.main:app --reload              # start the API server
+uv run python -m uvicorn --app-dir src dibble.main:app --reload --port 8000
 uv run pytest                                        # run tests
 uv run ruff check src/ tests/ && uv run ruff format src/ tests/  # lint + format
 ```
