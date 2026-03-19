@@ -5,9 +5,9 @@ import { createMemoryRouter, Outlet, RouterProvider } from 'react-router'
 import { Reports } from './Reports'
 import type { TeacherContext } from '../../shells/TeacherShell'
 import type {
-  ClassroomMasteryTrendsResponse,
-  TeacherClassroomReadModel,
-  TeacherClassroomOverview,
+  SectionMasteryTrendsResponse,
+  TeacherSectionReadModel,
+  TeacherSectionOverview,
   TeacherLearnerCard,
 } from '../../types'
 
@@ -15,14 +15,14 @@ vi.mock('../../api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../api')>()
   return {
     ...actual,
-    getClassroomMasteryTrends: vi.fn(),
+    getSectionMasteryTrends: vi.fn(),
   }
 })
 
-import { getClassroomMasteryTrends } from '../../api'
+import { getSectionMasteryTrends } from '../../api'
 
-const mockTrends: ClassroomMasteryTrendsResponse = {
-  classroom_id: 'class-1',
+const mockTrends: SectionMasteryTrendsResponse = {
+  section_id: 'class-1',
   days: 30,
   learner_count: 2,
   learner_trends: [
@@ -43,7 +43,7 @@ const mockTrends: ClassroomMasteryTrendsResponse = {
       mastery_delta: -0.1,
     },
   ],
-  classroom_average_snapshots: [
+  section_average_snapshots: [
     { timestamp: '2026-03-01T00:00:00Z', average_mastery: 0.35, learner_count: 2 },
     { timestamp: '2026-03-08T00:00:00Z', average_mastery: 0.4, learner_count: 2 },
     { timestamp: '2026-03-15T00:00:00Z', average_mastery: 0.5, learner_count: 2 },
@@ -183,8 +183,8 @@ const learnerB = makeLearner({
   recent_activity: { generation_count: 2, observation_count: 3, socratic_assessment_count: 0 },
 })
 
-const mockClassroom: TeacherClassroomReadModel = {
-  classroom_id: 'class-1',
+const mockClassroom: TeacherSectionReadModel = {
+  section_id: 'class-1',
   title: 'Math 7A',
   teacher_label: 'Ms. Smith',
   learner_count: 2,
@@ -197,9 +197,9 @@ const mockClassroom: TeacherClassroomReadModel = {
   learners: [learnerA, learnerB],
 }
 
-const mockClassrooms: TeacherClassroomOverview[] = [
+const mockClassrooms: TeacherSectionOverview[] = [
   {
-    classroom_id: 'class-1',
+    section_id: 'class-1',
     title: 'Math 7A',
     teacher_label: 'Ms. Smith',
     learner_count: 2,
@@ -210,7 +210,7 @@ const mockClassrooms: TeacherClassroomOverview[] = [
     missing_learner_count: 0,
   },
   {
-    classroom_id: 'class-2',
+    section_id: 'class-2',
     title: 'Math 7B',
     teacher_label: 'Ms. Smith',
     learner_count: 3,
@@ -231,11 +231,11 @@ const context: TeacherContext = {
     showDebugPanels: false,
   },
   classrooms: mockClassrooms,
-  selectedClassroomId: 'class-1',
+  selectedSectionId: 'class-1',
   classroom: mockClassroom,
   loading: false,
   error: '',
-  loadClassroom: vi.fn(),
+  loadSection: vi.fn(),
 }
 
 function renderReports(overrides?: Partial<TeacherContext>) {
@@ -255,7 +255,7 @@ function renderReports(overrides?: Partial<TeacherContext>) {
 
 describe('Reports', () => {
   beforeEach(() => {
-    vi.mocked(getClassroomMasteryTrends).mockResolvedValue(mockTrends)
+    vi.mocked(getSectionMasteryTrends).mockResolvedValue(mockTrends)
   })
 
   it('renders the page heading', () => {
@@ -448,9 +448,9 @@ describe('Reports', () => {
   })
 
   it('shows not-enough-data message when trends have < 2 points', async () => {
-    vi.mocked(getClassroomMasteryTrends).mockResolvedValue({
+    vi.mocked(getSectionMasteryTrends).mockResolvedValue({
       ...mockTrends,
-      classroom_average_snapshots: [mockTrends.classroom_average_snapshots[0]],
+      section_average_snapshots: [mockTrends.section_average_snapshots[0]],
     })
     renderReports()
     await waitFor(() => {
@@ -459,7 +459,7 @@ describe('Reports', () => {
   })
 
   it('shows loading state for trend chart', () => {
-    vi.mocked(getClassroomMasteryTrends).mockReturnValue(new Promise(() => {}))
+    vi.mocked(getSectionMasteryTrends).mockReturnValue(new Promise(() => {}))
     renderReports()
     expect(screen.getByText('Loading trend data…')).toBeInTheDocument()
   })

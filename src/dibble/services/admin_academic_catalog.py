@@ -6,6 +6,7 @@ from dibble.models.admin_academics import AdminCourseSummary, AdminSectionSummar
 from dibble.models.classroom import Classroom, ClassroomUpsert
 from dibble.models.classroom_membership import ClassroomMembershipRole
 from dibble.models.course import Course, CourseUpsert
+from dibble.models.section import Section, SectionUpsert
 from dibble.services.protocols import ClassroomMembershipStore, ClassroomStore, CourseStore
 
 
@@ -65,7 +66,7 @@ class AdminAcademicCatalogService:
             )
         )
         return AdminSectionSummary(
-            **section.model_dump(),
+            **self._section_payload(section).model_dump(),
             course_title=(
                 courses.get(section.course_id).title
                 if section.course_id in courses
@@ -93,7 +94,7 @@ class AdminAcademicCatalogService:
             )
             summaries.append(
                 AdminSectionSummary(
-                    **section.model_dump(),
+                    **self._section_payload(section).model_dump(),
                     course_title=courses.get(section.course_id).title
                     if section.course_id in courses
                     else None,
@@ -103,7 +104,29 @@ class AdminAcademicCatalogService:
             )
         return summaries
 
-    def upsert_section(self, payload: ClassroomUpsert) -> Classroom:
+    def upsert_section(self, payload: SectionUpsert) -> Section:
         if self.course_store.get(payload.course_id) is None:
             raise LookupError(payload.course_id)
-        return self.classroom_store.upsert(payload)
+        section = self.classroom_store.upsert(
+            ClassroomUpsert(
+                classroom_id=payload.section_id,
+                course_id=payload.course_id,
+                title=payload.title,
+                grade_level=payload.grade_level,
+                subject=payload.subject,
+                tags=payload.tags,
+            )
+        )
+        return self._section_payload(section)
+
+    @staticmethod
+    def _section_payload(classroom: Classroom) -> Section:
+        return Section(
+            section_id=classroom.classroom_id,
+            course_id=classroom.course_id,
+            title=classroom.title,
+            grade_level=classroom.grade_level,
+            subject=classroom.subject,
+            tags=classroom.tags,
+            updated_at=classroom.updated_at,
+        )

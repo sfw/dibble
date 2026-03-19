@@ -21,7 +21,7 @@ def _seed_user(
     user_id: str | None = None,
     learner_id: str | None = None,
     display_name: str | None = None,
-    classroom_ids: list[str] | None = None,
+    section_ids: list[str] | None = None,
 ) -> User:
     store = SQLiteUserStore(db_path)
     now = datetime.now(timezone.utc).isoformat()
@@ -31,7 +31,7 @@ def _seed_user(
         role=role,
         api_key_hash=hash_credential(api_key),
         learner_id=learner_id,
-        classroom_ids=classroom_ids or [],
+        section_ids=section_ids or [],
         created_at=now,
         updated_at=now,
     )
@@ -287,7 +287,7 @@ def test_teacher_principal_carries_display_binding(tmp_path):
         role="teacher",
         user_id="teacher-1",
         display_name="Ms. Smith",
-        classroom_ids=["CLS-A", "CLS-B"],
+        section_ids=["CLS-A", "CLS-B"],
     )
     _seed_user(db_path, api_key="admin-key", role="admin", user_id="admin-user")
 
@@ -340,7 +340,7 @@ def test_teacher_role_can_read_and_write(tmp_path, student_id):
         role="teacher",
         user_id="teacher-1",
         display_name="Ms. Smith",
-        classroom_ids=["CLS-A"],
+        section_ids=["CLS-A"],
     )
 
     with TestClient(app) as client:

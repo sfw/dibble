@@ -88,15 +88,15 @@ export function TeacherView({
         {handoffContext ? (
           <div className="panel">
             <SectionHeader
-              eyebrow="Classroom handoff"
+              eyebrow="Section handoff"
               title={`Reviewing ${handoffContext.learnerId} from ${handoffContext.classroomTitle}`}
-              description="This learner was opened from the classroom triage queue, so you can review the intervention contract here and then jump back to the classroom when you are done."
+              description="This learner was opened from the section triage queue, so you can review the intervention contract here and then jump back to the section when you are done."
             />
             <div className="flex flex-wrap items-center gap-3">
               <Pill label={handoffContext.classroomId} tone="neutral" />
               {onReturnToClassroom ? (
                 <Button type="button" variant="outline" size="sm" onClick={onReturnToClassroom}>
-                  Return to classroom
+                  Return to section
                 </Button>
               ) : null}
             </div>

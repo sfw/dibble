@@ -6,6 +6,9 @@ from dibble.config import Settings
 from dibble.plugins.contracts import RouterPlugin
 from dibble.services.admin_config import AdminConfigService
 from dibble.services.admin_academic_catalog import AdminAcademicCatalogService
+from dibble.services.admin_section_membership_service import (
+    AdminSectionMembershipService,
+)
 from dibble.services.setup_config import SetupConfigService
 from dibble.services.setup_model_catalog import SetupModelCatalogService
 from dibble.plugins.loader import build_generation_plugins
@@ -109,7 +112,7 @@ from dibble.services.socratic_policy import SocraticTurnPolicy
 from dibble.services.socratic_profile_update import SocraticProfileUpdater
 from dibble.services.socratic_session_store import SQLiteSocraticSessionStore
 from dibble.services.state_inference import LearnerStateInferenceService
-from dibble.services.teacher_classroom_service import TeacherClassroomService
+from dibble.services.teacher_classroom_service import TeacherSectionService
 from dibble.services.teacher_intervention_actions import (
     TeacherInterventionActionService,
 )
@@ -164,7 +167,7 @@ class ApplicationServices:
     learner_progression_service: LearnerProgressionService
     learner_summary_service: LearnerSummaryService
     learner_workspace_service: LearnerWorkspaceService
-    teacher_classroom_service: TeacherClassroomService
+    teacher_section_service: TeacherSectionService
     teacher_intervention_action_service: TeacherInterventionActionService
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_invalidator: PredictiveContentInvalidator
@@ -181,6 +184,7 @@ class ApplicationServices:
     user_store: UserStore
     admin_config_service: AdminConfigService
     admin_academic_catalog_service: AdminAcademicCatalogService
+    admin_section_membership_service: AdminSectionMembershipService
     setup_config_service: SetupConfigService
     setup_model_catalog_service: SetupModelCatalogService
 
@@ -380,7 +384,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         audit_store=audit_store,
         learner_flow_service=learner_flow_service,
     )
-    teacher_classroom_service = TeacherClassroomService(
+    teacher_section_service = TeacherSectionService(
         learner_summary_service=learner_summary_service,
         teacher_intervention_action_service=teacher_intervention_action_service,
         classroom_membership_store=classroom_membership_store,
@@ -488,7 +492,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         learner_progression_service=learner_progression_service,
         learner_summary_service=learner_summary_service,
         learner_workspace_service=learner_workspace_service,
-        teacher_classroom_service=teacher_classroom_service,
+        teacher_section_service=teacher_section_service,
         teacher_intervention_action_service=teacher_intervention_action_service,
         generation_mode_calibrator=generation_mode_calibrator,
         predictive_content_invalidator=predictive_content_invalidator,
@@ -508,6 +512,11 @@ def build_application_services(settings: Settings) -> ApplicationServices:
             course_store=course_store,
             classroom_store=classroom_store,
             classroom_membership_store=classroom_membership_store,
+        ),
+        admin_section_membership_service=AdminSectionMembershipService(
+            classroom_store=classroom_store,
+            classroom_membership_store=classroom_membership_store,
+            user_store=user_store,
         ),
         setup_config_service=SetupConfigService(settings, user_store=user_store),
         setup_model_catalog_service=SetupModelCatalogService(),

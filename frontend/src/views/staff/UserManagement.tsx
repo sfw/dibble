@@ -51,19 +51,7 @@ function useConfig(): FrontendConfig {
   return useStaffApiConfig()
 }
 
-function supportsClassroomMembership(role: string): boolean {
-  return role === 'teacher' || role === 'learner'
-}
-
-function parseClassroomIds(value: string): string[] | undefined {
-  const classroomIds = value
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-  return classroomIds.length > 0 ? classroomIds : undefined
-}
-
-function formatClassroomIds(classroomIds: string[]): string {
+function formatSectionIds(classroomIds: string[]): string {
   return classroomIds.join(', ')
 }
 
@@ -81,7 +69,6 @@ function CreateUserForm({
   onCancel: () => void
 }) {
   const [form, setForm] = useState<UserCreateRequest>({ role: 'learner' })
-  const [classroomIdsInput, setClassroomIdsInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -94,7 +81,6 @@ function CreateUserForm({
         display_name: form.display_name,
         role: form.role,
         learner_id: form.role === 'learner' ? form.learner_id : undefined,
-        classroom_ids: supportsClassroomMembership(form.role) ? parseClassroomIds(classroomIdsInput) : undefined,
       })
       onCreated(result)
     } catch (err) {
@@ -152,20 +138,9 @@ function CreateUserForm({
           />
         </div>
       )}
-      {supportsClassroomMembership(form.role) && (
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="create-classrooms">Classrooms</Label>
-          <Input
-            id="create-classrooms"
-            placeholder="classroom-a, classroom-b"
-            value={classroomIdsInput}
-            onChange={(e) => setClassroomIdsInput(e.target.value)}
-          />
-          <p className="text-xs text-muted-foreground">
-            Use classroom membership to place teachers and learners in sections.
-          </p>
-        </div>
-      )}
+      <p className="text-xs text-muted-foreground">
+        Create the user here, then assign teachers and learners to sections from Courses &amp; Sections.
+      </p>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <div className="flex gap-2">
         <Button variant="outline" type="button" onClick={onCancel}>
@@ -234,11 +209,10 @@ function BulkImportPanel({
     if (lines.length === 0) return []
 
     return lines.map((line) => {
-      const [display_name, role, learner_id, classroom_ids_raw] = line.split(',').map((s) => s.trim())
+      const [display_name, role, learner_id] = line.split(',').map((s) => s.trim())
       const req: UserCreateRequest = { role: role || 'learner' }
       if (display_name) req.display_name = display_name
       if (learner_id) req.learner_id = learner_id
-      if (classroom_ids_raw) req.classroom_ids = classroom_ids_raw.split(';').map((s) => s.trim()).filter(Boolean)
       return req
     })
   }
@@ -264,15 +238,18 @@ function BulkImportPanel({
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-muted-foreground">
-        Paste CSV rows: <code className="text-xs">display_name, role, learner_id, classroom_ids</code>
+        Paste CSV rows: <code className="text-xs">display_name, role, learner_id</code>
       </p>
       <textarea
         value={csv}
         onChange={(e) => setCsv(e.target.value)}
-        placeholder={'Alice, learner, student-1, classroom-a\nMs Rivera, teacher, , classroom-a;classroom-b'}
+        placeholder={'Alice, learner, student-1\nMs Rivera, teacher,'}
         rows={6}
         className="w-full rounded-md border bg-white px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
       />
+      <p className="text-xs text-muted-foreground">
+        Section assignments and enrollments are managed from Courses &amp; Sections after import.
+      </p>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <div className="flex gap-2">
         <Button variant="outline" onClick={onCancel}>Cancel</Button>
@@ -306,7 +283,6 @@ function UserRow({
     display_name: user.display_name ?? '',
     role: user.role,
     learner_id: user.learner_id ?? '',
-    classroom_ids: formatClassroomIds(user.classroom_ids),
   })
   const [loading, setLoading] = useState(false)
 
@@ -317,7 +293,6 @@ function UserRow({
         display_name: form.display_name || undefined,
         role: form.role,
         learner_id: form.role === 'learner' ? form.learner_id || undefined : undefined,
-        classroom_ids: supportsClassroomMembership(form.role) ? parseClassroomIds(form.classroom_ids) : [],
       })
       onUpdated(updated)
       setEditing(false)
@@ -372,7 +347,6 @@ function UserRow({
                 ...current,
                 role: v,
                 learner_id: v === 'learner' ? current.learner_id : '',
-                classroom_ids: supportsClassroomMembership(v) ? current.classroom_ids : '',
               }))
             }
           >
@@ -401,17 +375,9 @@ function UserRow({
           )}
         </td>
         <td className="px-4 py-2">
-          {supportsClassroomMembership(form.role) ? (
-            <Input
-              aria-label="Edit classrooms"
-              value={form.classroom_ids}
-              onChange={(e) => setForm({ ...form, classroom_ids: e.target.value })}
-              className="h-8 text-sm"
-              placeholder="classroom-a, classroom-b"
-            />
-          ) : (
-            <span className="text-sm text-muted-foreground">-</span>
-          )}
+          <span className="text-sm text-muted-foreground">
+            Manage in Courses &amp; Sections
+          </span>
         </td>
         <td className="px-4 py-2">
           <div className="flex gap-1">
@@ -433,7 +399,7 @@ function UserRow({
       <td className="px-4 py-2"><RoleBadge role={user.role} /></td>
       <td className="px-4 py-2 text-sm text-muted-foreground">{user.learner_id ?? '-'}</td>
       <td className="px-4 py-2 text-sm text-muted-foreground">
-        {user.classroom_ids.length > 0 ? formatClassroomIds(user.classroom_ids) : '-'}
+        {user.section_ids.length > 0 ? formatSectionIds(user.section_ids) : '-'}
       </td>
       <td className="px-4 py-2">
         <div className="flex gap-1">
@@ -577,6 +543,10 @@ export function UserManagement() {
         </Card>
       )}
 
+      <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+        User management handles identities and credentials. Teacher assignments and learner enrollments belong to sections in Courses &amp; Sections.
+      </div>
+
       <Card>
         <CardContent className="p-0">
           {loading ? (
@@ -594,7 +564,7 @@ export function UserManagement() {
                   <th className="px-4 py-2 font-medium">Name</th>
                   <th className="px-4 py-2 font-medium">Role</th>
                   <th className="px-4 py-2 font-medium">Learner ID</th>
-                  <th className="px-4 py-2 font-medium">Classrooms</th>
+                  <th className="px-4 py-2 font-medium">Sections</th>
                   <th className="px-4 py-2 font-medium">Actions</th>
                 </tr>
               </thead>

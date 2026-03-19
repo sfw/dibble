@@ -5,13 +5,20 @@ from fastapi import status
 
 from dibble.api.common import ApiContext, api_error
 from dibble.models.admin_academics import AdminCourseSummary, AdminSectionSummary
-from dibble.models.classroom import ClassroomUpsert
+from dibble.models.admin_section_membership import (
+    AdminSectionMembershipSummary,
+    AdminSectionMembershipUpdateRequest,
+)
 from dibble.models.admin import (
     SystemConfigResponse,
     SystemConfigUpdateRequest,
     SystemConfigUpdateResponse,
 )
 from dibble.models.course import CourseUpsert
+from dibble.models.section import SectionUpsert
+from dibble.services.admin_section_membership_service import (
+    SectionMembershipRoleMismatchError,
+)
 
 
 def build_admin_router(context: ApiContext) -> APIRouter:
@@ -60,12 +67,12 @@ def build_admin_router(context: ApiContext) -> APIRouter:
 
     @router.put("/sections/{section_id}", response_model=AdminSectionSummary)
     def upsert_section(
-        section_id: str, payload: ClassroomUpsert
+        section_id: str, payload: SectionUpsert
     ) -> AdminSectionSummary:
-        if payload.classroom_id != section_id:
+        if payload.section_id != section_id:
             raise api_error(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Path section_id must match the section payload classroom_id.",
+                detail="Path section_id must match the section payload section_id.",
                 code="section_id_mismatch",
             )
         try:
@@ -86,5 +93,56 @@ def build_admin_router(context: ApiContext) -> APIRouter:
                 code="section_not_found",
             )
         return summary
+
+    @router.get(
+        "/sections/{section_id}/memberships",
+        response_model=AdminSectionMembershipSummary,
+    )
+    def get_section_memberships(section_id: str) -> AdminSectionMembershipSummary:
+        summary = context.services.admin_section_membership_service.get_section_memberships(
+            section_id
+        )
+        if summary is None:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Section not found.",
+                code="section_not_found",
+            )
+        return summary
+
+    @router.put(
+        "/sections/{section_id}/memberships",
+        response_model=AdminSectionMembershipSummary,
+    )
+    def update_section_memberships(
+        section_id: str, payload: AdminSectionMembershipUpdateRequest
+    ) -> AdminSectionMembershipSummary:
+        try:
+            return context.services.admin_section_membership_service.update_section_memberships(
+                section_id,
+                payload,
+            )
+        except LookupError as exc:
+            user_id = getattr(exc, "user_id", None)
+            if user_id is not None:
+                raise api_error(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"User {user_id} does not exist.",
+                    code="section_membership_user_not_found",
+                ) from exc
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Section not found.",
+                code="section_not_found",
+            ) from exc
+        except SectionMembershipRoleMismatchError as exc:
+            raise api_error(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"User {exc.user_id} must have role "
+                    f"{exc.expected_role}, found {exc.actual_role}."
+                ),
+                code="section_membership_role_mismatch",
+            ) from exc
 
     return router

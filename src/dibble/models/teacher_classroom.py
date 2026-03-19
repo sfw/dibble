@@ -43,8 +43,8 @@ class TeacherLearnerCard(BaseModel):
     attention_reasons: list[str] = Field(default_factory=list)
 
 
-class TeacherClassroomOverview(BaseModel):
-    classroom_id: str
+class TeacherSectionOverview(BaseModel):
+    section_id: str
     course_id: str
     title: str
     teacher_label: str | None = None
@@ -59,6 +59,6 @@ class TeacherClassroomOverview(BaseModel):
     updated_at: datetime | None = None
 
 
-class TeacherClassroomReadModel(TeacherClassroomOverview):
+class TeacherSectionReadModel(TeacherSectionOverview):
     missing_student_ids: list[str] = Field(default_factory=list)
     learners: list[TeacherLearnerCard] = Field(default_factory=list)

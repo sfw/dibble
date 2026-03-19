@@ -57,7 +57,7 @@ function buildUser(overrides: Partial<UserSummary> = {}): UserSummary {
     display_name: 'Ava Rivera',
     role: 'learner',
     learner_id: 'student-1',
-    classroom_ids: ['room-a'],
+    section_ids: ['room-a'],
     created_at: '2026-03-19T00:00:00Z',
     updated_at: '2026-03-19T00:00:00Z',
     ...overrides,
@@ -86,24 +86,24 @@ describe('UserManagement', () => {
     mockedBulkCreateUsers.mockReset()
   })
 
-  it('shows classroom memberships instead of teacher linkage in the table', async () => {
+  it('shows section memberships as read-only roster context in the table', async () => {
     mockedListUsers.mockResolvedValue([
       buildUser({
         role: 'teacher',
         learner_id: null,
-        classroom_ids: ['algebra-1', 'advisory-7'],
+        section_ids: ['algebra-1', 'advisory-7'],
       }),
     ])
 
     renderUserManagement()
 
     expect(await screen.findByText('algebra-1, advisory-7')).toBeInTheDocument()
-    expect(screen.getByRole('columnheader', { name: 'Classrooms' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Sections' })).toBeInTheDocument()
     expect(screen.queryByRole('columnheader', { name: 'Teacher ID' })).not.toBeInTheDocument()
     expect(screen.queryByText('teacher-legacy')).not.toBeInTheDocument()
   })
 
-  it('creates learners with classroom memberships instead of teacher linkage', async () => {
+  it('creates learners without editing section memberships in the user form', async () => {
     mockedListUsers.mockResolvedValue([])
     mockedCreateUser.mockResolvedValue({
       user_id: 'user-2',
@@ -118,10 +118,10 @@ describe('UserManagement', () => {
     await userEvent.click(screen.getByRole('button', { name: /create user/i }))
 
     expect(screen.queryByLabelText('Teacher ID')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Classrooms')).not.toBeInTheDocument()
 
     await userEvent.type(screen.getByLabelText('Display name'), 'Jordan Kim')
     await userEvent.type(screen.getByLabelText('Learner ID'), 'student-44')
-    await userEvent.type(screen.getByLabelText('Classrooms'), 'algebra-1, advisory-7')
     await userEvent.click(screen.getAllByRole('button', { name: /^create user$/i })[1])
 
     await waitFor(() => {
@@ -131,21 +131,21 @@ describe('UserManagement', () => {
           display_name: 'Jordan Kim',
           role: 'learner',
           learner_id: 'student-44',
-          classroom_ids: ['algebra-1', 'advisory-7'],
         }),
       )
     })
 
     expect(mockedCreateUser.mock.calls[0]?.[1]).not.toHaveProperty('teacher_id')
+    expect(mockedCreateUser.mock.calls[0]?.[1]).not.toHaveProperty('section_ids')
   })
 
-  it('updates teacher classroom assignments from the edit row', async () => {
+  it('keeps section assignments out of the edit row', async () => {
     mockedListUsers.mockResolvedValue([
       buildUser({
         user_id: 'teacher-1',
         role: 'teacher',
         learner_id: null,
-        classroom_ids: ['algebra-1'],
+        section_ids: ['algebra-1'],
       }),
     ])
     mockedUpdateUser.mockResolvedValue(
@@ -153,7 +153,7 @@ describe('UserManagement', () => {
         user_id: 'teacher-1',
         role: 'teacher',
         learner_id: null,
-        classroom_ids: ['geometry-2', 'advisory-7'],
+        section_ids: ['geometry-2', 'advisory-7'],
       }),
     )
 
@@ -162,9 +162,8 @@ describe('UserManagement', () => {
     await screen.findByText('algebra-1')
     await userEvent.click(screen.getByTitle('Edit'))
 
-    const classroomInput = screen.getByLabelText('Edit classrooms')
-    await userEvent.clear(classroomInput)
-    await userEvent.type(classroomInput, 'geometry-2, advisory-7')
+    expect(screen.queryByLabelText('Edit classrooms')).not.toBeInTheDocument()
+    expect(screen.getByText('Manage in Courses & Sections')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {
@@ -173,11 +172,11 @@ describe('UserManagement', () => {
         'teacher-1',
         expect.objectContaining({
           role: 'teacher',
-          classroom_ids: ['geometry-2', 'advisory-7'],
         }),
       )
     })
 
     expect(mockedUpdateUser.mock.calls[0]?.[2]).not.toHaveProperty('teacher_id')
+    expect(mockedUpdateUser.mock.calls[0]?.[2]).not.toHaveProperty('section_ids')
   })
 })

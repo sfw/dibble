@@ -18,13 +18,13 @@ const badgeVariantForTone = {
 } as const
 
 export function ClassroomDetail() {
-  const { classroomId } = useParams<{ classroomId: string }>()
-  const { classroom, loading, loadClassroom } = useOutletContext<TeacherContext>()
+  const { sectionId } = useParams<{ sectionId: string }>()
+  const { classroom, loading, loadSection } = useOutletContext<TeacherContext>()
   const navigate = useNavigate()
 
-  // If navigated to a different classroom, load it
-  if (classroomId && classroomId !== classroom.classroom_id && !loading) {
-    void loadClassroom(classroomId)
+  // If navigated to a different section, load it
+  if (sectionId && sectionId !== classroom.section_id && !loading) {
+    void loadSection(sectionId)
   }
 
   const triageSections = buildTriageSections(classroom.learners)
@@ -81,7 +81,7 @@ export function ClassroomDetail() {
       ))}
 
       {loading && (
-        <p className="text-center text-sm text-muted-foreground py-4">Refreshing classroom...</p>
+        <p className="py-4 text-center text-sm text-muted-foreground">Refreshing section...</p>
       )}
     </PageContainer>
   )

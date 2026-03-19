@@ -49,36 +49,51 @@ def _build_user(request: UserCreateRequest, credential: str) -> User:
         api_key_hash=credential_hash if not _is_learner_role(request.role) else None,
         passphrase_hash=credential_hash if _is_learner_role(request.role) else None,
         learner_id=request.learner_id,
-        classroom_ids=request.classroom_ids,
+        section_ids=request.section_ids,
         created_at=now,
         updated_at=now,
-    )
-
-
-def _user_to_summary(user: User) -> UserSummary:
-    return UserSummary(
-        user_id=user.user_id,
-        display_name=user.display_name,
-        role=user.role,
-        learner_id=user.learner_id,
-        classroom_ids=user.classroom_ids,
-        created_at=user.created_at,
-        updated_at=user.updated_at,
     )
 
 
 def build_user_router(context: ApiContext) -> APIRouter:
     router = APIRouter(prefix="/api/users", dependencies=context.deps("admin"))
 
-    def _sync_classroom_memberships(user: User) -> None:
-        context.services.classroom_membership_store.delete_for_user(user.user_id)
+    def _effective_section_ids(user: User) -> list[str]:
         membership_role = _membership_role_for_user_role(user.role)
-        if membership_role is None or not user.classroom_ids:
+        if membership_role is None:
+            return []
+        return context.services.classroom_membership_store.list_user_section_ids(
+            user_id=user.user_id,
+            role=membership_role,
+        )
+
+    def _user_to_summary(user: User) -> UserSummary:
+        return UserSummary(
+            user_id=user.user_id,
+            display_name=user.display_name,
+            role=user.role,
+            learner_id=user.learner_id,
+            section_ids=_effective_section_ids(user),
+            created_at=user.created_at,
+            updated_at=user.updated_at,
+        )
+
+    def _reconcile_section_memberships(
+        user: User,
+        *,
+        requested_section_ids: list[str] | None,
+        force_clear: bool = False,
+    ) -> None:
+        membership_role = _membership_role_for_user_role(user.role)
+        if force_clear or membership_role is None:
+            context.services.classroom_membership_store.delete_for_user(user.user_id)
+            return
+        if requested_section_ids is None:
             return
         context.services.classroom_membership_store.replace_for_user(
             user_id=user.user_id,
             role=membership_role,
-            classroom_ids=user.classroom_ids,
+            section_ids=requested_section_ids,
         )
 
     @router.post("", response_model=UserCreateResponse)
@@ -86,7 +101,10 @@ def build_user_router(context: ApiContext) -> APIRouter:
         credential = _generate_credential(payload.role)
         user = _build_user(payload, credential)
         context.services.user_store.create(user)
-        _sync_classroom_memberships(user)
+        _reconcile_section_memberships(
+            user,
+            requested_section_ids=payload.section_ids or None,
+        )
         return UserCreateResponse(
             user_id=user.user_id,
             credential=credential,
@@ -115,17 +133,25 @@ def build_user_router(context: ApiContext) -> APIRouter:
                 status_code=404, detail="User not found.", code="user_not_found"
             )
         now = datetime.now(timezone.utc).isoformat()
+        prior_role = user.role
         if payload.display_name is not None:
             user.display_name = payload.display_name
         if payload.role is not None:
             user.role = payload.role
         if payload.learner_id is not None:
             user.learner_id = payload.learner_id
-        if payload.classroom_ids is not None:
-            user.classroom_ids = payload.classroom_ids
+        if payload.section_ids is not None:
+            user.section_ids = payload.section_ids
         user.updated_at = now
         context.services.user_store.update(user)
-        _sync_classroom_memberships(user)
+        _reconcile_section_memberships(
+            user,
+            requested_section_ids=payload.section_ids,
+            force_clear=(
+                _membership_role_for_user_role(prior_role) is not None
+                and _membership_role_for_user_role(user.role) is None
+            ),
+        )
         return _user_to_summary(user)
 
     @router.delete("/{user_id}")
@@ -172,7 +198,10 @@ def build_user_router(context: ApiContext) -> APIRouter:
 
         for user, credential in users_with_credentials:
             context.services.user_store.create(user)
-            _sync_classroom_memberships(user)
+            _reconcile_section_memberships(
+                user,
+                requested_section_ids=user.section_ids or None,
+            )
             results.append(
                 UserCreateResponse(
                     user_id=user.user_id,

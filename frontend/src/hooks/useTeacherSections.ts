@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { getTeacherClassroom, getTeacherClassrooms } from '../api'
+import { getTeacherSection, getTeacherSections } from '../api'
 import type { DataSource } from '../app/workspace'
 import { asMessage } from '../lib/formatters'
 import { demoTeacherClassroom, demoTeacherClassrooms } from '../sample-data'
-import type { FrontendConfig, TeacherClassroomOverview, TeacherClassroomReadModel } from '../types'
+import type { FrontendConfig, TeacherSectionOverview, TeacherSectionReadModel } from '../types'
 
-export function useTeacherClassroom({
+export function useTeacherSections({
   config,
   onDataSourceChange,
 }: {
@@ -14,16 +14,16 @@ export function useTeacherClassroom({
   onDataSourceChange: (source: DataSource) => void
 }) {
   const hasBootstrapped = useRef(false)
-  const [classrooms, setClassrooms] = useState<TeacherClassroomOverview[]>(demoTeacherClassrooms)
-  const [selectedClassroomId, setSelectedClassroomId] = useState(demoTeacherClassroom.classroom_id)
-  const [classroom, setClassroom] = useState<TeacherClassroomReadModel>(demoTeacherClassroom)
+  const [classrooms, setClassrooms] = useState<TeacherSectionOverview[]>(demoTeacherClassrooms)
+  const [selectedSectionId, setSelectedSectionId] = useState(demoTeacherClassroom.section_id)
+  const [classroom, setClassroom] = useState<TeacherSectionReadModel>(demoTeacherClassroom)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   const applyDemoFallback = useCallback(
     (message: string) => {
       setClassrooms(demoTeacherClassrooms)
-      setSelectedClassroomId(demoTeacherClassroom.classroom_id)
+      setSelectedSectionId(demoTeacherClassroom.section_id)
       setClassroom(demoTeacherClassroom)
       setError(message)
       onDataSourceChange('demo')
@@ -31,15 +31,15 @@ export function useTeacherClassroom({
     [onDataSourceChange],
   )
 
-  const loadClassroom = useCallback(
-    async (classroomId: string) => {
+  const loadSection = useCallback(
+    async (sectionId: string) => {
       setLoading(true)
       setError('')
 
       try {
-        const nextClassroom = await getTeacherClassroom(config, classroomId)
-        setClassroom(nextClassroom)
-        setSelectedClassroomId(classroomId)
+        const nextSection = await getTeacherSection(config, sectionId)
+        setClassroom(nextSection)
+        setSelectedSectionId(sectionId)
         onDataSourceChange('live')
       } catch (caughtError) {
         if (!config.useDemoFallback) {
@@ -47,7 +47,7 @@ export function useTeacherClassroom({
           return
         }
 
-        applyDemoFallback(`${asMessage(caughtError)} Showing a demo classroom instead.`)
+        applyDemoFallback(`${asMessage(caughtError)} Showing a demo section instead.`)
       } finally {
         setLoading(false)
       }
@@ -55,17 +55,17 @@ export function useTeacherClassroom({
     [applyDemoFallback, config, onDataSourceChange],
   )
 
-  const loadClassrooms = useCallback(async () => {
+  const loadSections = useCallback(async () => {
     setLoading(true)
     setError('')
 
     try {
-      const nextClassrooms = await getTeacherClassrooms(config)
-      setClassrooms(nextClassrooms)
-      const activeClassroomId = nextClassrooms[0]?.classroom_id ?? demoTeacherClassroom.classroom_id
-      const nextClassroom = await getTeacherClassroom(config, activeClassroomId)
-      setSelectedClassroomId(activeClassroomId)
-      setClassroom(nextClassroom)
+      const nextSections = await getTeacherSections(config)
+      setClassrooms(nextSections)
+      const activeSectionId = nextSections[0]?.section_id ?? demoTeacherClassroom.section_id
+      const nextSection = await getTeacherSection(config, activeSectionId)
+      setSelectedSectionId(activeSectionId)
+      setClassroom(nextSection)
       onDataSourceChange('live')
     } catch (caughtError) {
       if (!config.useDemoFallback) {
@@ -73,7 +73,7 @@ export function useTeacherClassroom({
         return
       }
 
-      applyDemoFallback(`${asMessage(caughtError)} Showing demo classroom data instead.`)
+      applyDemoFallback(`${asMessage(caughtError)} Showing demo section data instead.`)
     } finally {
       setLoading(false)
     }
@@ -85,26 +85,26 @@ export function useTeacherClassroom({
     }
 
     hasBootstrapped.current = true
-    void loadClassrooms()
-  }, [loadClassrooms])
+    void loadSections()
+  }, [loadSections])
 
   const selectedOverview = useMemo(
     () =>
-      classrooms.find((item) => item.classroom_id === selectedClassroomId) ??
+      classrooms.find((item) => item.section_id === selectedSectionId) ??
       classrooms[0] ??
       demoTeacherClassrooms[0],
-    [classrooms, selectedClassroomId],
+    [classrooms, selectedSectionId],
   )
 
   return {
     classrooms,
-    selectedClassroomId,
+    selectedSectionId,
     selectedOverview,
     classroom,
     loading,
     error,
-    loadClassrooms,
-    loadClassroom,
-    setSelectedClassroomId,
+    loadSections,
+    loadSection,
+    setSelectedSectionId,
   }
 }

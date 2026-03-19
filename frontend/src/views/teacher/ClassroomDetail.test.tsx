@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router'
 import { ClassroomDetail } from './ClassroomDetail'
 import type { TeacherContext } from '../../shells/TeacherShell'
-import type { TeacherClassroomReadModel, TeacherLearnerCard } from '../../types'
+import type { TeacherSectionReadModel, TeacherLearnerCard } from '../../types'
 
 function makeLearner(overrides: Partial<TeacherLearnerCard> & { student_id: string }): TeacherLearnerCard {
   return {
@@ -89,8 +89,8 @@ const learnerTeacherAction = makeLearner({
   },
 })
 
-const mockClassroom: TeacherClassroomReadModel = {
-  classroom_id: 'class-1',
+const mockClassroom: TeacherSectionReadModel = {
+  section_id: 'class-1',
   title: 'Math 7A',
   teacher_label: 'Ms. Smith',
   learner_count: 3,
@@ -113,11 +113,11 @@ function makeContext(overrides?: Partial<TeacherContext>): TeacherContext {
       showDebugPanels: false,
     },
     classrooms: [],
-    selectedClassroomId: 'class-1',
+    selectedSectionId: 'class-1',
     classroom: mockClassroom,
     loading: false,
     error: '',
-    loadClassroom: vi.fn(),
+    loadSection: vi.fn(),
     ...overrides,
   }
 }
@@ -129,10 +129,10 @@ function renderClassroomDetail(overrides?: Partial<TeacherContext>) {
       {
         path: '/teacher',
         element: <Outlet context={ctx} />,
-        children: [{ path: 'classrooms/:classroomId', element: <ClassroomDetail /> }],
+        children: [{ path: 'sections/:sectionId', element: <ClassroomDetail /> }],
       },
     ],
-    { initialEntries: ['/teacher/classrooms/class-1'] },
+    { initialEntries: ['/teacher/sections/class-1'] },
   )
   return render(<RouterProvider router={router} />)
 }
@@ -187,11 +187,11 @@ describe('ClassroomDetail', () => {
 
   it('shows refreshing message while loading', () => {
     renderClassroomDetail({ loading: true })
-    expect(screen.getByText('Refreshing classroom...')).toBeInTheDocument()
+    expect(screen.getByText('Refreshing section...')).toBeInTheDocument()
   })
 
   it('shows empty group message when section has no learners', () => {
-    const emptyClassroom: TeacherClassroomReadModel = {
+    const emptyClassroom: TeacherSectionReadModel = {
       ...mockClassroom,
       learners: [],
     }

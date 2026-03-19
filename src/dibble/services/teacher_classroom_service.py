@@ -8,8 +8,8 @@ from dibble.models.classroom import Classroom
 from dibble.models.classroom_membership import ClassroomMembershipRole
 from dibble.models.teacher_actions import TeacherInterventionProposalStatus
 from dibble.models.teacher_classroom import (
-    TeacherClassroomOverview,
-    TeacherClassroomReadModel,
+    TeacherSectionOverview,
+    TeacherSectionReadModel,
     TeacherLearnerCard,
     TeacherLearnerInterventionSummary,
 )
@@ -21,13 +21,13 @@ from dibble.services.protocols import ClassroomMembershipStore, UserStore
 
 
 @dataclass(slots=True)
-class TeacherClassroomService:
+class TeacherSectionService:
     learner_summary_service: LearnerSummaryService
     teacher_intervention_action_service: TeacherInterventionActionService
     classroom_membership_store: ClassroomMembershipStore
     user_store: UserStore
 
-    def student_ids_for_classroom(self, classroom: Classroom) -> list[str]:
+    def student_ids_for_section(self, classroom: Classroom) -> list[str]:
         learner_user_ids = self.classroom_membership_store.list_classroom_user_ids(
             classroom.classroom_id,
             role=ClassroomMembershipRole.learner,
@@ -40,10 +40,10 @@ class TeacherClassroomService:
             )
         return student_ids
 
-    def build_classroom(self, classroom: Classroom) -> TeacherClassroomReadModel:
+    def build_section(self, classroom: Classroom) -> TeacherSectionReadModel:
         learners: list[TeacherLearnerCard] = []
         missing_student_ids: list[str] = []
-        for student_id in self.student_ids_for_classroom(classroom):
+        for student_id in self.student_ids_for_section(classroom):
             try:
                 parsed_student_id = UUID(student_id)
             except ValueError:
@@ -106,7 +106,7 @@ class TeacherClassroomService:
             )
         )
 
-        return TeacherClassroomReadModel(
+        return TeacherSectionReadModel(
             **self._overview_payload(
                 classroom=classroom,
                 learners=learners,
@@ -116,14 +116,12 @@ class TeacherClassroomService:
             learners=learners,
         )
 
-    def list_classrooms(
-        self, classrooms: list[Classroom]
-    ) -> list[TeacherClassroomOverview]:
-        overviews: list[TeacherClassroomOverview] = []
+    def list_sections(self, classrooms: list[Classroom]) -> list[TeacherSectionOverview]:
+        overviews: list[TeacherSectionOverview] = []
         for classroom in classrooms:
-            read_model = self.build_classroom(classroom)
+            read_model = self.build_section(classroom)
             overviews.append(
-                TeacherClassroomOverview(
+                TeacherSectionOverview(
                     **self._overview_payload(
                         classroom=classroom,
                         learners=read_model.learners,
@@ -158,7 +156,7 @@ class TeacherClassroomService:
             1 for learner in learners if learner.attention_level != "normal"
         )
         return {
-            "classroom_id": classroom.classroom_id,
+            "section_id": classroom.classroom_id,
             "course_id": classroom.course_id,
             "title": classroom.title,
             "teacher_label": self._teacher_label(classroom),

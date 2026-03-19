@@ -23,10 +23,10 @@ import { ErrorBanner } from '@/components/ui/error-banner'
 import { Badge } from '@/components/ui/badge'
 import { teacherStage, teacherAttention } from '../../lib/copy'
 import { formatPercent } from '../../lib/formatters'
-import { getClassroomMasteryTrends } from '../../api'
+import { getSectionMasteryTrends } from '../../api'
 import type {
-  ClassroomMasteryTrendsResponse,
-  TeacherClassroomOverview,
+  SectionMasteryTrendsResponse,
+  TeacherSectionOverview,
   TeacherLearnerCard,
 } from '../../types'
 
@@ -115,15 +115,15 @@ function attentionReasonLabel(reason: string): string {
 // ---------------------------------------------------------------------------
 
 export function Reports() {
-  const { config, classrooms, classroom, loading, error, loadClassroom } = useOutletContext<TeacherContext>()
+  const { config, classrooms, classroom, loading, error, loadSection } = useOutletContext<TeacherContext>()
   const learners = useMemo(() => classroom.learners ?? [], [classroom.learners])
 
-  // Auto-load the first classroom if none is selected yet
+  // Auto-load the first section if none is selected yet
   useEffect(() => {
-    if (!classroom.classroom_id && classrooms.length > 0 && !loading) {
-      void loadClassroom(classrooms[0].classroom_id)
+    if (!classroom.section_id && classrooms.length > 0 && !loading) {
+      void loadSection(classrooms[0].section_id)
     }
-  }, [classroom.classroom_id, classrooms, loading, loadClassroom])
+  }, [classroom.section_id, classrooms, loading, loadSection])
 
   const totalLearners = classrooms.reduce((sum, c) => sum + c.learner_count, 0)
   const totalActive = classrooms.reduce((sum, c) => sum + c.active_flow_count, 0)
@@ -154,16 +154,16 @@ export function Reports() {
     [learners, sortField, sortDir],
   )
 
-  // Fetch mastery trends for the selected classroom
-  const [trends, setTrends] = useState<ClassroomMasteryTrendsResponse | null>(null)
+  // Fetch mastery trends for the selected section
+  const [trends, setTrends] = useState<SectionMasteryTrendsResponse | null>(null)
   const [trendsLoading, setTrendsLoading] = useState(false)
-  const trendsClassroomRef = useRef('')
+  const trendsSectionRef = useRef('')
 
   const loadTrends = useCallback(
-    async (classroomId: string) => {
+    async (sectionId: string) => {
       setTrendsLoading(true)
       try {
-        const data = await getClassroomMasteryTrends(config, classroomId, 30)
+        const data = await getSectionMasteryTrends(config, sectionId, 30)
         setTrends(data)
       } catch {
         setTrends(null)
@@ -175,10 +175,10 @@ export function Reports() {
   )
 
   useEffect(() => {
-    if (!classroom.classroom_id || classroom.classroom_id === trendsClassroomRef.current) return
-    trendsClassroomRef.current = classroom.classroom_id
-    void loadTrends(classroom.classroom_id)
-  }, [classroom.classroom_id, loadTrends])
+    if (!classroom.section_id || classroom.section_id === trendsSectionRef.current) return
+    trendsSectionRef.current = classroom.section_id
+    void loadTrends(classroom.section_id)
+  }, [classroom.section_id, loadTrends])
 
   // Build a lookup of per-learner mastery deltas from trends data
   const learnerDeltas = useMemo(() => {
@@ -203,7 +203,7 @@ export function Reports() {
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Reports</h1>
         <p className="mt-1 text-muted-foreground">
-          Class progress, learner distribution, and activity across your classrooms.
+          Section progress, learner distribution, and activity across your sections.
         </p>
       </header>
 
@@ -218,29 +218,29 @@ export function Reports() {
         <SummaryCard icon={BarChart3} label="Interventions" value={totalInterventions} iconClass="text-blue-600 bg-blue-100" />
       </div>
 
-      {/* Per-classroom progress */}
+      {/* Per-section progress */}
       {classrooms.length > 0 && (
         <section className="flex flex-col gap-4">
-          <h2 className="font-semibold">Classroom progress</h2>
+          <h2 className="font-semibold">Section progress</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {classrooms.map((c) => (
-              <ClassroomProgressCard key={c.classroom_id} classroom={c} />
+              <ClassroomProgressCard key={c.section_id} classroom={c} />
             ))}
           </div>
         </section>
       )}
 
-      {/* Classroom selector for deep-dive */}
+      {/* Section selector for deep-dive */}
       {classrooms.length > 1 && (
         <ClassroomSelector
           classrooms={classrooms}
-          selectedId={classroom.classroom_id}
-          onSelect={(id) => void loadClassroom(id)}
+          selectedId={classroom.section_id}
+          onSelect={(id) => void loadSection(id)}
           loading={loading}
         />
       )}
 
-      {/* Selected classroom deep-dive */}
+      {/* Selected section deep-dive */}
       {learners.length > 0 && (
         <>
           <div className="flex items-center gap-3">
@@ -308,10 +308,10 @@ function MasteryTrendChart({
   trends,
   loading,
 }: {
-  trends: ClassroomMasteryTrendsResponse | null
+  trends: SectionMasteryTrendsResponse | null
   loading: boolean
 }) {
-  const points = trends?.classroom_average_snapshots ?? []
+  const points = trends?.section_average_snapshots ?? []
 
   if (loading) {
     return (
@@ -429,7 +429,7 @@ function LearnerTrendStrip({
   trends,
   loading,
 }: {
-  trends: ClassroomMasteryTrendsResponse | null
+  trends: SectionMasteryTrendsResponse | null
   loading: boolean
 }) {
   const learnerTrends = trends?.learner_trends ?? []
@@ -738,7 +738,7 @@ function ClassroomSelector({
   onSelect,
   loading,
 }: {
-  classrooms: TeacherClassroomOverview[]
+  classrooms: TeacherSectionOverview[]
   selectedId: string
   onSelect: (id: string) => void
   loading: boolean
@@ -754,7 +754,7 @@ function ClassroomSelector({
           className="appearance-none rounded-lg border bg-white py-2 pl-3 pr-8 text-sm font-medium shadow-sm transition-colors hover:border-emerald-300 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400 disabled:opacity-50"
         >
           {classrooms.map((c) => (
-            <option key={c.classroom_id} value={c.classroom_id}>
+            <option key={c.section_id} value={c.section_id}>
               {c.title}
             </option>
           ))}
@@ -908,7 +908,7 @@ function SummaryCard({
 // Per-classroom progress card
 // ---------------------------------------------------------------------------
 
-function ClassroomProgressCard({ classroom }: { classroom: TeacherClassroomOverview }) {
+function ClassroomProgressCard({ classroom }: { classroom: TeacherSectionOverview }) {
   const total = classroom.learner_count || 1
   const activeRate = classroom.active_flow_count / total
   const blockedRate = classroom.blocked_progression_count / total
@@ -916,7 +916,7 @@ function ClassroomProgressCard({ classroom }: { classroom: TeacherClassroomOverv
 
   return (
     <Link
-      to={`/teacher/classrooms/${classroom.classroom_id}`}
+      to={`/teacher/sections/${classroom.section_id}`}
       className="group flex flex-col gap-3 rounded-xl border bg-white p-5 shadow-sm transition-colors hover:border-emerald-300"
     >
       <div className="flex items-start justify-between">

@@ -40,21 +40,21 @@ class LearnerMasteryTrend(BaseModel):
     mastery_delta: float = 0.0
 
 
-class ClassroomMasteryTrendsResponse(BaseModel):
-    classroom_id: str
+class SectionMasteryTrendsResponse(BaseModel):
+    section_id: str
     days: int
     learner_count: int = Field(ge=0)
     learner_trends: list[LearnerMasteryTrend] = Field(default_factory=list)
-    classroom_average_snapshots: list[ClassroomAveragePoint] = Field(
+    section_average_snapshots: list[SectionAveragePoint] = Field(
         default_factory=list
     )
 
 
-class ClassroomAveragePoint(BaseModel):
+class SectionAveragePoint(BaseModel):
     timestamp: datetime
     average_mastery: float = Field(ge=0.0, le=1.0)
     learner_count: int = Field(ge=0)
 
 
-# Forward reference fix: ClassroomMasteryTrendsResponse uses ClassroomAveragePoint
-ClassroomMasteryTrendsResponse.model_rebuild()
+# Forward reference fix: SectionMasteryTrendsResponse uses SectionAveragePoint
+SectionMasteryTrendsResponse.model_rebuild()

@@ -4,8 +4,8 @@ import {
   generateContent,
   getLearnerProgression,
   getLearnerSummary,
-  getTeacherClassroom,
-  getTeacherClassrooms,
+  getTeacherSection,
+  getTeacherSections,
   getLearnerWorkspace,
   recordTeacherInterventionAction,
   streamGeneration,
@@ -155,11 +155,11 @@ describe('api contract helpers', () => {
     }
 
     const progression = await getLearnerProgression(config, demoProfileSummary.student_id)
-    const classrooms = await getTeacherClassrooms(config)
-    const classroom = await getTeacherClassroom(config, demoTeacherClassroom.classroom_id)
+    const classrooms = await getTeacherSections(config)
+    const classroom = await getTeacherSection(config, demoTeacherClassroom.section_id)
 
     expect(progression.status).toBe('active_curriculum_focus')
-    expect(classrooms[0]?.classroom_id).toBe(demoTeacherClassroom.classroom_id)
+    expect(classrooms[0]?.section_id).toBe(demoTeacherClassroom.section_id)
     expect(classroom.learners).toHaveLength(2)
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -168,12 +168,12 @@ describe('api contract helpers', () => {
     )
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      'https://api.example.com/api/teachers/classrooms',
+      'https://api.example.com/api/teachers/sections',
       expect.anything(),
     )
     expect(fetchMock).toHaveBeenNthCalledWith(
       3,
-      `https://api.example.com/api/teachers/classrooms/${demoTeacherClassroom.classroom_id}`,
+      `https://api.example.com/api/teachers/sections/${demoTeacherClassroom.section_id}`,
       expect.anything(),
     )
   })

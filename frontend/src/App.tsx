@@ -12,7 +12,7 @@ import { useLearnerWorkspace } from './hooks/useLearnerWorkspace'
 import { usePersistentConfig } from './hooks/usePersistentConfig'
 import { useRemediationWorkspace } from './hooks/useRemediationWorkspace'
 import { useSocraticWorkspace } from './hooks/useSocraticWorkspace'
-import { useTeacherClassroom } from './hooks/useTeacherClassroom'
+import { useTeacherSections } from './hooks/useTeacherSections'
 import { ClassroomView } from './views/ClassroomView'
 import { GenerationView } from './views/GenerationView'
 import { OverviewView } from './views/OverviewView'
@@ -126,7 +126,7 @@ function App() {
     workspace: learnerWorkspace.workspace,
     onDataSourceChange: handleRemediationDataSourceChange,
   })
-  const teacherClassroom = useTeacherClassroom({
+  const teacherClassroom = useTeacherSections({
     config,
     onDataSourceChange: handleTeacherClassroomDataSourceChange,
   })
@@ -153,7 +153,7 @@ function App() {
 
     if (includeTeacherContext) {
       setTeacherHandoffContext({
-        classroomId: teacherClassroom.selectedClassroomId,
+        classroomId: teacherClassroom.selectedSectionId,
         classroomTitle: teacherClassroom.selectedOverview.title,
         learnerId: studentId,
       })
@@ -197,7 +197,7 @@ function App() {
           onRefresh={() => {
             void learnerWorkspace.refreshCurrentLearner()
             void learnerContracts.loadContracts()
-            void teacherClassroom.loadClassrooms()
+            void teacherClassroom.loadSections()
           }}
           onPickLearner={(learnerId) => {
             setTeacherHandoffContext(null)
@@ -210,7 +210,7 @@ function App() {
           <TabsTrigger value="socratic">Socratic</TabsTrigger>
           <TabsTrigger value="remediation">Remediation</TabsTrigger>
           <TabsTrigger value="teacher">Teacher View</TabsTrigger>
-          <TabsTrigger value="classroom">Classroom View</TabsTrigger>
+          <TabsTrigger value="classroom">Section View</TabsTrigger>
         </TabsList>
 
         <main>
@@ -296,12 +296,12 @@ function App() {
           <TabsContent value="classroom">
             <ClassroomView
               classrooms={teacherClassroom.classrooms}
-              selectedClassroomId={teacherClassroom.selectedClassroomId}
+              selectedSectionId={teacherClassroom.selectedSectionId}
               classroom={teacherClassroom.classroom}
               loading={teacherClassroom.loading}
               error={teacherClassroom.error}
               handoffLoadingStudentId={classroomHandoffStudentId}
-              onPickClassroom={(classroomId) => void teacherClassroom.loadClassroom(classroomId)}
+              onPickClassroom={(classroomId) => void teacherClassroom.loadSection(classroomId)}
               onOpenTeacher={(studentId) =>
                 void handoffClassroomLearner({
                   studentId,

@@ -46,8 +46,8 @@ class AssignmentStore(Protocol):
         self, *, student_id: str, limit: int = 20, offset: int = 0
     ) -> list[Assignment]: ...
     def count_for_student(self, *, student_id: str) -> int: ...
-    def list_for_classroom(
-        self, *, classroom_id: str, limit: int = 50, offset: int = 0
+    def list_for_section(
+        self, *, section_id: str, limit: int = 50, offset: int = 0
     ) -> list[Assignment]: ...
     def list_for_teacher(
         self, *, teacher_id: str, limit: int = 50, offset: int = 0
@@ -89,12 +89,19 @@ class CourseStore(Protocol):
 
 class ClassroomMembershipStore(Protocol):
     def upsert(self, membership: ClassroomMembershipUpsert) -> ClassroomMembership: ...
+    def replace_for_classroom(
+        self,
+        *,
+        classroom_id: str,
+        role: ClassroomMembershipRole,
+        user_ids: list[str],
+    ) -> list[ClassroomMembership]: ...
     def replace_for_user(
         self,
         *,
         user_id: str,
         role: ClassroomMembershipRole,
-        classroom_ids: list[str],
+        section_ids: list[str],
     ) -> list[ClassroomMembership]: ...
     def list_classroom_user_ids(
         self,
@@ -102,7 +109,7 @@ class ClassroomMembershipStore(Protocol):
         *,
         role: ClassroomMembershipRole | None = None,
     ) -> list[str]: ...
-    def list_user_classroom_ids(
+    def list_user_section_ids(
         self,
         user_id: str,
         *,

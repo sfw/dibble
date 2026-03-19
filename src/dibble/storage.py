@@ -144,7 +144,7 @@ CREATE TABLE IF NOT EXISTS assignments (
     assignment_id TEXT PRIMARY KEY,
     student_id TEXT NOT NULL,
     teacher_id TEXT NOT NULL,
-    classroom_id TEXT,
+    section_id TEXT,
     status TEXT NOT NULL,
     payload TEXT NOT NULL,
     updated_at TEXT NOT NULL
@@ -198,7 +198,7 @@ CREATE TABLE IF NOT EXISTS users (
     api_key_hash TEXT UNIQUE,
     passphrase_hash TEXT UNIQUE,
     learner_id TEXT,
-    classroom_ids TEXT NOT NULL DEFAULT '[]',
+    section_ids TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );

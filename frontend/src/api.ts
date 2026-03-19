@@ -1,5 +1,7 @@
 import type {
   AdminCourseSummary,
+  AdminSectionMembershipSummary,
+  AdminSectionMembershipUpdateRequest,
   AdminSectionSummary,
   BulkUserCreateRequest,
   BulkUserCreateResponse,
@@ -25,7 +27,7 @@ import type {
   AssignmentStatus,
   AuthIdentity,
   AuthToken,
-  ClassroomMasteryTrendsResponse,
+  SectionMasteryTrendsResponse,
   FrontendConfig,
   GeneratedContent,
   GenerationRequestPayload,
@@ -43,8 +45,8 @@ import type {
   RemediationWorkflowSession,
   SocraticAssessmentResponse,
   SocraticAssessmentSession,
-  TeacherClassroomOverview,
-  TeacherClassroomReadModel,
+  TeacherSectionOverview,
+  TeacherSectionReadModel,
   TeacherInterventionActionContract,
   TeacherInterventionDecisionRequest,
 } from './types'
@@ -171,17 +173,18 @@ export function getTeacherInterventionAction(config: FrontendConfig, studentId: 
   )
 }
 
-export function getTeacherClassrooms(config: FrontendConfig) {
-  return requestJson<TeacherClassroomOverview[]>(config, '/api/teachers/classrooms', {
+export function getTeacherSections(config: FrontendConfig) {
+  return requestJson<TeacherSectionOverview[]>(config, '/api/teachers/sections', {
     headers: buildHeaders(config, false),
   })
 }
 
-export function getTeacherClassroom(config: FrontendConfig, classroomId: string) {
-  return requestJson<TeacherClassroomReadModel>(config, `/api/teachers/classrooms/${classroomId}`, {
+export function getTeacherSection(config: FrontendConfig, sectionId: string) {
+  return requestJson<TeacherSectionReadModel>(config, `/api/teachers/sections/${sectionId}`, {
     headers: buildHeaders(config, false),
   })
 }
+export const getTeacherClassroom = getTeacherSection
 
 export function recordTeacherInterventionAction(
   config: FrontendConfig,
@@ -434,8 +437,8 @@ export function getLearnerMasteryHistory(config: FrontendConfig, studentId: stri
   return requestJson<MasteryHistoryResponse>(config, `/api/learners/${studentId}/mastery-history?days=${days}`)
 }
 
-export function getClassroomMasteryTrends(config: FrontendConfig, classroomId: string, days = 30) {
-  return requestJson<ClassroomMasteryTrendsResponse>(config, `/api/teachers/classrooms/${classroomId}/mastery-trends?days=${days}`)
+export function getSectionMasteryTrends(config: FrontendConfig, sectionId: string, days = 30) {
+  return requestJson<SectionMasteryTrendsResponse>(config, `/api/teachers/sections/${sectionId}/mastery-trends?days=${days}`)
 }
 
 // ---------------------------------------------------------------------------
@@ -546,6 +549,24 @@ export function upsertAdminSection(
   payload: SectionUpsert,
 ) {
   return requestJson<AdminSectionSummary>(config, `/api/admin/sections/${sectionId}`, {
+    method: 'PUT',
+    headers: buildHeaders(config),
+    body: JSON.stringify(payload),
+  })
+}
+
+export function getAdminSectionMemberships(config: FrontendConfig, sectionId: string) {
+  return requestJson<AdminSectionMembershipSummary>(config, `/api/admin/sections/${sectionId}/memberships`, {
+    headers: buildHeaders(config, false),
+  })
+}
+
+export function updateAdminSectionMemberships(
+  config: FrontendConfig,
+  sectionId: string,
+  payload: AdminSectionMembershipUpdateRequest,
+) {
+  return requestJson<AdminSectionMembershipSummary>(config, `/api/admin/sections/${sectionId}/memberships`, {
     method: 'PUT',
     headers: buildHeaders(config),
     body: JSON.stringify(payload),

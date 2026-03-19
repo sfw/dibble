@@ -61,7 +61,7 @@ class User(BaseModel):
     api_key_hash: str | None = None
     passphrase_hash: str | None = None
     learner_id: str | None = None
-    classroom_ids: list[str] = Field(default_factory=list)
+    section_ids: list[str] = Field(default_factory=list)
     created_at: str
     updated_at: str
 
@@ -70,7 +70,7 @@ class UserCreateRequest(BaseModel):
     display_name: str | None = None
     role: str
     learner_id: str | None = None
-    classroom_ids: list[str] = Field(default_factory=list)
+    section_ids: list[str] = Field(default_factory=list)
 
 
 class UserCreateResponse(BaseModel):
@@ -84,7 +84,7 @@ class UserUpdateRequest(BaseModel):
     display_name: str | None = None
     role: str | None = None
     learner_id: str | None = None
-    classroom_ids: list[str] | None = None
+    section_ids: list[str] | None = None
 
 
 class UserSummary(BaseModel):
@@ -92,7 +92,7 @@ class UserSummary(BaseModel):
     display_name: str | None = None
     role: str
     learner_id: str | None = None
-    classroom_ids: list[str] = Field(default_factory=list)
+    section_ids: list[str] = Field(default_factory=list)
     created_at: str
     updated_at: str
 

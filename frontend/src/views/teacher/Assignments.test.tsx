@@ -3,10 +3,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router'
 import { TeacherAssignments } from './Assignments'
 import type { TeacherContext } from '../../shells/TeacherShell'
-import type { TeacherClassroomReadModel } from '../../types'
+import type { TeacherSectionReadModel } from '../../types'
 
-const mockClassroom: TeacherClassroomReadModel = {
-  classroom_id: 'class-1',
+const mockClassroom: TeacherSectionReadModel = {
+  section_id: 'class-1',
   title: 'Math 7A',
   teacher_label: 'Ms. Smith',
   learner_count: 2,
@@ -80,7 +80,7 @@ vi.mock('../../hooks/useAssignments', () => ({
         assignment_id: 'asgn-1',
         student_id: 'student-1',
         teacher_id: 'teacher-1',
-        classroom_id: 'class-1',
+        section_id: 'class-1',
         title: 'Fractions practice',
         description: 'Work on equivalent fractions',
         status: 'assigned',
@@ -97,7 +97,7 @@ vi.mock('../../hooks/useAssignments', () => ({
         assignment_id: 'asgn-2',
         student_id: 'student-1',
         teacher_id: 'teacher-1',
-        classroom_id: 'class-1',
+        section_id: 'class-1',
         title: 'Completed task',
         description: '',
         status: 'completed',
@@ -132,11 +132,11 @@ const context: TeacherContext = {
     showDebugPanels: false,
   },
   classrooms: [],
-  selectedClassroomId: 'class-1',
+  selectedSectionId: 'class-1',
   classroom: mockClassroom,
   loading: false,
   error: '',
-  loadClassroom: vi.fn(),
+  loadSection: vi.fn(),
 }
 
 function renderTeacherAssignments() {

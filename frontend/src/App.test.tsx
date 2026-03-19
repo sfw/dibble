@@ -21,20 +21,20 @@ describe('App', () => {
     vi.restoreAllMocks()
   })
 
-  it('keeps classroom handoff continuity while routing into teacher and learner workspaces', async () => {
+  it('keeps section handoff continuity while routing into teacher and learner workspaces', async () => {
     const user = userEvent.setup()
     vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('Backend unavailable'))))
 
     render(<App />)
 
     expect((await screen.findAllByText('Backend unavailable Showing demo data instead.')).length).toBeGreaterThan(0)
-    await user.click(screen.getByRole('tab', { name: 'Classroom View' }))
+    await user.click(screen.getByRole('tab', { name: 'Section View' }))
     await user.click(screen.getAllByRole('button', { name: 'Open teacher triage' })[0]!)
 
     expect(await screen.findByText(`Reviewing ${SAMPLE_STUDENT_ID} from Grade 5 Fractions`)).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Return to classroom' }))
-    expect(await screen.findByText('Move from classroom posture to learner action handoff')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Return to section' }))
+    expect(await screen.findByText('Move from section posture to learner action handoff')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Continue generated content' }))
     expect(await screen.findByText('Create grounded lesson moves')).toBeInTheDocument()
@@ -99,7 +99,7 @@ describe('App', () => {
     expect(screen.getByText('Demo fallback active')).toBeInTheDocument()
     expect(
       screen.getByText(
-        'Teacher classroom refresh failed (teacher_classroom_unavailable) Showing demo classroom data instead.',
+        'Teacher classroom refresh failed (teacher_classroom_unavailable) Showing demo section data instead.',
       ),
     ).toBeInTheDocument()
   })
@@ -168,7 +168,7 @@ function stubLiveFetch({
       if (url.endsWith(`/api/learners/${SAMPLE_STUDENT_ID}/intervention-action`)) {
         return jsonResponse(demoTeacherInterventionAction)
       }
-      if (url.endsWith('/api/teachers/classrooms')) {
+      if (url.endsWith('/api/teachers/sections')) {
         classroomListRequests += 1
 
         if (failClassroomRefresh && classroomListRequests > 1) {
@@ -177,7 +177,7 @@ function stubLiveFetch({
 
         return jsonResponse(demoTeacherClassrooms)
       }
-      if (url.endsWith(`/api/teachers/classrooms/${demoTeacherClassroom.classroom_id}`)) {
+      if (url.endsWith(`/api/teachers/sections/${demoTeacherClassroom.section_id}`)) {
         return jsonResponse(demoTeacherClassroom)
       }
 

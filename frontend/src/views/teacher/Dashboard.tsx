@@ -2,7 +2,7 @@ import { Link, useOutletContext } from 'react-router'
 import { AlertTriangle, ArrowRight, Ban, Zap } from 'lucide-react'
 import type { TeacherContext } from '../../shells/TeacherShell'
 import { PageContainer } from '../../components/shell/PageContainer'
-import type { TeacherClassroomOverview } from '../../types'
+import type { TeacherSectionOverview } from '../../types'
 
 export function Dashboard() {
   const { classrooms, loading } = useOutletContext<TeacherContext>()
@@ -15,7 +15,7 @@ export function Dashboard() {
     <PageContainer className="flex flex-col gap-8 py-4">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="mt-1 text-muted-foreground">Your classrooms at a glance.</p>
+        <p className="mt-1 text-muted-foreground">Your sections at a glance.</p>
       </header>
 
       {/* Summary stats */}
@@ -40,14 +40,14 @@ export function Dashboard() {
         />
       </div>
 
-      {/* Classroom cards */}
+      {/* Section cards */}
       {loading && classrooms.length === 0 && (
-        <p className="text-center text-muted-foreground py-12">Loading classrooms...</p>
+        <p className="py-12 text-center text-muted-foreground">Loading sections...</p>
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {classrooms.map((classroom) => (
-          <ClassroomCard key={classroom.classroom_id} classroom={classroom} />
+          <ClassroomCard key={classroom.section_id} classroom={classroom} />
         ))}
       </div>
     </PageContainer>
@@ -78,10 +78,10 @@ function SummaryCard({
   )
 }
 
-function ClassroomCard({ classroom }: { classroom: TeacherClassroomOverview }) {
+function ClassroomCard({ classroom }: { classroom: TeacherSectionOverview }) {
   return (
     <Link
-      to={`/teacher/classrooms/${classroom.classroom_id}`}
+      to={`/teacher/sections/${classroom.section_id}`}
       className="group flex flex-col gap-3 rounded-xl border bg-white p-5 shadow-sm transition-colors hover:border-emerald-300"
     >
       <div className="flex items-start justify-between">

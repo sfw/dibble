@@ -16,6 +16,9 @@ from dibble.services.auth import (
 )
 from dibble.services.admin_config import AdminConfigService
 from dibble.services.admin_academic_catalog import AdminAcademicCatalogService
+from dibble.services.admin_section_membership_service import (
+    AdminSectionMembershipService,
+)
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.content_workflow import ContentWorkflowService
 from dibble.services.protocols import ClassroomStore, CourseStore, UserStore
@@ -57,7 +60,7 @@ from dibble.services.setup_model_catalog import SetupModelCatalogService
 from dibble.services.socratic_assessment import SocraticAssessmentService
 from dibble.services.socratic_profile_update import SocraticProfileUpdater
 from dibble.services.state_inference import LearnerStateInferenceService
-from dibble.services.teacher_classroom_service import TeacherClassroomService
+from dibble.services.teacher_classroom_service import TeacherSectionService
 from dibble.services.teacher_intervention_actions import (
     TeacherInterventionActionService,
 )
@@ -133,7 +136,7 @@ class ApiServices(Protocol):
     learner_progression_service: LearnerProgressionService
     learner_summary_service: LearnerSummaryService
     learner_workspace_service: LearnerWorkspaceService
-    teacher_classroom_service: TeacherClassroomService
+    teacher_section_service: TeacherSectionService
     teacher_intervention_action_service: TeacherInterventionActionService
     mastery_snapshot_service: MasterySnapshotService
     generation_mode_calibrator: GenerationModeCalibrator
@@ -143,6 +146,7 @@ class ApiServices(Protocol):
     user_store: UserStore
     admin_config_service: AdminConfigService
     admin_academic_catalog_service: AdminAcademicCatalogService
+    admin_section_membership_service: AdminSectionMembershipService
     setup_config_service: SetupConfigService
     setup_model_catalog_service: SetupModelCatalogService
 
