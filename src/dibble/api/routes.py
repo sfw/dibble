@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from dibble.api.admin_routes import build_admin_router
 from dibble.api.assessment_routes import build_assessment_router
 from dibble.api.assignment_routes import build_assignment_router
 from dibble.api.auth_routes import build_auth_router
@@ -25,6 +26,7 @@ def build_router(services: ApiServices) -> APIRouter:
         return {"status": "ok", "configured": setup_status.configured}
 
     router.include_router(build_assignment_router(context))
+    router.include_router(build_admin_router(context))
     router.include_router(build_auth_router(context))
     router.include_router(build_learner_router(context))
     router.include_router(build_curriculum_router(context))

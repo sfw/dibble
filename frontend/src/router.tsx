@@ -26,7 +26,8 @@ import { TeacherAssignments } from './views/teacher/Assignments'
 import { Reports } from './views/teacher/Reports'
 
 // Staff views
-import { StaffWorkbench } from './views/staff/StaffWorkbench'
+import { StaffDashboard } from './views/staff/StaffDashboard'
+import { SystemConfig } from './views/staff/SystemConfig'
 import { UserManagement } from './views/staff/UserManagement'
 
 export const router = createBrowserRouter([
@@ -110,8 +111,23 @@ export const router = createBrowserRouter([
       </SetupGuard>
     ),
     children: [
-      { index: true, element: <StaffWorkbench /> },
-      { path: 'users', element: <UserManagement /> },
+      { index: true, element: <StaffDashboard /> },
+      {
+        path: 'config',
+        element: (
+          <AuthGuard allowedRoles={['admin']}>
+            <SystemConfig />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: 'users',
+        element: (
+          <AuthGuard allowedRoles={['admin']}>
+            <UserManagement />
+          </AuthGuard>
+        ),
+      },
     ],
   },
 
