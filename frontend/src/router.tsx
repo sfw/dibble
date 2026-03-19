@@ -4,6 +4,7 @@ import { LearnerShell } from './shells/LearnerShell'
 import { TeacherShell } from './shells/TeacherShell'
 import { StaffShell } from './shells/StaffShell'
 import { AuthGuard } from './components/shell/AuthGuard'
+import { SetupGuard } from './components/shell/SetupGuard'
 import { Login } from './views/Login'
 import { Setup } from './views/Setup'
 
@@ -31,26 +32,40 @@ import { UserManagement } from './views/staff/UserManagement'
 export const router = createBrowserRouter([
   {
     path: '/',
-    element: <RoleSwitcher />,
+    element: (
+      <SetupGuard mode="configured">
+        <RoleSwitcher />
+      </SetupGuard>
+    ),
   },
 
   {
     path: '/login',
-    element: <Login />,
+    element: (
+      <SetupGuard mode="configured">
+        <Login />
+      </SetupGuard>
+    ),
   },
 
   {
     path: '/setup',
-    element: <Setup />,
+    element: (
+      <SetupGuard mode="unconfigured">
+        <Setup />
+      </SetupGuard>
+    ),
   },
 
   // Learner shell — requires learner or higher role
   {
     path: '/learn',
     element: (
-      <AuthGuard allowedRoles={['learner', 'editor', 'admin']}>
-        <LearnerShell />
-      </AuthGuard>
+      <SetupGuard mode="configured">
+        <AuthGuard allowedRoles={['learner', 'editor', 'admin']}>
+          <LearnerShell />
+        </AuthGuard>
+      </SetupGuard>
     ),
     children: [
       { index: true, element: <LearnerHome /> },
@@ -67,9 +82,11 @@ export const router = createBrowserRouter([
   {
     path: '/teacher',
     element: (
-      <AuthGuard allowedRoles={['teacher', 'editor', 'admin']}>
-        <TeacherShell />
-      </AuthGuard>
+      <SetupGuard mode="configured">
+        <AuthGuard allowedRoles={['teacher', 'editor', 'admin']}>
+          <TeacherShell />
+        </AuthGuard>
+      </SetupGuard>
     ),
     children: [
       { index: true, element: <Dashboard /> },
@@ -86,9 +103,11 @@ export const router = createBrowserRouter([
   {
     path: '/staff',
     element: (
-      <AuthGuard allowedRoles={['admin', 'editor', 'viewer']}>
-        <StaffShell />
-      </AuthGuard>
+      <SetupGuard mode="configured">
+        <AuthGuard allowedRoles={['admin', 'editor', 'viewer']}>
+          <StaffShell />
+        </AuthGuard>
+      </SetupGuard>
     ),
     children: [
       { index: true, element: <StaffWorkbench /> },
