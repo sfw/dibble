@@ -210,6 +210,36 @@ export interface Strand {
   updated_at: string
 }
 
+export interface Outcome {
+  outcome_id: string
+  title: string
+  strand_id: string
+  grade_level: string
+  subject: string
+  description: string
+  knowledge_component_ids: string[]
+  tags: string[]
+  sort_order: number
+  updated_at: string
+}
+
+export interface KnowledgeComponent {
+  kc_id: string
+  name: string
+  outcome_id: string
+  grade_level: string
+  subject: string
+  taxonomy_cluster_id?: string | null
+  concept_family?: string | null
+  prerequisite_kc_ids: string[]
+  nearby_kc_ids: string[]
+  difficulty: number
+  estimated_time_minutes: number
+  tags: string[]
+  common_misconceptions: string[]
+  updated_at: string
+}
+
 export interface ClassificationReliabilitySummary {
   classification: string
   evaluated_count: number
