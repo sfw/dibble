@@ -38,7 +38,7 @@ class AdminSectionMembershipService:
         if self.classroom_store.get(section_id) is None:
             return None
         return AdminSectionMembershipSummary(
-            classroom_id=section_id,
+            section_id=section_id,
             teachers=self._membership_users(
                 section_id, role=ClassroomMembershipRole.teacher
             ),

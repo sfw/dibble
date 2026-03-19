@@ -9,13 +9,13 @@ from dibble.models.admin_section_membership import (
     AdminSectionMembershipSummary,
     AdminSectionMembershipUpdateRequest,
 )
-from dibble.models.classroom import ClassroomUpsert
 from dibble.models.admin import (
     SystemConfigResponse,
     SystemConfigUpdateRequest,
     SystemConfigUpdateResponse,
 )
 from dibble.models.course import CourseUpsert
+from dibble.models.section import SectionUpsert
 from dibble.services.admin_section_membership_service import (
     SectionMembershipRoleMismatchError,
 )
@@ -67,12 +67,12 @@ def build_admin_router(context: ApiContext) -> APIRouter:
 
     @router.put("/sections/{section_id}", response_model=AdminSectionSummary)
     def upsert_section(
-        section_id: str, payload: ClassroomUpsert
+        section_id: str, payload: SectionUpsert
     ) -> AdminSectionSummary:
-        if payload.classroom_id != section_id:
+        if payload.section_id != section_id:
             raise api_error(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Path section_id must match the section payload classroom_id.",
+                detail="Path section_id must match the section payload section_id.",
                 code="section_id_mismatch",
             )
         try:

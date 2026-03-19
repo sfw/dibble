@@ -89,7 +89,7 @@ describe('AcademicCatalog', () => {
     ])
     mockedListAdminSections.mockResolvedValue([
       {
-        classroom_id: 'SEC-5A',
+        section_id: 'SEC-5A',
         course_id: 'MATH-5',
         title: 'Grade 5A',
         grade_level: '5',
@@ -140,12 +140,12 @@ describe('AcademicCatalog', () => {
       },
     ])
     mockedGetAdminSectionMemberships.mockResolvedValue({
-      classroom_id: 'SEC-5A',
+      section_id: 'SEC-5A',
       teachers: [{ user_id: 'teacher-1', display_name: 'Ms. Rivera' }],
       learners: [{ user_id: 'learner-1', display_name: 'Ava Learner' }],
     })
     mockedUpdateAdminSectionMemberships.mockResolvedValue({
-      classroom_id: 'SEC-5A',
+      section_id: 'SEC-5A',
       teachers: [],
       learners: [],
     })
@@ -201,7 +201,7 @@ describe('AcademicCatalog', () => {
 
   it('creates a new section', async () => {
     mockedUpsertAdminSection.mockResolvedValue({
-      classroom_id: 'SEC-6B',
+      section_id: 'SEC-6B',
       course_id: 'MATH-5',
       title: 'Grade 6B',
       grade_level: '6',
@@ -213,7 +213,7 @@ describe('AcademicCatalog', () => {
       learner_count: 0,
     })
     mockedUpdateAdminSectionMemberships.mockResolvedValue({
-      classroom_id: 'SEC-6B',
+      section_id: 'SEC-6B',
       teachers: [],
       learners: [],
     })
@@ -235,7 +235,7 @@ describe('AcademicCatalog', () => {
         expect.objectContaining({ baseUrl: 'http://localhost:8000' }),
         'SEC-6B',
         expect.objectContaining({
-          classroom_id: 'SEC-6B',
+          section_id: 'SEC-6B',
           course_id: 'MATH-5',
           title: 'Grade 6B',
           grade_level: '6',
@@ -255,7 +255,7 @@ describe('AcademicCatalog', () => {
 
   it('loads and saves section memberships while editing', async () => {
     mockedUpsertAdminSection.mockResolvedValue({
-      classroom_id: 'SEC-5A',
+      section_id: 'SEC-5A',
       course_id: 'MATH-5',
       title: 'Grade 5A',
       grade_level: '5',
@@ -267,7 +267,7 @@ describe('AcademicCatalog', () => {
       learner_count: 1,
     })
     mockedUpdateAdminSectionMemberships.mockResolvedValue({
-      classroom_id: 'SEC-5A',
+      section_id: 'SEC-5A',
       teachers: [{ user_id: 'teacher-2', display_name: 'Mr. Song' }],
       learners: [{ user_id: 'learner-2', display_name: 'Mina' }],
     })

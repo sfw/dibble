@@ -48,7 +48,7 @@ function buildCourseDraft(course?: AdminCourseSummary): CourseUpsert {
 
 function buildSectionDraft(section?: AdminSectionSummary): SectionUpsert {
   return {
-    classroom_id: section?.classroom_id ?? '',
+    section_id: section?.section_id ?? '',
     course_id: section?.course_id ?? '',
     title: section?.title ?? '',
     grade_level: section?.grade_level ?? '',
@@ -175,13 +175,15 @@ export function AcademicCatalog() {
     setError('')
     setSuccessMessage('')
     try {
-      await upsertAdminSection(apiConfig, sectionDraft.classroom_id, {
-        ...sectionDraft,
+      await upsertAdminSection(apiConfig, sectionDraft.section_id, {
+        section_id: sectionDraft.section_id,
+        course_id: sectionDraft.course_id,
+        title: sectionDraft.title,
         grade_level: sectionDraft.grade_level?.trim() || undefined,
         subject: sectionDraft.subject?.trim() || undefined,
         tags: parseTags(sectionTagsInput),
       })
-      await updateAdminSectionMemberships(apiConfig, sectionDraft.classroom_id, {
+      await updateAdminSectionMemberships(apiConfig, sectionDraft.section_id, {
         teacher_user_ids: sectionTeacherIds,
         learner_user_ids: sectionLearnerIds,
       })
@@ -208,7 +210,7 @@ export function AcademicCatalog() {
   }
 
   async function startSectionEdit(section: AdminSectionSummary) {
-    setEditingSectionId(section.classroom_id)
+    setEditingSectionId(section.section_id)
     setSectionDraft(buildSectionDraft(section))
     setSectionTagsInput(formatTags(section.tags))
     setSectionTeacherIds([])
@@ -218,7 +220,7 @@ export function AcademicCatalog() {
     setMembershipLoading(true)
     setError('')
     try {
-      const memberships = await getAdminSectionMemberships(apiConfig, section.classroom_id)
+      const memberships = await getAdminSectionMemberships(apiConfig, section.section_id)
       setSectionTeacherIds(memberships.teachers.map((teacher) => teacher.user_id))
       setSectionLearnerIds(memberships.learners.map((learner) => learner.user_id))
     } catch (err) {
@@ -395,8 +397,8 @@ export function AcademicCatalog() {
                 <Label htmlFor="section-id">Section ID</Label>
                 <Input
                   id="section-id"
-                  value={sectionDraft.classroom_id}
-                  onChange={(event) => setSectionDraft((current) => ({ ...current, classroom_id: event.target.value }))}
+                  value={sectionDraft.section_id}
+                  onChange={(event) => setSectionDraft((current) => ({ ...current, section_id: event.target.value }))}
                   placeholder="SEC-5A"
                 />
               </div>
@@ -526,7 +528,7 @@ export function AcademicCatalog() {
             <div className="flex gap-2">
               <Button
                 onClick={() => void handleSaveSection()}
-                disabled={saving || membershipLoading || !sectionDraft.classroom_id || !sectionDraft.course_id || !sectionDraft.title}
+                disabled={saving || membershipLoading || !sectionDraft.section_id || !sectionDraft.course_id || !sectionDraft.title}
               >
                 {editingSectionId ? <Save className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                 {editingSectionId ? 'Save section' : 'Create section'}
@@ -559,10 +561,10 @@ export function AcademicCatalog() {
                 </thead>
                 <tbody>
                   {sections.map((section) => (
-                    <tr key={section.classroom_id} className="border-t">
+                    <tr key={section.section_id} className="border-t">
                       <td className="px-4 py-3">
                         <div className="font-medium text-slate-900">{section.title}</div>
-                        <div className="text-xs text-slate-500">{section.classroom_id}</div>
+                        <div className="text-xs text-slate-500">{section.section_id}</div>
                       </td>
                       <td className="px-4 py-3 text-slate-600">
                         <div>{section.course_title ?? section.course_id}</div>
