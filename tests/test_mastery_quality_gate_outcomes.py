@@ -53,7 +53,7 @@ NOW = datetime.now(timezone.utc)
 
 
 def _gate_hold_event(
-    resource_id: str,
+    outcome_id: str,
     gate_signal: str = "support_dependent",
     mastery_ratio: float = 0.75,
     days_ago: float = 7.0,
@@ -61,11 +61,11 @@ def _gate_hold_event(
 ) -> _AuditEvent:
     return _AuditEvent(
         event_id=event_id or str(uuid4()),
-        event_type="curriculum.resource.transition",
+        event_type="curriculum.outcome.transition",
         status="ready",
         student_id=STUDENT,
         payload={
-            "resource_id": resource_id,
+            "outcome_id": outcome_id,
             "from_state": "ready",
             "to_state": "ready",
             "from_mastery_quality": None,
@@ -77,13 +77,13 @@ def _gate_hold_event(
     )
 
 
-def _gate_release_event(resource_id: str, days_ago: float = 1.0) -> _AuditEvent:
+def _gate_release_event(outcome_id: str, days_ago: float = 1.0) -> _AuditEvent:
     return _AuditEvent(
-        event_type="curriculum.resource.transition",
+        event_type="curriculum.outcome.transition",
         status="mastered",
         student_id=STUDENT,
         payload={
-            "resource_id": resource_id,
+            "outcome_id": outcome_id,
             "from_state": "ready",
             "to_state": "mastered",
             "quality_gate_involved": True,
@@ -105,11 +105,11 @@ def test_positive_outcome_when_gate_released():
 
     outcomes = tracker.evaluate_gate_outcomes(
         student_id=STUDENT,
-        current_resource_mastery={"R1": 0.88},
+        current_outcome_mastery={"R1": 0.88},
     )
     assert len(outcomes) == 1
     assert outcomes[0].outcome == "positive"
-    assert outcomes[0].resource_id == "R1"
+    assert outcomes[0].outcome_id == "R1"
     assert "mastery" in outcomes[0].rationale.lower()
 
 
@@ -124,7 +124,7 @@ def test_positive_outcome_when_mastery_improves():
 
     outcomes = tracker.evaluate_gate_outcomes(
         student_id=STUDENT,
-        current_resource_mastery={"R1": 0.82},
+        current_outcome_mastery={"R1": 0.82},
     )
     assert len(outcomes) == 1
     assert outcomes[0].outcome == "positive"
@@ -141,7 +141,7 @@ def test_negative_outcome_when_stalled():
 
     outcomes = tracker.evaluate_gate_outcomes(
         student_id=STUDENT,
-        current_resource_mastery={"R1": 0.76},
+        current_outcome_mastery={"R1": 0.76},
     )
     assert len(outcomes) == 1
     assert outcomes[0].outcome == "negative"
@@ -159,7 +159,7 @@ def test_inconclusive_when_too_early():
 
     outcomes = tracker.evaluate_gate_outcomes(
         student_id=STUDENT,
-        current_resource_mastery={"R1": 0.75},
+        current_outcome_mastery={"R1": 0.75},
     )
     assert len(outcomes) == 0  # filtered out by min days
 
@@ -175,7 +175,7 @@ def test_inconclusive_when_moderate_wait_no_improvement():
 
     outcomes = tracker.evaluate_gate_outcomes(
         student_id=STUDENT,
-        current_resource_mastery={"R1": 0.76},
+        current_outcome_mastery={"R1": 0.76},
     )
     assert len(outcomes) == 1
     assert outcomes[0].outcome == "inconclusive"
@@ -199,7 +199,7 @@ def test_already_evaluated_not_repeated():
 
     outcomes = tracker.evaluate_gate_outcomes(
         student_id=STUDENT,
-        current_resource_mastery={"R1": 0.88},
+        current_outcome_mastery={"R1": 0.88},
     )
     assert len(outcomes) == 0
 
@@ -215,7 +215,7 @@ def test_recording_persists_events():
 
     outcomes = tracker.evaluate_gate_outcomes(
         student_id=STUDENT,
-        current_resource_mastery={"R1": 0.82},
+        current_outcome_mastery={"R1": 0.82},
     )
     tracker.record_outcomes(outcomes)
 
@@ -226,7 +226,7 @@ def test_recording_persists_events():
     ]
     assert len(events) == 1
     assert events[0].payload["outcome"] == "positive"
-    assert events[0].payload["resource_id"] == "R1"
+    assert events[0].payload["outcome_id"] == "R1"
 
 
 def test_fragile_gate_signal_tracked():
@@ -242,7 +242,7 @@ def test_fragile_gate_signal_tracked():
 
     outcomes = tracker.evaluate_gate_outcomes(
         student_id=STUDENT,
-        current_resource_mastery={"R1": 0.80},
+        current_outcome_mastery={"R1": 0.80},
     )
     assert len(outcomes) == 1
     assert outcomes[0].gate_signal == "fragile"

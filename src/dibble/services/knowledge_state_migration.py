@@ -58,7 +58,7 @@ class KnowledgeStateMigrator:
         propagated_kc_updates: dict[str, float] = {}
         affected_lo_ids = {lo_id for lo_id in direct_lo_updates if lo_id is not None}
         affected_lo_ids.update(
-            component.parent_lo_id
+            component.outcome_id
             for kc_id, component in component_by_id.items()
             if kc_id in direct_kc_updates
         )
@@ -101,7 +101,7 @@ class KnowledgeStateMigrator:
 
         affected_lo_ids = {lo_id for lo_id in direct_lo_updates if lo_id is not None}
         affected_lo_ids.update(
-            component.parent_lo_id
+            component.outcome_id
             for component in all_components
             if component.kc_id
             in {*direct_kc_updates.keys(), *propagated_kc_updates.keys()}
@@ -195,13 +195,13 @@ class KnowledgeStateMigrator:
             lo_value = lo_mastery.get(lo_id)
             if lo_value is None:
                 continue
-            for component in graph.components_for_lo(lo_id):
+            for component in graph.components_for_outcome(lo_id):
                 if component.kc_id in direct_kc_updates:
                     continue
                 prior = kc_mastery.get(component.kc_id)
-                estimated = graph.estimate_kc_from_lo(
+                estimated = graph.estimate_kc_from_outcome(
                     component=component,
-                    lo_mastery=lo_value,
+                    outcome_mastery=lo_value,
                     kc_mastery=kc_mastery,
                 )
                 if prior is None:
@@ -227,8 +227,8 @@ class KnowledgeStateMigrator:
     ) -> dict[str, float]:
         propagated_lo_updates: dict[str, float] = {}
         for lo_id in affected_lo_ids:
-            updated_value = graph.weighted_lo_mastery(
-                lo_id=lo_id, kc_mastery=kc_mastery
+            updated_value = graph.weighted_outcome_mastery(
+                outcome_id=lo_id, kc_mastery=kc_mastery
             )
             if updated_value is None:
                 continue

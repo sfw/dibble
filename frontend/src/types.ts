@@ -22,7 +22,7 @@ export interface LearnerContinueAction {
   display_label?: string | null
   method?: ContinueActionMethod | null
   endpoint?: string | null
-  resource_id?: string | null
+  outcome_id?: string | null
   generation_id?: string | null
   learning_session_id?: string | null
   content_type?: string | null
@@ -164,11 +164,10 @@ export interface LearnerFlowSummary {
   updated_at?: string | null
 }
 
-export interface CurriculumResourceProgressSummary {
-  resource_id: string
+export interface OutcomeProgressSummary {
+  outcome_id: string
   title: string
   state: string
-  learning_objective_ids: string[]
   knowledge_component_ids: string[]
   blocked_prerequisite_kc_ids: string[]
   mastery_ratio: number
@@ -186,18 +185,29 @@ export interface LearnerCurriculumProgressionSummary {
   stage_display_label?: string | null
   progression_action: string
   active_target_kc_ids: string[]
-  resource_count: number
-  mastered_resource_count: number
-  ready_resource_count: number
-  blocked_resource_count: number
-  active_resource_count: number
-  mastered_resource_ratio: number
-  current_resource?: CurriculumResourceProgressSummary | null
-  next_resource?: CurriculumResourceProgressSummary | null
-  blocked_resources: CurriculumResourceProgressSummary[]
-  ready_resources: CurriculumResourceProgressSummary[]
+  outcome_count: number
+  mastered_outcome_count: number
+  ready_outcome_count: number
+  blocked_outcome_count: number
+  active_outcome_count: number
+  mastered_outcome_ratio: number
+  current_outcome?: OutcomeProgressSummary | null
+  next_outcome?: OutcomeProgressSummary | null
+  blocked_outcomes: OutcomeProgressSummary[]
+  ready_outcomes: OutcomeProgressSummary[]
   rationale?: string | null
   updated_at?: string | null
+}
+
+export interface Strand {
+  strand_id: string
+  course_id: string
+  parent_strand_id?: string | null
+  title: string
+  description: string
+  sort_order: number
+  tags: string[]
+  updated_at: string
 }
 
 export interface ClassificationReliabilitySummary {

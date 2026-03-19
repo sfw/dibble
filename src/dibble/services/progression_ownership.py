@@ -329,9 +329,9 @@ class ProgressionOwnershipService:
         lo_ids: list[str] = []
         for kc_id in target_kc_ids:
             component = self.knowledge_component_store.get(kc_id)
-            if component is None or component.parent_lo_id in lo_ids:
+            if component is None or component.outcome_id in lo_ids:
                 continue
-            lo_ids.append(component.parent_lo_id)
+            lo_ids.append(component.outcome_id)
         return lo_ids
 
     def _evidence_decision(

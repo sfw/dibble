@@ -381,7 +381,7 @@ class RemediationWorkflowCoordinator:
                 else None
             )
             return LearnerContinueAction.generate_follow_up(
-                resource_id=session.session_id,
+                outcome_id=session.session_id,
                 generation_id=latest_generation_id,
                 learning_session_id=session.session_id,
                 content_type=RequestedContentType.practice_problem.value,
@@ -399,7 +399,7 @@ class RemediationWorkflowCoordinator:
             )
         return LearnerContinueAction.advance_remediation(
             endpoint=f"/api/remedial/sessions/{session.session_id}/advance",
-            resource_id=session.session_id,
+            outcome_id=session.session_id,
             content_type=next_step.content_type,
             target_stage=next_step.target_stage,
             target_kc_ids=list(next_step.target_kc_ids),

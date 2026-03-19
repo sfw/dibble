@@ -76,7 +76,7 @@ function sortLearners(learners: TeacherLearnerCard[], field: SortField, dir: Sor
         cmp = stageOrder.indexOf(a.curriculum_progression.current_stage) - stageOrder.indexOf(b.curriculum_progression.current_stage)
         break
       case 'mastery':
-        cmp = a.curriculum_progression.mastered_resource_ratio - b.curriculum_progression.mastered_resource_ratio
+        cmp = a.curriculum_progression.mastered_outcome_ratio - b.curriculum_progression.mastered_outcome_ratio
         break
       case 'engagement':
         cmp = (signalWeight[a.engagement] ?? 0) - (signalWeight[b.engagement] ?? 0)
@@ -133,7 +133,7 @@ export function Reports() {
 
   // Class average mastery
   const classAverageMastery = learners.length > 0
-    ? learners.reduce((sum, l) => sum + l.curriculum_progression.mastered_resource_ratio, 0) / learners.length
+    ? learners.reduce((sum, l) => sum + l.curriculum_progression.mastered_outcome_ratio, 0) / learners.length
     : 0
 
   // Sorting state for learner table
@@ -265,7 +265,7 @@ export function Reports() {
             <MasteryDistribution learners={learners} />
             <EngagementOverview learners={learners} />
             <ActivitySummary learners={learners} />
-            <ResourceMastery learners={learners} />
+            <OutcomeMastery learners={learners} />
             <AttentionSummary learners={learners} />
           </div>
 
@@ -489,8 +489,8 @@ function LearnerTrendStrip({
 
 function ClassMasteryBanner({ average, learners }: { average: number; learners: TeacherLearnerCard[] }) {
   const avgPercent = Math.round(average * 100)
-  const atRisk = learners.filter((l) => l.curriculum_progression.mastered_resource_ratio < 0.25).length
-  const onTrack = learners.filter((l) => l.curriculum_progression.mastered_resource_ratio >= 0.5).length
+  const atRisk = learners.filter((l) => l.curriculum_progression.mastered_outcome_ratio < 0.25).length
+  const onTrack = learners.filter((l) => l.curriculum_progression.mastered_outcome_ratio >= 0.5).length
 
   return (
     <div className="flex items-center gap-6 rounded-xl border bg-white p-5 shadow-sm">
@@ -539,7 +539,7 @@ function LearnerMasteryStrip({ learners }: { learners: TeacherLearnerCard[] }) {
   if (learners.length === 0) return null
 
   const sorted = [...learners].sort(
-    (a, b) => a.curriculum_progression.mastered_resource_ratio - b.curriculum_progression.mastered_resource_ratio,
+    (a, b) => a.curriculum_progression.mastered_outcome_ratio - b.curriculum_progression.mastered_outcome_ratio,
   )
 
   return (
@@ -551,7 +551,7 @@ function LearnerMasteryStrip({ learners }: { learners: TeacherLearnerCard[] }) {
       </div>
       <div className="flex gap-0.5" role="list" aria-label="Per-learner mastery">
         {sorted.map((learner) => {
-          const ratio = learner.curriculum_progression.mastered_resource_ratio
+          const ratio = learner.curriculum_progression.mastered_outcome_ratio
           const pct = Math.round(ratio * 100)
           return (
             <Link
@@ -597,7 +597,7 @@ function MasteryDistribution({ learners }: { learners: TeacherLearnerCard[] }) {
   const bucketCounts = masteryBuckets.map((bucket) => ({
     ...bucket,
     count: learners.filter((l) => {
-      const r = l.curriculum_progression.mastered_resource_ratio
+      const r = l.curriculum_progression.mastered_outcome_ratio
       return r >= bucket.min && r < bucket.max
     }).length,
   }))
@@ -632,53 +632,53 @@ function MasteryDistribution({ learners }: { learners: TeacherLearnerCard[] }) {
 }
 
 // ---------------------------------------------------------------------------
-// Resource mastery breakdown
+// Outcome mastery breakdown
 // ---------------------------------------------------------------------------
 
-interface ResourceMasteryRow {
+interface OutcomeMasteryRow {
   title: string
-  resourceId: string
+  outcomeId: string
   avgMastery: number
   learnerCount: number
   masteredCount: number
 }
 
-function ResourceMastery({ learners }: { learners: TeacherLearnerCard[] }) {
-  const resources = useMemo(() => {
-    // Collect all resources across learners and aggregate mastery
-    const resourceMap = new Map<string, { title: string; masterySum: number; count: number; masteredCount: number }>()
+function OutcomeMastery({ learners }: { learners: TeacherLearnerCard[] }) {
+  const outcomes = useMemo(() => {
+    // Collect all outcomes across learners and aggregate mastery
+    const outcomeMap = new Map<string, { title: string; masterySum: number; count: number; masteredCount: number }>()
 
     for (const learner of learners) {
       const prog = learner.curriculum_progression
-      const allResources = [
-        prog.current_resource,
-        prog.next_resource,
-        ...prog.blocked_resources,
-        ...prog.ready_resources,
+      const allOutcomes = [
+        prog.current_outcome,
+        prog.next_outcome,
+        ...prog.blocked_outcomes,
+        ...prog.ready_outcomes,
       ].filter(Boolean)
 
-      for (const resource of allResources) {
-        if (!resource) continue
-        const existing = resourceMap.get(resource.resource_id)
+      for (const outcome of allOutcomes) {
+        if (!outcome) continue
+        const existing = outcomeMap.get(outcome.outcome_id)
         if (existing) {
-          existing.masterySum += resource.mastery_ratio
+          existing.masterySum += outcome.mastery_ratio
           existing.count += 1
-          if (resource.mastery_ratio >= 0.8) existing.masteredCount += 1
+          if (outcome.mastery_ratio >= 0.8) existing.masteredCount += 1
         } else {
-          resourceMap.set(resource.resource_id, {
-            title: resource.title,
-            masterySum: resource.mastery_ratio,
+          outcomeMap.set(outcome.outcome_id, {
+            title: outcome.title,
+            masterySum: outcome.mastery_ratio,
             count: 1,
-            masteredCount: resource.mastery_ratio >= 0.8 ? 1 : 0,
+            masteredCount: outcome.mastery_ratio >= 0.8 ? 1 : 0,
           })
         }
       }
     }
 
-    const rows: ResourceMasteryRow[] = []
-    for (const [resourceId, data] of resourceMap) {
+    const rows: OutcomeMasteryRow[] = []
+    for (const [outcomeId, data] of outcomeMap) {
       rows.push({
-        resourceId,
+        outcomeId,
         title: data.title,
         avgMastery: data.masterySum / data.count,
         learnerCount: data.count,
@@ -690,23 +690,23 @@ function ResourceMastery({ learners }: { learners: TeacherLearnerCard[] }) {
     return rows.sort((a, b) => a.avgMastery - b.avgMastery)
   }, [learners])
 
-  if (resources.length === 0) return null
+  if (outcomes.length === 0) return null
 
   return (
     <section className="rounded-xl border bg-white p-6 shadow-sm lg:col-span-2">
       <div className="flex items-center gap-3 mb-4">
         <BookOpen className="h-5 w-5 text-muted-foreground" />
-        <h3 className="font-semibold">Resource mastery</h3>
+        <h3 className="font-semibold">Outcome mastery</h3>
         <span className="text-xs text-muted-foreground ml-auto">Weakest first</span>
       </div>
       <div className="space-y-2">
-        {resources.slice(0, 8).map((resource) => {
-          const pct = Math.round(resource.avgMastery * 100)
+        {outcomes.slice(0, 8).map((outcome) => {
+          const pct = Math.round(outcome.avgMastery * 100)
           const barColor = pct < 25 ? 'bg-red-400' : pct < 50 ? 'bg-amber-400' : pct < 75 ? 'bg-blue-400' : 'bg-emerald-400'
           return (
-            <div key={resource.resourceId} className="flex items-center gap-3">
-              <span className="w-48 truncate text-sm font-medium" title={resource.title}>
-                {resource.title}
+            <div key={outcome.outcomeId} className="flex items-center gap-3">
+              <span className="w-48 truncate text-sm font-medium" title={outcome.title}>
+                {outcome.title}
               </span>
               <div className="flex-1">
                 <div className="h-2 overflow-hidden rounded-full bg-slate-100">
@@ -718,7 +718,7 @@ function ResourceMastery({ learners }: { learners: TeacherLearnerCard[] }) {
               </div>
               <span className="w-12 text-right text-sm font-medium">{pct}%</span>
               <span className="w-20 text-right text-xs text-muted-foreground">
-                {resource.masteredCount}/{resource.learnerCount} mastered
+                {outcome.masteredCount}/{outcome.learnerCount} mastered
               </span>
             </div>
           )
@@ -825,10 +825,10 @@ function LearnerRow({ learner, delta }: { learner: TeacherLearnerCard; delta?: n
           <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100">
             <div
               className="h-full rounded-full bg-blue-400 transition-all"
-              style={{ width: `${Math.round(prog.mastered_resource_ratio * 100)}%` }}
+              style={{ width: `${Math.round(prog.mastered_outcome_ratio * 100)}%` }}
             />
           </div>
-          <span className="text-xs text-muted-foreground">{formatPercent(prog.mastered_resource_ratio)}</span>
+          <span className="text-xs text-muted-foreground">{formatPercent(prog.mastered_outcome_ratio)}</span>
           {delta != null && delta !== 0 && (
             <span className={`text-xs font-medium ${delta > 0 ? 'text-emerald-600' : 'text-red-600'}`} data-testid="mastery-delta">
               {delta > 0 ? '+' : ''}{Math.round(delta * 100)}%

@@ -179,11 +179,10 @@ class AdaptiveRouteDecision(BaseModel):
 
 
 class GroundingReference(BaseModel):
-    resource_id: str
+    outcome_id: str
     title: str
     grade_level: str
     subject: str | None = None
-    source_type: str | None = None
     score: float = Field(ge=0.0)
     matched_terms: list[str] = Field(default_factory=list)
     excerpt: str | None = None

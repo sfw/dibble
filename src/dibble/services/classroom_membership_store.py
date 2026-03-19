@@ -13,9 +13,7 @@ class SQLiteClassroomMembershipStore:
     def __init__(self, database_path: str) -> None:
         self.database_path = database_path
 
-    def upsert(
-        self, membership: ClassroomMembershipUpsert
-    ) -> ClassroomMembership:
+    def upsert(self, membership: ClassroomMembershipUpsert) -> ClassroomMembership:
         persisted = ClassroomMembership(**membership.model_dump())
         with sqlite3.connect(self.database_path) as connection:
             connection.execute(

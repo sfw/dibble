@@ -55,7 +55,7 @@ describe('Progress', () => {
 
   it('renders current focus section', () => {
     renderProgress()
-    // "Current focus" appears both as a standalone section and in the all-resources group
+    // "Current focus" appears both as a standalone section and in the all-outcomes group
     expect(screen.getAllByText('Current focus').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('Equivalent Fraction Practice').length).toBeGreaterThanOrEqual(1)
   })
@@ -74,26 +74,26 @@ describe('Progress', () => {
   it('renders what to practice next', () => {
     renderProgress()
     expect(screen.getByText('What to practice next')).toBeInTheDocument()
-    // Resource appears in both "what to practice" and "all resources"
+    // Outcome appears in both "what to practice" and "all outcomes"
     expect(screen.getAllByText('Compare Fraction Families').length).toBeGreaterThanOrEqual(1)
   })
 
-  it('renders all resources section', () => {
+  it('renders all outcomes section', () => {
     renderProgress()
-    expect(screen.getByText('All resources')).toBeInTheDocument()
+    expect(screen.getByText('All outcomes')).toBeInTheDocument()
     expect(screen.getByText('3 total')).toBeInTheDocument()
   })
 
-  it('shows mastered resource count in all resources', () => {
+  it('shows mastered outcome count in all outcomes', () => {
     renderProgress()
-    expect(screen.getByText('1 resource mastered')).toBeInTheDocument()
+    expect(screen.getByText('1 outcome mastered')).toBeInTheDocument()
   })
 
-  it('shows blocked resources with rationale', () => {
+  it('shows blocked outcomes with rationale', () => {
     renderProgress()
-    // Blocked resource appears in the all-resources section
+    // Blocked outcome appears in the all-outcomes section
     expect(screen.getAllByText('Fraction Word Problems').length).toBeGreaterThanOrEqual(1)
-    // "Blocked" appears in the stat box and in the resource group header
+    // "Blocked" appears in the stat box and in the outcome group header
     expect(screen.getAllByText('Blocked').length).toBeGreaterThanOrEqual(1)
   })
 
@@ -119,12 +119,11 @@ describe('Progress', () => {
     renderProgress({
       progression: {
         ...demoCurriculumProgression,
-        ready_resources: [
+        ready_outcomes: [
           {
-            resource_id: 'R-scaffolded',
-            title: 'Scaffolded Resource',
+            outcome_id: 'R-scaffolded',
+            title: 'Scaffolded Outcome',
             state: 'ready',
-            learning_objective_ids: [],
             knowledge_component_ids: ['KC-1'],
             blocked_prerequisite_kc_ids: [],
             mastery_ratio: 0.85,
@@ -143,12 +142,11 @@ describe('Progress', () => {
     renderProgress({
       progression: {
         ...demoCurriculumProgression,
-        ready_resources: [
+        ready_outcomes: [
           {
-            resource_id: 'R-fragile',
-            title: 'Fragile Resource',
+            outcome_id: 'R-fragile',
+            title: 'Fragile Outcome',
             state: 'ready',
-            learning_objective_ids: [],
             knowledge_component_ids: ['KC-1'],
             blocked_prerequisite_kc_ids: [],
             mastery_ratio: 0.82,

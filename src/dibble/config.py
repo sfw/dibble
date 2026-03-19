@@ -228,7 +228,9 @@ def _deep_merge(base: dict[str, Any], updates: dict[str, Any]) -> dict[str, Any]
             continue
         if isinstance(value, dict):
             existing = merged.get(key)
-            merged[key] = _deep_merge(existing if isinstance(existing, dict) else {}, value)
+            merged[key] = _deep_merge(
+                existing if isinstance(existing, dict) else {}, value
+            )
             continue
         merged[key] = value
     return merged

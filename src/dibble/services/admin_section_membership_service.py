@@ -9,7 +9,11 @@ from dibble.models.admin_section_membership import (
     AdminSectionMembershipUserSummary,
 )
 from dibble.models.classroom_membership import ClassroomMembershipRole
-from dibble.services.protocols import ClassroomMembershipStore, ClassroomStore, UserStore
+from dibble.services.protocols import (
+    ClassroomMembershipStore,
+    ClassroomStore,
+    UserStore,
+)
 
 
 class SectionMembershipUserNotFoundError(LookupError):
@@ -132,7 +136,9 @@ class AdminSectionMembershipService:
         *,
         required_role: ClassroomMembershipRole,
     ) -> list[str]:
-        normalized = sorted({user_id.strip() for user_id in user_ids if user_id.strip()})
+        normalized = sorted(
+            {user_id.strip() for user_id in user_ids if user_id.strip()}
+        )
         for user_id in normalized:
             user = self.user_store.get(user_id)
             if user is None:

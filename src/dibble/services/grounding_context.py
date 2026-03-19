@@ -19,7 +19,7 @@ def normalize_grounding_references(
             continue
         normalized.append(
             GroundingReference(
-                resource_id=f"legacy-grounding-{index}",
+                outcome_id=f"legacy-grounding-{index}",
                 title=str(item),
                 grade_level="unknown",
                 score=0.0,

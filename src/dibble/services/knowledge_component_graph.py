@@ -28,7 +28,7 @@ class KnowledgeComponentGraph:
     _dependents_by_prerequisite: dict[str, list[str]] = field(
         init=False, default_factory=dict
     )
-    _components_by_lo: dict[str, list[KnowledgeComponent]] = field(
+    _components_by_outcome: dict[str, list[KnowledgeComponent]] = field(
         init=False, default_factory=dict
     )
     _components_by_family: dict[str, list[KnowledgeComponent]] = field(
@@ -43,11 +43,11 @@ class KnowledgeComponentGraph:
             component.kc_id: component for component in self.components
         }
         dependents: dict[str, list[str]] = {}
-        components_by_lo: dict[str, list[KnowledgeComponent]] = {}
+        components_by_outcome: dict[str, list[KnowledgeComponent]] = {}
         components_by_family: dict[str, list[KnowledgeComponent]] = {}
         components_by_cluster: dict[str, list[KnowledgeComponent]] = {}
         for component in self.components:
-            components_by_lo.setdefault(component.parent_lo_id, []).append(component)
+            components_by_outcome.setdefault(component.outcome_id, []).append(component)
             if component.concept_family:
                 components_by_family.setdefault(component.concept_family, []).append(
                     component
@@ -59,7 +59,7 @@ class KnowledgeComponentGraph:
             for prerequisite_kc_id in component.prerequisite_kc_ids:
                 dependents.setdefault(prerequisite_kc_id, []).append(component.kc_id)
         self._dependents_by_prerequisite = dependents
-        self._components_by_lo = components_by_lo
+        self._components_by_outcome = components_by_outcome
         self._components_by_family = components_by_family
         self._components_by_cluster = components_by_cluster
 
@@ -69,15 +69,15 @@ class KnowledgeComponentGraph:
     def dependents_for(self, kc_id: str) -> list[KnowledgeComponentRelation]:
         return self._walk_dependents(kc_id=kc_id)
 
-    def components_for_lo(self, lo_id: str) -> list[KnowledgeComponent]:
-        return list(self._components_by_lo.get(lo_id, []))
+    def components_for_outcome(self, outcome_id: str) -> list[KnowledgeComponent]:
+        return list(self._components_by_outcome.get(outcome_id, []))
 
     def sibling_relations_for(self, kc_id: str) -> list[KnowledgeComponentRelation]:
         component = self._components_by_id.get(kc_id)
         if component is None:
             return []
         siblings: list[KnowledgeComponentRelation] = []
-        for sibling in self.components_for_lo(component.parent_lo_id):
+        for sibling in self.components_for_outcome(component.outcome_id):
             if sibling.kc_id == kc_id:
                 continue
             siblings.append(
@@ -87,7 +87,7 @@ class KnowledgeComponentGraph:
                     path_weight=round(
                         self.relation_strength(source=component, target=sibling), 3
                     ),
-                    relation_kind="same_lo",
+                    relation_kind="same_outcome",
                 )
             )
         siblings.sort(
@@ -138,7 +138,7 @@ class KnowledgeComponentGraph:
                 candidates[candidate.kc_id] = relation
 
         for relation in self.sibling_relations_for(kc_id):
-            include(relation.component, relation_kind="same_lo", base_weight=0.52)
+            include(relation.component, relation_kind="same_outcome", base_weight=0.52)
 
         for neighbor_id in component.nearby_kc_ids:
             neighbor = self._components_by_id.get(neighbor_id)
@@ -220,7 +220,7 @@ class KnowledgeComponentGraph:
                 bridge_weight += 0.12
             elif relation.relation_kind == "concept_family":
                 bridge_weight += 0.08
-            elif relation.relation_kind == "same_lo":
+            elif relation.relation_kind == "same_outcome":
                 bridge_weight += 0.05
             if sibling.difficulty <= component.difficulty:
                 bridge_weight += 0.08
@@ -247,10 +247,10 @@ class KnowledgeComponentGraph:
             return candidates[:limit]
         return candidates
 
-    def weighted_lo_mastery(
-        self, *, lo_id: str, kc_mastery: dict[str, float]
+    def weighted_outcome_mastery(
+        self, *, outcome_id: str, kc_mastery: dict[str, float]
     ) -> float | None:
-        components = self.components_for_lo(lo_id)
+        components = self.components_for_outcome(outcome_id)
         if not components:
             return None
         weighted_values: list[tuple[float, float]] = []
@@ -286,7 +286,7 @@ class KnowledgeComponentGraph:
         difficulty_gap = abs(source.difficulty - target.difficulty)
         time_gap = abs(source.estimated_time_minutes - target.estimated_time_minutes)
         taxonomy_bonus = 0.0
-        if source.parent_lo_id == target.parent_lo_id:
+        if source.outcome_id == target.outcome_id:
             taxonomy_bonus += 0.08
         if source.concept_family and source.concept_family == target.concept_family:
             taxonomy_bonus += 0.07
@@ -306,11 +306,11 @@ class KnowledgeComponentGraph:
             upper=0.98,
         )
 
-    def estimate_kc_from_lo(
+    def estimate_kc_from_outcome(
         self,
         *,
         component: KnowledgeComponent,
-        lo_mastery: float,
+        outcome_mastery: float,
         kc_mastery: dict[str, float],
     ) -> float:
         prerequisite_values = [
@@ -321,19 +321,21 @@ class KnowledgeComponentGraph:
         prerequisite_anchor = (
             sum(prerequisite_values) / len(prerequisite_values)
             if prerequisite_values
-            else lo_mastery
+            else outcome_mastery
         )
         sibling_values = [
             kc_mastery[sibling.kc_id]
-            for sibling in self.components_for_lo(component.parent_lo_id)
+            for sibling in self.components_for_outcome(component.outcome_id)
             if sibling.kc_id != component.kc_id and sibling.kc_id in kc_mastery
         ]
         sibling_anchor = (
-            sum(sibling_values) / len(sibling_values) if sibling_values else lo_mastery
+            sum(sibling_values) / len(sibling_values)
+            if sibling_values
+            else outcome_mastery
         )
         difficulty_penalty = component.difficulty * 0.08
         estimated = (
-            (lo_mastery * 0.55)
+            (outcome_mastery * 0.55)
             + (prerequisite_anchor * 0.3)
             + (sibling_anchor * 0.15)
             - difficulty_penalty
@@ -357,7 +359,7 @@ class KnowledgeComponentGraph:
             weight += 0.1
         elif relation_kind == "concept_family":
             weight += 0.06
-        elif relation_kind == "same_lo":
+        elif relation_kind == "same_outcome":
             weight += 0.04
         elif relation_kind == "taxonomy_cluster":
             weight += 0.03

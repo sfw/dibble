@@ -31,14 +31,12 @@ def build_router():
     return AlwaysReteachRouter()
 
 
-def build_retriever(*, curriculum_store, settings: Settings | None = None):
+def build_retriever(*, outcome_store, settings: Settings | None = None):
     database_path = (
-        settings.database_path
-        if settings is not None
-        else curriculum_store.database_path
+        settings.database_path if settings is not None else outcome_store.database_path
     )
     return RAGRetriever(
-        curriculum_store,
+        outcome_store,
         embedding_store=SQLiteEmbeddingStore(database_path),
         embedder=LocalHashEmbedder(),
     )

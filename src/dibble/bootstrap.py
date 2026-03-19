@@ -25,7 +25,8 @@ from dibble.services.classroom_store import SQLiteClassroomStore
 from dibble.services.classroom_membership_store import SQLiteClassroomMembershipStore
 from dibble.services.course_store import SQLiteCourseStore
 from dibble.services.cognitive_trait_inference import CognitiveTraitInferenceService
-from dibble.services.curriculum_store import SQLiteCurriculumStore
+from dibble.services.outcome_store import SQLiteOutcomeStore
+from dibble.services.strand_store import SQLiteStrandStore
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.generation_mode_calibration import GenerationModeCalibrator
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
@@ -81,7 +82,7 @@ from dibble.services.predictive_warm_queue_store import SQLitePredictiveWarmQueu
 from dibble.services.predictive_warm_scheduler import PredictiveWarmScheduler
 from dibble.services.progression_outcome_signals import ProgressionOutcomeSignalService
 from dibble.services.progression_outcome_tracker import ProgressionOutcomeTracker
-from dibble.services.resource_state_transitions import ResourceStateTransitionTracker
+from dibble.services.resource_state_transitions import OutcomeStateTransitionTracker
 from dibble.services.progression_ownership import ProgressionOwnershipService
 from dibble.services.provider_health import SQLiteProviderHealthStore
 from dibble.services.profile_store import SQLiteProfileStore
@@ -91,7 +92,8 @@ from dibble.services.protocols import (
     ClassroomStore,
     ClassroomMembershipStore,
     CourseStore,
-    CurriculumStore,
+    OutcomeStore,
+    StrandStore,
     GeneratedContentStore,
     KnowledgeComponentStore,
     ObservationStore,
@@ -137,7 +139,8 @@ class ApplicationServices:
     classroom_store: ClassroomStore
     course_store: CourseStore
     classroom_membership_store: ClassroomMembershipStore
-    curriculum_store: CurriculumStore
+    outcome_store: OutcomeStore
+    strand_store: StrandStore
     knowledge_component_store: KnowledgeComponentStore
     audit_store: AuditStore
     generated_content_store: GeneratedContentStore
@@ -175,7 +178,7 @@ class ApplicationServices:
     mastery_snapshot_service: MasterySnapshotService
     progression_outcome_tracker: ProgressionOutcomeTracker
     misconception_remediation_outcome_tracker: MisconceptionRemediationOutcomeTracker
-    resource_state_transition_tracker: ResourceStateTransitionTracker
+    outcome_state_transition_tracker: OutcomeStateTransitionTracker
     mastery_quality_gate_outcome_tracker: MasteryQualityGateOutcomeTracker
     learner_state_prediction_outcome_tracker: LearnerStatePredictionOutcomeTracker
     learner_state_prediction_signal_service: LearnerStatePredictionSignalService
@@ -196,10 +199,9 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     profile_store = SQLiteProfileStore(settings.database_path)
     course_store = SQLiteCourseStore(settings.database_path)
     classroom_store = SQLiteClassroomStore(settings.database_path)
-    classroom_membership_store = SQLiteClassroomMembershipStore(
-        settings.database_path
-    )
-    curriculum_store = SQLiteCurriculumStore(settings.database_path)
+    classroom_membership_store = SQLiteClassroomMembershipStore(settings.database_path)
+    outcome_store = SQLiteOutcomeStore(settings.database_path)
+    strand_store = SQLiteStrandStore(settings.database_path)
     knowledge_component_store = SQLiteKnowledgeComponentStore(settings.database_path)
     audit_store = SQLiteAuditStore(settings.database_path)
     generated_content_store = SQLiteGeneratedContentStore(settings.database_path)
@@ -217,7 +219,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         session_store=SQLiteAuthSessionStore(settings.database_path),
         user_store=user_store,
     )
-    plugins = build_generation_plugins(settings, curriculum_store=curriculum_store)
+    plugins = build_generation_plugins(settings, outcome_store=outcome_store)
     learner_strategy_signal_service = LearnerStrategySignalService(
         audit_store=audit_store
     )
@@ -276,7 +278,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     socratic_assessment_service = SocraticAssessmentService(
         generation_engine=generation_engine,
         session_store=socratic_session_store,
-        evidence_scorer=SocraticEvidenceScorer(curriculum_store),
+        evidence_scorer=SocraticEvidenceScorer(outcome_store),
         turn_policy=SocraticTurnPolicy(),
     )
     socratic_profile_updater = SocraticProfileUpdater(
@@ -362,7 +364,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     )
     learner_progression_service = LearnerProgressionService(
         profile_store=profile_store,
-        curriculum_store=curriculum_store,
+        outcome_store=outcome_store,
         knowledge_component_store=knowledge_component_store,
         learner_flow_service=learner_flow_service,
         ordinary_mastery_signal_service=ordinary_mastery_signal_service,
@@ -394,7 +396,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         audit_store=audit_store
     )
     progression_outcome_tracker = ProgressionOutcomeTracker(audit_store=audit_store)
-    resource_state_transition_tracker = ResourceStateTransitionTracker(
+    outcome_state_transition_tracker = OutcomeStateTransitionTracker(
         audit_store=audit_store
     )
     mastery_quality_gate_outcome_tracker = MasteryQualityGateOutcomeTracker(
@@ -457,7 +459,8 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         classroom_store=classroom_store,
         course_store=course_store,
         classroom_membership_store=classroom_membership_store,
-        curriculum_store=curriculum_store,
+        outcome_store=outcome_store,
+        strand_store=strand_store,
         knowledge_component_store=knowledge_component_store,
         audit_store=audit_store,
         generated_content_store=generated_content_store,
@@ -499,7 +502,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         predictive_warm_scheduler=predictive_warm_scheduler,
         mastery_snapshot_service=mastery_snapshot_service,
         progression_outcome_tracker=progression_outcome_tracker,
-        resource_state_transition_tracker=resource_state_transition_tracker,
+        outcome_state_transition_tracker=outcome_state_transition_tracker,
         mastery_quality_gate_outcome_tracker=mastery_quality_gate_outcome_tracker,
         misconception_remediation_outcome_tracker=misconception_remediation_outcome_tracker,
         learner_state_prediction_outcome_tracker=learner_state_prediction_outcome_tracker,

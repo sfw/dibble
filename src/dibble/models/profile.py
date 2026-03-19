@@ -345,7 +345,7 @@ class LearnerContinueAction(BaseModel):
     display_label: str | None = None
     method: ContinueActionMethod | None = None
     endpoint: str | None = None
-    resource_id: str | None = None
+    outcome_id: str | None = None
     generation_id: str | None = None
     learning_session_id: str | None = None
     content_type: str | None = None
@@ -363,7 +363,7 @@ class LearnerContinueAction(BaseModel):
         cls,
         *,
         endpoint: str = "/api/content/generate",
-        resource_id: str | None = None,
+        outcome_id: str | None = None,
         generation_id: str | None = None,
         learning_session_id: str | None = None,
         content_type: str | None = None,
@@ -376,7 +376,7 @@ class LearnerContinueAction(BaseModel):
             kind=ContinueActionKind.generate_follow_up,
             method=ContinueActionMethod.post,
             endpoint=endpoint,
-            resource_id=resource_id,
+            outcome_id=outcome_id,
             generation_id=generation_id,
             learning_session_id=learning_session_id,
             content_type=content_type,
@@ -391,7 +391,7 @@ class LearnerContinueAction(BaseModel):
         cls,
         *,
         endpoint: str,
-        resource_id: str,
+        outcome_id: str,
         generation_id: str | None = None,
         learning_session_id: str | None = None,
         content_type: str | None = None,
@@ -404,7 +404,7 @@ class LearnerContinueAction(BaseModel):
             kind=ContinueActionKind.advance_remediation,
             method=ContinueActionMethod.post,
             endpoint=endpoint,
-            resource_id=resource_id,
+            outcome_id=outcome_id,
             generation_id=generation_id,
             learning_session_id=learning_session_id,
             content_type=content_type,
@@ -419,7 +419,7 @@ class LearnerContinueAction(BaseModel):
         cls,
         *,
         endpoint: str = "/api/assessments/socratic",
-        resource_id: str,
+        outcome_id: str,
         learning_session_id: str | None = None,
         content_type: str | None = None,
         target_stage: str = "target",
@@ -431,7 +431,7 @@ class LearnerContinueAction(BaseModel):
             kind=ContinueActionKind.continue_socratic,
             method=ContinueActionMethod.post,
             endpoint=endpoint,
-            resource_id=resource_id,
+            outcome_id=outcome_id,
             learning_session_id=learning_session_id,
             content_type=content_type,
             target_stage=target_stage,
@@ -447,9 +447,7 @@ class LearnerContinueAction(BaseModel):
         if self.kind == ContinueActionKind.idle:
             self.method = None
             self.endpoint = None
-            self.resource_id = (
-                None if self.resource_id in {"", None} else self.resource_id
-            )
+            self.outcome_id = None if self.outcome_id in {"", None} else self.outcome_id
             self.request_payload = {}
             return self
         if self.method is None:
@@ -458,11 +456,10 @@ class LearnerContinueAction(BaseModel):
         return self
 
 
-class CurriculumResourceProgressSummary(BaseModel):
-    resource_id: str
+class OutcomeProgressSummary(BaseModel):
+    outcome_id: str
     title: str
     state: str = "unknown"
-    learning_objective_ids: list[str] = Field(default_factory=list)
     knowledge_component_ids: list[str] = Field(default_factory=list)
     blocked_prerequisite_kc_ids: list[str] = Field(default_factory=list)
     mastery_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
@@ -480,20 +477,16 @@ class LearnerCurriculumProgressionSummary(BaseModel):
     stage_display_label: str | None = None
     progression_action: str = "monitor"
     active_target_kc_ids: list[str] = Field(default_factory=list)
-    resource_count: int = Field(default=0, ge=0)
-    mastered_resource_count: int = Field(default=0, ge=0)
-    ready_resource_count: int = Field(default=0, ge=0)
-    blocked_resource_count: int = Field(default=0, ge=0)
-    active_resource_count: int = Field(default=0, ge=0)
-    mastered_resource_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
-    current_resource: CurriculumResourceProgressSummary | None = None
-    next_resource: CurriculumResourceProgressSummary | None = None
-    blocked_resources: list[CurriculumResourceProgressSummary] = Field(
-        default_factory=list
-    )
-    ready_resources: list[CurriculumResourceProgressSummary] = Field(
-        default_factory=list
-    )
+    outcome_count: int = Field(default=0, ge=0)
+    mastered_outcome_count: int = Field(default=0, ge=0)
+    ready_outcome_count: int = Field(default=0, ge=0)
+    blocked_outcome_count: int = Field(default=0, ge=0)
+    active_outcome_count: int = Field(default=0, ge=0)
+    mastered_outcome_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
+    current_outcome: OutcomeProgressSummary | None = None
+    next_outcome: OutcomeProgressSummary | None = None
+    blocked_outcomes: list[OutcomeProgressSummary] = Field(default_factory=list)
+    ready_outcomes: list[OutcomeProgressSummary] = Field(default_factory=list)
     rationale: str | None = None
     updated_at: datetime | None = None
 

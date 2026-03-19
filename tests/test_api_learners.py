@@ -6,7 +6,7 @@ from dibble.app import create_app
 
 from tests.support import (
     assert_machine_readable_error,
-    build_curriculum_resource,
+    build_outcome,
     build_knowledge_component,
     build_profile,
 )
@@ -17,7 +17,7 @@ EXPECTED_CONTINUE_ACTION_KEYS = {
     "display_label",
     "method",
     "endpoint",
-    "resource_id",
+    "outcome_id",
     "generation_id",
     "learning_session_id",
     "content_type",
@@ -265,7 +265,7 @@ def test_learner_flow_endpoint_exposes_backend_owned_next_step(client, student_i
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     for hints_used, confidence in [(3, 0.62), (2, 0.58)]:
         observe_response = client.post(
@@ -345,28 +345,27 @@ def test_learner_progression_endpoint_exposes_backend_owned_curriculum_focus(
         ),
     )
     client.put(
-        "/api/curriculum/resources/CURR-1",
-        json=build_curriculum_resource(
-            resource_id="CURR-1",
+        "/api/curriculum/outcomes/CURR-1",
+        json=build_outcome(
+            "CURR-1",
             title="Fraction Visual Foundations",
             knowledge_component_ids=["KC-1"],
         ),
     )
     client.put(
-        "/api/curriculum/resources/CURR-2",
-        json=build_curriculum_resource(
-            resource_id="CURR-2",
+        "/api/curriculum/outcomes/CURR-2",
+        json=build_outcome(
+            "CURR-2",
             title="Equivalent Fraction Practice",
             knowledge_component_ids=["KC-2"],
         ),
     )
     client.put(
-        "/api/curriculum/resources/CURR-3",
-        json=build_curriculum_resource(
-            resource_id="CURR-3",
+        "/api/curriculum/outcomes/CURR-3",
+        json=build_outcome(
+            "CURR-3",
             title="Compare Fraction Families",
             knowledge_component_ids=["KC-3"],
-            learning_objective_ids=["LO-2"],
         ),
     )
     client.put(
@@ -378,7 +377,7 @@ def test_learner_progression_endpoint_exposes_backend_owned_curriculum_focus(
         json=build_knowledge_component(
             "KC-2",
             prerequisite_kc_ids=["KC-1"],
-            parent_lo_id="LO-1",
+            outcome_id="LO-1",
             name="Generate equivalent fractions",
         ),
     )
@@ -387,7 +386,7 @@ def test_learner_progression_endpoint_exposes_backend_owned_curriculum_focus(
         json=build_knowledge_component(
             "KC-3",
             prerequisite_kc_ids=["KC-2"],
-            parent_lo_id="LO-2",
+            outcome_id="LO-2",
             name="Compare fraction families",
         ),
     )
@@ -417,33 +416,33 @@ def test_learner_progression_endpoint_exposes_backend_owned_curriculum_focus(
     assert progression_payload["stage_display_label"] == "Building foundations"
     assert progression_payload["progression_action"] == "rebuild_prerequisite_first"
     assert progression_payload["active_target_kc_ids"] == ["KC-1"]
-    assert progression_payload["resource_count"] == 3
-    assert progression_payload["mastered_resource_count"] == 0
-    assert progression_payload["active_resource_count"] == 1
-    assert progression_payload["blocked_resource_count"] == 1
-    assert progression_payload["current_resource"]["resource_id"] == "CURR-1"
-    assert progression_payload["current_resource"]["state"] == "active"
-    assert progression_payload["current_resource"]["current_flow_aligned"] is True
+    assert progression_payload["outcome_count"] == 3
+    assert progression_payload["mastered_outcome_count"] == 0
+    assert progression_payload["active_outcome_count"] == 1
+    assert progression_payload["blocked_outcome_count"] == 1
+    assert progression_payload["current_outcome"]["outcome_id"] == "CURR-1"
+    assert progression_payload["current_outcome"]["state"] == "active"
+    assert progression_payload["current_outcome"]["current_flow_aligned"] is True
     assert (
         progression_payload["rationale"] == summary_payload["current_flow"]["rationale"]
     )
     assert (
-        progression_payload["current_resource"]["rationale"]
+        progression_payload["current_outcome"]["rationale"]
         == summary_payload["current_flow"]["rationale"]
     )
-    assert progression_payload["next_resource"]["resource_id"] == "CURR-2"
-    assert progression_payload["next_resource"]["state"] == "ready"
+    assert progression_payload["next_outcome"]["outcome_id"] == "CURR-2"
+    assert progression_payload["next_outcome"]["state"] == "ready"
     assert (
         "current learner flow releases the active target"
-        in progression_payload["next_resource"]["rationale"]
+        in progression_payload["next_outcome"]["rationale"]
     )
-    assert progression_payload["blocked_resources"][0]["resource_id"] == "CURR-3"
-    assert progression_payload["blocked_resources"][0][
+    assert progression_payload["blocked_outcomes"][0]["outcome_id"] == "CURR-3"
+    assert progression_payload["blocked_outcomes"][0][
         "blocked_prerequisite_kc_ids"
     ] == ["KC-2"]
     assert (
         "stays blocked instead of becoming the next curriculum focus"
-        in progression_payload["blocked_resources"][0]["rationale"]
+        in progression_payload["blocked_outcomes"][0]["rationale"]
     )
     assert summary_payload["curriculum_progression"] == progression_payload
 
@@ -455,7 +454,7 @@ def test_continue_action_contract_stays_consistent_across_lesson_surfaces(
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     generate_response = client.post(
         "/api/problems/generate",
@@ -552,26 +551,25 @@ def test_learner_progression_prefers_deferred_target_resource_over_unrelated_rea
 ):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
     client.put(
-        "/api/curriculum/resources/CURR-0",
-        json=build_curriculum_resource(
-            resource_id="CURR-0",
+        "/api/curriculum/outcomes/CURR-0",
+        json=build_outcome(
+            "CURR-0",
             title="Unrelated Fraction Extension",
             knowledge_component_ids=["KC-9"],
-            learning_objective_ids=["LO-9"],
         ),
     )
     client.put(
-        "/api/curriculum/resources/CURR-1",
-        json=build_curriculum_resource(
-            resource_id="CURR-1",
+        "/api/curriculum/outcomes/CURR-1",
+        json=build_outcome(
+            "CURR-1",
             title="Equivalent Fraction Foundations",
             knowledge_component_ids=["KC-1"],
         ),
     )
     client.put(
-        "/api/curriculum/resources/CURR-2",
-        json=build_curriculum_resource(
-            resource_id="CURR-2",
+        "/api/curriculum/outcomes/CURR-2",
+        json=build_outcome(
+            "CURR-2",
             title="Equivalent Fraction Practice",
             knowledge_component_ids=["KC-2"],
         ),
@@ -585,7 +583,7 @@ def test_learner_progression_prefers_deferred_target_resource_over_unrelated_rea
         json=build_knowledge_component(
             "KC-2",
             prerequisite_kc_ids=["KC-1"],
-            parent_lo_id="LO-1",
+            outcome_id="LO-1",
             name="Generate equivalent fractions",
         ),
     )
@@ -593,7 +591,7 @@ def test_learner_progression_prefers_deferred_target_resource_over_unrelated_rea
         "/api/knowledge-components/KC-9",
         json=build_knowledge_component(
             "KC-9",
-            parent_lo_id="LO-9",
+            outcome_id="LO-9",
             name="Recognize unrelated fraction patterns",
         ),
     )
@@ -624,14 +622,13 @@ def test_learner_progression_prefers_deferred_target_resource_over_unrelated_rea
     assert flow_payload["transfer_target_kc_ids"] == ["KC-2"]
     assert summary_payload["current_flow"]["deferred_target_kc_ids"] == ["KC-2"]
     assert progression_payload["status"] == "active_curriculum_focus"
-    assert progression_payload["current_resource"]["resource_id"] == "CURR-1"
-    assert progression_payload["next_resource"]["resource_id"] == "CURR-2"
-    assert progression_payload["ready_resources"][0]["resource_id"] == "CURR-2"
-    assert progression_payload["ready_resources"][1]["resource_id"] == "CURR-0"
-    assert "deferred return target" in progression_payload["next_resource"]["rationale"]
+    assert progression_payload["current_outcome"]["outcome_id"] == "CURR-1"
+    assert progression_payload["next_outcome"]["outcome_id"] == "CURR-2"
+    assert progression_payload["ready_outcomes"][0]["outcome_id"] == "CURR-2"
+    assert progression_payload["ready_outcomes"][1]["outcome_id"] == "CURR-0"
+    assert "deferred return target" in progression_payload["next_outcome"]["rationale"]
     assert (
-        "releases the active target"
-        in progression_payload["next_resource"]["rationale"]
+        "releases the active target" in progression_payload["next_outcome"]["rationale"]
     )
 
 
@@ -643,17 +640,17 @@ def test_learner_progression_blocked_rationale_names_prerequisite_scores_and_blo
         json=build_profile(student_id, kc_mastery={"KC-1": 0.2, "KC-2": 0.12}),
     )
     client.put(
-        "/api/curriculum/resources/CURR-1",
-        json=build_curriculum_resource(
-            resource_id="CURR-1",
+        "/api/curriculum/outcomes/CURR-1",
+        json=build_outcome(
+            "CURR-1",
             title="Equivalent Fraction Foundations",
             knowledge_component_ids=["KC-1"],
         ),
     )
     client.put(
-        "/api/curriculum/resources/CURR-2",
-        json=build_curriculum_resource(
-            resource_id="CURR-2",
+        "/api/curriculum/outcomes/CURR-2",
+        json=build_outcome(
+            "CURR-2",
             title="Equivalent Fraction Practice",
             knowledge_component_ids=["KC-2"],
         ),
@@ -667,7 +664,7 @@ def test_learner_progression_blocked_rationale_names_prerequisite_scores_and_blo
         json=build_knowledge_component(
             "KC-2",
             prerequisite_kc_ids=["KC-1"],
-            parent_lo_id="LO-1",
+            outcome_id="LO-1",
             name="Generate equivalent fractions",
         ),
     )
@@ -675,15 +672,15 @@ def test_learner_progression_blocked_rationale_names_prerequisite_scores_and_blo
     progression_response = client.get(f"/api/learners/{student_id}/progression")
 
     assert progression_response.status_code == 200
-    blocked_resource = progression_response.json()["blocked_resources"][0]
-    assert blocked_resource["resource_id"] == "CURR-2"
+    blocked_resource = progression_response.json()["blocked_outcomes"][0]
+    assert blocked_resource["outcome_id"] == "CURR-2"
     assert "Recognize equivalent fractions (0.20/0.65)" in blocked_resource["rationale"]
     assert "Equivalent Fraction Foundations" in blocked_resource["rationale"]
 
 
 def test_learner_flow_endpoint_prefers_active_remediation_workflow(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     client.put(
         "/api/knowledge-components/KC-1",
         json=build_knowledge_component(
@@ -765,7 +762,7 @@ def test_learner_history_endpoints_expose_generation_socratic_and_remediation_hi
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     client.put(
         "/api/knowledge-components/KC-1",
         json=build_knowledge_component(
@@ -956,7 +953,7 @@ def test_socratic_rationale_stays_aligned_across_flow_workspace_history_and_inte
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     socratic_response = client.post(
         "/api/assessments/socratic",
@@ -1060,7 +1057,7 @@ def test_held_remediation_generation_history_stays_aligned_with_session_summary(
     client, student_id
 ):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     client.put(
         "/api/knowledge-components/KC-1",
         json=build_knowledge_component(
@@ -1211,7 +1208,7 @@ def test_teacher_intervention_action_contract_exposes_backend_owned_proposal_and
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     generate_response = client.post(
         "/api/problems/generate",
@@ -1305,7 +1302,7 @@ def test_teacher_intervention_action_contract_supports_backend_owned_option_sele
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     client.post(
         "/api/problems/generate",
@@ -1385,7 +1382,7 @@ def test_teacher_intervention_action_contract_rejects_idle_or_invalid_teacher_de
         detail="No teacher-approvable intervention is available.",
     )
 
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     client.post(
         "/api/problems/generate",
         json={
@@ -1433,7 +1430,7 @@ def test_learner_workspace_returns_active_generated_content(client, student_id):
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     for hints_used, confidence in [(3, 0.62), (2, 0.58)]:
         observe_response = client.post(
@@ -1498,9 +1495,7 @@ def test_learner_flow_uses_persisted_workflow_summary_after_restart(app_settings
             f"/api/learners/{student_id}/profile",
             json=build_profile(student_id, frustration="low", total_load=0.2),
         )
-        client_one.put(
-            "/api/curriculum/resources/CURR-1", json=build_curriculum_resource()
-        )
+        client_one.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
         for hints_used, confidence in [(3, 0.62), (2, 0.58)]:
             observe_response = client_one.post(
@@ -1563,7 +1558,7 @@ def test_learner_workspace_returns_active_remediation_session_and_content(
     client, student_id
 ):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     client.put(
         "/api/knowledge-components/KC-1",
         json=build_knowledge_component(
@@ -1655,9 +1650,7 @@ def test_learner_workspace_preserves_continue_action_for_remediation_after_resta
         client_one.put(
             f"/api/learners/{student_id}/profile", json=build_profile(student_id)
         )
-        client_one.put(
-            "/api/curriculum/resources/CURR-1", json=build_curriculum_resource()
-        )
+        client_one.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
         client_one.put(
             "/api/knowledge-components/KC-1",
             json=build_knowledge_component(
@@ -1697,7 +1690,7 @@ def test_learner_workspace_keeps_completed_remediation_follow_up_aligned_with_la
     client, student_id
 ):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     client.put(
         "/api/knowledge-components/KC-1",
         json=build_knowledge_component(
@@ -1792,14 +1785,14 @@ def test_profile_endpoint_returns_extended_profile_metadata(client, student_id):
 
 
 def test_curriculum_resource_round_trip(client):
-    resource = build_curriculum_resource()
+    resource = build_outcome()
 
-    put_response = client.put("/api/curriculum/resources/CURR-1", json=resource)
-    list_response = client.get("/api/curriculum/resources")
+    put_response = client.put("/api/curriculum/outcomes/CURR-1", json=resource)
+    list_response = client.get("/api/curriculum/outcomes")
 
     assert put_response.status_code == 200
     assert list_response.status_code == 200
-    assert list_response.json()[0]["resource_id"] == "CURR-1"
+    assert list_response.json()[0]["outcome_id"] == "CURR-1"
 
 
 def test_profile_persists_across_app_instances(app_settings):

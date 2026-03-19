@@ -7,51 +7,51 @@ import { PageSkeleton } from '@/components/ui/skeleton'
 import { ErrorBanner } from '@/components/ui/error-banner'
 import { formatPercent } from '../../lib/formatters'
 import { learnerStage } from '../../lib/copy'
-import type { CurriculumResourceProgressSummary } from '../../types'
+import type { OutcomeProgressSummary } from '../../types'
 
 // ---------------------------------------------------------------------------
-// Resource grouping
+// Outcome grouping
 // ---------------------------------------------------------------------------
 
-interface ResourceGroup {
+interface OutcomeGroup {
   label: string
   kind: 'mastered' | 'current' | 'ready' | 'blocked'
-  resources: CurriculumResourceProgressSummary[]
+  outcomes: OutcomeProgressSummary[]
 }
 
-function groupResources(
-  current: CurriculumResourceProgressSummary | null | undefined,
-  next: CurriculumResourceProgressSummary | null | undefined,
-  ready: CurriculumResourceProgressSummary[],
-  blocked: CurriculumResourceProgressSummary[],
+function groupOutcomes(
+  current: OutcomeProgressSummary | null | undefined,
+  next: OutcomeProgressSummary | null | undefined,
+  ready: OutcomeProgressSummary[],
+  blocked: OutcomeProgressSummary[],
   masteredCount: number,
-): ResourceGroup[] {
-  const groups: ResourceGroup[] = []
+): OutcomeGroup[] {
+  const groups: OutcomeGroup[] = []
 
-  // Mastered: we don't have individual mastered resources in the contract,
+  // Mastered: we don't have individual mastered outcomes in the contract,
   // but we can synthesize a placeholder count section
   if (masteredCount > 0) {
-    groups.push({ label: 'Mastered', kind: 'mastered', resources: [] })
+    groups.push({ label: 'Mastered', kind: 'mastered', outcomes: [] })
   }
 
   // Current focus
   if (current) {
-    groups.push({ label: 'Current focus', kind: 'current', resources: [current] })
+    groups.push({ label: 'Current focus', kind: 'current', outcomes: [current] })
   }
 
-  // Ready resources (deduplicated against current and next)
-  const currentId = current?.resource_id
+  // Ready outcomes (deduplicated against current and next)
+  const currentId = current?.outcome_id
   const readyDeduped = [
-    ...(next && next.resource_id !== currentId ? [next] : []),
-    ...ready.filter((r) => r.resource_id !== next?.resource_id && r.resource_id !== currentId),
+    ...(next && next.outcome_id !== currentId ? [next] : []),
+    ...ready.filter((r) => r.outcome_id !== next?.outcome_id && r.outcome_id !== currentId),
   ]
   if (readyDeduped.length > 0) {
-    groups.push({ label: 'Ready to start', kind: 'ready', resources: readyDeduped })
+    groups.push({ label: 'Ready to start', kind: 'ready', outcomes: readyDeduped })
   }
 
   // Blocked
   if (blocked.length > 0) {
-    groups.push({ label: 'Blocked', kind: 'blocked', resources: blocked })
+    groups.push({ label: 'Blocked', kind: 'blocked', outcomes: blocked })
   }
 
   return groups
@@ -60,14 +60,14 @@ function groupResources(
 export function Progress() {
   const { progression, summary, flow, loading, error } = useOutletContext<LearnerContext>()
 
-  const resourceGroups = useMemo(
+  const outcomeGroups = useMemo(
     () =>
-      groupResources(
-        progression.current_resource,
-        progression.next_resource,
-        progression.ready_resources ?? [],
-        progression.blocked_resources ?? [],
-        progression.mastered_resource_count,
+      groupOutcomes(
+        progression.current_outcome,
+        progression.next_outcome,
+        progression.ready_outcomes ?? [],
+        progression.blocked_outcomes ?? [],
+        progression.mastered_outcome_count,
       ),
     [progression],
   )
@@ -81,8 +81,8 @@ export function Progress() {
   }
 
   const recentActivity = summary.recent_activity
-  const readyResources = progression.ready_resources ?? []
-  const nextResource = progression.next_resource
+  const readyOutcomes = progression.ready_outcomes ?? []
+  const nextOutcome = progression.next_outcome
 
   return (
     <PageContainer size="narrow" className="flex flex-col gap-8 py-4">
@@ -94,13 +94,13 @@ export function Progress() {
       </header>
 
       {/* Current concept progress */}
-      {progression.current_resource && (
+      {progression.current_outcome && (
         <section className="rounded-xl border bg-white p-6 shadow-sm">
           <div className="flex items-center gap-3 mb-4">
             <Target className="h-5 w-5 text-muted-foreground" />
             <h2 className="font-semibold">Current focus</h2>
           </div>
-          <ResourceCard resource={progression.current_resource} highlight />
+          <OutcomeCard outcome={progression.current_outcome} highlight />
         </section>
       )}
 
@@ -113,13 +113,13 @@ export function Progress() {
         <div className="space-y-4">
           <ProgressBar
             label="Course progress"
-            ratio={progression.mastered_resource_ratio}
-            detail={`${progression.mastered_resource_count} of ${progression.resource_count} mastered`}
+            ratio={progression.mastered_outcome_ratio}
+            detail={`${progression.mastered_outcome_count} of ${progression.outcome_count} mastered`}
           />
           <div className="grid grid-cols-3 gap-3">
             <StatBox label="Stage" value={learnerStage(progression.current_stage, progression.stage_display_label)} />
-            <StatBox label="Ready" value={String(progression.ready_resource_count)} />
-            <StatBox label="Blocked" value={String(progression.blocked_resource_count)} />
+            <StatBox label="Ready" value={String(progression.ready_outcome_count)} />
+            <StatBox label="Blocked" value={String(progression.blocked_outcome_count)} />
           </div>
         </div>
       </section>
@@ -143,19 +143,19 @@ export function Progress() {
       )}
 
       {/* What to practice next */}
-      {(nextResource || readyResources.length > 0) && (
+      {(nextOutcome || readyOutcomes.length > 0) && (
         <section className="rounded-xl border bg-white p-6 shadow-sm">
           <div className="flex items-center gap-3 mb-4">
             <BookOpen className="h-5 w-5 text-muted-foreground" />
             <h2 className="font-semibold">What to practice next</h2>
           </div>
           <div className="flex flex-col gap-3">
-            {nextResource && <ResourceCard resource={nextResource} />}
-            {readyResources
-              .filter((r) => r.resource_id !== nextResource?.resource_id)
+            {nextOutcome && <OutcomeCard outcome={nextOutcome} />}
+            {readyOutcomes
+              .filter((r) => r.outcome_id !== nextOutcome?.outcome_id)
               .slice(0, 3)
-              .map((resource) => (
-                <ResourceCard key={resource.resource_id} resource={resource} />
+              .map((outcome) => (
+                <OutcomeCard key={outcome.outcome_id} outcome={outcome} />
               ))}
           </div>
           {flow.rationale && (
@@ -164,19 +164,19 @@ export function Progress() {
         </section>
       )}
 
-      {/* All resources breakdown */}
-      {resourceGroups.length > 0 && (
+      {/* All outcomes breakdown */}
+      {outcomeGroups.length > 0 && (
         <section className="rounded-xl border bg-white p-6 shadow-sm">
           <div className="flex items-center gap-3 mb-4">
             <Layers className="h-5 w-5 text-muted-foreground" />
-            <h2 className="font-semibold">All resources</h2>
+            <h2 className="font-semibold">All outcomes</h2>
             <span className="ml-auto text-xs text-muted-foreground">
-              {progression.resource_count} total
+              {progression.outcome_count} total
             </span>
           </div>
           <div className="flex flex-col gap-5">
-            {resourceGroups.map((group) => (
-              <ResourceGroupSection key={group.kind} group={group} masteredCount={progression.mastered_resource_count} />
+            {outcomeGroups.map((group) => (
+              <OutcomeGroupSection key={group.kind} group={group} masteredCount={progression.mastered_outcome_count} />
             ))}
           </div>
         </section>
@@ -186,7 +186,7 @@ export function Progress() {
 }
 
 // ---------------------------------------------------------------------------
-// Resource group section for "All resources"
+// Outcome group section for "All outcomes"
 // ---------------------------------------------------------------------------
 
 const groupIcons = {
@@ -203,7 +203,7 @@ const groupColors = {
   blocked: 'text-slate-400',
 }
 
-function ResourceGroupSection({ group, masteredCount }: { group: ResourceGroup; masteredCount: number }) {
+function OutcomeGroupSection({ group, masteredCount }: { group: OutcomeGroup; masteredCount: number }) {
   const Icon = groupIcons[group.kind]
   const colorClass = groupColors[group.kind]
 
@@ -213,21 +213,21 @@ function ResourceGroupSection({ group, masteredCount }: { group: ResourceGroup; 
         <Icon className={`h-4 w-4 ${colorClass}`} />
         <span className={`text-sm font-medium ${colorClass}`}>{group.label}</span>
         <span className="text-xs text-muted-foreground">
-          {group.kind === 'mastered' ? masteredCount : group.resources.length}
+          {group.kind === 'mastered' ? masteredCount : group.outcomes.length}
         </span>
       </div>
       {group.kind === 'mastered' ? (
         <div className="rounded-lg bg-emerald-50 px-4 py-3">
           <p className="text-sm font-medium text-emerald-700">
-            {masteredCount} resource{masteredCount !== 1 ? 's' : ''} mastered
+            {masteredCount} outcome{masteredCount !== 1 ? 's' : ''} mastered
           </p>
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          {group.resources.map((resource) => (
-            <ResourceCard
-              key={resource.resource_id}
-              resource={resource}
+          {group.outcomes.map((outcome) => (
+            <OutcomeCard
+              key={outcome.outcome_id}
+              outcome={outcome}
               highlight={group.kind === 'current'}
               blocked={group.kind === 'blocked'}
             />
@@ -239,15 +239,15 @@ function ResourceGroupSection({ group, masteredCount }: { group: ResourceGroup; 
 }
 
 // ---------------------------------------------------------------------------
-// Resource card
+// Outcome card
 // ---------------------------------------------------------------------------
 
-function ResourceCard({
-  resource,
+function OutcomeCard({
+  outcome,
   highlight = false,
   blocked = false,
 }: {
-  resource: CurriculumResourceProgressSummary
+  outcome: OutcomeProgressSummary
   highlight?: boolean
   blocked?: boolean
 }) {
@@ -268,33 +268,33 @@ function ResourceCard({
       <div className="flex items-baseline justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           {blocked && <Lock className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
-          <p className={`font-medium truncate ${blocked ? 'text-slate-500' : ''}`}>{resource.title}</p>
+          <p className={`font-medium truncate ${blocked ? 'text-slate-500' : ''}`}>{outcome.title}</p>
         </div>
-        <span className="shrink-0 text-sm text-muted-foreground">{formatPercent(resource.mastery_ratio)}</span>
+        <span className="shrink-0 text-sm text-muted-foreground">{formatPercent(outcome.mastery_ratio)}</span>
       </div>
       <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-200">
         <div
           className={`h-full rounded-full transition-all ${barClass}`}
-          style={{ width: `${Math.round(resource.mastery_ratio * 100)}%` }}
+          style={{ width: `${Math.round(outcome.mastery_ratio * 100)}%` }}
         />
       </div>
       <div className="mt-1 flex items-center gap-2">
         <span className={`text-xs ${blocked ? 'text-slate-400' : 'text-muted-foreground'}`}>
-          {learnerStage(resource.target_stage)}
+          {learnerStage(outcome.target_stage)}
         </span>
-        {resource.mastery_quality === 'support_dependent' && (
+        {outcome.mastery_quality === 'support_dependent' && (
           <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
             Needs independent practice
           </span>
         )}
-        {resource.mastery_quality === 'fragile' && (
+        {outcome.mastery_quality === 'fragile' && (
           <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
             Unstable mastery
           </span>
         )}
-        {(blocked || resource.mastery_quality) && resource.rationale && (
-          <span className="text-xs text-slate-400 truncate" title={resource.rationale}>
-            {resource.rationale}
+        {(blocked || outcome.mastery_quality) && outcome.rationale && (
+          <span className="text-xs text-slate-400 truncate" title={outcome.rationale}>
+            {outcome.rationale}
           </span>
         )}
       </div>

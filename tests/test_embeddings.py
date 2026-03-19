@@ -1,10 +1,10 @@
 from uuid import uuid4
 
 from dibble.config import Settings
-from dibble.models.curriculum import CurriculumResourceUpsert
+from dibble.models.curriculum import OutcomeUpsert
 from dibble.models.generation import GenerationRequest
 from dibble.models.profile import LearnerProfile
-from dibble.services.curriculum_store import SQLiteCurriculumStore
+from dibble.services.outcome_store import SQLiteOutcomeStore
 from dibble.services.rag_retriever import RAGRetriever
 from dibble.services.retrieval.embedding_store import SQLiteEmbeddingStore
 from dibble.services.retrieval.embeddings import (
@@ -13,7 +13,7 @@ from dibble.services.retrieval.embeddings import (
     build_embedder,
 )
 from dibble.storage import ensure_database
-from tests.support import build_curriculum_resource, build_profile
+from tests.support import build_outcome, build_profile
 
 
 class CountingEmbedder:
@@ -46,10 +46,8 @@ def test_build_embedder_uses_openai_compatible_embedder_when_configured():
 def test_retriever_reuses_persisted_resource_embeddings(tmp_path):
     database_path = str(tmp_path / "embeddings-cache.db")
     ensure_database(database_path)
-    store = SQLiteCurriculumStore(database_path)
-    resource = store.upsert(
-        CurriculumResourceUpsert(**build_curriculum_resource("CURR-1"))
-    )
+    store = SQLiteOutcomeStore(database_path)
+    resource = store.upsert(OutcomeUpsert(**build_outcome("CURR-1")))
     profile = LearnerProfile.model_validate(
         build_profile(uuid4(), frustration="low", total_load=0.2)
     )
@@ -62,7 +60,7 @@ def test_retriever_reuses_persisted_resource_embeddings(tmp_path):
     retriever = RAGRetriever(store, embedding_store=embedding_store, embedder=embedder)
 
     retriever.retrieve(profile, request)
-    first_cached = embedding_store.get(resource.resource_id)
+    first_cached = embedding_store.get(resource.outcome_id)
 
     retriever.retrieve(profile, request)
 
@@ -73,10 +71,8 @@ def test_retriever_reuses_persisted_resource_embeddings(tmp_path):
 def test_retriever_refreshes_embeddings_after_resource_update(tmp_path):
     database_path = str(tmp_path / "embeddings-refresh.db")
     ensure_database(database_path)
-    store = SQLiteCurriculumStore(database_path)
-    resource = store.upsert(
-        CurriculumResourceUpsert(**build_curriculum_resource("CURR-1"))
-    )
+    store = SQLiteOutcomeStore(database_path)
+    resource = store.upsert(OutcomeUpsert(**build_outcome("CURR-1")))
     profile = LearnerProfile.model_validate(
         build_profile(uuid4(), frustration="low", total_load=0.2)
     )
@@ -89,13 +85,13 @@ def test_retriever_refreshes_embeddings_after_resource_update(tmp_path):
     retriever = RAGRetriever(store, embedding_store=embedding_store, embedder=embedder)
 
     retriever.retrieve(profile, request)
-    first_cached = embedding_store.get(resource.resource_id)
+    first_cached = embedding_store.get(resource.outcome_id)
 
     store.upsert(
-        CurriculumResourceUpsert(
+        OutcomeUpsert(
             **{
-                **build_curriculum_resource("CURR-1"),
-                "body": "Use strip diagrams and number lines to compare equivalent fractions.",
+                **build_outcome("CURR-1"),
+                "description": "Use strip diagrams and number lines to compare equivalent fractions.",
             }
         )
     )

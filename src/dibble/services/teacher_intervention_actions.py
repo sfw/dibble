@@ -507,7 +507,7 @@ class TeacherInterventionActionService:
             label=label,
             rationale=option_rationale,
             continue_action=LearnerContinueAction.generate_follow_up(
-                resource_id=source_generation_id,
+                outcome_id=source_generation_id,
                 generation_id=source_generation_id,
                 learning_session_id=learning_session_id,
                 content_type=content_type,

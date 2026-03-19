@@ -16,7 +16,7 @@ from dibble.models.generation import (
 from dibble.models.profile import LearnerProfile
 from dibble.plugins.loader import build_generation_plugins
 from dibble.services.content_provider import MockLLMProvider
-from dibble.services.curriculum_store import SQLiteCurriculumStore
+from dibble.services.outcome_store import SQLiteOutcomeStore
 from dibble.services.llm_client import LLMClientError, OpenAICompatibleChatClient
 from dibble.services.llm_prompting import build_generation_prompts
 from dibble.services.llm_provider import LLMOrchestrationProvider
@@ -55,11 +55,10 @@ def sample_route():
 def sample_grounding():
     return [
         GroundingReference(
-            resource_id="CURR-1",
+            outcome_id="CURR-1",
             title="Equivalent Fractions Foundations",
             grade_level="5",
             subject="math",
-            source_type="curriculum_standard",
             score=2.0,
             matched_terms=["equivalent fractions", "fraction models"],
             excerpt="Use visual fraction models to explain why equivalent fractions name the same amount.",
@@ -384,14 +383,14 @@ def test_provider_streams_upstream_ndjson_chunks(
 def test_plugin_loader_passes_settings_to_provider_factory(tmp_path):
     database_path = str(tmp_path / "provider-loader.db")
     ensure_database(database_path)
-    curriculum_store = SQLiteCurriculumStore(database_path)
+    outcome_store = SQLiteOutcomeStore(database_path)
     settings = Settings(
         database_path=database_path,
         llm_api_key="secret",
         llm_model="demo-model",
     )
 
-    plugins = build_generation_plugins(settings, curriculum_store=curriculum_store)
+    plugins = build_generation_plugins(settings, outcome_store=outcome_store)
 
     assert isinstance(plugins.provider, LLMOrchestrationProvider)
     assert plugins.provider.clients

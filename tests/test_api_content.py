@@ -10,7 +10,7 @@ from dibble.services.within_session_controller_store import (
 )
 from tests.support import (
     assert_machine_readable_error,
-    build_curriculum_resource,
+    build_outcome,
     build_knowledge_component,
     build_profile,
 )
@@ -18,7 +18,7 @@ from tests.support import (
 
 def test_generation_uses_grounding_and_step_back_route(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     response = client.post(
         "/api/content/generate",
@@ -35,7 +35,7 @@ def test_generation_uses_grounding_and_step_back_route(client, student_id):
     payload = response.json()
     assert payload["response"]["route"]["intervention_type"] == "step_back"
     assert payload["response"]["route"]["delivery_mode"] == "generated"
-    assert payload["response"]["grounding"][0]["resource_id"] == "CURR-1"
+    assert payload["response"]["grounding"][0]["outcome_id"] == "CURR-1"
     assert payload["response"]["validation_issues"] == []
     assert payload["generation_id"] is not None
     assert payload["quality"]["validation_passed"] is True
@@ -49,7 +49,7 @@ def test_generation_endpoint_returns_generated_content_and_cache_hit(
     client, student_id
 ):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     request_payload = {
         "student_id": str(student_id),
@@ -77,7 +77,7 @@ def test_generated_content_can_be_reloaded_by_generation_id(client, student_id):
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     for confidence, hints_used in [(0.62, 3), (0.58, 2)]:
         observe_response = client.post(
@@ -146,7 +146,7 @@ def test_generation_endpoint_preserves_strategy_hold_target_as_workflow_action(
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     audit_store.append(
         event_type="learning.strategy.profile",
         status="success",
@@ -224,7 +224,7 @@ def test_generation_endpoint_preserves_bridge_hold_as_workflow_action(
             name="Target equivalent fractions",
         ),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     negative_observation = {
         "learning_session_id": "session-bridge-flow",
@@ -314,7 +314,7 @@ def test_generated_content_not_found_returns_machine_readable_error(client):
 
 def test_generation_cache_ignores_learning_session_id(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     first_response = client.post(
         "/api/content/generate",
@@ -350,7 +350,7 @@ def test_generation_cache_ignores_learning_session_id(client, student_id):
 
 def test_content_warm_endpoint_primes_generation_cache(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     request_payload = {
         "student_id": str(student_id),
@@ -374,7 +374,7 @@ def test_generation_cache_reuses_predictive_warm_entries_for_real_requests(
     client, student_id
 ):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     warm_response = client.post(
         "/api/content/warm",
@@ -417,7 +417,7 @@ def test_generation_endpoint_predictively_warms_follow_up_content(client, studen
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     worked_example_response = client.post(
         "/api/worked-examples/generate",
@@ -481,7 +481,7 @@ def test_generation_endpoint_holds_target_when_recent_same_session_evidence_is_s
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     for hints_used, confidence in [(3, 0.62), (2, 0.58)]:
         observe_response = client.post(
@@ -559,7 +559,7 @@ def test_generation_endpoint_uses_durable_ordinary_mastery_to_hold_assessment_re
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     audit_store.append(
         event_type="learning.ordinary_mastery.profile",
         status="success",
@@ -635,7 +635,7 @@ def test_predictive_warm_process_endpoint_drains_pending_queue(tmp_path, student
             f"/api/learners/{student_id}/profile",
             json=build_profile(student_id, frustration="low", total_load=0.2),
         )
-        client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+        client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
         worked_example_response = client.post(
             "/api/worked-examples/generate",
@@ -675,7 +675,7 @@ def test_generation_mastery_gate_holds_assessment_request_on_practice_when_evide
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     for confidence, hints_used, errors in [(0.62, 3, 0), (0.58, 2, 1)]:
         observe_response = client.post(
@@ -775,7 +775,7 @@ def test_generation_uses_within_session_observation_adaptation(client, student_i
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     observe_response = client.post(
         f"/api/learners/{student_id}/observations",
         json={
@@ -862,7 +862,7 @@ def test_negative_practice_generation_predictively_warms_remediation_after_relap
             student_id, frustration="low", total_load=0.2, kc_mastery={"KC-1": 0.45}
         ),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     audit_store.append(
         event_type="learning.progress.profile",
         status="success",
@@ -929,7 +929,7 @@ def test_remedial_trigger_returns_remedial_generated_content(
 
     audit_store = SQLiteAuditStore(app_settings.database_path)
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     audit_store.append(
         event_type="learning.strategy.profile",
         status="success",
@@ -1100,7 +1100,7 @@ def test_generation_endpoint_rebuilds_prerequisite_before_requested_target(
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     client.put(
         "/api/knowledge-components/KC-1",
         json=build_knowledge_component("KC-1", name="Read fraction models"),
@@ -1171,7 +1171,7 @@ def test_generation_endpoint_uses_repair_target_ordinary_mastery_to_hold_backend
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     client.put(
         "/api/knowledge-components/KC-1",
         json=build_knowledge_component("KC-1", name="Read fraction models"),
@@ -1266,7 +1266,7 @@ def test_generation_endpoint_uses_repair_target_ordinary_mastery_to_hold_backend
 
 def test_remedial_trigger_records_and_reuses_misconception_profiles(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     client.put(
         "/api/knowledge-components/KC-1",
         json=build_knowledge_component(
@@ -1343,7 +1343,7 @@ def test_remedial_trigger_records_and_reuses_misconception_profiles(client, stud
 
 def test_remediation_session_endpoints_advance_multi_step_workflow(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     client.put(
         "/api/knowledge-components/KC-1",
         json=build_knowledge_component(
@@ -1544,7 +1544,7 @@ def test_remediation_session_holds_return_when_recent_repair_evidence_is_weak(
     client, student_id
 ):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     client.put(
         "/api/knowledge-components/KC-1",
         json=build_knowledge_component(
@@ -1716,7 +1716,7 @@ def test_explanations_and_problems_endpoints_specialize_generation(client, stude
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     explanation_response = client.post(
         "/api/explanations/generate",
@@ -1762,7 +1762,7 @@ def test_generation_endpoint_auto_selects_worked_example_when_metacognitive_sign
             help_seeking="high",
         ),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     response = client.post(
         "/api/content/generate",
@@ -1822,7 +1822,7 @@ def test_content_endpoints_write_audit_events(client, student_id):
             engagement="medium",
         ),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     decide_response = client.post(
         "/api/router/decide",
@@ -1894,7 +1894,7 @@ def test_metrics_endpoint_summarizes_generation_activity(client, student_id):
 
 def test_metrics_endpoint_summarizes_moderation_activity(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     client.post(
         "/api/content/generate",
@@ -1922,7 +1922,7 @@ def test_metrics_endpoint_summarizes_moderation_activity(client, student_id):
 
 def test_stream_generation_endpoint_emits_sse_events_and_audits(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     with client.stream(
         "POST",
@@ -1952,7 +1952,7 @@ def test_stream_generation_endpoint_emits_sse_events_and_audits(client, student_
         == "remedial_micro_module"
     )
     assert events[-1]["data"]["response"]["route"]["delivery_mode"] == "generated"
-    assert events[-1]["data"]["response"]["grounding"][0]["resource_id"] == "CURR-1"
+    assert events[-1]["data"]["response"]["grounding"][0]["outcome_id"] == "CURR-1"
     assert events[-1]["data"]["response"]["artifacts"][0]["artifact_type"] == "text"
     assert events[-1]["data"]["response"]["artifacts"][0]["role"] == "summary"
 
@@ -1972,7 +1972,7 @@ def test_stream_generation_applies_mastery_gate_and_exposes_workflow_summary(
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     for confidence, hints_used, errors in [(0.62, 3, 0), (0.58, 2, 1)]:
         observe_response = client.post(
@@ -2046,7 +2046,7 @@ def test_stream_generation_hydrates_target_kc_hints_for_practice_content(
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
     )
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     client.put(
         "/api/knowledge-components/KC-1",
         json=build_knowledge_component(
@@ -2089,7 +2089,7 @@ def test_stream_generation_emits_explicit_moderation_event_for_flagged_request(
     client, student_id
 ):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     with client.stream(
         "POST",
@@ -2174,7 +2174,7 @@ def test_generation_endpoint_returns_moderation_metadata_for_flagged_request(
     client, student_id
 ):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
 
     response = client.post(
         "/api/content/generate",

@@ -691,7 +691,7 @@ def test_remediation_planner_adds_same_lo_bridge_between_repair_and_return(tmp_p
         KnowledgeComponentUpsert.model_validate(
             build_knowledge_component(
                 "KC-2",
-                parent_lo_id="LO-2",
+                outcome_id="LO-2",
                 prerequisite_kc_ids=["KC-1"],
                 name="Use visual models for equivalent fractions",
             )
@@ -701,7 +701,7 @@ def test_remediation_planner_adds_same_lo_bridge_between_repair_and_return(tmp_p
         KnowledgeComponentUpsert.model_validate(
             build_knowledge_component(
                 "KC-3",
-                parent_lo_id="LO-2",
+                outcome_id="LO-2",
                 prerequisite_kc_ids=["KC-1"],
                 name="Generate equivalent fractions",
                 common_misconceptions=[
@@ -759,7 +759,7 @@ def test_remediation_planner_can_bridge_through_curated_taxonomy_neighbor(tmp_pa
         KnowledgeComponentUpsert.model_validate(
             build_knowledge_component(
                 "KC-2",
-                parent_lo_id="LO-3",
+                outcome_id="LO-3",
                 prerequisite_kc_ids=["KC-1"],
                 name="Use benchmark fractions to compare amounts",
                 concept_family="fraction-equivalence",
@@ -772,7 +772,7 @@ def test_remediation_planner_can_bridge_through_curated_taxonomy_neighbor(tmp_pa
         KnowledgeComponentUpsert.model_validate(
             build_knowledge_component(
                 "KC-3",
-                parent_lo_id="LO-2",
+                outcome_id="LO-2",
                 prerequisite_kc_ids=["KC-1"],
                 name="Generate equivalent fractions",
                 concept_family="fraction-equivalence",

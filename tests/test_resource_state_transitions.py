@@ -5,9 +5,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from dibble.models.profile import CurriculumResourceProgressSummary
+from dibble.models.profile import OutcomeProgressSummary
 from dibble.services.resource_state_transitions import (
-    ResourceStateTransitionTracker,
+    OutcomeStateTransitionTracker,
 )
 
 
@@ -53,15 +53,15 @@ class _AuditEvent:
         self.created_at = created_at
 
 
-def _resource(
-    resource_id: str,
+def _outcome(
+    outcome_id: str,
     state: str,
     mastery_quality: str | None = None,
     mastery_ratio: float = 0.5,
-) -> CurriculumResourceProgressSummary:
-    return CurriculumResourceProgressSummary(
-        resource_id=resource_id,
-        title=f"Resource {resource_id}",
+) -> OutcomeProgressSummary:
+    return OutcomeProgressSummary(
+        outcome_id=outcome_id,
+        title=f"Outcome {outcome_id}",
         state=state,
         mastery_ratio=mastery_ratio,
         mastery_quality=mastery_quality,
@@ -74,15 +74,15 @@ STUDENT_ID = str(uuid4())
 def test_first_observation_records_unseen_to_current():
     """Resources seen for the first time should record transitions from 'unseen'."""
     store = StubAuditStore()
-    tracker = ResourceStateTransitionTracker(audit_store=store)
+    tracker = OutcomeStateTransitionTracker(audit_store=store)
 
     resources = [
-        _resource("R1", "ready"),
-        _resource("R2", "blocked"),
+        _outcome("R1", "ready"),
+        _outcome("R2", "blocked"),
     ]
     transitions = tracker.detect_transitions(
         student_id=STUDENT_ID,
-        current_resources=resources,
+        current_outcomes=resources,
     )
 
     assert len(transitions) == 2
@@ -95,14 +95,14 @@ def test_first_observation_records_unseen_to_current():
 def test_no_transitions_when_states_unchanged():
     """When resources have the same state as before, no transitions are emitted."""
     store = StubAuditStore()
-    tracker = ResourceStateTransitionTracker(audit_store=store)
+    tracker = OutcomeStateTransitionTracker(audit_store=store)
 
-    resources = [_resource("R1", "ready")]
+    resources = [_outcome("R1", "ready")]
 
     # First build: records unseen -> ready.
     transitions = tracker.detect_transitions(
         student_id=STUDENT_ID,
-        current_resources=resources,
+        current_outcomes=resources,
     )
     tracker.record_transitions(transitions)
     assert len(transitions) == 1
@@ -110,7 +110,7 @@ def test_no_transitions_when_states_unchanged():
     # Second build: same state, no transitions.
     transitions = tracker.detect_transitions(
         student_id=STUDENT_ID,
-        current_resources=resources,
+        current_outcomes=resources,
     )
     assert len(transitions) == 0
 
@@ -118,20 +118,20 @@ def test_no_transitions_when_states_unchanged():
 def test_state_change_records_transition():
     """A change from ready to mastered should be recorded."""
     store = StubAuditStore()
-    tracker = ResourceStateTransitionTracker(audit_store=store)
+    tracker = OutcomeStateTransitionTracker(audit_store=store)
 
     # First build: ready.
     tracker.record_transitions(
         tracker.detect_transitions(
             student_id=STUDENT_ID,
-            current_resources=[_resource("R1", "ready")],
+            current_outcomes=[_outcome("R1", "ready")],
         )
     )
 
     # Second build: mastered.
     transitions = tracker.detect_transitions(
         student_id=STUDENT_ID,
-        current_resources=[_resource("R1", "mastered", mastery_ratio=0.9)],
+        current_outcomes=[_outcome("R1", "mastered", mastery_ratio=0.9)],
     )
     assert len(transitions) == 1
     assert transitions[0].from_state == "ready"
@@ -142,14 +142,14 @@ def test_state_change_records_transition():
 def test_quality_gate_involved_when_gating_active():
     """Transitions involving quality gate signals should be flagged."""
     store = StubAuditStore()
-    tracker = ResourceStateTransitionTracker(audit_store=store)
+    tracker = OutcomeStateTransitionTracker(audit_store=store)
 
     # First build: mastery blocked by quality gate.
     tracker.record_transitions(
         tracker.detect_transitions(
             student_id=STUDENT_ID,
-            current_resources=[
-                _resource("R1", "ready", mastery_quality="support_dependent")
+            current_outcomes=[
+                _outcome("R1", "ready", mastery_quality="support_dependent")
             ],
         )
     )
@@ -157,7 +157,7 @@ def test_quality_gate_involved_when_gating_active():
     # Second build: gate clears, resource is mastered.
     transitions = tracker.detect_transitions(
         student_id=STUDENT_ID,
-        current_resources=[_resource("R1", "mastered")],
+        current_outcomes=[_outcome("R1", "mastered")],
     )
     assert len(transitions) == 1
     assert transitions[0].quality_gate_involved is True
@@ -169,20 +169,20 @@ def test_quality_gate_involved_when_gating_active():
 def test_quality_gate_activating():
     """When quality gate activates on a resource, it should be flagged."""
     store = StubAuditStore()
-    tracker = ResourceStateTransitionTracker(audit_store=store)
+    tracker = OutcomeStateTransitionTracker(audit_store=store)
 
     # First build: ready, no gate.
     tracker.record_transitions(
         tracker.detect_transitions(
             student_id=STUDENT_ID,
-            current_resources=[_resource("R1", "ready")],
+            current_outcomes=[_outcome("R1", "ready")],
         )
     )
 
     # Second build: still ready but now with fragile quality gate.
     transitions = tracker.detect_transitions(
         student_id=STUDENT_ID,
-        current_resources=[_resource("R1", "ready", mastery_quality="fragile")],
+        current_outcomes=[_outcome("R1", "ready", mastery_quality="fragile")],
     )
     assert len(transitions) == 1
     assert transitions[0].quality_gate_involved is True
@@ -193,18 +193,18 @@ def test_quality_gate_activating():
 def test_mastered_to_ready_regression():
     """A resource that loses mastery (e.g. due to decay) should record a regression."""
     store = StubAuditStore()
-    tracker = ResourceStateTransitionTracker(audit_store=store)
+    tracker = OutcomeStateTransitionTracker(audit_store=store)
 
     tracker.record_transitions(
         tracker.detect_transitions(
             student_id=STUDENT_ID,
-            current_resources=[_resource("R1", "mastered", mastery_ratio=0.85)],
+            current_outcomes=[_outcome("R1", "mastered", mastery_ratio=0.85)],
         )
     )
 
     transitions = tracker.detect_transitions(
         student_id=STUDENT_ID,
-        current_resources=[_resource("R1", "ready", mastery_ratio=0.55)],
+        current_outcomes=[_outcome("R1", "ready", mastery_ratio=0.55)],
     )
     assert len(transitions) == 1
     assert transitions[0].from_state == "mastered"
@@ -214,14 +214,14 @@ def test_mastered_to_ready_regression():
 def test_only_changed_resources_emit_transitions():
     """Only resources whose state changed should produce transitions."""
     store = StubAuditStore()
-    tracker = ResourceStateTransitionTracker(audit_store=store)
+    tracker = OutcomeStateTransitionTracker(audit_store=store)
 
     tracker.record_transitions(
         tracker.detect_transitions(
             student_id=STUDENT_ID,
-            current_resources=[
-                _resource("R1", "ready"),
-                _resource("R2", "blocked"),
+            current_outcomes=[
+                _outcome("R1", "ready"),
+                _outcome("R2", "blocked"),
             ],
         )
     )
@@ -229,30 +229,30 @@ def test_only_changed_resources_emit_transitions():
     # R1 changes, R2 stays the same.
     transitions = tracker.detect_transitions(
         student_id=STUDENT_ID,
-        current_resources=[
-            _resource("R1", "active"),
-            _resource("R2", "blocked"),
+        current_outcomes=[
+            _outcome("R1", "active"),
+            _outcome("R2", "blocked"),
         ],
     )
     assert len(transitions) == 1
-    assert transitions[0].resource_id == "R1"
+    assert transitions[0].outcome_id == "R1"
 
 
 def test_recording_persists_events():
     """Recording transitions should add events to the audit store."""
     store = StubAuditStore()
-    tracker = ResourceStateTransitionTracker(audit_store=store)
+    tracker = OutcomeStateTransitionTracker(audit_store=store)
 
     transitions = tracker.detect_transitions(
         student_id=STUDENT_ID,
-        current_resources=[_resource("R1", "ready")],
+        current_outcomes=[_outcome("R1", "ready")],
     )
     tracker.record_transitions(transitions)
 
     events = store.list(limit=10)
     assert len(events) == 1
-    assert events[0].event_type == "curriculum.resource.transition"
-    assert events[0].payload["resource_id"] == "R1"
+    assert events[0].event_type == "curriculum.outcome.transition"
+    assert events[0].payload["outcome_id"] == "R1"
     assert events[0].payload["from_state"] == "unseen"
     assert events[0].payload["to_state"] == "ready"
 
@@ -260,7 +260,7 @@ def test_recording_persists_events():
 def test_different_students_are_isolated():
     """Transitions for different students should not interfere."""
     store = StubAuditStore()
-    tracker = ResourceStateTransitionTracker(audit_store=store)
+    tracker = OutcomeStateTransitionTracker(audit_store=store)
 
     student_a = str(uuid4())
     student_b = str(uuid4())
@@ -268,14 +268,14 @@ def test_different_students_are_isolated():
     tracker.record_transitions(
         tracker.detect_transitions(
             student_id=student_a,
-            current_resources=[_resource("R1", "ready")],
+            current_outcomes=[_outcome("R1", "ready")],
         )
     )
 
     # Student B should see R1 as unseen even though A already has it.
     transitions = tracker.detect_transitions(
         student_id=student_b,
-        current_resources=[_resource("R1", "mastered")],
+        current_outcomes=[_outcome("R1", "mastered")],
     )
     assert len(transitions) == 1
     assert transitions[0].from_state == "unseen"

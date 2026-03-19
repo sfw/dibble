@@ -21,7 +21,7 @@ class StubRetriever:
     def retrieve(self, profile, request, limit: int = 3):
         return [
             GroundingReference(
-                resource_id="CURR-1",
+                outcome_id="CURR-1",
                 title="Equivalent Fractions Foundations",
                 grade_level="5",
                 excerpt="Use visual fraction models to explain why equivalent fractions name the same amount.",

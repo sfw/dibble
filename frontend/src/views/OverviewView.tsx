@@ -123,7 +123,7 @@ export function OverviewView({
               </div>
               <div>
                 <span>Resource</span>
-                <strong>{workspace.continue_action.resource_id ?? workspace.active_artifact.resource_id ?? 'n/a'}</strong>
+                <strong>{workspace.continue_action.outcome_id ?? workspace.active_artifact.resource_id ?? 'n/a'}</strong>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -150,7 +150,7 @@ export function OverviewView({
                 <Pill label={formatContractLabel(progression.status)} tone="neutral" />
                 <Pill label={formatContractLabel(progression.current_stage)} tone="accent" />
               </div>
-              <h3>{progression.current_resource?.title ?? 'No active curriculum resource'}</h3>
+              <h3>{progression.current_outcome?.title ?? 'No active curriculum outcome'}</h3>
               <p>{progression.rationale ?? 'No curriculum progression rationale returned.'}</p>
               <div className="summary-card__grid">
                 <div>
@@ -163,22 +163,22 @@ export function OverviewView({
                 </div>
                 <div>
                   <span>Next resource</span>
-                  <strong>{progression.next_resource?.title ?? 'None queued'}</strong>
+                  <strong>{progression.next_outcome?.title ?? 'None queued'}</strong>
                 </div>
                 <div>
                   <span>Blocked resources</span>
-                  <strong>{String(progression.blocked_resource_count)}</strong>
+                  <strong>{String(progression.blocked_outcome_count)}</strong>
                 </div>
               </div>
             </div>
             <MetricList
-              title="Resource posture"
+              title="Outcome posture"
               items={[
-                { label: 'Total resources', value: String(progression.resource_count) },
-                { label: 'Mastered', value: String(progression.mastered_resource_count) },
-                { label: 'Ready', value: String(progression.ready_resource_count) },
-                { label: 'Active', value: String(progression.active_resource_count) },
-                { label: 'Blocked', value: String(progression.blocked_resource_count) },
+                { label: 'Total outcomes', value: String(progression.outcome_count) },
+                { label: 'Mastered', value: String(progression.mastered_outcome_count) },
+                { label: 'Ready', value: String(progression.ready_outcome_count) },
+                { label: 'Active', value: String(progression.active_outcome_count) },
+                { label: 'Blocked', value: String(progression.blocked_outcome_count) },
               ]}
             />
           </div>

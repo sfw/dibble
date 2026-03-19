@@ -13,10 +13,12 @@ from dibble.models.classroom_membership import (
 )
 from dibble.models.course import Course, CourseUpsert
 from dibble.models.curriculum import (
-    CurriculumResource,
-    CurriculumResourceUpsert,
     KnowledgeComponent,
     KnowledgeComponentUpsert,
+    Outcome,
+    OutcomeUpsert,
+    Strand,
+    StrandUpsert,
 )
 from dibble.models.assessment import SocraticAssessmentSession
 from dibble.models.generation import (
@@ -69,10 +71,17 @@ class ObservationStore(Protocol):
     ) -> list[LearnerObservation]: ...
 
 
-class CurriculumStore(Protocol):
-    def upsert(self, resource: CurriculumResourceUpsert) -> CurriculumResource: ...
-    def get(self, resource_id: str) -> CurriculumResource | None: ...
-    def list(self) -> list[CurriculumResource]: ...
+class OutcomeStore(Protocol):
+    def upsert(self, outcome: OutcomeUpsert) -> Outcome: ...
+    def get(self, outcome_id: str) -> Outcome | None: ...
+    def list(self) -> list[Outcome]: ...
+
+
+class StrandStore(Protocol):
+    def upsert(self, strand: StrandUpsert) -> Strand: ...
+    def get(self, strand_id: str) -> Strand | None: ...
+    def list(self) -> list[Strand]: ...
+    def list_for_course(self, course_id: str) -> list[Strand]: ...
 
 
 class ClassroomStore(Protocol):

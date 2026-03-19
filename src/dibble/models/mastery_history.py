@@ -45,9 +45,7 @@ class SectionMasteryTrendsResponse(BaseModel):
     days: int
     learner_count: int = Field(ge=0)
     learner_trends: list[LearnerMasteryTrend] = Field(default_factory=list)
-    section_average_snapshots: list[SectionAveragePoint] = Field(
-        default_factory=list
-    )
+    section_average_snapshots: list[SectionAveragePoint] = Field(default_factory=list)
 
 
 class SectionAveragePoint(BaseModel):

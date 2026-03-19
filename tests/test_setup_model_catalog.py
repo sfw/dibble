@@ -32,7 +32,9 @@ def test_list_models_returns_sorted_model_ids() -> None:
 
 
 def test_list_models_rejects_missing_model_ids() -> None:
-    service = SetupModelCatalogService(transport=lambda url, headers, timeout: {"data": []})
+    service = SetupModelCatalogService(
+        transport=lambda url, headers, timeout: {"data": []}
+    )
 
     with pytest.raises(RuntimeError, match="did not include any model ids"):
         service.list_models(

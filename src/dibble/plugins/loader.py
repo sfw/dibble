@@ -28,7 +28,7 @@ def _build_with_supported_kwargs(factory: Callable[..., Any], **kwargs: Any) -> 
 
 
 def build_generation_plugins(
-    settings: Settings, *, curriculum_store: Any
+    settings: Settings, *, outcome_store: Any
 ) -> GenerationPlugins:
     router_factory: Callable[[], Any] = load_object(settings.router_plugin)
     retriever_factory: Callable[..., Any] = load_object(settings.retriever_plugin)
@@ -40,7 +40,7 @@ def build_generation_plugins(
         retriever=_build_with_supported_kwargs(
             retriever_factory,
             settings=settings,
-            curriculum_store=curriculum_store,
+            outcome_store=outcome_store,
         ),
         provider=_build_with_supported_kwargs(provider_factory, settings=settings),
         validator=_build_with_supported_kwargs(validator_factory, settings=settings),

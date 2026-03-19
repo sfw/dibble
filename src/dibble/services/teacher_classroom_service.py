@@ -116,7 +116,9 @@ class TeacherSectionService:
             learners=learners,
         )
 
-    def list_sections(self, classrooms: list[Classroom]) -> list[TeacherSectionOverview]:
+    def list_sections(
+        self, classrooms: list[Classroom]
+    ) -> list[TeacherSectionOverview]:
         overviews: list[TeacherSectionOverview] = []
         for classroom in classrooms:
             read_model = self.build_section(classroom)

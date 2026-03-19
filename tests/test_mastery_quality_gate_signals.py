@@ -220,7 +220,7 @@ def test_quality_gate_confidence_adjustment_in_progression():
 
     service = LearnerProgressionService(
         profile_store=None,
-        curriculum_store=None,
+        outcome_store=None,
         knowledge_component_store=None,
         learner_flow_service=None,
         quality_gate_signal_service=StubSignalService(),

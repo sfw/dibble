@@ -102,7 +102,7 @@ export function LearnerHome() {
           />
           <FocusItem
             label="Working on"
-            value={progression.current_resource?.title ?? 'No active resource'}
+            value={progression.current_outcome?.title ?? 'No active outcome'}
           />
         </div>
         {flow.rationale && (
@@ -119,8 +119,8 @@ export function LearnerHome() {
         <div className="mt-4 space-y-3">
           <ProgressBar
             label="Overall"
-            ratio={progression.mastered_resource_ratio}
-            detail={`${progression.mastered_resource_count} of ${progression.resource_count} mastered`}
+            ratio={progression.mastered_outcome_ratio}
+            detail={`${progression.mastered_outcome_count} of ${progression.outcome_count} mastered`}
           />
           {summary.recent_activity.generation_count > 0 && (
             <p className="text-sm text-muted-foreground">

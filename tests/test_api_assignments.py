@@ -38,7 +38,9 @@ def _seed_user(
     )
 
 
-def test_assignment_routes_use_authenticated_principal_id_for_teacher_identity(tmp_path):
+def test_assignment_routes_use_authenticated_principal_id_for_teacher_identity(
+    tmp_path,
+):
     app, db_path = _make_authenticated_app(tmp_path)
     _seed_user(
         db_path,

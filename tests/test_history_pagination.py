@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from tests.support import (
-    build_curriculum_resource,
+    build_outcome,
     build_knowledge_component,
     build_profile,
 )
@@ -9,7 +9,7 @@ from tests.support import (
 
 def test_generation_history_returns_paginated_response(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     client.put(
         "/api/knowledge-components/KC-1",
         json=build_knowledge_component("KC-1", name="Fractions basics"),
@@ -40,7 +40,7 @@ def test_generation_history_returns_paginated_response(client, student_id):
 
 def test_generation_history_respects_limit_and_offset(client, student_id):
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
-    client.put("/api/curriculum/resources/CURR-1", json=build_curriculum_resource())
+    client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     kc_ids = [f"KC-{i}" for i in range(1, 6)]
     for kc_id in kc_ids:
         client.put(
