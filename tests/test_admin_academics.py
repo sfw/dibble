@@ -10,7 +10,7 @@ from dibble.services.auth import hash_credential
 from dibble.services.user_store import SQLiteUserStore
 from dibble.storage import ensure_database
 
-from tests.support import assert_machine_readable_error, build_classroom
+from tests.support import assert_machine_readable_error, build_section
 
 
 def _make_app(tmp_path):
@@ -57,8 +57,8 @@ def test_admin_can_manage_courses_and_sections(tmp_path):
         upsert_section = client.put(
             "/api/admin/sections/SEC-5A",
             headers=headers,
-            json=build_classroom(
-                classroom_id="SEC-5A",
+            json=build_section(
+                section_id="SEC-5A",
                 course_id="MATH-5",
                 title="Grade 5A",
             ),
@@ -105,7 +105,7 @@ def test_admin_can_manage_courses_and_sections(tmp_path):
             "section_count": 1,
         }
     ]
-    assert section_payload[0]["classroom_id"] == "SEC-5A"
+    assert section_payload[0]["section_id"] == "SEC-5A"
     assert section_payload[0]["course_id"] == "MATH-5"
     assert section_payload[0]["course_title"] == "Grade 5 Mathematics"
     assert section_payload[0]["teacher_count"] == 1
@@ -120,8 +120,8 @@ def test_admin_section_requires_existing_course(tmp_path):
         response = client.put(
             "/api/admin/sections/SEC-404",
             headers={"X-API-Key": "admin-key"},
-            json=build_classroom(
-                classroom_id="SEC-404",
+            json=build_section(
+                section_id="SEC-404",
                 course_id="MISSING-COURSE",
                 title="Orphan Section",
             ),
@@ -177,8 +177,8 @@ def test_admin_can_manage_section_memberships(tmp_path):
         client.put(
             "/api/admin/sections/SEC-5A",
             headers=headers,
-            json=build_classroom(
-                classroom_id="SEC-5A",
+            json=build_section(
+                section_id="SEC-5A",
                 course_id="MATH-5",
                 title="Grade 5A",
             ),
@@ -202,7 +202,7 @@ def test_admin_can_manage_section_memberships(tmp_path):
     assert update_response.status_code == 200
     assert get_response.status_code == 200
     assert get_response.json() == {
-        "classroom_id": "SEC-5A",
+        "section_id": "SEC-5A",
         "teachers": [
             {
                 "user_id": "teacher-1",
@@ -250,8 +250,8 @@ def test_admin_section_memberships_validate_user_roles(tmp_path):
         client.put(
             "/api/admin/sections/SEC-5A",
             headers=headers,
-            json=build_classroom(
-                classroom_id="SEC-5A",
+            json=build_section(
+                section_id="SEC-5A",
                 course_id="MATH-5",
                 title="Grade 5A",
             ),

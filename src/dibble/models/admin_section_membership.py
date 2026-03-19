@@ -9,7 +9,7 @@ class AdminSectionMembershipUserSummary(BaseModel):
 
 
 class AdminSectionMembershipSummary(BaseModel):
-    classroom_id: str
+    section_id: str
     teachers: list[AdminSectionMembershipUserSummary] = Field(default_factory=list)
     learners: list[AdminSectionMembershipUserSummary] = Field(default_factory=list)
 

@@ -986,7 +986,7 @@ export interface AdminCourseSummary {
 }
 
 export interface SectionUpsert {
-  classroom_id: string
+  section_id: string
   course_id: string
   title: string
   grade_level?: string | null
@@ -995,7 +995,7 @@ export interface SectionUpsert {
 }
 
 export interface AdminSectionSummary {
-  classroom_id: string
+  section_id: string
   course_id: string
   title: string
   grade_level?: string | null
@@ -1013,7 +1013,7 @@ export interface AdminSectionMembershipUserSummary {
 }
 
 export interface AdminSectionMembershipSummary {
-  classroom_id: string
+  section_id: string
   teachers: AdminSectionMembershipUserSummary[]
   learners: AdminSectionMembershipUserSummary[]
 }

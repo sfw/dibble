@@ -134,3 +134,22 @@ def build_classroom(
         "subject": subject,
         "tags": tags or ["math", "fractions"],
     }
+
+
+def build_section(
+    section_id="SECTION-1",
+    *,
+    course_id="COURSE-1",
+    title="Fraction Intervention Group",
+    grade_level="5",
+    subject="math",
+    tags=None,
+):
+    return {
+        "section_id": section_id,
+        "course_id": course_id,
+        "title": title,
+        "grade_level": grade_level,
+        "subject": subject,
+        "tags": tags or ["math", "fractions"],
+    }
