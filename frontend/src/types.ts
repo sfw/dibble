@@ -894,9 +894,19 @@ export interface SetupConfigureRequest {
   llm_api_base?: string
   llm_api_key?: string
   llm_model?: string
+  embedding_api_base?: string
   embedding_api_key?: string
   embedding_model?: string
   database_path?: string
+}
+
+export interface SetupModelCatalogRequest {
+  api_base: string
+  api_key: string
+}
+
+export interface SetupModelCatalogResponse {
+  models: string[]
 }
 
 export interface SetupConfigureResponse {
