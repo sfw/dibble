@@ -36,6 +36,48 @@ class SQLiteClassroomMembershipStore:
             connection.commit()
         return persisted
 
+    def replace_for_classroom(
+        self,
+        *,
+        classroom_id: str,
+        role: ClassroomMembershipRole,
+        user_ids: list[str],
+    ) -> list[ClassroomMembership]:
+        normalized = sorted(set(user_ids))
+        with sqlite3.connect(self.database_path) as connection:
+            connection.execute(
+                "DELETE FROM classroom_memberships WHERE classroom_id = ? AND role = ?",
+                (classroom_id, role.value),
+            )
+            for user_id in normalized:
+                membership = ClassroomMembership(
+                    classroom_id=classroom_id,
+                    user_id=user_id,
+                    role=role,
+                )
+                connection.execute(
+                    """
+                    INSERT INTO classroom_memberships(classroom_id, user_id, role, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (
+                        membership.classroom_id,
+                        membership.user_id,
+                        membership.role.value,
+                        membership.created_at.isoformat(),
+                        membership.updated_at.isoformat(),
+                    ),
+                )
+            connection.commit()
+        return [
+            ClassroomMembership(
+                classroom_id=classroom_id,
+                user_id=user_id,
+                role=role,
+            )
+            for user_id in normalized
+        ]
+
     def replace_for_user(
         self,
         *,

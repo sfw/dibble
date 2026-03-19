@@ -1007,6 +1007,22 @@ export interface AdminSectionSummary {
   learner_count: number
 }
 
+export interface AdminSectionMembershipUserSummary {
+  user_id: string
+  display_name?: string | null
+}
+
+export interface AdminSectionMembershipSummary {
+  classroom_id: string
+  teachers: AdminSectionMembershipUserSummary[]
+  learners: AdminSectionMembershipUserSummary[]
+}
+
+export interface AdminSectionMembershipUpdateRequest {
+  teacher_user_ids: string[]
+  learner_user_ids: string[]
+}
+
 export interface CreateInitialAdminRequest {
   display_name?: string
 }

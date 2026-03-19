@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BookOpen, Blocks, Edit2, Plus, RefreshCw, Save } from 'lucide-react'
 import {
+  getAdminSectionMemberships,
   listAdminCourses,
   listAdminSections,
   upsertAdminCourse,
+  updateAdminSectionMemberships,
   upsertAdminSection,
 } from '../../api'
 import { Badge } from '../../components/ui/badge'
@@ -24,6 +26,13 @@ function parseTags(raw: string): string[] {
   return raw
     .split(',')
     .map((tag) => tag.trim())
+    .filter(Boolean)
+}
+
+function parseIds(raw: string): string[] {
+  return raw
+    .split(',')
+    .map((value) => value.trim())
     .filter(Boolean)
 }
 
@@ -59,6 +68,7 @@ export function AcademicCatalog() {
   const [sections, setSections] = useState<AdminSectionSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [membershipLoading, setMembershipLoading] = useState(false)
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
 
@@ -68,6 +78,8 @@ export function AcademicCatalog() {
   const [sectionDraft, setSectionDraft] = useState<SectionUpsert>(() => buildSectionDraft())
   const [courseTagsInput, setCourseTagsInput] = useState('')
   const [sectionTagsInput, setSectionTagsInput] = useState('')
+  const [sectionTeacherIdsInput, setSectionTeacherIdsInput] = useState('')
+  const [sectionLearnerIdsInput, setSectionLearnerIdsInput] = useState('')
 
   async function loadCatalog() {
     setLoading(true)
@@ -131,9 +143,15 @@ export function AcademicCatalog() {
         subject: sectionDraft.subject?.trim() || undefined,
         tags: parseTags(sectionTagsInput),
       })
+      await updateAdminSectionMemberships(apiConfig, sectionDraft.classroom_id, {
+        teacher_user_ids: parseIds(sectionTeacherIdsInput),
+        learner_user_ids: parseIds(sectionLearnerIdsInput),
+      })
       await loadCatalog()
       setSectionDraft(buildSectionDraft())
       setSectionTagsInput('')
+      setSectionTeacherIdsInput('')
+      setSectionLearnerIdsInput('')
       setEditingSectionId(null)
       setSuccessMessage('Section saved.')
     } catch (err) {
@@ -149,10 +167,23 @@ export function AcademicCatalog() {
     setCourseTagsInput(formatTags(course.tags))
   }
 
-  function startSectionEdit(section: AdminSectionSummary) {
+  async function startSectionEdit(section: AdminSectionSummary) {
     setEditingSectionId(section.classroom_id)
     setSectionDraft(buildSectionDraft(section))
     setSectionTagsInput(formatTags(section.tags))
+    setSectionTeacherIdsInput('')
+    setSectionLearnerIdsInput('')
+    setMembershipLoading(true)
+    setError('')
+    try {
+      const memberships = await getAdminSectionMemberships(apiConfig, section.classroom_id)
+      setSectionTeacherIdsInput(memberships.teachers.map((teacher) => teacher.user_id).join(', '))
+      setSectionLearnerIdsInput(memberships.learners.map((learner) => learner.user_id).join(', '))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load section memberships')
+    } finally {
+      setMembershipLoading(false)
+    }
   }
 
   return (
@@ -372,11 +403,32 @@ export function AcademicCatalog() {
                   placeholder="cohort-a, fractions"
                 />
               </div>
+              <div className="flex flex-col gap-2 md:col-span-2">
+                <Label htmlFor="section-teacher-ids">Teacher user IDs</Label>
+                <Input
+                  id="section-teacher-ids"
+                  value={sectionTeacherIdsInput}
+                  onChange={(event) => setSectionTeacherIdsInput(event.target.value)}
+                  placeholder="teacher-1, teacher-2"
+                />
+              </div>
+              <div className="flex flex-col gap-2 md:col-span-2">
+                <Label htmlFor="section-learner-ids">Learner user IDs</Label>
+                <Input
+                  id="section-learner-ids"
+                  value={sectionLearnerIdsInput}
+                  onChange={(event) => setSectionLearnerIdsInput(event.target.value)}
+                  placeholder="learner-1, learner-2"
+                />
+                <p className="text-xs text-slate-500">
+                  Sections own teacher assignments and learner enrollments. Manage those relationships here.
+                </p>
+              </div>
             </div>
             <div className="flex gap-2">
               <Button
                 onClick={() => void handleSaveSection()}
-                disabled={saving || !sectionDraft.classroom_id || !sectionDraft.course_id || !sectionDraft.title}
+                disabled={saving || membershipLoading || !sectionDraft.classroom_id || !sectionDraft.course_id || !sectionDraft.title}
               >
                 {editingSectionId ? <Save className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                 {editingSectionId ? 'Save section' : 'Create section'}
@@ -387,8 +439,10 @@ export function AcademicCatalog() {
                   setEditingSectionId(null)
                   setSectionDraft(buildSectionDraft())
                   setSectionTagsInput('')
+                  setSectionTeacherIdsInput('')
+                  setSectionLearnerIdsInput('')
                 }}
-                disabled={saving}
+                disabled={saving || membershipLoading}
               >
                 Reset
               </Button>
@@ -418,7 +472,7 @@ export function AcademicCatalog() {
                         {section.teacher_count} teachers / {section.learner_count} learners
                       </td>
                       <td className="px-4 py-3">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => startSectionEdit(section)} title="Edit section">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => void startSectionEdit(section)} title="Edit section">
                           <Edit2 className="h-4 w-4" />
                         </Button>
                       </td>

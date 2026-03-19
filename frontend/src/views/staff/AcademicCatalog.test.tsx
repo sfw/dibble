@@ -7,22 +7,28 @@ import { AuthContext } from '../../contexts/AuthContext'
 import { ConfigContext } from '../../contexts/ConfigContext'
 import type { AuthState } from '../../hooks/useAuth'
 import {
+  getAdminSectionMemberships,
   listAdminCourses,
   listAdminSections,
   upsertAdminCourse,
+  updateAdminSectionMemberships,
   upsertAdminSection,
 } from '../../api'
 
 vi.mock('../../api', () => ({
+  getAdminSectionMemberships: vi.fn(),
   listAdminCourses: vi.fn(),
   listAdminSections: vi.fn(),
   upsertAdminCourse: vi.fn(),
+  updateAdminSectionMemberships: vi.fn(),
   upsertAdminSection: vi.fn(),
 }))
 
+const mockedGetAdminSectionMemberships = vi.mocked(getAdminSectionMemberships)
 const mockedListAdminCourses = vi.mocked(listAdminCourses)
 const mockedListAdminSections = vi.mocked(listAdminSections)
 const mockedUpsertAdminCourse = vi.mocked(upsertAdminCourse)
+const mockedUpdateAdminSectionMemberships = vi.mocked(updateAdminSectionMemberships)
 const mockedUpsertAdminSection = vi.mocked(upsertAdminSection)
 
 function makeAuthState(): AuthState {
@@ -58,9 +64,11 @@ function renderCatalog() {
 
 describe('AcademicCatalog', () => {
   beforeEach(() => {
+    mockedGetAdminSectionMemberships.mockReset()
     mockedListAdminCourses.mockReset()
     mockedListAdminSections.mockReset()
     mockedUpsertAdminCourse.mockReset()
+    mockedUpdateAdminSectionMemberships.mockReset()
     mockedUpsertAdminSection.mockReset()
 
     mockedListAdminCourses.mockResolvedValue([
@@ -89,6 +97,16 @@ describe('AcademicCatalog', () => {
         learner_count: 24,
       },
     ])
+    mockedGetAdminSectionMemberships.mockResolvedValue({
+      classroom_id: 'SEC-5A',
+      teachers: [{ user_id: 'teacher-1', display_name: 'Ms. Rivera' }],
+      learners: [{ user_id: 'learner-1', display_name: 'Ava Learner' }],
+    })
+    mockedUpdateAdminSectionMemberships.mockResolvedValue({
+      classroom_id: 'SEC-5A',
+      teachers: [],
+      learners: [],
+    })
   })
 
   it('renders course and section listings', async () => {
@@ -152,6 +170,11 @@ describe('AcademicCatalog', () => {
       teacher_count: 0,
       learner_count: 0,
     })
+    mockedUpdateAdminSectionMemberships.mockResolvedValue({
+      classroom_id: 'SEC-6B',
+      teachers: [],
+      learners: [],
+    })
 
     renderCatalog()
 
@@ -176,6 +199,65 @@ describe('AcademicCatalog', () => {
           grade_level: '6',
           tags: ['cohort-b'],
         }),
+      )
+    })
+    expect(mockedUpdateAdminSectionMemberships).toHaveBeenCalledWith(
+      expect.objectContaining({ baseUrl: 'http://localhost:8000' }),
+      'SEC-6B',
+      {
+        teacher_user_ids: [],
+        learner_user_ids: [],
+      },
+    )
+  })
+
+  it('loads and saves section memberships while editing', async () => {
+    mockedUpsertAdminSection.mockResolvedValue({
+      classroom_id: 'SEC-5A',
+      course_id: 'MATH-5',
+      title: 'Grade 5A',
+      grade_level: '5',
+      subject: 'math',
+      tags: ['cohort-a'],
+      updated_at: '2026-03-19T00:00:00Z',
+      course_title: 'Grade 5 Mathematics',
+      teacher_count: 1,
+      learner_count: 1,
+    })
+    mockedUpdateAdminSectionMemberships.mockResolvedValue({
+      classroom_id: 'SEC-5A',
+      teachers: [{ user_id: 'teacher-2', display_name: 'Mr. Song' }],
+      learners: [{ user_id: 'learner-2', display_name: 'Mina' }],
+    })
+
+    renderCatalog()
+
+    await screen.findByText('SEC-5A')
+    await userEvent.click(screen.getByTitle('Edit section'))
+
+    await waitFor(() => {
+      expect(mockedGetAdminSectionMemberships).toHaveBeenCalledWith(
+        expect.objectContaining({ baseUrl: 'http://localhost:8000' }),
+        'SEC-5A',
+      )
+    })
+    expect(await screen.findByDisplayValue('teacher-1')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('learner-1')).toBeInTheDocument()
+
+    await userEvent.clear(screen.getByLabelText('Teacher user IDs'))
+    await userEvent.type(screen.getByLabelText('Teacher user IDs'), 'teacher-2')
+    await userEvent.clear(screen.getByLabelText('Learner user IDs'))
+    await userEvent.type(screen.getByLabelText('Learner user IDs'), 'learner-2')
+    await userEvent.click(screen.getByRole('button', { name: 'Save section' }))
+
+    await waitFor(() => {
+      expect(mockedUpdateAdminSectionMemberships).toHaveBeenCalledWith(
+        expect.objectContaining({ baseUrl: 'http://localhost:8000' }),
+        'SEC-5A',
+        {
+          teacher_user_ids: ['teacher-2'],
+          learner_user_ids: ['learner-2'],
+        },
       )
     })
   })
