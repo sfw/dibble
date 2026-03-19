@@ -16,7 +16,7 @@ def _make_assignment(**overrides) -> Assignment:
         "assignment_id": "asgn-1",
         "student_id": "student-1",
         "teacher_id": "teacher-1",
-        "classroom_id": "cls-1",
+        "section_id": "cls-1",
         "title": "Practice fractions",
     }
     return Assignment(**{**defaults, **overrides})
@@ -89,13 +89,13 @@ def test_count_for_student(tmp_path):
     assert store.count_for_student(student_id="s2") == 0
 
 
-def test_list_for_classroom(tmp_path):
+def test_list_for_section(tmp_path):
     store = _make_store(tmp_path)
-    store.upsert(_make_assignment(assignment_id="asgn-1", classroom_id="cls-a"))
-    store.upsert(_make_assignment(assignment_id="asgn-2", classroom_id="cls-a"))
-    store.upsert(_make_assignment(assignment_id="asgn-3", classroom_id="cls-b"))
+    store.upsert(_make_assignment(assignment_id="asgn-1", section_id="cls-a"))
+    store.upsert(_make_assignment(assignment_id="asgn-2", section_id="cls-a"))
+    store.upsert(_make_assignment(assignment_id="asgn-3", section_id="cls-b"))
 
-    cls_a = store.list_for_classroom(classroom_id="cls-a")
+    cls_a = store.list_for_section(section_id="cls-a")
     assert len(cls_a) == 2
 
 

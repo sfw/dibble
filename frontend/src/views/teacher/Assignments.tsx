@@ -76,7 +76,7 @@ export function TeacherAssignments() {
 
       {showForm && (
         <CreateAssignmentForm
-          classroomId={classroom.classroom_id}
+          sectionId={classroom.classroom_id}
           learners={classroom.learners.map((l) => l.student_id)}
           creating={creating}
           onSubmit={handleCreate}
@@ -177,13 +177,13 @@ function TeacherAssignmentRow({
 }
 
 function CreateAssignmentForm({
-  classroomId,
+  sectionId,
   learners,
   creating,
   onSubmit,
   onCancel,
 }: {
-  classroomId: string
+  sectionId: string
   learners: string[]
   creating: boolean
   onSubmit: (payload: AssignmentCreate) => Promise<void>
@@ -201,7 +201,7 @@ function CreateAssignmentForm({
     if (!canSubmit) return
     void onSubmit({
       student_id: studentId.trim(),
-      classroom_id: classroomId || undefined,
+      section_id: sectionId || undefined,
       title: title.trim(),
       description: description.trim() || undefined,
       due_at: dueAt ? new Date(dueAt).toISOString() : undefined,

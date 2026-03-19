@@ -46,8 +46,8 @@ class AssignmentStore(Protocol):
         self, *, student_id: str, limit: int = 20, offset: int = 0
     ) -> list[Assignment]: ...
     def count_for_student(self, *, student_id: str) -> int: ...
-    def list_for_classroom(
-        self, *, classroom_id: str, limit: int = 50, offset: int = 0
+    def list_for_section(
+        self, *, section_id: str, limit: int = 50, offset: int = 0
     ) -> list[Assignment]: ...
     def list_for_teacher(
         self, *, teacher_id: str, limit: int = 50, offset: int = 0

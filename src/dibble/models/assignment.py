@@ -23,7 +23,7 @@ class Assignment(BaseModel):
     assignment_id: str
     student_id: str
     teacher_id: str
-    classroom_id: str | None = None
+    section_id: str | None = None
     title: str
     description: str = ""
     status: AssignmentStatus = AssignmentStatus.assigned
@@ -47,7 +47,7 @@ class AssignmentCreate(BaseModel):
     """Payload for creating a new assignment."""
 
     student_id: str
-    classroom_id: str | None = None
+    section_id: str | None = None
     title: str
     description: str = ""
     target_resource_id: str | None = None

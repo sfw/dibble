@@ -10,7 +10,7 @@ vi.mock('../api', () => ({
         assignment_id: 'asgn-1',
         student_id: 'student-123',
         teacher_id: 'teacher-1',
-        classroom_id: 'class-1',
+        section_id: 'class-1',
         title: 'Fractions practice',
         description: 'Practice equivalent fractions',
         status: 'assigned',
@@ -34,7 +34,7 @@ vi.mock('../api', () => ({
         assignment_id: 'asgn-1',
         student_id: 'student-123',
         teacher_id: 'teacher-1',
-        classroom_id: 'class-1',
+        section_id: 'class-1',
         title: 'Fractions practice',
         description: 'Practice equivalent fractions',
         status: 'assigned',
@@ -56,7 +56,7 @@ vi.mock('../api', () => ({
     assignment_id: 'asgn-2',
     student_id: 'student-123',
     teacher_id: 'teacher-1',
-    classroom_id: 'class-1',
+    section_id: 'class-1',
     title: 'Decimals intro',
     description: '',
     status: 'assigned',
@@ -73,7 +73,7 @@ vi.mock('../api', () => ({
     assignment_id: 'asgn-1',
     student_id: 'student-123',
     teacher_id: 'teacher-1',
-    classroom_id: 'class-1',
+    section_id: 'class-1',
     title: 'Fractions practice',
     description: 'Practice equivalent fractions',
     status: 'in_progress',
@@ -147,7 +147,7 @@ describe('useTeacherAssignments', () => {
     await act(async () => {
       await result.current.create({
         student_id: 'student-123',
-        classroom_id: 'class-1',
+        section_id: 'class-1',
         title: 'Decimals intro',
       })
     })
