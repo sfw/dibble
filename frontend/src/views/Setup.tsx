@@ -57,6 +57,7 @@ export function Setup() {
           )}
           {step === 'provider' && (
             <SetupProviderStep
+              baseUrl={baseUrl}
               config={providerConfig}
               onConfigChange={setProviderConfig}
               onNext={() => setStep('verify')}

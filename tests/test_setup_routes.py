@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+import pytest
 
 
 class TestSetupStatus:
@@ -45,3 +46,31 @@ class TestSetupConfigure:
     def test_configure_empty_body(self, client: TestClient) -> None:
         response = client.post("/api/setup/configure", json={})
         assert response.status_code == 200
+
+
+class TestSetupModels:
+    def test_list_models(self, client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+        from dibble.models.setup import SetupModelCatalogResponse
+        from dibble.services.setup_model_catalog import SetupModelCatalogService
+
+        def fake_list_models(self, payload):
+            return SetupModelCatalogResponse(
+                models=["gpt-4o", "text-embedding-3-small"]
+            )
+
+        monkeypatch.setattr(
+            SetupModelCatalogService,
+            "list_models",
+            fake_list_models,
+        )
+
+        response = client.post(
+            "/api/setup/models",
+            json={
+                "api_base": "https://api.example.com/v1",
+                "api_key": "sk-test",
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {"models": ["gpt-4o", "text-embedding-3-small"]}

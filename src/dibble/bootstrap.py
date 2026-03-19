@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from dibble.config import Settings
 from dibble.plugins.contracts import RouterPlugin
 from dibble.services.setup_config import SetupConfigService
+from dibble.services.setup_model_catalog import SetupModelCatalogService
 from dibble.plugins.loader import build_generation_plugins
 from dibble.services.assignment_store import SQLiteAssignmentStore
 from dibble.services.audit_store import SQLiteAuditStore
@@ -171,6 +172,7 @@ class ApplicationServices:
     router_plugin: RouterPlugin
     user_store: UserStore
     setup_config_service: SetupConfigService
+    setup_model_catalog_service: SetupModelCatalogService
 
 
 def build_application_services(settings: Settings) -> ApplicationServices:
@@ -484,4 +486,5 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         router_plugin=router_plugin,
         user_store=user_store,
         setup_config_service=SetupConfigService(settings, user_store=user_store),
+        setup_model_catalog_service=SetupModelCatalogService(),
     )
