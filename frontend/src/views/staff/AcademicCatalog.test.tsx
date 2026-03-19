@@ -10,6 +10,7 @@ import {
   getAdminSectionMemberships,
   listAdminCourses,
   listAdminSections,
+  listUsers,
   upsertAdminCourse,
   updateAdminSectionMemberships,
   upsertAdminSection,
@@ -19,6 +20,7 @@ vi.mock('../../api', () => ({
   getAdminSectionMemberships: vi.fn(),
   listAdminCourses: vi.fn(),
   listAdminSections: vi.fn(),
+  listUsers: vi.fn(),
   upsertAdminCourse: vi.fn(),
   updateAdminSectionMemberships: vi.fn(),
   upsertAdminSection: vi.fn(),
@@ -27,6 +29,7 @@ vi.mock('../../api', () => ({
 const mockedGetAdminSectionMemberships = vi.mocked(getAdminSectionMemberships)
 const mockedListAdminCourses = vi.mocked(listAdminCourses)
 const mockedListAdminSections = vi.mocked(listAdminSections)
+const mockedListUsers = vi.mocked(listUsers)
 const mockedUpsertAdminCourse = vi.mocked(upsertAdminCourse)
 const mockedUpdateAdminSectionMemberships = vi.mocked(updateAdminSectionMemberships)
 const mockedUpsertAdminSection = vi.mocked(upsertAdminSection)
@@ -67,6 +70,7 @@ describe('AcademicCatalog', () => {
     mockedGetAdminSectionMemberships.mockReset()
     mockedListAdminCourses.mockReset()
     mockedListAdminSections.mockReset()
+    mockedListUsers.mockReset()
     mockedUpsertAdminCourse.mockReset()
     mockedUpdateAdminSectionMemberships.mockReset()
     mockedUpsertAdminSection.mockReset()
@@ -95,6 +99,44 @@ describe('AcademicCatalog', () => {
         course_title: 'Grade 5 Mathematics',
         teacher_count: 1,
         learner_count: 24,
+      },
+    ])
+    mockedListUsers.mockResolvedValue([
+      {
+        user_id: 'teacher-1',
+        display_name: 'Ms. Rivera',
+        role: 'teacher',
+        learner_id: null,
+        classroom_ids: ['SEC-5A'],
+        created_at: '2026-03-19T00:00:00Z',
+        updated_at: '2026-03-19T00:00:00Z',
+      },
+      {
+        user_id: 'teacher-2',
+        display_name: 'Mr. Song',
+        role: 'teacher',
+        learner_id: null,
+        classroom_ids: [],
+        created_at: '2026-03-19T00:00:00Z',
+        updated_at: '2026-03-19T00:00:00Z',
+      },
+      {
+        user_id: 'learner-1',
+        display_name: 'Ava Learner',
+        role: 'learner',
+        learner_id: 'ava-1',
+        classroom_ids: ['SEC-5A'],
+        created_at: '2026-03-19T00:00:00Z',
+        updated_at: '2026-03-19T00:00:00Z',
+      },
+      {
+        user_id: 'learner-2',
+        display_name: 'Mina',
+        role: 'learner',
+        learner_id: 'mina-2',
+        classroom_ids: [],
+        created_at: '2026-03-19T00:00:00Z',
+        updated_at: '2026-03-19T00:00:00Z',
       },
     ])
     mockedGetAdminSectionMemberships.mockResolvedValue({
@@ -241,13 +283,15 @@ describe('AcademicCatalog', () => {
         'SEC-5A',
       )
     })
-    expect(await screen.findByDisplayValue('teacher-1')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('learner-1')).toBeInTheDocument()
+    expect(await screen.findByText('Ms. Rivera (teacher-1)')).toBeInTheDocument()
+    expect(screen.getByText('Ava Learner (learner-1)')).toBeInTheDocument()
 
-    await userEvent.clear(screen.getByLabelText('Teacher user IDs'))
-    await userEvent.type(screen.getByLabelText('Teacher user IDs'), 'teacher-2')
-    await userEvent.clear(screen.getByLabelText('Learner user IDs'))
-    await userEvent.type(screen.getByLabelText('Learner user IDs'), 'learner-2')
+    await userEvent.click(screen.getByLabelText('Remove teacher teacher-1'))
+    await userEvent.click(screen.getByLabelText('Remove learner learner-1'))
+    await userEvent.type(screen.getByLabelText('Teacher picker'), 'teacher-2')
+    await userEvent.click(screen.getByRole('button', { name: 'Add teacher' }))
+    await userEvent.type(screen.getByLabelText('Learner picker'), 'learner-2')
+    await userEvent.click(screen.getByRole('button', { name: 'Add learner' }))
     await userEvent.click(screen.getByRole('button', { name: 'Save section' }))
 
     await waitFor(() => {

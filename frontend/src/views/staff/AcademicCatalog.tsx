@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BookOpen, Blocks, Edit2, Plus, RefreshCw, Save } from 'lucide-react'
+import { BookOpen, Blocks, Edit2, Plus, RefreshCw, Save, X } from 'lucide-react'
 import {
   getAdminSectionMemberships,
   listAdminCourses,
   listAdminSections,
+  listUsers,
   upsertAdminCourse,
   updateAdminSectionMemberships,
   upsertAdminSection,
@@ -19,6 +20,7 @@ import type {
   AdminSectionSummary,
   CourseUpsert,
   SectionUpsert,
+  UserSummary,
 } from '../../types'
 import { useStaffApiConfig } from './useStaffApiConfig'
 
@@ -26,13 +28,6 @@ function parseTags(raw: string): string[] {
   return raw
     .split(',')
     .map((tag) => tag.trim())
-    .filter(Boolean)
-}
-
-function parseIds(raw: string): string[] {
-  return raw
-    .split(',')
-    .map((value) => value.trim())
     .filter(Boolean)
 }
 
@@ -66,6 +61,7 @@ export function AcademicCatalog() {
   const apiConfig = useStaffApiConfig()
   const [courses, setCourses] = useState<AdminCourseSummary[]>([])
   const [sections, setSections] = useState<AdminSectionSummary[]>([])
+  const [users, setUsers] = useState<UserSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [membershipLoading, setMembershipLoading] = useState(false)
@@ -78,19 +74,23 @@ export function AcademicCatalog() {
   const [sectionDraft, setSectionDraft] = useState<SectionUpsert>(() => buildSectionDraft())
   const [courseTagsInput, setCourseTagsInput] = useState('')
   const [sectionTagsInput, setSectionTagsInput] = useState('')
-  const [sectionTeacherIdsInput, setSectionTeacherIdsInput] = useState('')
-  const [sectionLearnerIdsInput, setSectionLearnerIdsInput] = useState('')
+  const [sectionTeacherIds, setSectionTeacherIds] = useState<string[]>([])
+  const [sectionLearnerIds, setSectionLearnerIds] = useState<string[]>([])
+  const [pendingTeacherId, setPendingTeacherId] = useState('')
+  const [pendingLearnerId, setPendingLearnerId] = useState('')
 
   async function loadCatalog() {
     setLoading(true)
     setError('')
     try {
-      const [coursesResult, sectionsResult] = await Promise.all([
+      const [coursesResult, sectionsResult, usersResult] = await Promise.all([
         listAdminCourses(apiConfig),
         listAdminSections(apiConfig),
+        listUsers(apiConfig),
       ])
       setCourses(coursesResult)
       setSections(sectionsResult)
+      setUsers(usersResult)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load academic catalog')
     } finally {
@@ -107,6 +107,44 @@ export function AcademicCatalog() {
     () => courses.map((course) => ({ value: course.course_id, label: course.title })),
     [courses],
   )
+  const teacherOptions = useMemo(
+    () => users.filter((user) => user.role === 'teacher'),
+    [users],
+  )
+  const learnerOptions = useMemo(
+    () => users.filter((user) => user.role === 'learner'),
+    [users],
+  )
+  const userLabelMap = useMemo(
+    () =>
+      new Map(
+        users.map((user) => [
+          user.user_id,
+          user.display_name ? `${user.display_name} (${user.user_id})` : user.user_id,
+        ]),
+      ),
+    [users],
+  )
+
+  function addTeacher(userId: string) {
+    if (!teacherOptions.some((user) => user.user_id === userId)) return
+    setSectionTeacherIds((current) => Array.from(new Set([...current, userId])))
+    setPendingTeacherId('')
+  }
+
+  function addLearner(userId: string) {
+    if (!learnerOptions.some((user) => user.user_id === userId)) return
+    setSectionLearnerIds((current) => Array.from(new Set([...current, userId])))
+    setPendingLearnerId('')
+  }
+
+  function removeTeacher(userId: string) {
+    setSectionTeacherIds((current) => current.filter((id) => id !== userId))
+  }
+
+  function removeLearner(userId: string) {
+    setSectionLearnerIds((current) => current.filter((id) => id !== userId))
+  }
 
   async function handleSaveCourse() {
     setSaving(true)
@@ -144,14 +182,16 @@ export function AcademicCatalog() {
         tags: parseTags(sectionTagsInput),
       })
       await updateAdminSectionMemberships(apiConfig, sectionDraft.classroom_id, {
-        teacher_user_ids: parseIds(sectionTeacherIdsInput),
-        learner_user_ids: parseIds(sectionLearnerIdsInput),
+        teacher_user_ids: sectionTeacherIds,
+        learner_user_ids: sectionLearnerIds,
       })
       await loadCatalog()
       setSectionDraft(buildSectionDraft())
       setSectionTagsInput('')
-      setSectionTeacherIdsInput('')
-      setSectionLearnerIdsInput('')
+      setSectionTeacherIds([])
+      setSectionLearnerIds([])
+      setPendingTeacherId('')
+      setPendingLearnerId('')
       setEditingSectionId(null)
       setSuccessMessage('Section saved.')
     } catch (err) {
@@ -171,14 +211,16 @@ export function AcademicCatalog() {
     setEditingSectionId(section.classroom_id)
     setSectionDraft(buildSectionDraft(section))
     setSectionTagsInput(formatTags(section.tags))
-    setSectionTeacherIdsInput('')
-    setSectionLearnerIdsInput('')
+    setSectionTeacherIds([])
+    setSectionLearnerIds([])
+    setPendingTeacherId('')
+    setPendingLearnerId('')
     setMembershipLoading(true)
     setError('')
     try {
       const memberships = await getAdminSectionMemberships(apiConfig, section.classroom_id)
-      setSectionTeacherIdsInput(memberships.teachers.map((teacher) => teacher.user_id).join(', '))
-      setSectionLearnerIdsInput(memberships.learners.map((learner) => learner.user_id).join(', '))
+      setSectionTeacherIds(memberships.teachers.map((teacher) => teacher.user_id))
+      setSectionLearnerIds(memberships.learners.map((learner) => learner.user_id))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load section memberships')
     } finally {
@@ -404,22 +446,78 @@ export function AcademicCatalog() {
                 />
               </div>
               <div className="flex flex-col gap-2 md:col-span-2">
-                <Label htmlFor="section-teacher-ids">Teacher user IDs</Label>
-                <Input
-                  id="section-teacher-ids"
-                  value={sectionTeacherIdsInput}
-                  onChange={(event) => setSectionTeacherIdsInput(event.target.value)}
-                  placeholder="teacher-1, teacher-2"
-                />
+                <Label>Assigned teachers</Label>
+                <div className="flex flex-wrap gap-2">
+                  {sectionTeacherIds.length > 0 ? sectionTeacherIds.map((userId) => (
+                    <Badge key={userId} variant="secondary" className="flex items-center gap-1 bg-emerald-100 text-emerald-900">
+                      {userLabelMap.get(userId) ?? userId}
+                      <button
+                        type="button"
+                        aria-label={`Remove teacher ${userId}`}
+                        onClick={() => removeTeacher(userId)}
+                        className="rounded-full p-0.5 hover:bg-emerald-200"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  )) : (
+                    <p className="text-sm text-slate-500">No teachers assigned yet.</p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    aria-label="Teacher picker"
+                    list="teacher-picker-options"
+                    value={pendingTeacherId}
+                    onChange={(event) => setPendingTeacherId(event.target.value)}
+                    placeholder="Search teacher by name or ID"
+                  />
+                  <datalist id="teacher-picker-options">
+                    {teacherOptions.map((user) => (
+                      <option key={user.user_id} value={user.user_id} label={userLabelMap.get(user.user_id) ?? user.user_id} />
+                    ))}
+                  </datalist>
+                  <Button type="button" variant="outline" onClick={() => addTeacher(pendingTeacherId)} disabled={!pendingTeacherId}>
+                    Add teacher
+                  </Button>
+                </div>
               </div>
               <div className="flex flex-col gap-2 md:col-span-2">
-                <Label htmlFor="section-learner-ids">Learner user IDs</Label>
-                <Input
-                  id="section-learner-ids"
-                  value={sectionLearnerIdsInput}
-                  onChange={(event) => setSectionLearnerIdsInput(event.target.value)}
-                  placeholder="learner-1, learner-2"
-                />
+                <Label>Enrolled learners</Label>
+                <div className="flex flex-wrap gap-2">
+                  {sectionLearnerIds.length > 0 ? sectionLearnerIds.map((userId) => (
+                    <Badge key={userId} variant="secondary" className="flex items-center gap-1 bg-sky-100 text-sky-900">
+                      {userLabelMap.get(userId) ?? userId}
+                      <button
+                        type="button"
+                        aria-label={`Remove learner ${userId}`}
+                        onClick={() => removeLearner(userId)}
+                        className="rounded-full p-0.5 hover:bg-sky-200"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  )) : (
+                    <p className="text-sm text-slate-500">No learners enrolled yet.</p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    aria-label="Learner picker"
+                    list="learner-picker-options"
+                    value={pendingLearnerId}
+                    onChange={(event) => setPendingLearnerId(event.target.value)}
+                    placeholder="Search learner by name or ID"
+                  />
+                  <datalist id="learner-picker-options">
+                    {learnerOptions.map((user) => (
+                      <option key={user.user_id} value={user.user_id} label={userLabelMap.get(user.user_id) ?? user.user_id} />
+                    ))}
+                  </datalist>
+                  <Button type="button" variant="outline" onClick={() => addLearner(pendingLearnerId)} disabled={!pendingLearnerId}>
+                    Add learner
+                  </Button>
+                </div>
                 <p className="text-xs text-slate-500">
                   Sections own teacher assignments and learner enrollments. Manage those relationships here.
                 </p>
@@ -439,8 +537,10 @@ export function AcademicCatalog() {
                   setEditingSectionId(null)
                   setSectionDraft(buildSectionDraft())
                   setSectionTagsInput('')
-                  setSectionTeacherIdsInput('')
-                  setSectionLearnerIdsInput('')
+                  setSectionTeacherIds([])
+                  setSectionLearnerIds([])
+                  setPendingTeacherId('')
+                  setPendingLearnerId('')
                 }}
                 disabled={saving || membershipLoading}
               >
