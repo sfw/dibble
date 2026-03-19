@@ -250,6 +250,13 @@ def ensure_database(database_path: str) -> None:
         )
         _ensure_sqlite_columns(
             connection,
+            table_name="users",
+            columns={
+                "section_ids": "TEXT NOT NULL DEFAULT '[]'",
+            },
+        )
+        _ensure_sqlite_columns(
+            connection,
             table_name="predictive_warm_queue",
             columns={
                 "priority_class": "TEXT NOT NULL DEFAULT 'routine'",
