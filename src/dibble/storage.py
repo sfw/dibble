@@ -198,7 +198,7 @@ CREATE TABLE IF NOT EXISTS users (
     api_key_hash TEXT UNIQUE,
     passphrase_hash TEXT UNIQUE,
     learner_id TEXT,
-    classroom_ids TEXT NOT NULL DEFAULT '[]',
+    section_ids TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );

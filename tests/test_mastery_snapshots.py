@@ -188,7 +188,7 @@ def test_service_get_learner_history_empty(tmp_path):
     assert history.snapshots == []
 
 
-def test_service_get_classroom_trends(tmp_path):
+def test_service_get_section_trends(tmp_path):
     store = _store(tmp_path)
     service = MasterySnapshotService(snapshot_store=store)
     sid_a = uuid4()
@@ -196,28 +196,28 @@ def test_service_get_classroom_trends(tmp_path):
     service.record_from_profile(_profile(sid_a, kc_mastery={"KC-1": 0.4}))
     service.record_from_profile(_profile(sid_b, kc_mastery={"KC-1": 0.8}))
 
-    trends = service.get_classroom_trends(
-        classroom_id="CLASS-1",
+    trends = service.get_section_trends(
+        section_id="CLASS-1",
         student_ids=[str(sid_a), str(sid_b)],
         days=30,
     )
-    assert trends.classroom_id == "CLASS-1"
+    assert trends.section_id == "CLASS-1"
     assert trends.learner_count == 2
     assert len(trends.learner_trends) == 2
-    assert len(trends.classroom_average_snapshots) >= 1
-    avg = trends.classroom_average_snapshots[0].average_mastery
+    assert len(trends.section_average_snapshots) >= 1
+    avg = trends.section_average_snapshots[0].average_mastery
     assert 0.5 <= avg <= 0.7  # average of 0.4 and 0.8
 
 
-def test_service_classroom_trends_learner_delta(tmp_path):
+def test_service_section_trends_learner_delta(tmp_path):
     store = _store(tmp_path)
     service = MasterySnapshotService(snapshot_store=store)
     sid = uuid4()
     service.record_from_profile(_profile(sid, kc_mastery={"KC-1": 0.3}))
     service.record_from_profile(_profile(sid, kc_mastery={"KC-1": 0.7}))
 
-    trends = service.get_classroom_trends(
-        classroom_id="CLASS-1",
+    trends = service.get_section_trends(
+        section_id="CLASS-1",
         student_ids=[str(sid)],
         days=30,
     )
@@ -227,17 +227,17 @@ def test_service_classroom_trends_learner_delta(tmp_path):
     assert learner_trend.mastery_delta == 0.4
 
 
-def test_service_classroom_trends_empty_student_list(tmp_path):
+def test_service_section_trends_empty_student_list(tmp_path):
     store = _store(tmp_path)
     service = MasterySnapshotService(snapshot_store=store)
-    trends = service.get_classroom_trends(
-        classroom_id="CLASS-1",
+    trends = service.get_section_trends(
+        section_id="CLASS-1",
         student_ids=[],
         days=30,
     )
     assert trends.learner_count == 0
     assert trends.learner_trends == []
-    assert trends.classroom_average_snapshots == []
+    assert trends.section_average_snapshots == []
 
 
 def test_service_captures_affective_state(tmp_path):

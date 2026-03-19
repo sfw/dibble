@@ -3,10 +3,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router'
 import { Dashboard } from './Dashboard'
 import type { TeacherContext } from '../../shells/TeacherShell'
-import type { TeacherClassroomOverview, TeacherClassroomReadModel } from '../../types'
+import type { TeacherSectionOverview, TeacherSectionReadModel } from '../../types'
 
-const classroomA: TeacherClassroomOverview = {
-  classroom_id: 'class-1',
+const classroomA: TeacherSectionOverview = {
+  section_id: 'class-1',
   title: 'Math 7A',
   teacher_label: 'Ms. Smith',
   learner_count: 25,
@@ -17,8 +17,8 @@ const classroomA: TeacherClassroomOverview = {
   missing_learner_count: 0,
 }
 
-const classroomB: TeacherClassroomOverview = {
-  classroom_id: 'class-2',
+const classroomB: TeacherSectionOverview = {
+  section_id: 'class-2',
   title: 'Math 7B',
   teacher_label: 'Ms. Smith',
   learner_count: 22,
@@ -29,8 +29,8 @@ const classroomB: TeacherClassroomOverview = {
   missing_learner_count: 0,
 }
 
-const emptyClassroom: TeacherClassroomReadModel = {
-  classroom_id: '',
+const emptyClassroom: TeacherSectionReadModel = {
+  section_id: '',
   title: '',
   teacher_label: null,
   learner_count: 0,
@@ -53,11 +53,11 @@ function makeContext(overrides?: Partial<TeacherContext>): TeacherContext {
       showDebugPanels: false,
     },
     classrooms: [classroomA, classroomB],
-    selectedClassroomId: 'class-1',
+    selectedSectionId: 'class-1',
     classroom: emptyClassroom,
     loading: false,
     error: '',
-    loadClassroom: vi.fn(),
+    loadSection: vi.fn(),
     ...overrides,
   }
 }
@@ -116,9 +116,9 @@ describe('Dashboard', () => {
     expect(screen.getAllByText('Interventions').length).toBe(2)
   })
 
-  it('shows loading message when no classrooms yet', () => {
+  it('shows loading message when no sections yet', () => {
     renderDashboard({ classrooms: [], loading: true })
-    expect(screen.getByText('Loading classrooms...')).toBeInTheDocument()
+    expect(screen.getByText('Loading sections...')).toBeInTheDocument()
   })
 
   it('renders empty state when no classrooms and not loading', () => {
@@ -132,8 +132,8 @@ describe('Dashboard', () => {
     const links = screen.getAllByRole('link')
     const classroomLinks = links.filter(
       (link) =>
-        link.getAttribute('href') === '/teacher/classrooms/class-1' ||
-        link.getAttribute('href') === '/teacher/classrooms/class-2',
+        link.getAttribute('href') === '/teacher/sections/class-1' ||
+        link.getAttribute('href') === '/teacher/sections/class-2',
     )
     expect(classroomLinks.length).toBe(2)
   })

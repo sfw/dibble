@@ -29,7 +29,7 @@ def _seed_admin(db_path: str) -> None:
             display_name="Admin User",
             role="admin",
             api_key_hash=hash_credential("admin-key"),
-            classroom_ids=[],
+            section_ids=[],
             created_at=now,
             updated_at=now,
         )
@@ -69,7 +69,7 @@ def test_admin_can_manage_courses_and_sections(tmp_path):
             json={
                 "display_name": "Ms. Rivera",
                 "role": "teacher",
-                "classroom_ids": ["SEC-5A"],
+                "section_ids": ["SEC-5A"],
             },
         )
         client.post(
@@ -79,7 +79,7 @@ def test_admin_can_manage_courses_and_sections(tmp_path):
                 "display_name": "Ava Learner",
                 "role": "learner",
                 "learner_id": str(student_id),
-                "classroom_ids": ["SEC-5A"],
+                "section_ids": ["SEC-5A"],
             },
         )
         courses_response = client.get("/api/admin/courses", headers=headers)
@@ -146,7 +146,7 @@ def test_admin_can_manage_section_memberships(tmp_path):
             display_name="Ms. Rivera",
             role="teacher",
             api_key_hash=hash_credential("teacher-key"),
-            classroom_ids=[],
+            section_ids=[],
             created_at=now,
             updated_at=now,
         )
@@ -158,7 +158,7 @@ def test_admin_can_manage_section_memberships(tmp_path):
             role="learner",
             passphrase_hash=hash_credential("correct horse battery staple"),
             learner_id="learner-ava",
-            classroom_ids=[],
+            section_ids=[],
             created_at=now,
             updated_at=now,
         )
@@ -216,8 +216,8 @@ def test_admin_can_manage_section_memberships(tmp_path):
             }
         ],
     }
-    assert teacher_user.json()["classroom_ids"] == ["SEC-5A"]
-    assert learner_user.json()["classroom_ids"] == ["SEC-5A"]
+    assert teacher_user.json()["section_ids"] == ["SEC-5A"]
+    assert learner_user.json()["section_ids"] == ["SEC-5A"]
 
 
 def test_admin_section_memberships_validate_user_roles(tmp_path):
@@ -231,7 +231,7 @@ def test_admin_section_memberships_validate_user_roles(tmp_path):
             display_name="Observer",
             role="viewer",
             api_key_hash=hash_credential("viewer-key"),
-            classroom_ids=[],
+            section_ids=[],
             created_at=now,
             updated_at=now,
         )

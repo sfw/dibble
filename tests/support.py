@@ -118,7 +118,7 @@ def build_knowledge_component(
 
 
 def build_classroom(
-    classroom_id="CLASS-1",
+    section_id="CLASS-1",
     *,
     course_id="COURSE-1",
     title="Fraction Intervention Group",
@@ -127,7 +127,7 @@ def build_classroom(
     tags=None,
 ):
     return {
-        "classroom_id": classroom_id,
+        "section_id": section_id,
         "course_id": course_id,
         "title": title,
         "grade_level": grade_level,

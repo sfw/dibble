@@ -76,7 +76,7 @@ export function TeacherAssignments() {
 
       {showForm && (
         <CreateAssignmentForm
-          sectionId={classroom.classroom_id}
+          sectionId={classroom.section_id}
           learners={classroom.learners.map((l) => l.student_id)}
           creating={creating}
           onSubmit={handleCreate}

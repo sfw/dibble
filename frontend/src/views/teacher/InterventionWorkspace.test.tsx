@@ -36,9 +36,9 @@ const context: TeacherContext = {
     showDebugPanels: false,
   },
   classrooms: [],
-  selectedClassroomId: 'class-1',
+  selectedSectionId: 'class-1',
   classroom: {
-    classroom_id: 'class-1',
+    section_id: 'class-1',
     title: 'Math 7A',
     teacher_label: 'Ms. Smith',
     learner_count: 1,
@@ -52,7 +52,7 @@ const context: TeacherContext = {
   },
   loading: false,
   error: '',
-  loadClassroom: vi.fn(),
+  loadSection: vi.fn(),
 }
 
 function renderIntervention(studentId = 'student-1') {

@@ -88,16 +88,16 @@ def test_mastery_history_clamps_days(client, student_id):
 
 def test_classroom_mastery_trends_empty(client, student_id):
     client.put(
-        "/api/teachers/classrooms/CLASS-1",
+        "/api/teachers/sections/CLASS-1",
         json=build_classroom("CLASS-1"),
     )
-    response = client.get("/api/teachers/classrooms/CLASS-1/mastery-trends")
+    response = client.get("/api/teachers/sections/CLASS-1/mastery-trends")
     assert response.status_code == 200
     body = response.json()
-    assert body["classroom_id"] == "CLASS-1"
+    assert body["section_id"] == "CLASS-1"
     assert body["learner_count"] == 0
     assert body["learner_trends"] == []
-    assert body["classroom_average_snapshots"] == []
+    assert body["section_average_snapshots"] == []
 
 
 def test_classroom_mastery_trends_with_learner_data(client, student_id):
@@ -117,7 +117,7 @@ def test_classroom_mastery_trends_with_learner_data(client, student_id):
         },
     )
     client.put(
-        "/api/teachers/classrooms/CLASS-1",
+        "/api/teachers/sections/CLASS-1",
         json=build_classroom("CLASS-1"),
     )
     client.post(
@@ -126,10 +126,10 @@ def test_classroom_mastery_trends_with_learner_data(client, student_id):
             "display_name": "Learner One",
             "role": "learner",
             "learner_id": sid,
-            "classroom_ids": ["CLASS-1"],
+            "section_ids": ["CLASS-1"],
         },
     )
-    response = client.get("/api/teachers/classrooms/CLASS-1/mastery-trends")
+    response = client.get("/api/teachers/sections/CLASS-1/mastery-trends")
     assert response.status_code == 200
     body = response.json()
     assert body["learner_count"] == 1
@@ -137,19 +137,24 @@ def test_classroom_mastery_trends_with_learner_data(client, student_id):
     trend = body["learner_trends"][0]
     assert trend["student_id"] == sid
     assert trend["snapshot_count"] >= 1
-    assert len(body["classroom_average_snapshots"]) >= 1
+    assert len(body["section_average_snapshots"]) >= 1
 
 
 def test_classroom_mastery_trends_404_unknown_classroom(client):
-    response = client.get("/api/teachers/classrooms/NONEXISTENT/mastery-trends")
-    assert_machine_readable_error(response, status_code=404, code="classroom_not_found")
+    response = client.get("/api/teachers/sections/NONEXISTENT/mastery-trends")
+    assert_machine_readable_error(
+        response,
+        status_code=404,
+        code="section_not_found",
+        detail="Section not found.",
+    )
 
 
 def test_classroom_mastery_trends_respects_days_param(client, student_id):
     client.put(
-        "/api/teachers/classrooms/CLASS-1",
+        "/api/teachers/sections/CLASS-1",
         json=build_classroom("CLASS-1"),
     )
-    response = client.get("/api/teachers/classrooms/CLASS-1/mastery-trends?days=7")
+    response = client.get("/api/teachers/sections/CLASS-1/mastery-trends?days=7")
     assert response.status_code == 200
     assert response.json()["days"] == 7

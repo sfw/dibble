@@ -92,8 +92,8 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <Dashboard /> },
-      { path: 'classrooms', element: <Dashboard /> },
-      { path: 'classrooms/:classroomId', element: <ClassroomDetail /> },
+      { path: 'sections', element: <Dashboard /> },
+      { path: 'sections/:sectionId', element: <ClassroomDetail /> },
       { path: 'learners/:studentId', element: <LearnerDetail /> },
       { path: 'learners/:studentId/intervention', element: <InterventionWorkspace /> },
       { path: 'assignments', element: <TeacherAssignments /> },

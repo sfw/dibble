@@ -49,18 +49,20 @@ def _build_user(request: UserCreateRequest, credential: str) -> User:
         api_key_hash=credential_hash if not _is_learner_role(request.role) else None,
         passphrase_hash=credential_hash if _is_learner_role(request.role) else None,
         learner_id=request.learner_id,
-        classroom_ids=request.classroom_ids,
+        section_ids=request.section_ids,
         created_at=now,
         updated_at=now,
     )
+
+
 def build_user_router(context: ApiContext) -> APIRouter:
     router = APIRouter(prefix="/api/users", dependencies=context.deps("admin"))
 
-    def _effective_classroom_ids(user: User) -> list[str]:
+    def _effective_section_ids(user: User) -> list[str]:
         membership_role = _membership_role_for_user_role(user.role)
         if membership_role is None:
             return []
-        return context.services.classroom_membership_store.list_user_classroom_ids(
+        return context.services.classroom_membership_store.list_user_section_ids(
             user_id=user.user_id,
             role=membership_role,
         )
@@ -71,27 +73,27 @@ def build_user_router(context: ApiContext) -> APIRouter:
             display_name=user.display_name,
             role=user.role,
             learner_id=user.learner_id,
-            classroom_ids=_effective_classroom_ids(user),
+            section_ids=_effective_section_ids(user),
             created_at=user.created_at,
             updated_at=user.updated_at,
         )
 
-    def _reconcile_classroom_memberships(
+    def _reconcile_section_memberships(
         user: User,
         *,
-        requested_classroom_ids: list[str] | None,
+        requested_section_ids: list[str] | None,
         force_clear: bool = False,
     ) -> None:
         membership_role = _membership_role_for_user_role(user.role)
         if force_clear or membership_role is None:
             context.services.classroom_membership_store.delete_for_user(user.user_id)
             return
-        if requested_classroom_ids is None:
+        if requested_section_ids is None:
             return
         context.services.classroom_membership_store.replace_for_user(
             user_id=user.user_id,
             role=membership_role,
-            classroom_ids=requested_classroom_ids,
+            section_ids=requested_section_ids,
         )
 
     @router.post("", response_model=UserCreateResponse)
@@ -99,9 +101,9 @@ def build_user_router(context: ApiContext) -> APIRouter:
         credential = _generate_credential(payload.role)
         user = _build_user(payload, credential)
         context.services.user_store.create(user)
-        _reconcile_classroom_memberships(
+        _reconcile_section_memberships(
             user,
-            requested_classroom_ids=payload.classroom_ids or None,
+            requested_section_ids=payload.section_ids or None,
         )
         return UserCreateResponse(
             user_id=user.user_id,
@@ -138,13 +140,13 @@ def build_user_router(context: ApiContext) -> APIRouter:
             user.role = payload.role
         if payload.learner_id is not None:
             user.learner_id = payload.learner_id
-        if payload.classroom_ids is not None:
-            user.classroom_ids = payload.classroom_ids
+        if payload.section_ids is not None:
+            user.section_ids = payload.section_ids
         user.updated_at = now
         context.services.user_store.update(user)
-        _reconcile_classroom_memberships(
+        _reconcile_section_memberships(
             user,
-            requested_classroom_ids=payload.classroom_ids,
+            requested_section_ids=payload.section_ids,
             force_clear=(
                 _membership_role_for_user_role(prior_role) is not None
                 and _membership_role_for_user_role(user.role) is None
@@ -196,9 +198,9 @@ def build_user_router(context: ApiContext) -> APIRouter:
 
         for user, credential in users_with_credentials:
             context.services.user_store.create(user)
-            _reconcile_classroom_memberships(
+            _reconcile_section_memberships(
                 user,
-                requested_classroom_ids=user.classroom_ids or None,
+                requested_section_ids=user.section_ids or None,
             )
             results.append(
                 UserCreateResponse(

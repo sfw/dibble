@@ -733,8 +733,8 @@ export interface TeacherLearnerCard {
   attention_reasons: string[]
 }
 
-export interface TeacherClassroomOverview {
-  classroom_id: string
+export interface TeacherSectionOverview {
+  section_id: string
   course_id?: string
   title: string
   teacher_label?: string | null
@@ -749,7 +749,7 @@ export interface TeacherClassroomOverview {
   updated_at?: string | null
 }
 
-export interface TeacherClassroomReadModel extends TeacherClassroomOverview {
+export interface TeacherSectionReadModel extends TeacherSectionOverview {
   missing_student_ids: string[]
   learners: TeacherLearnerCard[]
 }
@@ -854,18 +854,18 @@ export interface LearnerMasteryTrend {
   mastery_delta: number
 }
 
-export interface ClassroomAveragePoint {
+export interface SectionAveragePoint {
   timestamp: string
   average_mastery: number
   learner_count: number
 }
 
-export interface ClassroomMasteryTrendsResponse {
-  classroom_id: string
+export interface SectionMasteryTrendsResponse {
+  section_id: string
   days: number
   learner_count: number
   learner_trends: LearnerMasteryTrend[]
-  classroom_average_snapshots: ClassroomAveragePoint[]
+  section_average_snapshots: SectionAveragePoint[]
 }
 
 export interface FrontendConfig {
@@ -1038,7 +1038,7 @@ export interface UserCreateRequest {
   display_name?: string
   role: string
   learner_id?: string
-  classroom_ids?: string[]
+  section_ids?: string[]
 }
 
 export interface UserCreateResponse {
@@ -1053,7 +1053,7 @@ export interface UserSummary {
   display_name: string | null
   role: string
   learner_id: string | null
-  classroom_ids: string[]
+  section_ids: string[]
   created_at: string
   updated_at: string
 }
@@ -1062,7 +1062,7 @@ export interface UserUpdateRequest {
   display_name?: string
   role?: string
   learner_id?: string
-  classroom_ids?: string[]
+  section_ids?: string[]
 }
 
 export interface BulkUserCreateRequest {

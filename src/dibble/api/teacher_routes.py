@@ -6,10 +6,11 @@ from dibble.api.common import ApiContext, api_error
 from dibble.models.auth import AuthIdentity
 from dibble.models.classroom import Classroom, ClassroomUpsert
 from dibble.models.classroom_membership import ClassroomMembershipRole
-from dibble.models.mastery_history import ClassroomMasteryTrendsResponse
+from dibble.models.mastery_history import SectionMasteryTrendsResponse
+from dibble.models.section import Section, SectionUpsert
 from dibble.models.teacher_classroom import (
-    TeacherClassroomOverview,
-    TeacherClassroomReadModel,
+    TeacherSectionOverview,
+    TeacherSectionReadModel,
 )
 
 
@@ -26,7 +27,7 @@ def build_teacher_router(context: ApiContext) -> APIRouter:
             return classrooms
 
         allowed_ids = set(
-            services.classroom_membership_store.list_user_classroom_ids(
+            services.classroom_membership_store.list_user_section_ids(
                 identity.principal_id,
                 role=ClassroomMembershipRole.teacher,
             )
@@ -38,78 +39,96 @@ def build_teacher_router(context: ApiContext) -> APIRouter:
         ]
 
     def _learner_ids(classroom: Classroom) -> list[str]:
-        return services.teacher_classroom_service.student_ids_for_classroom(classroom)
+        return services.teacher_section_service.student_ids_for_section(classroom)
 
     @router.put(
-        "/classrooms/{classroom_id}",
-        response_model=Classroom,
+        "/sections/{section_id}",
+        response_model=Section,
         dependencies=context.deps("editor"),
     )
-    def upsert_classroom(classroom_id: str, classroom: ClassroomUpsert) -> Classroom:
-        if classroom_id != classroom.classroom_id:
+    def upsert_section(section_id: str, section: SectionUpsert) -> Section:
+        if section_id != section.section_id:
             raise api_error(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Path classroom_id must match the classroom payload classroom_id.",
-                code="classroom_id_mismatch",
+                detail="Path section_id must match the section payload section_id.",
+                code="section_id_mismatch",
             )
-        return services.classroom_store.upsert(classroom)
+        classroom = services.classroom_store.upsert(
+            ClassroomUpsert(
+                classroom_id=section.section_id,
+                course_id=section.course_id,
+                title=section.title,
+                grade_level=section.grade_level,
+                subject=section.subject,
+                tags=section.tags,
+            )
+        )
+        return Section(
+            section_id=classroom.classroom_id,
+            course_id=classroom.course_id,
+            title=classroom.title,
+            grade_level=classroom.grade_level,
+            subject=classroom.subject,
+            tags=classroom.tags,
+            updated_at=classroom.updated_at,
+        )
 
     @router.get(
-        "/classrooms",
-        response_model=list[TeacherClassroomOverview],
+        "/sections",
+        response_model=list[TeacherSectionOverview],
         dependencies=context.deps("viewer"),
     )
-    def list_classrooms(request: Request) -> list[TeacherClassroomOverview]:
-        return services.teacher_classroom_service.list_classrooms(
+    def list_sections(request: Request) -> list[TeacherSectionOverview]:
+        return services.teacher_section_service.list_sections(
             _accessible_classrooms(request)
         )
 
     @router.get(
-        "/classrooms/{classroom_id}",
-        response_model=TeacherClassroomReadModel,
+        "/sections/{section_id}",
+        response_model=TeacherSectionReadModel,
         dependencies=context.deps("viewer"),
     )
-    def get_classroom(classroom_id: str, request: Request) -> TeacherClassroomReadModel:
+    def get_section(section_id: str, request: Request) -> TeacherSectionReadModel:
         classroom = next(
             (
                 candidate
                 for candidate in _accessible_classrooms(request)
-                if candidate.classroom_id == classroom_id
+                if candidate.classroom_id == section_id
             ),
             None,
         )
         if classroom is None:
             raise api_error(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Classroom not found.",
-                code="classroom_not_found",
+                detail="Section not found.",
+                code="section_not_found",
             )
-        return services.teacher_classroom_service.build_classroom(classroom)
+        return services.teacher_section_service.build_section(classroom)
 
     @router.get(
-        "/classrooms/{classroom_id}/mastery-trends",
-        response_model=ClassroomMasteryTrendsResponse,
+        "/sections/{section_id}/mastery-trends",
+        response_model=SectionMasteryTrendsResponse,
         dependencies=context.deps("viewer"),
     )
-    def get_classroom_mastery_trends(
-        classroom_id: str, request: Request, days: int = 30
-    ) -> ClassroomMasteryTrendsResponse:
+    def get_section_mastery_trends(
+        section_id: str, request: Request, days: int = 30
+    ) -> SectionMasteryTrendsResponse:
         classroom = next(
             (
                 candidate
                 for candidate in _accessible_classrooms(request)
-                if candidate.classroom_id == classroom_id
+                if candidate.classroom_id == section_id
             ),
             None,
         )
         if classroom is None:
             raise api_error(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Classroom not found.",
-                code="classroom_not_found",
+                detail="Section not found.",
+                code="section_not_found",
             )
-        return services.mastery_snapshot_service.get_classroom_trends(
-            classroom_id=classroom_id,
+        return services.mastery_snapshot_service.get_section_trends(
+            section_id=section_id,
             student_ids=_learner_ids(classroom),
             days=min(max(1, days), 365),
         )

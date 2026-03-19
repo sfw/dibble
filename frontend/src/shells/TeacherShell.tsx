@@ -1,30 +1,30 @@
 import { useCallback, useState } from 'react'
 import { NavLink, Outlet } from 'react-router'
 import { BarChart3, ClipboardList, GraduationCap, LayoutDashboard, LogOut, School } from 'lucide-react'
-import { useTeacherClassroom } from '../hooks/useTeacherClassroom'
+import { useTeacherSections } from '../hooks/useTeacherSections'
 import { useAuthContext } from '../contexts/AuthContext'
 import { useConfigContext } from '../contexts/ConfigContext'
 import type { DataSource } from '../app/workspace'
 import { TeacherBreadcrumbs } from '../components/shell/Breadcrumbs'
 import type {
   FrontendConfig,
-  TeacherClassroomOverview,
-  TeacherClassroomReadModel,
+  TeacherSectionOverview,
+  TeacherSectionReadModel,
 } from '../types'
 
 export interface TeacherContext {
   config: FrontendConfig
-  classrooms: TeacherClassroomOverview[]
-  selectedClassroomId: string
-  classroom: TeacherClassroomReadModel
+  classrooms: TeacherSectionOverview[]
+  selectedSectionId: string
+  classroom: TeacherSectionReadModel
   loading: boolean
   error: string
-  loadClassroom: (classroomId: string) => Promise<void>
+  loadSection: (sectionId: string) => Promise<void>
 }
 
 const navItems = [
   { to: '/teacher', icon: LayoutDashboard, label: 'Dashboard', end: true },
-  { to: '/teacher/classrooms', icon: School, label: 'Classrooms' },
+  { to: '/teacher/sections', icon: School, label: 'Sections' },
   { to: '/teacher/assignments', icon: ClipboardList, label: 'Assignments' },
   { to: '/teacher/reports', icon: BarChart3, label: 'Reports' },
 ]
@@ -43,7 +43,7 @@ export function TeacherShell() {
   const [, setDataSource] = useState<DataSource>('demo')
   const handleDataSourceChange = useCallback((source: DataSource) => setDataSource(source), [])
 
-  const tc = useTeacherClassroom({
+  const tc = useTeacherSections({
     config: teacherConfig,
     onDataSourceChange: handleDataSourceChange,
   })
@@ -51,11 +51,11 @@ export function TeacherShell() {
   const context: TeacherContext = {
     config: teacherConfig,
     classrooms: tc.classrooms,
-    selectedClassroomId: tc.selectedClassroomId,
+    selectedSectionId: tc.selectedSectionId,
     classroom: tc.classroom,
     loading: tc.loading,
     error: tc.error,
-    loadClassroom: tc.loadClassroom,
+    loadSection: tc.loadSection,
   }
 
   return (

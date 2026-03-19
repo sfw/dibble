@@ -13,8 +13,8 @@ import type {
   RemediationWorkflowSession,
   SocraticAssessmentResponse,
   SocraticAssessmentSession,
-  TeacherClassroomOverview,
-  TeacherClassroomReadModel,
+  TeacherSectionOverview,
+  TeacherSectionReadModel,
   TeacherContractGap,
   TeacherLearnerCard,
   TeacherInterventionActionContract,
@@ -1073,8 +1073,8 @@ const blockedLearnerCard: TeacherLearnerCard = {
   attention_reasons: ['blocked_on_prerequisites'],
 }
 
-export const demoTeacherClassroom: TeacherClassroomReadModel = {
-  classroom_id: 'CLASS-1',
+export const demoTeacherClassroom: TeacherSectionReadModel = {
+  section_id: 'CLASS-1',
   title: 'Grade 5 Fractions',
   teacher_label: 'Ms. Rivera',
   grade_level: '5',
@@ -1112,9 +1112,9 @@ export const demoTeacherClassroom: TeacherClassroomReadModel = {
   ],
 }
 
-export const demoTeacherClassrooms: TeacherClassroomOverview[] = [
+export const demoTeacherClassrooms: TeacherSectionOverview[] = [
   {
-    classroom_id: demoTeacherClassroom.classroom_id,
+    section_id: demoTeacherClassroom.section_id,
     title: demoTeacherClassroom.title,
     teacher_label: demoTeacherClassroom.teacher_label,
     grade_level: demoTeacherClassroom.grade_level,

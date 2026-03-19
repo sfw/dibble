@@ -112,7 +112,7 @@ from dibble.services.socratic_policy import SocraticTurnPolicy
 from dibble.services.socratic_profile_update import SocraticProfileUpdater
 from dibble.services.socratic_session_store import SQLiteSocraticSessionStore
 from dibble.services.state_inference import LearnerStateInferenceService
-from dibble.services.teacher_classroom_service import TeacherClassroomService
+from dibble.services.teacher_classroom_service import TeacherSectionService
 from dibble.services.teacher_intervention_actions import (
     TeacherInterventionActionService,
 )
@@ -167,7 +167,7 @@ class ApplicationServices:
     learner_progression_service: LearnerProgressionService
     learner_summary_service: LearnerSummaryService
     learner_workspace_service: LearnerWorkspaceService
-    teacher_classroom_service: TeacherClassroomService
+    teacher_section_service: TeacherSectionService
     teacher_intervention_action_service: TeacherInterventionActionService
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_invalidator: PredictiveContentInvalidator
@@ -384,7 +384,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         audit_store=audit_store,
         learner_flow_service=learner_flow_service,
     )
-    teacher_classroom_service = TeacherClassroomService(
+    teacher_section_service = TeacherSectionService(
         learner_summary_service=learner_summary_service,
         teacher_intervention_action_service=teacher_intervention_action_service,
         classroom_membership_store=classroom_membership_store,
@@ -492,7 +492,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         learner_progression_service=learner_progression_service,
         learner_summary_service=learner_summary_service,
         learner_workspace_service=learner_workspace_service,
-        teacher_classroom_service=teacher_classroom_service,
+        teacher_section_service=teacher_section_service,
         teacher_intervention_action_service=teacher_intervention_action_service,
         generation_mode_calibrator=generation_mode_calibrator,
         predictive_content_invalidator=predictive_content_invalidator,

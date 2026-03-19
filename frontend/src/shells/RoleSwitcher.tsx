@@ -14,7 +14,7 @@ const roles = [
     to: '/teacher',
     icon: GraduationCap,
     title: 'Teacher',
-    description: 'Monitor classrooms, review learner progress, and manage interventions.',
+    description: 'Monitor sections, review learner progress, and manage interventions.',
     tone: 'teacher' as const,
   },
   {

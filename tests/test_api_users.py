@@ -28,7 +28,7 @@ def _seed_admin(db_path: str) -> None:
             display_name="Admin User",
             role="admin",
             api_key_hash=hash_credential("admin-key"),
-            classroom_ids=[],
+            section_ids=[],
             created_at=now,
             updated_at=now,
         )
@@ -47,7 +47,7 @@ def test_user_endpoints_derive_sections_from_membership_store(tmp_path):
             display_name="Ms. Rivera",
             role="teacher",
             api_key_hash=hash_credential("teacher-key"),
-            classroom_ids=["STALE-SECTION"],
+            section_ids=["STALE-SECTION"],
             created_at=now,
             updated_at=now,
         )
@@ -55,7 +55,7 @@ def test_user_endpoints_derive_sections_from_membership_store(tmp_path):
     membership_store.replace_for_user(
         user_id="teacher-1",
         role=ClassroomMembershipRole.teacher,
-        classroom_ids=["SEC-5A", "SEC-5B"],
+        section_ids=["SEC-5A", "SEC-5B"],
     )
 
     with TestClient(app) as client:
@@ -65,11 +65,11 @@ def test_user_endpoints_derive_sections_from_membership_store(tmp_path):
 
     assert list_response.status_code == 200
     assert get_response.status_code == 200
-    assert list_response.json()[0]["classroom_ids"] == ["SEC-5A", "SEC-5B"]
-    assert get_response.json()["classroom_ids"] == ["SEC-5A", "SEC-5B"]
+    assert list_response.json()[0]["section_ids"] == ["SEC-5A", "SEC-5B"]
+    assert get_response.json()["section_ids"] == ["SEC-5A", "SEC-5B"]
 
 
-def test_updating_user_without_classroom_ids_does_not_rewrite_memberships(tmp_path):
+def test_updating_user_without_section_ids_does_not_rewrite_memberships(tmp_path):
     app, db_path = _make_app(tmp_path)
     _seed_admin(db_path)
     user_store = SQLiteUserStore(db_path)
@@ -81,7 +81,7 @@ def test_updating_user_without_classroom_ids_does_not_rewrite_memberships(tmp_pa
             display_name="Ms. Rivera",
             role="teacher",
             api_key_hash=hash_credential("teacher-key"),
-            classroom_ids=["STALE-SECTION"],
+            section_ids=["STALE-SECTION"],
             created_at=now,
             updated_at=now,
         )
@@ -89,7 +89,7 @@ def test_updating_user_without_classroom_ids_does_not_rewrite_memberships(tmp_pa
     membership_store.replace_for_user(
         user_id="teacher-1",
         role=ClassroomMembershipRole.teacher,
-        classroom_ids=["SEC-5A"],
+        section_ids=["SEC-5A"],
     )
 
     with TestClient(app) as client:
@@ -100,8 +100,8 @@ def test_updating_user_without_classroom_ids_does_not_rewrite_memberships(tmp_pa
         )
 
     assert response.status_code == 200
-    assert response.json()["classroom_ids"] == ["SEC-5A"]
-    assert membership_store.list_user_classroom_ids(
+    assert response.json()["section_ids"] == ["SEC-5A"]
+    assert membership_store.list_user_section_ids(
         "teacher-1",
         role=ClassroomMembershipRole.teacher,
     ) == ["SEC-5A"]

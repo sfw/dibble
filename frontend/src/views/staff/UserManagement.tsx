@@ -399,7 +399,7 @@ function UserRow({
       <td className="px-4 py-2"><RoleBadge role={user.role} /></td>
       <td className="px-4 py-2 text-sm text-muted-foreground">{user.learner_id ?? '-'}</td>
       <td className="px-4 py-2 text-sm text-muted-foreground">
-        {user.classroom_ids.length > 0 ? formatSectionIds(user.classroom_ids) : '-'}
+        {user.section_ids.length > 0 ? formatSectionIds(user.section_ids) : '-'}
       </td>
       <td className="px-4 py-2">
         <div className="flex gap-1">

@@ -83,9 +83,9 @@ class SQLiteClassroomMembershipStore:
         *,
         user_id: str,
         role: ClassroomMembershipRole,
-        classroom_ids: list[str],
+        section_ids: list[str],
     ) -> list[ClassroomMembership]:
-        normalized = sorted(set(classroom_ids))
+        normalized = sorted(set(section_ids))
         with sqlite3.connect(self.database_path) as connection:
             connection.execute(
                 "DELETE FROM classroom_memberships WHERE user_id = ? AND role = ?",
@@ -136,7 +136,7 @@ class SQLiteClassroomMembershipStore:
             rows = connection.execute(query, params).fetchall()
         return [str(row[0]) for row in rows]
 
-    def list_user_classroom_ids(
+    def list_user_section_ids(
         self,
         user_id: str,
         *,

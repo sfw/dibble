@@ -60,7 +60,7 @@ from dibble.services.setup_model_catalog import SetupModelCatalogService
 from dibble.services.socratic_assessment import SocraticAssessmentService
 from dibble.services.socratic_profile_update import SocraticProfileUpdater
 from dibble.services.state_inference import LearnerStateInferenceService
-from dibble.services.teacher_classroom_service import TeacherClassroomService
+from dibble.services.teacher_classroom_service import TeacherSectionService
 from dibble.services.teacher_intervention_actions import (
     TeacherInterventionActionService,
 )
@@ -136,7 +136,7 @@ class ApiServices(Protocol):
     learner_progression_service: LearnerProgressionService
     learner_summary_service: LearnerSummaryService
     learner_workspace_service: LearnerWorkspaceService
-    teacher_classroom_service: TeacherClassroomService
+    teacher_section_service: TeacherSectionService
     teacher_intervention_action_service: TeacherInterventionActionService
     mastery_snapshot_service: MasterySnapshotService
     generation_mode_calibrator: GenerationModeCalibrator

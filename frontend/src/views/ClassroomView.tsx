@@ -17,11 +17,11 @@ import {
   formatContractLabel,
   formatTimestamp,
 } from '../lib/formatters'
-import type { TeacherClassroomOverview, TeacherClassroomReadModel, TeacherLearnerCard } from '../types'
+import type { TeacherSectionOverview, TeacherSectionReadModel, TeacherLearnerCard } from '../types'
 
 export function ClassroomView({
   classrooms,
-  selectedClassroomId,
+  selectedSectionId,
   classroom,
   loading = false,
   error = '',
@@ -31,9 +31,9 @@ export function ClassroomView({
   handoffLoadingStudentId = null,
   showDebugPanels = false,
 }: {
-  classrooms: TeacherClassroomOverview[]
-  selectedClassroomId: string
-  classroom: TeacherClassroomReadModel
+  classrooms: TeacherSectionOverview[]
+  selectedSectionId: string
+  classroom: TeacherSectionReadModel
   loading?: boolean
   error?: string
   onPickClassroom: (classroomId: string) => void
@@ -81,19 +81,19 @@ export function ClassroomView({
       <div className="flex flex-col gap-6">
         <div className="panel">
           <SectionHeader
-            eyebrow="Teacher classroom view"
-            title="Classroom attention and progression posture"
-            description="This first classroom workspace uses the backend-owned classroom read model rather than aggregating individual learner requests on the client."
+            eyebrow="Teacher section view"
+            title="Section attention and progression posture"
+            description="This first section workspace uses the backend-owned section read model rather than aggregating individual learner requests on the client."
           />
           <div className="grid gap-4 md:grid-cols-2">
             {classrooms.map((item) => {
-              const isSelected = item.classroom_id === selectedClassroomId
+              const isSelected = item.section_id === selectedSectionId
               return (
                 <button
-                  key={item.classroom_id}
+                  key={item.section_id}
                   type="button"
                   className={`option-card ${isSelected ? 'option-card--selected' : ''}`}
-                  onClick={() => onPickClassroom(item.classroom_id)}
+                  onClick={() => onPickClassroom(item.section_id)}
                 >
                   <div className="option-card__header">
                     <strong>{item.title}</strong>
@@ -129,7 +129,7 @@ export function ClassroomView({
         <div className="panel">
           <SectionHeader
             eyebrow="Teacher triage queue"
-            title="Move from classroom posture to learner action handoff"
+            title="Move from section posture to learner action handoff"
             description="This queue stays summary-first: teachers can review backend-owned intervention readiness, see blocked progression separately from active work, and hand off directly into the right learner surface."
           />
           <ClassroomFilterBar
@@ -157,7 +157,7 @@ export function ClassroomView({
                 {section.learners.length === 0 ? (
                   <EmptyState
                     title="No learners in this queue"
-                    description="The backend classroom contract did not return any learners for this triage bucket."
+                    description="The backend section contract did not return any learners for this triage bucket."
                   />
                 ) : layoutMode === 'compact' ? (
                   section.learners.map((learner) => (
@@ -253,7 +253,7 @@ export function ClassroomView({
       <aside className="flex flex-col gap-6">
         <div className="panel">
           <SectionHeader
-            eyebrow="Classroom summary"
+            eyebrow="Section summary"
             title="Operational snapshot"
             description="Compact counts for teacher triage and intervention planning."
           />
@@ -276,7 +276,7 @@ export function ClassroomView({
           <div className="panel">
             <SectionHeader
               eyebrow="Data gaps"
-              title="Missing classroom records"
+              title="Missing section records"
               description="These roster entries did not resolve to a learner summary."
             />
             <div className="flex flex-col gap-4">
@@ -290,7 +290,7 @@ export function ClassroomView({
         ) : null}
         {loading ? (
           <div className="panel">
-            <PanelNotice message="Refreshing classroom contracts…" />
+            <PanelNotice message="Refreshing section contracts…" />
           </div>
         ) : null}
         {error ? (
@@ -300,7 +300,7 @@ export function ClassroomView({
         ) : null}
         {showDebugPanels ? (
           <details className="panel json-panel">
-            <summary>Debug classroom payload</summary>
+            <summary>Debug section payload</summary>
             <pre>{JSON.stringify(classroom, null, 2)}</pre>
           </details>
         ) : null}

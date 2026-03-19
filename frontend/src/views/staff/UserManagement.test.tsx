@@ -57,7 +57,7 @@ function buildUser(overrides: Partial<UserSummary> = {}): UserSummary {
     display_name: 'Ava Rivera',
     role: 'learner',
     learner_id: 'student-1',
-    classroom_ids: ['room-a'],
+    section_ids: ['room-a'],
     created_at: '2026-03-19T00:00:00Z',
     updated_at: '2026-03-19T00:00:00Z',
     ...overrides,
@@ -91,7 +91,7 @@ describe('UserManagement', () => {
       buildUser({
         role: 'teacher',
         learner_id: null,
-        classroom_ids: ['algebra-1', 'advisory-7'],
+        section_ids: ['algebra-1', 'advisory-7'],
       }),
     ])
 
@@ -136,7 +136,7 @@ describe('UserManagement', () => {
     })
 
     expect(mockedCreateUser.mock.calls[0]?.[1]).not.toHaveProperty('teacher_id')
-    expect(mockedCreateUser.mock.calls[0]?.[1]).not.toHaveProperty('classroom_ids')
+    expect(mockedCreateUser.mock.calls[0]?.[1]).not.toHaveProperty('section_ids')
   })
 
   it('keeps section assignments out of the edit row', async () => {
@@ -145,7 +145,7 @@ describe('UserManagement', () => {
         user_id: 'teacher-1',
         role: 'teacher',
         learner_id: null,
-        classroom_ids: ['algebra-1'],
+        section_ids: ['algebra-1'],
       }),
     ])
     mockedUpdateUser.mockResolvedValue(
@@ -153,7 +153,7 @@ describe('UserManagement', () => {
         user_id: 'teacher-1',
         role: 'teacher',
         learner_id: null,
-        classroom_ids: ['geometry-2', 'advisory-7'],
+        section_ids: ['geometry-2', 'advisory-7'],
       }),
     )
 
@@ -177,6 +177,6 @@ describe('UserManagement', () => {
     })
 
     expect(mockedUpdateUser.mock.calls[0]?.[2]).not.toHaveProperty('teacher_id')
-    expect(mockedUpdateUser.mock.calls[0]?.[2]).not.toHaveProperty('classroom_ids')
+    expect(mockedUpdateUser.mock.calls[0]?.[2]).not.toHaveProperty('section_ids')
   })
 })

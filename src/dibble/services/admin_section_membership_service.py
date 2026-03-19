@@ -89,12 +89,12 @@ class AdminSectionMembershipService:
         )
 
         for user_id in prior_teacher_user_ids.union(teacher_user_ids):
-            self._sync_user_classroom_ids(
+            self._sync_user_section_ids(
                 user_id=user_id,
                 role=ClassroomMembershipRole.teacher,
             )
         for user_id in prior_learner_user_ids.union(learner_user_ids):
-            self._sync_user_classroom_ids(
+            self._sync_user_section_ids(
                 user_id=user_id,
                 role=ClassroomMembershipRole.learner,
             )
@@ -145,7 +145,7 @@ class AdminSectionMembershipService:
                 )
         return normalized
 
-    def _sync_user_classroom_ids(
+    def _sync_user_section_ids(
         self,
         *,
         user_id: str,
@@ -154,7 +154,7 @@ class AdminSectionMembershipService:
         user = self.user_store.get(user_id)
         if user is None or user.role != role.value:
             return
-        user.classroom_ids = self.classroom_membership_store.list_user_classroom_ids(
+        user.section_ids = self.classroom_membership_store.list_user_section_ids(
             user_id,
             role=role,
         )

@@ -15,7 +15,7 @@ describe('ClassroomView', () => {
     render(
       <ClassroomView
         classrooms={demoTeacherClassrooms}
-        selectedClassroomId={demoTeacherClassroom.classroom_id}
+        selectedSectionId={demoTeacherClassroom.section_id}
         classroom={demoTeacherClassroom}
         onPickClassroom={onPickClassroom}
         onOpenTeacher={onOpenTeacher}
@@ -24,9 +24,9 @@ describe('ClassroomView', () => {
       />,
     )
 
-    expect(screen.getByText('Classroom attention and progression posture')).toBeInTheDocument()
+    expect(screen.getByText('Section attention and progression posture')).toBeInTheDocument()
     expect(screen.getAllByText('Grade 5 Fractions').length).toBeGreaterThan(0)
-    expect(screen.getByText('Move from classroom posture to learner action handoff')).toBeInTheDocument()
+    expect(screen.getByText('Move from section posture to learner action handoff')).toBeInTheDocument()
     expect(screen.getByText('Needs teacher action now')).toBeInTheDocument()
     expect(screen.getByText('Needs attention')).toBeInTheDocument()
     expect(screen.getByText('Teacher intervention ready')).toBeInTheDocument()
@@ -41,7 +41,7 @@ describe('ClassroomView', () => {
       '11111111-1111-1111-1111-111111111111',
       'generate_follow_up',
     )
-    expect(screen.getByText('Debug classroom payload')).toBeInTheDocument()
+    expect(screen.getByText('Debug section payload')).toBeInTheDocument()
   })
 
   it('lets the teacher switch classrooms and keeps blocked learners in teacher-first posture', async () => {
@@ -54,12 +54,12 @@ describe('ClassroomView', () => {
           ...demoTeacherClassrooms,
           {
             ...demoTeacherClassrooms[0],
-            classroom_id: 'CLASS-2',
+            section_id: 'CLASS-2',
             title: 'Grade 5 Decimals',
             learner_count: 3,
           },
         ]}
-        selectedClassroomId={demoTeacherClassroom.classroom_id}
+        selectedSectionId={demoTeacherClassroom.section_id}
         classroom={demoTeacherClassroom}
         onPickClassroom={onPickClassroom}
         onOpenTeacher={() => {}}
@@ -78,18 +78,18 @@ describe('ClassroomView', () => {
     render(
       <ClassroomView
         classrooms={demoTeacherClassrooms}
-        selectedClassroomId={demoTeacherClassroom.classroom_id}
+        selectedSectionId={demoTeacherClassroom.section_id}
         classroom={{ ...demoTeacherClassroom, learners: [] }}
         loading
-        error="Classroom contracts failed to refresh."
+        error="Section contracts failed to refresh."
         onPickClassroom={() => {}}
         onOpenTeacher={() => {}}
         onContinueLearner={() => {}}
       />,
     )
 
-    expect(screen.getByText('Refreshing classroom contracts…')).toBeInTheDocument()
-    expect(screen.getByText('Classroom contracts failed to refresh.')).toBeInTheDocument()
+    expect(screen.getByText('Refreshing section contracts…')).toBeInTheDocument()
+    expect(screen.getByText('Section contracts failed to refresh.')).toBeInTheDocument()
     expect(screen.getAllByText('No learners in this queue').length).toBeGreaterThan(0)
   })
 
@@ -98,7 +98,7 @@ describe('ClassroomView', () => {
       render(
         <ClassroomView
           classrooms={demoTeacherClassrooms}
-          selectedClassroomId={demoTeacherClassroom.classroom_id}
+          selectedSectionId={demoTeacherClassroom.section_id}
           classroom={demoTeacherClassroom}
           onPickClassroom={() => {}}
           onOpenTeacher={() => {}}
@@ -117,7 +117,7 @@ describe('ClassroomView', () => {
       render(
         <ClassroomView
           classrooms={demoTeacherClassrooms}
-          selectedClassroomId={demoTeacherClassroom.classroom_id}
+          selectedSectionId={demoTeacherClassroom.section_id}
           classroom={demoTeacherClassroom}
           onPickClassroom={() => {}}
           onOpenTeacher={() => {}}
@@ -150,7 +150,7 @@ describe('ClassroomView', () => {
       render(
         <ClassroomView
           classrooms={demoTeacherClassrooms}
-          selectedClassroomId={demoTeacherClassroom.classroom_id}
+          selectedSectionId={demoTeacherClassroom.section_id}
           classroom={demoTeacherClassroom}
           onPickClassroom={() => {}}
           onOpenTeacher={() => {}}
@@ -176,7 +176,7 @@ describe('ClassroomView', () => {
       render(
         <ClassroomView
           classrooms={demoTeacherClassrooms}
-          selectedClassroomId={demoTeacherClassroom.classroom_id}
+          selectedSectionId={demoTeacherClassroom.section_id}
           classroom={demoTeacherClassroom}
           onPickClassroom={() => {}}
           onOpenTeacher={() => {}}
@@ -200,7 +200,7 @@ describe('ClassroomView', () => {
       render(
         <ClassroomView
           classrooms={demoTeacherClassrooms}
-          selectedClassroomId={demoTeacherClassroom.classroom_id}
+          selectedSectionId={demoTeacherClassroom.section_id}
           classroom={demoTeacherClassroom}
           onPickClassroom={() => {}}
           onOpenTeacher={() => {}}
@@ -218,7 +218,7 @@ describe('ClassroomView', () => {
       render(
         <ClassroomView
           classrooms={demoTeacherClassrooms}
-          selectedClassroomId={demoTeacherClassroom.classroom_id}
+          selectedSectionId={demoTeacherClassroom.section_id}
           classroom={demoTeacherClassroom}
           onPickClassroom={() => {}}
           onOpenTeacher={() => {}}
@@ -237,7 +237,7 @@ describe('ClassroomView', () => {
       render(
         <ClassroomView
           classrooms={demoTeacherClassrooms}
-          selectedClassroomId={demoTeacherClassroom.classroom_id}
+          selectedSectionId={demoTeacherClassroom.section_id}
           classroom={demoTeacherClassroom}
           onPickClassroom={() => {}}
           onOpenTeacher={() => {}}
@@ -267,7 +267,7 @@ describe('ClassroomView', () => {
       render(
         <ClassroomView
           classrooms={demoTeacherClassrooms}
-          selectedClassroomId={demoTeacherClassroom.classroom_id}
+          selectedSectionId={demoTeacherClassroom.section_id}
           classroom={demoTeacherClassroom}
           onPickClassroom={() => {}}
           onOpenTeacher={() => {}}
@@ -295,7 +295,7 @@ describe('ClassroomView', () => {
       render(
         <ClassroomView
           classrooms={demoTeacherClassrooms}
-          selectedClassroomId={demoTeacherClassroom.classroom_id}
+          selectedSectionId={demoTeacherClassroom.section_id}
           classroom={demoTeacherClassroom}
           onPickClassroom={() => {}}
           onOpenTeacher={() => {}}

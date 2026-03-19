@@ -41,7 +41,7 @@ describe('TeacherView', () => {
     expect(
       screen.getByText(`Reviewing ${demoProfileSummary.student_id} from Grade 5 Fractions`),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Return to classroom' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Return to section' })).toBeInTheDocument()
     expect(screen.getByText('Intervention readiness and rationale')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Hold with one more worked example' })).toBeInTheDocument()
     expect(screen.getByText('How learner flow aligns to curriculum posture')).toBeInTheDocument()
@@ -54,7 +54,7 @@ describe('TeacherView', () => {
     expect(screen.getByText('Product-expansion areas not yet built')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Approve' }))
-    await user.click(screen.getByRole('button', { name: 'Return to classroom' }))
+    await user.click(screen.getByRole('button', { name: 'Return to section' }))
 
     expect(onSubmitDecision).toHaveBeenCalledWith({
       decision: 'approve',

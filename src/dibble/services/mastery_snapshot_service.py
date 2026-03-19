@@ -5,8 +5,8 @@ from datetime import datetime
 from uuid import UUID
 
 from dibble.models.mastery_history import (
-    ClassroomAveragePoint,
-    ClassroomMasteryTrendsResponse,
+    SectionAveragePoint,
+    SectionMasteryTrendsResponse,
     LearnerMasteryTrend,
     MasteryHistoryResponse,
     MasterySnapshot,
@@ -62,13 +62,13 @@ class MasterySnapshotService:
             snapshots=snapshots,
         )
 
-    def get_classroom_trends(
+    def get_section_trends(
         self,
         *,
-        classroom_id: str,
+        section_id: str,
         student_ids: list[str],
         days: int = 30,
-    ) -> ClassroomMasteryTrendsResponse:
+    ) -> SectionMasteryTrendsResponse:
         learner_trends: list[LearnerMasteryTrend] = []
         all_snapshots_by_time: dict[str, list[float]] = {}
 
@@ -100,21 +100,21 @@ class MasterySnapshotService:
                     snapshot.overall_kc_mastery
                 )
 
-        classroom_averages: list[ClassroomAveragePoint] = []
+        section_averages: list[SectionAveragePoint] = []
         for date_key in sorted(all_snapshots_by_time.keys()):
             values = all_snapshots_by_time[date_key]
-            classroom_averages.append(
-                ClassroomAveragePoint(
+            section_averages.append(
+                SectionAveragePoint(
                     timestamp=datetime.fromisoformat(date_key + "T00:00:00+00:00"),
                     average_mastery=round(sum(values) / len(values), 4),
                     learner_count=len(values),
                 )
             )
 
-        return ClassroomMasteryTrendsResponse(
-            classroom_id=classroom_id,
+        return SectionMasteryTrendsResponse(
+            section_id=section_id,
             days=days,
             learner_count=len(student_ids),
             learner_trends=learner_trends,
-            classroom_average_snapshots=classroom_averages,
+            section_average_snapshots=section_averages,
         )

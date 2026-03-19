@@ -101,7 +101,7 @@ class ClassroomMembershipStore(Protocol):
         *,
         user_id: str,
         role: ClassroomMembershipRole,
-        classroom_ids: list[str],
+        section_ids: list[str],
     ) -> list[ClassroomMembership]: ...
     def list_classroom_user_ids(
         self,
@@ -109,7 +109,7 @@ class ClassroomMembershipStore(Protocol):
         *,
         role: ClassroomMembershipRole | None = None,
     ) -> list[str]: ...
-    def list_user_classroom_ids(
+    def list_user_section_ids(
         self,
         user_id: str,
         *,

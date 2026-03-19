@@ -8,15 +8,15 @@ interface Crumb {
 
 export function TeacherBreadcrumbs() {
   const { pathname } = useLocation()
-  const { classroomId, studentId } = useParams()
+  const { sectionId, studentId } = useParams()
 
   const crumbs: Crumb[] = [{ label: 'Dashboard', to: '/teacher' }]
 
-  if (pathname.startsWith('/teacher/classrooms') && classroomId) {
-    crumbs.push({ label: 'Classrooms', to: '/teacher/classrooms' })
-    crumbs.push({ label: classroomId, to: `/teacher/classrooms/${classroomId}` })
-  } else if (pathname.startsWith('/teacher/classrooms')) {
-    crumbs.push({ label: 'Classrooms', to: '/teacher/classrooms' })
+  if (pathname.startsWith('/teacher/sections') && sectionId) {
+    crumbs.push({ label: 'Sections', to: '/teacher/sections' })
+    crumbs.push({ label: sectionId, to: `/teacher/sections/${sectionId}` })
+  } else if (pathname.startsWith('/teacher/sections')) {
+    crumbs.push({ label: 'Sections', to: '/teacher/sections' })
   }
 
   if (studentId) {
