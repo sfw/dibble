@@ -89,6 +89,13 @@ class CourseStore(Protocol):
 
 class ClassroomMembershipStore(Protocol):
     def upsert(self, membership: ClassroomMembershipUpsert) -> ClassroomMembership: ...
+    def replace_for_classroom(
+        self,
+        *,
+        classroom_id: str,
+        role: ClassroomMembershipRole,
+        user_ids: list[str],
+    ) -> list[ClassroomMembership]: ...
     def replace_for_user(
         self,
         *,

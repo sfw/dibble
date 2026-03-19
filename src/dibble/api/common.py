@@ -16,6 +16,9 @@ from dibble.services.auth import (
 )
 from dibble.services.admin_config import AdminConfigService
 from dibble.services.admin_academic_catalog import AdminAcademicCatalogService
+from dibble.services.admin_section_membership_service import (
+    AdminSectionMembershipService,
+)
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.content_workflow import ContentWorkflowService
 from dibble.services.protocols import ClassroomStore, CourseStore, UserStore
@@ -143,6 +146,7 @@ class ApiServices(Protocol):
     user_store: UserStore
     admin_config_service: AdminConfigService
     admin_academic_catalog_service: AdminAcademicCatalogService
+    admin_section_membership_service: AdminSectionMembershipService
     setup_config_service: SetupConfigService
     setup_model_catalog_service: SetupModelCatalogService
 

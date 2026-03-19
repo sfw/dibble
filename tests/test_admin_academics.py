@@ -133,3 +133,141 @@ def test_admin_section_requires_existing_course(tmp_path):
         code="section_course_not_found",
         detail="Course MISSING-COURSE does not exist.",
     )
+
+
+def test_admin_can_manage_section_memberships(tmp_path):
+    app, db_path = _make_app(tmp_path)
+    _seed_admin(db_path)
+    store = SQLiteUserStore(db_path)
+    now = datetime.now(timezone.utc).isoformat()
+    store.create(
+        User(
+            user_id="teacher-1",
+            display_name="Ms. Rivera",
+            role="teacher",
+            api_key_hash=hash_credential("teacher-key"),
+            classroom_ids=[],
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    store.create(
+        User(
+            user_id="learner-1",
+            display_name="Ava Learner",
+            role="learner",
+            passphrase_hash=hash_credential("correct horse battery staple"),
+            learner_id="learner-ava",
+            classroom_ids=[],
+            created_at=now,
+            updated_at=now,
+        )
+    )
+
+    with TestClient(app) as client:
+        headers = {"X-API-Key": "admin-key"}
+        client.put(
+            "/api/admin/courses/MATH-5",
+            headers=headers,
+            json={
+                "course_id": "MATH-5",
+                "title": "Grade 5 Mathematics",
+            },
+        )
+        client.put(
+            "/api/admin/sections/SEC-5A",
+            headers=headers,
+            json=build_classroom(
+                classroom_id="SEC-5A",
+                course_id="MATH-5",
+                title="Grade 5A",
+            ),
+        )
+
+        update_response = client.put(
+            "/api/admin/sections/SEC-5A/memberships",
+            headers=headers,
+            json={
+                "teacher_user_ids": ["teacher-1"],
+                "learner_user_ids": ["learner-1"],
+            },
+        )
+        get_response = client.get(
+            "/api/admin/sections/SEC-5A/memberships",
+            headers=headers,
+        )
+        teacher_user = client.get("/api/users/teacher-1", headers=headers)
+        learner_user = client.get("/api/users/learner-1", headers=headers)
+
+    assert update_response.status_code == 200
+    assert get_response.status_code == 200
+    assert get_response.json() == {
+        "classroom_id": "SEC-5A",
+        "teachers": [
+            {
+                "user_id": "teacher-1",
+                "display_name": "Ms. Rivera",
+            }
+        ],
+        "learners": [
+            {
+                "user_id": "learner-1",
+                "display_name": "Ava Learner",
+            }
+        ],
+    }
+    assert teacher_user.json()["classroom_ids"] == ["SEC-5A"]
+    assert learner_user.json()["classroom_ids"] == ["SEC-5A"]
+
+
+def test_admin_section_memberships_validate_user_roles(tmp_path):
+    app, db_path = _make_app(tmp_path)
+    _seed_admin(db_path)
+    store = SQLiteUserStore(db_path)
+    now = datetime.now(timezone.utc).isoformat()
+    store.create(
+        User(
+            user_id="viewer-1",
+            display_name="Observer",
+            role="viewer",
+            api_key_hash=hash_credential("viewer-key"),
+            classroom_ids=[],
+            created_at=now,
+            updated_at=now,
+        )
+    )
+
+    with TestClient(app) as client:
+        headers = {"X-API-Key": "admin-key"}
+        client.put(
+            "/api/admin/courses/MATH-5",
+            headers=headers,
+            json={
+                "course_id": "MATH-5",
+                "title": "Grade 5 Mathematics",
+            },
+        )
+        client.put(
+            "/api/admin/sections/SEC-5A",
+            headers=headers,
+            json=build_classroom(
+                classroom_id="SEC-5A",
+                course_id="MATH-5",
+                title="Grade 5A",
+            ),
+        )
+        response = client.put(
+            "/api/admin/sections/SEC-5A/memberships",
+            headers=headers,
+            json={
+                "teacher_user_ids": ["viewer-1"],
+                "learner_user_ids": [],
+            },
+        )
+
+    assert_machine_readable_error(
+        response,
+        status_code=400,
+        code="section_membership_role_mismatch",
+        detail="User viewer-1 must have role teacher, found viewer.",
+    )

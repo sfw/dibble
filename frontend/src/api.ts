@@ -1,5 +1,7 @@
 import type {
   AdminCourseSummary,
+  AdminSectionMembershipSummary,
+  AdminSectionMembershipUpdateRequest,
   AdminSectionSummary,
   BulkUserCreateRequest,
   BulkUserCreateResponse,
@@ -546,6 +548,24 @@ export function upsertAdminSection(
   payload: SectionUpsert,
 ) {
   return requestJson<AdminSectionSummary>(config, `/api/admin/sections/${sectionId}`, {
+    method: 'PUT',
+    headers: buildHeaders(config),
+    body: JSON.stringify(payload),
+  })
+}
+
+export function getAdminSectionMemberships(config: FrontendConfig, sectionId: string) {
+  return requestJson<AdminSectionMembershipSummary>(config, `/api/admin/sections/${sectionId}/memberships`, {
+    headers: buildHeaders(config, false),
+  })
+}
+
+export function updateAdminSectionMemberships(
+  config: FrontendConfig,
+  sectionId: string,
+  payload: AdminSectionMembershipUpdateRequest,
+) {
+  return requestJson<AdminSectionMembershipSummary>(config, `/api/admin/sections/${sectionId}/memberships`, {
     method: 'PUT',
     headers: buildHeaders(config),
     body: JSON.stringify(payload),
