@@ -194,6 +194,7 @@ def test_teacher_classroom_read_model_packages_learner_cards_and_counts(
     )
 
     assert classroom_payload["classroom_id"] == "CLASS-1"
+    assert classroom_payload["course_id"] == "COURSE-1"
     assert classroom_payload["title"] == "Grade 5 Fractions"
     assert classroom_payload["teacher_label"] == "Ms. Rivera"
     assert classroom_payload["learner_count"] == 2

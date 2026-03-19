@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router'
-import { LayoutDashboard, LogOut, Settings, SlidersHorizontal, Users } from 'lucide-react'
+import { Blocks, LayoutDashboard, LogOut, Settings, SlidersHorizontal, Users } from 'lucide-react'
 import { useAuthContext } from '../contexts/AuthContext'
 import { useConfigContext } from '../contexts/ConfigContext'
 
@@ -11,6 +11,7 @@ export function StaffShell() {
     { to: '/staff', icon: LayoutDashboard, label: 'Dashboard', end: true },
     ...(isAdmin
       ? [
+          { to: '/staff/academics', icon: Blocks, label: 'Courses & Sections' },
           { to: '/staff/config', icon: SlidersHorizontal, label: 'Configuration' },
           { to: '/staff/users', icon: Users, label: 'Users' },
         ]

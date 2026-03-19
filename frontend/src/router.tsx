@@ -27,6 +27,7 @@ import { Reports } from './views/teacher/Reports'
 
 // Staff views
 import { StaffDashboard } from './views/staff/StaffDashboard'
+import { AcademicCatalog } from './views/staff/AcademicCatalog'
 import { SystemConfig } from './views/staff/SystemConfig'
 import { UserManagement } from './views/staff/UserManagement'
 
@@ -112,6 +113,14 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <StaffDashboard /> },
+      {
+        path: 'academics',
+        element: (
+          <AuthGuard allowedRoles={['admin']}>
+            <AcademicCatalog />
+          </AuthGuard>
+        ),
+      },
       {
         path: 'config',
         element: (

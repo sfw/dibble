@@ -11,6 +11,7 @@ from dibble.models.classroom_membership import (
     ClassroomMembershipRole,
     ClassroomMembershipUpsert,
 )
+from dibble.models.course import Course, CourseUpsert
 from dibble.models.curriculum import (
     CurriculumResource,
     CurriculumResourceUpsert,
@@ -78,6 +79,12 @@ class ClassroomStore(Protocol):
     def upsert(self, classroom: ClassroomUpsert) -> Classroom: ...
     def get(self, classroom_id: str) -> Classroom | None: ...
     def list(self) -> list[Classroom]: ...
+
+
+class CourseStore(Protocol):
+    def upsert(self, course: CourseUpsert) -> Course: ...
+    def get(self, course_id: str) -> Course | None: ...
+    def list(self) -> list[Course]: ...
 
 
 class ClassroomMembershipStore(Protocol):

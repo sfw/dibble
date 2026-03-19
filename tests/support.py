@@ -120,6 +120,7 @@ def build_knowledge_component(
 def build_classroom(
     classroom_id="CLASS-1",
     *,
+    course_id="COURSE-1",
     title="Fraction Intervention Group",
     grade_level="5",
     subject="math",
@@ -127,6 +128,7 @@ def build_classroom(
 ):
     return {
         "classroom_id": classroom_id,
+        "course_id": course_id,
         "title": title,
         "grade_level": grade_level,
         "subject": subject,

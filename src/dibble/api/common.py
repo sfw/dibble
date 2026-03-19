@@ -15,9 +15,10 @@ from dibble.services.auth import (
     AuthorizationError,
 )
 from dibble.services.admin_config import AdminConfigService
+from dibble.services.admin_academic_catalog import AdminAcademicCatalogService
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.content_workflow import ContentWorkflowService
-from dibble.services.protocols import ClassroomStore, UserStore
+from dibble.services.protocols import ClassroomStore, CourseStore, UserStore
 from dibble.services.protocols import ClassroomMembershipStore
 from dibble.services.cognitive_trait_inference import CognitiveTraitInferenceService
 from dibble.services.generation_engine import GenerationEngine
@@ -100,6 +101,7 @@ class ApiServices(Protocol):
     assignment_store: AssignmentStore
     profile_store: ProfileStore
     classroom_store: ClassroomStore
+    course_store: CourseStore
     classroom_membership_store: ClassroomMembershipStore
     curriculum_store: CurriculumStore
     knowledge_component_store: KnowledgeComponentStore
@@ -140,6 +142,7 @@ class ApiServices(Protocol):
     within_session_adaptation_service: WithinSessionAdaptationService
     user_store: UserStore
     admin_config_service: AdminConfigService
+    admin_academic_catalog_service: AdminAcademicCatalogService
     setup_config_service: SetupConfigService
     setup_model_catalog_service: SetupModelCatalogService
 

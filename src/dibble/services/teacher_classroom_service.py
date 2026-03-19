@@ -159,6 +159,7 @@ class TeacherClassroomService:
         )
         return {
             "classroom_id": classroom.classroom_id,
+            "course_id": classroom.course_id,
             "title": classroom.title,
             "teacher_label": self._teacher_label(classroom),
             "grade_level": classroom.grade_level,

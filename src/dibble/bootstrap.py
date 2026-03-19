@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from dibble.config import Settings
 from dibble.plugins.contracts import RouterPlugin
 from dibble.services.admin_config import AdminConfigService
+from dibble.services.admin_academic_catalog import AdminAcademicCatalogService
 from dibble.services.setup_config import SetupConfigService
 from dibble.services.setup_model_catalog import SetupModelCatalogService
 from dibble.plugins.loader import build_generation_plugins
@@ -19,6 +20,7 @@ from dibble.services.cross_signal_consistency import CrossSignalConsistencyServi
 from dibble.services.content_workflow import ContentWorkflowService
 from dibble.services.classroom_store import SQLiteClassroomStore
 from dibble.services.classroom_membership_store import SQLiteClassroomMembershipStore
+from dibble.services.course_store import SQLiteCourseStore
 from dibble.services.cognitive_trait_inference import CognitiveTraitInferenceService
 from dibble.services.curriculum_store import SQLiteCurriculumStore
 from dibble.services.generation_engine import GenerationEngine
@@ -85,6 +87,7 @@ from dibble.services.protocols import (
     AuditStore,
     ClassroomStore,
     ClassroomMembershipStore,
+    CourseStore,
     CurriculumStore,
     GeneratedContentStore,
     KnowledgeComponentStore,
@@ -129,6 +132,7 @@ class ApplicationServices:
     assignment_store: AssignmentStore
     profile_store: ProfileStore
     classroom_store: ClassroomStore
+    course_store: CourseStore
     classroom_membership_store: ClassroomMembershipStore
     curriculum_store: CurriculumStore
     knowledge_component_store: KnowledgeComponentStore
@@ -176,6 +180,7 @@ class ApplicationServices:
     router_plugin: RouterPlugin
     user_store: UserStore
     admin_config_service: AdminConfigService
+    admin_academic_catalog_service: AdminAcademicCatalogService
     setup_config_service: SetupConfigService
     setup_model_catalog_service: SetupModelCatalogService
 
@@ -185,6 +190,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
 
     assignment_store = SQLiteAssignmentStore(settings.database_path)
     profile_store = SQLiteProfileStore(settings.database_path)
+    course_store = SQLiteCourseStore(settings.database_path)
     classroom_store = SQLiteClassroomStore(settings.database_path)
     classroom_membership_store = SQLiteClassroomMembershipStore(
         settings.database_path
@@ -445,6 +451,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         assignment_store=assignment_store,
         profile_store=profile_store,
         classroom_store=classroom_store,
+        course_store=course_store,
         classroom_membership_store=classroom_membership_store,
         curriculum_store=curriculum_store,
         knowledge_component_store=knowledge_component_store,
@@ -497,6 +504,11 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         router_plugin=router_plugin,
         user_store=user_store,
         admin_config_service=AdminConfigService(settings),
+        admin_academic_catalog_service=AdminAcademicCatalogService(
+            course_store=course_store,
+            classroom_store=classroom_store,
+            classroom_membership_store=classroom_membership_store,
+        ),
         setup_config_service=SetupConfigService(settings, user_store=user_store),
         setup_model_catalog_service=SetupModelCatalogService(),
     )
