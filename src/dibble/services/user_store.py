@@ -18,10 +18,9 @@ class SQLiteUserStore:
             api_key_hash=row[3],
             passphrase_hash=row[4],
             learner_id=row[5],
-            teacher_id=row[6],
-            classroom_ids=json.loads(row[7]),
-            created_at=row[8],
-            updated_at=row[9],
+            classroom_ids=json.loads(row[6]),
+            created_at=row[7],
+            updated_at=row[8],
         )
 
     def create(self, user: User) -> User:
@@ -30,8 +29,8 @@ class SQLiteUserStore:
                 """
                 INSERT INTO users(
                     user_id, display_name, role, api_key_hash, passphrase_hash,
-                    learner_id, teacher_id, classroom_ids, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    learner_id, classroom_ids, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     user.user_id,
@@ -40,7 +39,6 @@ class SQLiteUserStore:
                     user.api_key_hash,
                     user.passphrase_hash,
                     user.learner_id,
-                    user.teacher_id,
                     json.dumps(user.classroom_ids),
                     user.created_at,
                     user.updated_at,
@@ -53,7 +51,7 @@ class SQLiteUserStore:
         with sqlite3.connect(self.database_path) as connection:
             row = connection.execute(
                 "SELECT user_id, display_name, role, api_key_hash, passphrase_hash,"
-                " learner_id, teacher_id, classroom_ids, created_at, updated_at"
+                " learner_id, classroom_ids, created_at, updated_at"
                 " FROM users WHERE user_id = ?",
                 (user_id,),
             ).fetchone()
@@ -65,7 +63,7 @@ class SQLiteUserStore:
         with sqlite3.connect(self.database_path) as connection:
             row = connection.execute(
                 "SELECT user_id, display_name, role, api_key_hash, passphrase_hash,"
-                " learner_id, teacher_id, classroom_ids, created_at, updated_at"
+                " learner_id, classroom_ids, created_at, updated_at"
                 " FROM users WHERE api_key_hash = ?",
                 (api_key_hash,),
             ).fetchone()
@@ -77,7 +75,7 @@ class SQLiteUserStore:
         with sqlite3.connect(self.database_path) as connection:
             row = connection.execute(
                 "SELECT user_id, display_name, role, api_key_hash, passphrase_hash,"
-                " learner_id, teacher_id, classroom_ids, created_at, updated_at"
+                " learner_id, classroom_ids, created_at, updated_at"
                 " FROM users WHERE passphrase_hash = ?",
                 (passphrase_hash,),
             ).fetchone()
@@ -89,7 +87,7 @@ class SQLiteUserStore:
         with sqlite3.connect(self.database_path) as connection:
             rows = connection.execute(
                 "SELECT user_id, display_name, role, api_key_hash, passphrase_hash,"
-                " learner_id, teacher_id, classroom_ids, created_at, updated_at"
+                " learner_id, classroom_ids, created_at, updated_at"
                 " FROM users ORDER BY created_at DESC"
             ).fetchall()
         return [self._row_to_user(row) for row in rows]
@@ -104,7 +102,6 @@ class SQLiteUserStore:
                     api_key_hash = ?,
                     passphrase_hash = ?,
                     learner_id = ?,
-                    teacher_id = ?,
                     classroom_ids = ?,
                     updated_at = ?
                 WHERE user_id = ?
@@ -115,7 +112,6 @@ class SQLiteUserStore:
                     user.api_key_hash,
                     user.passphrase_hash,
                     user.learner_id,
-                    user.teacher_id,
                     json.dumps(user.classroom_ids),
                     user.updated_at,
                     user.user_id,

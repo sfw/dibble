@@ -12,10 +12,8 @@ def utc_now() -> datetime:
 class ClassroomUpsert(BaseModel):
     classroom_id: str
     title: str
-    teacher_label: str | None = None
     grade_level: str | None = None
     subject: str | None = None
-    student_ids: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
 
 

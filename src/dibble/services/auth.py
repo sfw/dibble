@@ -51,9 +51,7 @@ def _identity_from_user(user: User) -> AuthIdentity:
         role=user.role,
         auth_scheme=scheme,
         learner_id=user.learner_id,
-        teacher_id=user.teacher_id,
         display_name=user.display_name,
-        classroom_ids=list(user.classroom_ids),
     )
 
 
@@ -146,9 +144,7 @@ class AuthService:
         refresh_expires_at = now + timedelta(seconds=self.refresh_ttl_seconds)
         entity_claims = {
             "learner_id": identity.learner_id,
-            "teacher_id": identity.teacher_id,
             "display_name": identity.display_name,
-            "classroom_ids": identity.classroom_ids,
         }
         access_claims = AuthTokenClaims(
             sub=identity.principal_id,
@@ -191,9 +187,7 @@ class AuthService:
                 role=identity.role,
                 auth_scheme="bearer",
                 learner_id=identity.learner_id,
-                teacher_id=identity.teacher_id,
                 display_name=identity.display_name,
-                classroom_ids=identity.classroom_ids,
             ),
         )
 
@@ -210,9 +204,7 @@ class AuthService:
                 role=claims.role,
                 auth_scheme="bearer",
                 learner_id=claims.learner_id,
-                teacher_id=claims.teacher_id,
                 display_name=claims.display_name,
-                classroom_ids=claims.classroom_ids,
             ),
             session_id=claims.sid,
             authenticated_at=authenticated_at,
@@ -239,18 +231,14 @@ class AuthService:
             role=claims.role,
             auth_scheme="bearer",
             learner_id=claims.learner_id,
-            teacher_id=claims.teacher_id,
             display_name=claims.display_name,
-            classroom_ids=claims.classroom_ids,
         )
         now = datetime.now(timezone.utc)
         access_expires_at = now + timedelta(seconds=self.token_ttl_seconds)
         refresh_expires_at = now + timedelta(seconds=self.refresh_ttl_seconds)
         entity_claims = {
             "learner_id": identity.learner_id,
-            "teacher_id": identity.teacher_id,
             "display_name": identity.display_name,
-            "classroom_ids": identity.classroom_ids,
         }
         access_claims = AuthTokenClaims(
             sub=identity.principal_id,

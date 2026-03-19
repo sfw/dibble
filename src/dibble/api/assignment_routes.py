@@ -28,7 +28,7 @@ def build_assignment_router(context: ApiContext) -> APIRouter:
     def create_assignment(payload: AssignmentCreate, request: Request) -> Assignment:
         identity = getattr(request.state, "auth_identity", None)
         teacher_id = (
-            identity.teacher_id if identity and identity.teacher_id else "unknown"
+            identity.principal_id if identity and identity.principal_id else "unknown"
         )
 
         assignment = Assignment(
@@ -150,7 +150,7 @@ def build_assignment_router(context: ApiContext) -> APIRouter:
     ) -> AssignmentPage:
         identity = getattr(request.state, "auth_identity", None)
         teacher_id = (
-            identity.teacher_id if identity and identity.teacher_id else "unknown"
+            identity.principal_id if identity and identity.principal_id else "unknown"
         )
         items = services.assignment_store.list_for_teacher(
             teacher_id=teacher_id,

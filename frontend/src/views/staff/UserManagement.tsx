@@ -51,6 +51,22 @@ function useConfig(): FrontendConfig {
   return useStaffApiConfig()
 }
 
+function supportsClassroomMembership(role: string): boolean {
+  return role === 'teacher' || role === 'learner'
+}
+
+function parseClassroomIds(value: string): string[] | undefined {
+  const classroomIds = value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+  return classroomIds.length > 0 ? classroomIds : undefined
+}
+
+function formatClassroomIds(classroomIds: string[]): string {
+  return classroomIds.join(', ')
+}
+
 // ---------------------------------------------------------------------------
 // Create User Form
 // ---------------------------------------------------------------------------
@@ -65,6 +81,7 @@ function CreateUserForm({
   onCancel: () => void
 }) {
   const [form, setForm] = useState<UserCreateRequest>({ role: 'learner' })
+  const [classroomIdsInput, setClassroomIdsInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -73,7 +90,12 @@ function CreateUserForm({
     setLoading(true)
     setError('')
     try {
-      const result = await createUser(config, form)
+      const result = await createUser(config, {
+        display_name: form.display_name,
+        role: form.role,
+        learner_id: form.role === 'learner' ? form.learner_id : undefined,
+        classroom_ids: supportsClassroomMembership(form.role) ? parseClassroomIds(classroomIdsInput) : undefined,
+      })
       onCreated(result)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create user')
@@ -96,7 +118,16 @@ function CreateUserForm({
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="create-role">Role</Label>
-          <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
+          <Select
+            value={form.role}
+            onValueChange={(v) =>
+              setForm((current) => ({
+                ...current,
+                role: v,
+                learner_id: v === 'learner' ? current.learner_id : undefined,
+              }))
+            }
+          >
             <SelectTrigger id="create-role">
               <SelectValue />
             </SelectTrigger>
@@ -110,7 +141,7 @@ function CreateUserForm({
           </Select>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      {form.role === 'learner' && (
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="create-learner">Learner ID</Label>
           <Input
@@ -120,16 +151,21 @@ function CreateUserForm({
             onChange={(e) => setForm({ ...form, learner_id: e.target.value || undefined })}
           />
         </div>
+      )}
+      {supportsClassroomMembership(form.role) && (
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="create-teacher">Teacher ID</Label>
+          <Label htmlFor="create-classrooms">Classrooms</Label>
           <Input
-            id="create-teacher"
-            placeholder="Optional"
-            value={form.teacher_id ?? ''}
-            onChange={(e) => setForm({ ...form, teacher_id: e.target.value || undefined })}
+            id="create-classrooms"
+            placeholder="classroom-a, classroom-b"
+            value={classroomIdsInput}
+            onChange={(e) => setClassroomIdsInput(e.target.value)}
           />
+          <p className="text-xs text-muted-foreground">
+            Use classroom membership to place teachers and learners in sections.
+          </p>
         </div>
-      </div>
+      )}
       {error && <p className="text-sm text-destructive">{error}</p>}
       <div className="flex gap-2">
         <Button variant="outline" type="button" onClick={onCancel}>
@@ -233,7 +269,7 @@ function BulkImportPanel({
       <textarea
         value={csv}
         onChange={(e) => setCsv(e.target.value)}
-        placeholder={'Alice, learner, student-1, classroom-a\nBob, learner, student-2, classroom-a'}
+        placeholder={'Alice, learner, student-1, classroom-a\nMs Rivera, teacher, , classroom-a;classroom-b'}
         rows={6}
         className="w-full rounded-md border bg-white px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
       />
@@ -269,6 +305,8 @@ function UserRow({
   const [form, setForm] = useState({
     display_name: user.display_name ?? '',
     role: user.role,
+    learner_id: user.learner_id ?? '',
+    classroom_ids: formatClassroomIds(user.classroom_ids),
   })
   const [loading, setLoading] = useState(false)
 
@@ -278,6 +316,8 @@ function UserRow({
       const updated = await updateUser(config, user.user_id, {
         display_name: form.display_name || undefined,
         role: form.role,
+        learner_id: form.role === 'learner' ? form.learner_id || undefined : undefined,
+        classroom_ids: supportsClassroomMembership(form.role) ? parseClassroomIds(form.classroom_ids) : [],
       })
       onUpdated(updated)
       setEditing(false)
@@ -318,13 +358,24 @@ function UserRow({
       <tr className="border-b">
         <td className="px-4 py-2">
           <Input
+            aria-label="Edit display name"
             value={form.display_name}
             onChange={(e) => setForm({ ...form, display_name: e.target.value })}
             className="h-8 text-sm"
           />
         </td>
         <td className="px-4 py-2">
-          <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
+          <Select
+            value={form.role}
+            onValueChange={(v) =>
+              setForm((current) => ({
+                ...current,
+                role: v,
+                learner_id: v === 'learner' ? current.learner_id : '',
+                classroom_ids: supportsClassroomMembership(v) ? current.classroom_ids : '',
+              }))
+            }
+          >
             <SelectTrigger className="h-8 text-sm">
               <SelectValue />
             </SelectTrigger>
@@ -337,8 +388,31 @@ function UserRow({
             </SelectContent>
           </Select>
         </td>
-        <td className="px-4 py-2 text-sm text-muted-foreground">{user.learner_id ?? '-'}</td>
-        <td className="px-4 py-2 text-sm text-muted-foreground">{user.teacher_id ?? '-'}</td>
+        <td className="px-4 py-2">
+          {form.role === 'learner' ? (
+            <Input
+              aria-label="Edit learner ID"
+              value={form.learner_id}
+              onChange={(e) => setForm({ ...form, learner_id: e.target.value })}
+              className="h-8 text-sm"
+            />
+          ) : (
+            <span className="text-sm text-muted-foreground">-</span>
+          )}
+        </td>
+        <td className="px-4 py-2">
+          {supportsClassroomMembership(form.role) ? (
+            <Input
+              aria-label="Edit classrooms"
+              value={form.classroom_ids}
+              onChange={(e) => setForm({ ...form, classroom_ids: e.target.value })}
+              className="h-8 text-sm"
+              placeholder="classroom-a, classroom-b"
+            />
+          ) : (
+            <span className="text-sm text-muted-foreground">-</span>
+          )}
+        </td>
         <td className="px-4 py-2">
           <div className="flex gap-1">
             <Button variant="outline" size="sm" onClick={() => setEditing(false)} disabled={loading}>
@@ -358,7 +432,9 @@ function UserRow({
       <td className="px-4 py-2 text-sm">{user.display_name ?? <span className="text-muted-foreground">-</span>}</td>
       <td className="px-4 py-2"><RoleBadge role={user.role} /></td>
       <td className="px-4 py-2 text-sm text-muted-foreground">{user.learner_id ?? '-'}</td>
-      <td className="px-4 py-2 text-sm text-muted-foreground">{user.teacher_id ?? '-'}</td>
+      <td className="px-4 py-2 text-sm text-muted-foreground">
+        {user.classroom_ids.length > 0 ? formatClassroomIds(user.classroom_ids) : '-'}
+      </td>
       <td className="px-4 py-2">
         <div className="flex gap-1">
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditing(true)} title="Edit">
@@ -518,7 +594,7 @@ export function UserManagement() {
                   <th className="px-4 py-2 font-medium">Name</th>
                   <th className="px-4 py-2 font-medium">Role</th>
                   <th className="px-4 py-2 font-medium">Learner ID</th>
-                  <th className="px-4 py-2 font-medium">Teacher ID</th>
+                  <th className="px-4 py-2 font-medium">Classrooms</th>
                   <th className="px-4 py-2 font-medium">Actions</th>
                 </tr>
               </thead>

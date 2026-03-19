@@ -10,9 +10,7 @@ class AuthIdentity(BaseModel):
     role: str
     auth_scheme: str = "api_key"
     learner_id: str | None = None
-    teacher_id: str | None = None
     display_name: str | None = None
-    classroom_ids: list[str] = Field(default_factory=list)
 
 
 class AuthToken(BaseModel):
@@ -33,9 +31,7 @@ class AuthTokenClaims(BaseModel):
     exp: int
     iss: str
     learner_id: str | None = None
-    teacher_id: str | None = None
     display_name: str | None = None
-    classroom_ids: list[str] = Field(default_factory=list)
 
 
 class AuthSession(BaseModel):
@@ -65,7 +61,6 @@ class User(BaseModel):
     api_key_hash: str | None = None
     passphrase_hash: str | None = None
     learner_id: str | None = None
-    teacher_id: str | None = None
     classroom_ids: list[str] = Field(default_factory=list)
     created_at: str
     updated_at: str
@@ -75,7 +70,6 @@ class UserCreateRequest(BaseModel):
     display_name: str | None = None
     role: str
     learner_id: str | None = None
-    teacher_id: str | None = None
     classroom_ids: list[str] = Field(default_factory=list)
 
 
@@ -90,7 +84,6 @@ class UserUpdateRequest(BaseModel):
     display_name: str | None = None
     role: str | None = None
     learner_id: str | None = None
-    teacher_id: str | None = None
     classroom_ids: list[str] | None = None
 
 
@@ -99,7 +92,6 @@ class UserSummary(BaseModel):
     display_name: str | None = None
     role: str
     learner_id: str | None = None
-    teacher_id: str | None = None
     classroom_ids: list[str] = Field(default_factory=list)
     created_at: str
     updated_at: str
