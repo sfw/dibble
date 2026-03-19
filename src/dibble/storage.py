@@ -131,6 +131,14 @@ CREATE TABLE IF NOT EXISTS classrooms (
 );
 """
 
+COURSE_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS courses (
+    course_id TEXT PRIMARY KEY,
+    payload TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+"""
+
 ASSIGNMENT_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS assignments (
     assignment_id TEXT PRIMARY KEY,
@@ -226,6 +234,7 @@ def ensure_database(database_path: str) -> None:
         connection.execute(SOCRATIC_SESSION_TABLE_SQL)
         connection.execute(REMEDIATION_SESSION_TABLE_SQL)
         connection.execute(WITHIN_SESSION_CONTROLLER_TABLE_SQL)
+        connection.execute(COURSE_TABLE_SQL)
         connection.execute(CLASSROOM_TABLE_SQL)
         connection.execute(CLASSROOM_MEMBERSHIP_TABLE_SQL)
         connection.execute(ASSIGNMENT_TABLE_SQL)

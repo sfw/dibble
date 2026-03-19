@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
-import { ArrowRight, Gauge, KeyRound, Server, ShieldCheck, Users } from 'lucide-react'
+import { ArrowRight, Blocks, Gauge, KeyRound, Server, ShieldCheck, Users } from 'lucide-react'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
@@ -74,6 +74,14 @@ export function StaffDashboard() {
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
+            {auth.identity?.role === 'admin' && (
+              <Button asChild variant="outline">
+                <Link to="/staff/academics">
+                  Manage courses
+                  <Blocks className="h-4 w-4" />
+                </Link>
+              </Button>
+            )}
             {auth.identity?.role === 'admin' && (
               <Button asChild>
                 <Link to="/staff/config">
@@ -179,6 +187,14 @@ export function StaffDashboard() {
             <CardTitle>Operator shortcuts</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
+            {auth.identity?.role === 'admin' && (
+              <Button asChild variant="outline" className="justify-between">
+                <Link to="/staff/academics">
+                  Manage courses and sections
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            )}
             {auth.identity?.role === 'admin' && (
               <Button asChild variant="outline" className="justify-between">
                 <Link to="/staff/config">

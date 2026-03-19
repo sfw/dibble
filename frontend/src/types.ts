@@ -735,6 +735,7 @@ export interface TeacherLearnerCard {
 
 export interface TeacherClassroomOverview {
   classroom_id: string
+  course_id?: string
   title: string
   teacher_label?: string | null
   grade_level?: string | null
@@ -962,6 +963,48 @@ export interface SystemConfigUpdateResponse {
   status: 'ok'
   config_path: string
   restart_required: boolean
+}
+
+export interface CourseUpsert {
+  course_id: string
+  title: string
+  subject?: string | null
+  grade_band?: string | null
+  curriculum_package_id?: string | null
+  tags?: string[]
+}
+
+export interface AdminCourseSummary {
+  course_id: string
+  title: string
+  subject?: string | null
+  grade_band?: string | null
+  curriculum_package_id?: string | null
+  tags: string[]
+  updated_at: string
+  section_count: number
+}
+
+export interface SectionUpsert {
+  classroom_id: string
+  course_id: string
+  title: string
+  grade_level?: string | null
+  subject?: string | null
+  tags?: string[]
+}
+
+export interface AdminSectionSummary {
+  classroom_id: string
+  course_id: string
+  title: string
+  grade_level?: string | null
+  subject?: string | null
+  tags: string[]
+  updated_at: string
+  course_title?: string | null
+  teacher_count: number
+  learner_count: number
 }
 
 export interface CreateInitialAdminRequest {

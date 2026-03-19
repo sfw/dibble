@@ -1,11 +1,15 @@
 import type {
+  AdminCourseSummary,
+  AdminSectionSummary,
   BulkUserCreateRequest,
   BulkUserCreateResponse,
   CreateInitialAdminRequest,
   CreateInitialAdminResponse,
+  CourseUpsert,
   SystemConfigResponse,
   SystemConfigUpdateResponse,
   SystemConfigValues,
+  SectionUpsert,
   SetupConfigureRequest,
   SetupConfigureResponse,
   SetupModelCatalogRequest,
@@ -506,6 +510,42 @@ export function updateSystemConfig(
   payload: SystemConfigValues,
 ) {
   return requestJson<SystemConfigUpdateResponse>(config, '/api/admin/config', {
+    method: 'PUT',
+    headers: buildHeaders(config),
+    body: JSON.stringify(payload),
+  })
+}
+
+export function listAdminCourses(config: FrontendConfig) {
+  return requestJson<AdminCourseSummary[]>(config, '/api/admin/courses', {
+    headers: buildHeaders(config, false),
+  })
+}
+
+export function upsertAdminCourse(
+  config: FrontendConfig,
+  courseId: string,
+  payload: CourseUpsert,
+) {
+  return requestJson<AdminCourseSummary>(config, `/api/admin/courses/${courseId}`, {
+    method: 'PUT',
+    headers: buildHeaders(config),
+    body: JSON.stringify(payload),
+  })
+}
+
+export function listAdminSections(config: FrontendConfig) {
+  return requestJson<AdminSectionSummary[]>(config, '/api/admin/sections', {
+    headers: buildHeaders(config, false),
+  })
+}
+
+export function upsertAdminSection(
+  config: FrontendConfig,
+  sectionId: string,
+  payload: SectionUpsert,
+) {
+  return requestJson<AdminSectionSummary>(config, `/api/admin/sections/${sectionId}`, {
     method: 'PUT',
     headers: buildHeaders(config),
     body: JSON.stringify(payload),

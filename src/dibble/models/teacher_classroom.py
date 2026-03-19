@@ -45,6 +45,7 @@ class TeacherLearnerCard(BaseModel):
 
 class TeacherClassroomOverview(BaseModel):
     classroom_id: str
+    course_id: str
     title: str
     teacher_label: str | None = None
     grade_level: str | None = None
