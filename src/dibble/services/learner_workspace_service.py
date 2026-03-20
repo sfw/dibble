@@ -109,7 +109,6 @@ class LearnerWorkspaceService:
             next_outcome = summary.curriculum_progression.next_outcome
             continue_action = LearnerContinueAction.generate_follow_up(
                 outcome_id=next_outcome.outcome_id,
-                content_type="explanation",
                 target_stage="target",
                 target_kc_ids=list(next_outcome.knowledge_component_ids),
                 request_payload={
