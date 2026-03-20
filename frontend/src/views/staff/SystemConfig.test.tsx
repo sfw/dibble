@@ -49,6 +49,7 @@ function buildValues(): SystemConfigValues {
     llm_api_key: 'sk-test',
     llm_model: 'kimi-k2.5',
     llm_timeout_seconds: 20,
+    llm_temperature: null,
     llm_allow_mock_fallback: false,
     llm_secondary_api_base: null,
     llm_secondary_api_key: null,

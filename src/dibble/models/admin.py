@@ -17,6 +17,7 @@ class SystemConfigValues(BaseModel):
     llm_api_key: str | None = None
     llm_model: str | None = None
     llm_timeout_seconds: float
+    llm_temperature: float | None = None
     llm_allow_mock_fallback: bool
     llm_secondary_api_base: str | None = None
     llm_secondary_api_key: str | None = None
@@ -64,6 +65,7 @@ class SystemConfigUpdateRequest(BaseModel):
     llm_api_key: str | None = None
     llm_model: str | None = None
     llm_timeout_seconds: float | None = None
+    llm_temperature: float | None = None
     llm_allow_mock_fallback: bool | None = None
     llm_secondary_api_base: str | None = None
     llm_secondary_api_key: str | None = None

@@ -122,6 +122,14 @@ export const systemConfigSections: SystemConfigSectionDefinition[] = [
         step: '0.1',
       },
       {
+        key: 'llm_temperature',
+        label: 'LLM temperature',
+        description: 'Sampling temperature sent to the LLM. Some models (e.g. kimi-k2.5) only accept 1. Leave blank for the default (0.2).',
+        input: 'number',
+        step: '0.1',
+        placeholder: '0.2',
+      },
+      {
         key: 'llm_allow_mock_fallback',
         label: 'Allow mock fallback',
         description: 'Permit mock responses when no real provider is available.',

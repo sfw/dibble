@@ -22,19 +22,19 @@ from tests.support import build_profile
 
 class AlwaysFailsClient:
     def complete(
-        self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2
+        self, *, system_prompt: str, user_prompt: str, temperature: float | None = None
     ):
         raise LLMClientError("boom")
 
     def stream_complete(
-        self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2
+        self, *, system_prompt: str, user_prompt: str, temperature: float | None = None
     ):
         raise LLMClientError("boom")
 
 
 class SucceedsClient:
     def complete(
-        self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2
+        self, *, system_prompt: str, user_prompt: str, temperature: float | None = None
     ):
         class Result:
             content = (
@@ -47,7 +47,7 @@ class SucceedsClient:
         return Result()
 
     def stream_complete(
-        self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2
+        self, *, system_prompt: str, user_prompt: str, temperature: float | None = None
     ):
         yield '{"block_index":0,"kind":"summary","title":"Backup","body_delta":"Recovered output.","done":true}\n'
 

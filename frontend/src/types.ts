@@ -997,6 +997,7 @@ export interface SystemConfigValues {
   llm_api_key?: string | null
   llm_model?: string | null
   llm_timeout_seconds: number
+  llm_temperature?: number | null
   llm_allow_mock_fallback: boolean
   llm_secondary_api_base?: string | null
   llm_secondary_api_key?: string | null
