@@ -49,7 +49,7 @@ def _build_user(request: UserCreateRequest, credential: str) -> User:
         role=request.role,
         api_key_hash=credential_hash if not _is_learner_role(request.role) else None,
         passphrase_hash=credential_hash if _is_learner_role(request.role) else None,
-        learner_id=request.learner_id,
+        learner_id=str(uuid4()) if _is_learner_role(request.role) else None,
         section_ids=request.section_ids,
         created_at=now,
         updated_at=now,
@@ -100,13 +100,10 @@ def build_user_router(context: ApiContext) -> APIRouter:
     def _resolve_student_id(user: User) -> UUID:
         """Derive the profile student_id from the user.
 
-        Prefers learner_id if it's a valid UUID, otherwise uses user_id.
+        Uses learner_id if set, otherwise falls back to user_id.
         """
         if user.learner_id:
-            try:
-                return UUID(user.learner_id)
-            except ValueError:
-                pass
+            return UUID(user.learner_id)
         return UUID(user.user_id)
 
     def _ensure_learner_profile(user: User) -> None:
@@ -163,8 +160,6 @@ def build_user_router(context: ApiContext) -> APIRouter:
             user.display_name = payload.display_name
         if payload.role is not None:
             user.role = payload.role
-        if payload.learner_id is not None:
-            user.learner_id = payload.learner_id
         if payload.section_ids is not None:
             user.section_ids = payload.section_ids
         user.updated_at = now

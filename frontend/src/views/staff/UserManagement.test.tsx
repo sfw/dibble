@@ -119,9 +119,9 @@ describe('UserManagement', () => {
 
     expect(screen.queryByLabelText('Teacher ID')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Classrooms')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Learner ID')).not.toBeInTheDocument()
 
     await userEvent.type(screen.getByLabelText('Display name'), 'Jordan Kim')
-    await userEvent.type(screen.getByLabelText('Learner ID'), 'student-44')
     await userEvent.click(screen.getAllByRole('button', { name: /^create user$/i })[1])
 
     await waitFor(() => {
@@ -130,11 +130,11 @@ describe('UserManagement', () => {
         expect.objectContaining({
           display_name: 'Jordan Kim',
           role: 'learner',
-          learner_id: 'student-44',
         }),
       )
     })
 
+    expect(mockedCreateUser.mock.calls[0]?.[1]).not.toHaveProperty('learner_id')
     expect(mockedCreateUser.mock.calls[0]?.[1]).not.toHaveProperty('teacher_id')
     expect(mockedCreateUser.mock.calls[0]?.[1]).not.toHaveProperty('section_ids')
   })

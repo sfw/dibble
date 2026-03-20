@@ -1077,7 +1077,6 @@ export interface CreateInitialAdminResponse {
 export interface UserCreateRequest {
   display_name?: string
   role: string
-  learner_id?: string
   section_ids?: string[]
 }
 
@@ -1101,7 +1100,6 @@ export interface UserSummary {
 export interface UserUpdateRequest {
   display_name?: string
   role?: string
-  learner_id?: string
   section_ids?: string[]
 }
 

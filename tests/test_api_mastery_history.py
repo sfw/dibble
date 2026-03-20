@@ -101,10 +101,27 @@ def test_classroom_mastery_trends_empty(client, student_id):
 
 
 def test_classroom_mastery_trends_with_learner_data(client, student_id):
-    sid = str(student_id)
-    client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
+    # Create user via API (learner_id is auto-generated)
+    client.put(
+        "/api/teachers/sections/CLASS-1",
+        json=build_classroom("CLASS-1"),
+    )
+    create_resp = client.post(
+        "/api/users",
+        json={
+            "display_name": "Learner One",
+            "role": "learner",
+            "section_ids": ["CLASS-1"],
+        },
+    )
+    user_id = create_resp.json()["user_id"]
+    # GET user to discover the auto-generated learner_id
+    user_resp = client.get(f"/api/users/{user_id}")
+    sid = user_resp.json()["learner_id"]
+
+    client.put(f"/api/learners/{sid}/profile", json=build_profile(sid))
     client.post(
-        f"/api/learners/{student_id}/observations",
+        f"/api/learners/{sid}/observations",
         json={
             "response_time_ms": 3000,
             "hints_used": 0,
@@ -114,19 +131,6 @@ def test_classroom_mastery_trends_with_learner_data(client, student_id):
             "completed": True,
             "task_type": "practice",
             "support_level": "low",
-        },
-    )
-    client.put(
-        "/api/teachers/sections/CLASS-1",
-        json=build_classroom("CLASS-1"),
-    )
-    client.post(
-        "/api/users",
-        json={
-            "display_name": "Learner One",
-            "role": "learner",
-            "learner_id": sid,
-            "section_ids": ["CLASS-1"],
         },
     )
     response = client.get("/api/teachers/sections/CLASS-1/mastery-trends")

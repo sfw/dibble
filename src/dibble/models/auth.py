@@ -69,7 +69,6 @@ class User(BaseModel):
 class UserCreateRequest(BaseModel):
     display_name: str | None = None
     role: str
-    learner_id: str | None = None
     section_ids: list[str] = Field(default_factory=list)
 
 
@@ -83,7 +82,6 @@ class UserCreateResponse(BaseModel):
 class UserUpdateRequest(BaseModel):
     display_name: str | None = None
     role: str | None = None
-    learner_id: str | None = None
     section_ids: list[str] | None = None
 
 

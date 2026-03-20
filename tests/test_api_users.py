@@ -118,6 +118,7 @@ def test_creating_learner_auto_creates_profile(tmp_path):
     _seed_admin(db_path)
     conn = create_connection(db_path)
     profile_store = SQLiteProfileStore(conn)
+    user_store = SQLiteUserStore(conn)
 
     with TestClient(app) as client:
         response = client.post(
@@ -128,9 +129,14 @@ def test_creating_learner_auto_creates_profile(tmp_path):
 
     assert response.status_code == 200
     user_id = response.json()["user_id"]
-    profile = profile_store.get(UUID(user_id))
+    user = user_store.get(user_id)
+    assert user is not None
+    assert user.learner_id is not None
+    # learner_id is auto-generated as a valid UUID
+    learner_uuid = UUID(user.learner_id)
+    profile = profile_store.get(learner_uuid)
     assert profile is not None
-    assert profile.student_id == UUID(user_id)
+    assert profile.student_id == learner_uuid
 
 
 def test_updating_learner_does_not_overwrite_existing_profile(tmp_path):
@@ -138,6 +144,7 @@ def test_updating_learner_does_not_overwrite_existing_profile(tmp_path):
     _seed_admin(db_path)
     conn = create_connection(db_path)
     profile_store = SQLiteProfileStore(conn)
+    user_store = SQLiteUserStore(conn)
 
     with TestClient(app) as client:
         headers = {"X-API-Key": "admin-key"}
@@ -147,9 +154,10 @@ def test_updating_learner_does_not_overwrite_existing_profile(tmp_path):
             json={"display_name": "Learner A", "role": "learner"},
         )
         user_id = create_response.json()["user_id"]
+        learner_id = UUID(user_store.get(user_id).learner_id)
 
         # Modify the profile (simulating progression — add mastery data)
-        profile = profile_store.get(UUID(user_id))
+        profile = profile_store.get(learner_id)
         assert profile is not None
         profile.knowledge_state.kc_mastery = {"kc-1": 0.85}
         profile.grade_level = "7"
@@ -162,60 +170,48 @@ def test_updating_learner_does_not_overwrite_existing_profile(tmp_path):
             json={"display_name": "Learner A Updated"},
         )
 
-    profile_after = profile_store.get(UUID(user_id))
+    profile_after = profile_store.get(learner_id)
     assert profile_after is not None
     assert profile_after.knowledge_state.kc_mastery == {"kc-1": 0.85}
     assert profile_after.grade_level == "7"
 
 
-def test_learner_with_non_uuid_learner_id_gets_profile(tmp_path):
+def test_learner_id_is_auto_generated_uuid(tmp_path):
     app, db_path = _make_app(tmp_path)
     _seed_admin(db_path)
     conn = create_connection(db_path)
-    profile_store = SQLiteProfileStore(conn)
+    user_store = SQLiteUserStore(conn)
 
     with TestClient(app) as client:
         headers = {"X-API-Key": "admin-key"}
-        response = client.post(
+        resp = client.post(
             "/api/users",
             headers=headers,
-            json={
-                "display_name": "Ava",
-                "role": "learner",
-                "learner_id": "ava-1",
-            },
+            json={"display_name": "Ava", "role": "learner"},
         )
 
-    assert response.status_code == 200
-    user_id = response.json()["user_id"]
-    # learner_id "ava-1" is not a UUID, so profile uses user_id instead
-    profile = profile_store.get(UUID(user_id))
-    assert profile is not None
-    assert profile.student_id == UUID(user_id)
+    assert resp.status_code == 200
+    user = user_store.get(resp.json()["user_id"])
+    assert user is not None
+    assert user.learner_id is not None
+    UUID(user.learner_id)  # must be a valid UUID
 
 
-def test_updating_learner_with_non_uuid_learner_id_does_not_crash(tmp_path):
+def test_non_learner_does_not_get_learner_id(tmp_path):
     app, db_path = _make_app(tmp_path)
     _seed_admin(db_path)
+    conn = create_connection(db_path)
+    user_store = SQLiteUserStore(conn)
 
     with TestClient(app) as client:
         headers = {"X-API-Key": "admin-key"}
-        create_resp = client.post(
+        resp = client.post(
             "/api/users",
             headers=headers,
-            json={
-                "display_name": "Ava",
-                "role": "learner",
-                "learner_id": "ava-1",
-            },
-        )
-        user_id = create_resp.json()["user_id"]
-
-        update_resp = client.put(
-            f"/api/users/{user_id}",
-            headers=headers,
-            json={"display_name": "Ava Updated"},
+            json={"display_name": "Ms. Rivera", "role": "teacher"},
         )
 
-    assert update_resp.status_code == 200
-    assert update_resp.json()["display_name"] == "Ava Updated"
+    assert resp.status_code == 200
+    user = user_store.get(resp.json()["user_id"])
+    assert user is not None
+    assert user.learner_id is None
