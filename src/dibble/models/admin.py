@@ -42,6 +42,7 @@ class SystemConfigValues(BaseModel):
     auth_refresh_ttl_seconds: int
     generation_cache_ttl_seconds: int
     predictive_warm_inline_process_limit: int
+    llm_debug_prompts_enabled: bool
 
 
 class SystemConfigResponse(BaseModel):
