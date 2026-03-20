@@ -687,6 +687,11 @@ export interface LearnerGenerationHistoryEntry {
   active_target_kc_ids: string[]
   intervention_type?: string | null
   rationale?: string | null
+  mastery_signal: string
+  mastery_confidence: number
+  progress_signal: string
+  evidence_signal: string
+  evidence_rationale?: string | null
   next_step: LearnerFlowNextStep
   continue_action: LearnerContinueAction
   created_at: string

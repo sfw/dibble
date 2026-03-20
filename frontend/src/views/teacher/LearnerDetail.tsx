@@ -31,6 +31,9 @@ import {
   teacherArtifact,
   teacherProgressionAction,
   teacherRemediationPhase,
+  teacherMasterySignal,
+  teacherEvidenceSignal,
+  teacherProgressSignal,
 } from '../../lib/copy'
 import { formatPercent, formatTimestamp, titleCase } from '../../lib/formatters'
 import { asMessage } from '../../lib/formatters'
@@ -516,6 +519,11 @@ function TimelineLabel({ entry }: { entry: TimelineEntry }) {
           <Badge variant="outline" className="text-[10px] px-1.5 py-0">
             {teacherStage(g.target_stage)}
           </Badge>
+          {g.mastery_signal !== 'insufficient' && (
+            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${masteryBadgeColor(g.mastery_signal)}`}>
+              {teacherMasterySignal(g.mastery_signal)}
+            </Badge>
+          )}
           {g.rationale && (
             <span className="truncate text-muted-foreground">{g.rationale}</span>
           )}
@@ -556,14 +564,31 @@ function TimelineDetail({ entry }: { entry: TimelineEntry }) {
     case 'generation': {
       const g = entry.generation!
       return (
-        <div className="ml-10 space-y-1 text-xs text-muted-foreground">
+        <div className="ml-10 space-y-2 text-xs text-muted-foreground">
           <div className="flex flex-wrap gap-x-4 gap-y-1">
             <span>Flow: {teacherFlowType(g.flow_type)}</span>
             <span>Status: {titleCase(g.status)}</span>
             <span>Phase: {titleCase(g.delivered_phase)}</span>
             <span>Progression: {teacherProgressionAction(g.progression_action)}</span>
           </div>
-          {g.rationale && <p className="italic">{g.rationale}</p>}
+          {(g.mastery_signal !== 'insufficient' || g.evidence_signal !== 'steady' || g.progress_signal !== 'insufficient') && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              {g.mastery_signal !== 'insufficient' && (
+                <span>Mastery: {teacherMasterySignal(g.mastery_signal)} ({formatPercent(g.mastery_confidence)})</span>
+              )}
+              {g.evidence_signal !== 'steady' && (
+                <span>Evidence: {teacherEvidenceSignal(g.evidence_signal)}</span>
+              )}
+              {g.progress_signal !== 'insufficient' && (
+                <span>Progress: {teacherProgressSignal(g.progress_signal)}</span>
+              )}
+            </div>
+          )}
+          {g.evidence_rationale && <p className="italic text-slate-600">{g.evidence_rationale}</p>}
+          {g.next_step.rationale && (
+            <p className="italic">Next: {titleCase(g.next_step.action)} &mdash; {g.next_step.rationale}</p>
+          )}
+          {g.rationale && !g.evidence_rationale && <p className="italic">{g.rationale}</p>}
         </div>
       )
     }
@@ -679,6 +704,22 @@ function ArtifactReviewPanel({
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function masteryBadgeColor(signal: string): string {
+  switch (signal) {
+    case 'strong':
+    case 'improving':
+      return 'border-emerald-300 text-emerald-700'
+    case 'stable':
+    case 'steady':
+      return 'border-sky-300 text-sky-700'
+    case 'declining':
+    case 'weak':
+      return 'border-amber-300 text-amber-700'
+    default:
+      return ''
+  }
+}
 
 function StatItem({ label, value }: { label: string; value: string }) {
   return (

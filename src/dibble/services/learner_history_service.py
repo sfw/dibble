@@ -47,6 +47,7 @@ class LearnerHistoryService:
         for content in entries[:safe_limit]:
             workflow_summary = content.workflow_summary
             request_context = content.request_context
+            mode_cal = self._mode_calibration(request_context)
             items.append(
                 LearnerGenerationHistoryEntry(
                     generation_id=content.generation_id,
@@ -86,6 +87,15 @@ class LearnerHistoryService:
                     rationale=workflow_summary.rationale
                     if workflow_summary is not None
                     else None,
+                    mastery_signal=mode_cal.get("signal", "insufficient"),
+                    mastery_confidence=float(mode_cal.get("confidence", 0.0)),
+                    progress_signal=mode_cal.get("progress_signal", "insufficient"),
+                    evidence_signal=mode_cal.get(
+                        "current_evidence_signal", "steady"
+                    ),
+                    evidence_rationale=self._maybe_str(
+                        mode_cal.get("current_evidence_rationale")
+                    ),
                     next_step=(
                         workflow_summary.next_step.model_copy()
                         if workflow_summary is not None
@@ -189,6 +199,13 @@ class LearnerHistoryService:
             limit=safe_limit,
             has_more=has_more,
         )
+
+    @staticmethod
+    def _mode_calibration(request_context: dict[str, object]) -> dict[str, object]:
+        raw = request_context.get("mode_calibration", {})
+        if isinstance(raw, dict):
+            return raw
+        return {}
 
     @staticmethod
     def _maybe_str(value: object) -> str | None:

@@ -22,6 +22,11 @@ class LearnerGenerationHistoryEntry(BaseModel):
     active_target_kc_ids: list[str] = Field(default_factory=list)
     intervention_type: str | None = None
     rationale: str | None = None
+    mastery_signal: str = "insufficient"
+    mastery_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    progress_signal: str = "insufficient"
+    evidence_signal: str = "steady"
+    evidence_rationale: str | None = None
     next_step: LearnerFlowNextStep = Field(default_factory=LearnerFlowNextStep)
     continue_action: LearnerContinueAction = Field(
         default_factory=LearnerContinueAction
