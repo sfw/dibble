@@ -277,13 +277,17 @@ def _block_schema_contract(content_type: RequestedContentType) -> str:
             '{"kind":"summary","title":"...","body":"..."},'
             '{"kind":"practice_problem","title":"...","body":"...",'
             '"interaction":{"type":"multiple_choice","prompt":"...","options":['
-            '{"option_id":"A","label":"Option A","body":"..."},'
-            '{"option_id":"B","label":"Option B","body":"..."}],'
+            '{"option_id":"A","label":"Option A","body":"why a student might pick this"},'
+            '{"option_id":"B","label":"Option B","body":"why a student might pick this"}],'
             '"correct_option_id":"B",'
             '"reveal":{"trigger":"after_selection","prompt":"...","support":"...","placeholder":"..."}}}'
             ']}. Always include at least one summary block and one practice_problem block. '
             "For the practice_problem block, put the learner's actual choice set in interaction.options, "
-            "keep body to a short cue, and use plain text only."
+            "keep body to a short cue, and use plain text only. "
+            "CRITICAL: option body must NEVER reveal whether the option is correct or incorrect. "
+            "Do not use words like 'Correct', 'Right', 'Wrong', or 'Incorrect' in option body. "
+            "Option body should describe the reasoning or common misconception behind the choice, "
+            "not whether it is the right answer. Correctness feedback is shown separately after submission."
         )
     return (
         '{"blocks":[{"kind":"summary","title":"...","body":"..."},{"kind":"instruction","title":"...","body":"..."}]}. '
@@ -296,11 +300,12 @@ def _stream_schema_contract(content_type: RequestedContentType) -> str:
         return (
             '{"block_index":0,"block":{"kind":"practice_problem","title":"...","body":"...",'
             '"interaction":{"type":"multiple_choice","prompt":"...","options":['
-            '{"option_id":"A","label":"Option A","body":"..."},'
-            '{"option_id":"B","label":"Option B","body":"..."}],'
+            '{"option_id":"A","label":"Option A","body":"why a student might pick this"},'
+            '{"option_id":"B","label":"Option B","body":"why a student might pick this"}],'
             '"correct_option_id":"B",'
             '"reveal":{"trigger":"after_selection","prompt":"...","support":"...","placeholder":"..."}}},"done":true}. '
-            "Emit one complete block object per line for interactive practice blocks."
+            "Emit one complete block object per line for interactive practice blocks. "
+            "Option body must NEVER reveal whether the option is correct or incorrect."
         )
     return (
         '{"block_index":0,"kind":"summary","title":"...","body_delta":"...","done":true}. '
