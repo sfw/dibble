@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from dibble.contract_labels import affective_support_message
+from dibble.models.profile import ContinueActionKind, LearnerContinueAction
 from dibble.models.workspace import (
     AffectiveSupportMessage,
     LearnerWorkspace,
@@ -98,11 +99,34 @@ class LearnerWorkspaceService:
                 }
             )
 
+        continue_action = flow.continue_action
+        # When the flow is idle but the progression has ready outcomes,
+        # offer a continue action that starts learning on the first one.
+        if (
+            continue_action.kind == ContinueActionKind.idle
+            and summary.curriculum_progression.next_outcome is not None
+        ):
+            next_outcome = summary.curriculum_progression.next_outcome
+            continue_action = LearnerContinueAction.generate_follow_up(
+                outcome_id=next_outcome.outcome_id,
+                content_type="explanation",
+                target_stage="target",
+                target_kc_ids=list(next_outcome.knowledge_component_ids),
+                request_payload={
+                    "student_id": str(student_id),
+                    "target_kc_ids": list(next_outcome.knowledge_component_ids),
+                    "intent": "explanation",
+                },
+                rationale=(
+                    f"Ready to start {next_outcome.title}."
+                ),
+            )
+
         return LearnerWorkspace(
             student_id=student_id,
             summary=summary,
             active_artifact=artifact,
-            continue_action=flow.continue_action,
+            continue_action=continue_action,
             affective_support=(
                 AffectiveSupportMessage.model_validate(message)
                 if (
