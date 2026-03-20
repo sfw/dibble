@@ -32,6 +32,11 @@ def restore_dibble_logger_state():
         logger.disabled = original_disabled
 
 
+@pytest.fixture(autouse=True)
+def isolate_home_directory(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+
 @pytest.fixture
 def app_settings(tmp_path):
     return Settings(database_path=str(tmp_path / "dibble-test.db"))
