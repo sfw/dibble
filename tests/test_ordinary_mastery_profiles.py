@@ -6,6 +6,7 @@ from dibble.services.ordinary_mastery_profiles import (
     OrdinaryMasteryProfileRecorder,
     OrdinaryMasterySignalService,
 )
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
@@ -14,7 +15,8 @@ def test_ordinary_mastery_profile_recorder_compacts_stable_low_support_evidence(
 ):
     database_path = str(tmp_path / "ordinary-mastery-profile.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     recorder = OrdinaryMasteryProfileRecorder(audit_store=audit_store)
 
@@ -61,7 +63,8 @@ def test_ordinary_mastery_profile_recorder_compacts_stable_low_support_evidence(
 def test_ordinary_mastery_signal_service_prefers_target_matching_profile(tmp_path):
     database_path = str(tmp_path / "ordinary-mastery-signal.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     audit_store.append(
         event_type="learning.ordinary_mastery.profile",
@@ -118,7 +121,8 @@ def test_ordinary_mastery_signal_service_does_not_fallback_to_unrelated_profile(
 ):
     database_path = str(tmp_path / "ordinary-mastery-unrelated.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     audit_store.append(
         event_type="learning.ordinary_mastery.profile",
@@ -237,7 +241,8 @@ def test_declining_trend_does_not_downgrade_strong_durable():
 def test_mastery_trend_persisted_and_read_back(tmp_path):
     database_path = str(tmp_path / "trend-roundtrip.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     recorder = OrdinaryMasteryProfileRecorder(audit_store=audit_store)
 
@@ -336,7 +341,8 @@ def test_mastery_volatility_zero_for_single_score():
 def test_mastery_volatility_persisted_and_read_back(tmp_path):
     database_path = str(tmp_path / "volatility-roundtrip.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     recorder = OrdinaryMasteryProfileRecorder(audit_store=audit_store)
 

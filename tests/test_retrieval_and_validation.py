@@ -10,6 +10,7 @@ from dibble.models.profile import LearnerProfile
 from dibble.services.content_validator import ContentValidator
 from dibble.services.outcome_store import SQLiteOutcomeStore
 from dibble.services.rag_retriever import RAGRetriever
+from dibble.services.sqlite_connection import create_connection
 from dibble.services.validation.text import (
     curriculum_alignment_score,
     grounding_coverage_score,
@@ -21,7 +22,8 @@ from tests.support import build_outcome, build_profile
 def test_retriever_returns_best_grade_level_match(tmp_path):
     database_path = str(tmp_path / "retrieval.db")
     ensure_database(database_path)
-    store = SQLiteOutcomeStore(database_path)
+    conn = create_connection(database_path)
+    store = SQLiteOutcomeStore(conn)
     store.upsert(OutcomeUpsert(**build_outcome("CURR-5")))
     store.upsert(
         OutcomeUpsert(
@@ -51,7 +53,8 @@ def test_retriever_returns_best_grade_level_match(tmp_path):
 def test_retriever_matches_free_text_curriculum_context_without_exact_phrase(tmp_path):
     database_path = str(tmp_path / "retrieval-free-text.db")
     ensure_database(database_path)
-    store = SQLiteOutcomeStore(database_path)
+    conn = create_connection(database_path)
+    store = SQLiteOutcomeStore(conn)
     store.upsert(OutcomeUpsert(**build_outcome("CURR-5")))
     store.upsert(
         OutcomeUpsert(
@@ -84,7 +87,8 @@ def test_retriever_matches_free_text_curriculum_context_without_exact_phrase(tmp
 def test_retriever_adds_deterministic_excerpt_from_matching_sentence(tmp_path):
     database_path = str(tmp_path / "retrieval-excerpt.db")
     ensure_database(database_path)
-    store = SQLiteOutcomeStore(database_path)
+    conn = create_connection(database_path)
+    store = SQLiteOutcomeStore(conn)
     store.upsert(
         OutcomeUpsert(
             **{
@@ -119,7 +123,8 @@ def test_retriever_adds_deterministic_excerpt_from_matching_sentence(tmp_path):
 def test_retriever_prefers_semantically_relevant_passage_over_leading_noise(tmp_path):
     database_path = str(tmp_path / "retrieval-passage-focus.db")
     ensure_database(database_path)
-    store = SQLiteOutcomeStore(database_path)
+    conn = create_connection(database_path)
+    store = SQLiteOutcomeStore(conn)
     store.upsert(
         OutcomeUpsert(
             **{
@@ -160,7 +165,8 @@ def test_retriever_prefers_semantically_relevant_passage_over_leading_noise(tmp_
 def test_retriever_uses_passage_signal_to_prefer_more_grounded_resource(tmp_path):
     database_path = str(tmp_path / "retrieval-passage-ranking.db")
     ensure_database(database_path)
-    store = SQLiteOutcomeStore(database_path)
+    conn = create_connection(database_path)
+    store = SQLiteOutcomeStore(conn)
     store.upsert(
         OutcomeUpsert(
             **{

@@ -14,6 +14,7 @@ from dibble.services.predictive_warm_queue_store import SQLitePredictiveWarmQueu
 from dibble.services.predictive_warm_scheduler import PredictiveWarmScheduler
 from dibble.services.profile_store import SQLiteProfileStore
 from dibble.services.rag_retriever import RAGRetriever
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 from tests.support import build_outcome, build_profile
 
@@ -37,9 +38,10 @@ class FlakyContentWarmer:
 def test_predictive_warm_scheduler_processes_enqueued_tasks(tmp_path):
     database_path = str(tmp_path / "predictive-warm-scheduler.db")
     ensure_database(database_path)
-    profile_store = SQLiteProfileStore(database_path)
-    outcome_store = SQLiteOutcomeStore(database_path)
-    queue_store = SQLitePredictiveWarmQueueStore(database_path)
+    conn = create_connection(database_path)
+    profile_store = SQLiteProfileStore(conn)
+    outcome_store = SQLiteOutcomeStore(conn)
+    queue_store = SQLitePredictiveWarmQueueStore(conn)
     student_id = uuid4()
     profile_store.upsert(build_profile_model(student_id))
     outcome_store.upsert(OutcomeUpsert.model_validate(build_outcome()))
@@ -101,9 +103,10 @@ def test_predictive_warm_scheduler_processes_highest_priority_pending_task_first
 ):
     database_path = str(tmp_path / "predictive-warm-scheduler-priority.db")
     ensure_database(database_path)
-    profile_store = SQLiteProfileStore(database_path)
-    outcome_store = SQLiteOutcomeStore(database_path)
-    queue_store = SQLitePredictiveWarmQueueStore(database_path)
+    conn = create_connection(database_path)
+    profile_store = SQLiteProfileStore(conn)
+    outcome_store = SQLiteOutcomeStore(conn)
+    queue_store = SQLitePredictiveWarmQueueStore(conn)
     student_id = uuid4()
     profile_store.upsert(build_profile_model(student_id))
     outcome_store.upsert(OutcomeUpsert.model_validate(build_outcome()))
@@ -172,10 +175,9 @@ def test_predictive_warm_scheduler_defers_retryable_failures_and_later_completes
 ):
     database_path = str(tmp_path / "predictive-warm-scheduler-retry.db")
     ensure_database(database_path)
-    profile_store = SQLiteProfileStore(database_path)
-    queue_store = SQLitePredictiveWarmQueueStore(
-        database_path, retry_backoff_seconds=30
-    )
+    conn = create_connection(database_path)
+    profile_store = SQLiteProfileStore(conn)
+    queue_store = SQLitePredictiveWarmQueueStore(conn, retry_backoff_seconds=30)
     student_id = uuid4()
     profile_store.upsert(build_profile_model(student_id))
     scheduler = PredictiveWarmScheduler(
@@ -231,10 +233,9 @@ def test_predictive_warm_scheduler_defers_retryable_failures_and_later_completes
 def test_predictive_warm_scheduler_reports_requeued_stale_processing_tasks(tmp_path):
     database_path = str(tmp_path / "predictive-warm-scheduler-sweep.db")
     ensure_database(database_path)
-    profile_store = SQLiteProfileStore(database_path)
-    queue_store = SQLitePredictiveWarmQueueStore(
-        database_path, processing_timeout_seconds=30
-    )
+    conn = create_connection(database_path)
+    profile_store = SQLiteProfileStore(conn)
+    queue_store = SQLitePredictiveWarmQueueStore(conn, processing_timeout_seconds=30)
     student_id = uuid4()
     profile_store.upsert(build_profile_model(student_id))
     scheduler = PredictiveWarmScheduler(
@@ -289,11 +290,10 @@ def test_predictive_warm_scheduler_reports_requeued_stale_processing_tasks(tmp_p
 def test_predictive_warm_scheduler_recovers_stale_urgent_tasks_in_same_pass(tmp_path):
     database_path = str(tmp_path / "predictive-warm-scheduler-stale-urgent.db")
     ensure_database(database_path)
-    profile_store = SQLiteProfileStore(database_path)
-    outcome_store = SQLiteOutcomeStore(database_path)
-    queue_store = SQLitePredictiveWarmQueueStore(
-        database_path, processing_timeout_seconds=30
-    )
+    conn = create_connection(database_path)
+    profile_store = SQLiteProfileStore(conn)
+    outcome_store = SQLiteOutcomeStore(conn)
+    queue_store = SQLitePredictiveWarmQueueStore(conn, processing_timeout_seconds=30)
     student_id = uuid4()
     profile_store.upsert(build_profile_model(student_id))
     outcome_store.upsert(OutcomeUpsert.model_validate(build_outcome()))
@@ -363,9 +363,10 @@ def test_predictive_warm_scheduler_uses_spare_inline_capacity_for_pending_backlo
 ):
     database_path = str(tmp_path / "predictive-warm-scheduler-inline-backlog.db")
     ensure_database(database_path)
-    profile_store = SQLiteProfileStore(database_path)
-    outcome_store = SQLiteOutcomeStore(database_path)
-    queue_store = SQLitePredictiveWarmQueueStore(database_path)
+    conn = create_connection(database_path)
+    profile_store = SQLiteProfileStore(conn)
+    outcome_store = SQLiteOutcomeStore(conn)
+    queue_store = SQLitePredictiveWarmQueueStore(conn)
     student_id = uuid4()
     profile_store.upsert(build_profile_model(student_id))
     outcome_store.upsert(OutcomeUpsert.model_validate(build_outcome()))
@@ -434,9 +435,10 @@ def test_predictive_warm_scheduler_can_autonomously_process_pending_work_inline(
 ):
     database_path = str(tmp_path / "predictive-warm-scheduler-inline-autonomous.db")
     ensure_database(database_path)
-    profile_store = SQLiteProfileStore(database_path)
-    outcome_store = SQLiteOutcomeStore(database_path)
-    queue_store = SQLitePredictiveWarmQueueStore(database_path)
+    conn = create_connection(database_path)
+    profile_store = SQLiteProfileStore(conn)
+    outcome_store = SQLiteOutcomeStore(conn)
+    queue_store = SQLitePredictiveWarmQueueStore(conn)
     student_id = uuid4()
     profile_store.upsert(build_profile_model(student_id))
     outcome_store.upsert(OutcomeUpsert.model_validate(build_outcome()))

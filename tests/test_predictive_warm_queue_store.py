@@ -2,13 +2,15 @@ from uuid import uuid4
 
 from dibble.models.generation import GenerationRequest
 from dibble.services.predictive_warm_queue_store import SQLitePredictiveWarmQueueStore
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
 def test_predictive_warm_queue_store_deduplicates_pending_requests(tmp_path):
     database_path = str(tmp_path / "predictive-warm-queue.db")
     ensure_database(database_path)
-    store = SQLitePredictiveWarmQueueStore(database_path)
+    conn = create_connection(database_path)
+    store = SQLitePredictiveWarmQueueStore(conn)
     request = GenerationRequest.model_validate(
         {
             "student_id": str(uuid4()),
@@ -33,7 +35,8 @@ def test_predictive_warm_queue_store_deduplicates_pending_requests(tmp_path):
 def test_predictive_warm_queue_store_cancels_matching_pending_requests(tmp_path):
     database_path = str(tmp_path / "predictive-warm-queue-cancel.db")
     ensure_database(database_path)
-    store = SQLitePredictiveWarmQueueStore(database_path)
+    conn = create_connection(database_path)
+    store = SQLitePredictiveWarmQueueStore(conn)
     student_id = str(uuid4())
     store.enqueue(
         request=GenerationRequest.model_validate(
@@ -80,7 +83,8 @@ def test_predictive_warm_queue_store_cancels_matching_pending_requests(tmp_path)
 def test_predictive_warm_queue_store_claims_higher_priority_tasks_first(tmp_path):
     database_path = str(tmp_path / "predictive-warm-queue-priority.db")
     ensure_database(database_path)
-    store = SQLitePredictiveWarmQueueStore(database_path)
+    conn = create_connection(database_path)
+    store = SQLitePredictiveWarmQueueStore(conn)
     student_id = str(uuid4())
     practice_task = store.enqueue(
         request=GenerationRequest.model_validate(
@@ -127,7 +131,8 @@ def test_predictive_warm_queue_store_claims_higher_priority_tasks_first(tmp_path
 def test_predictive_warm_queue_store_records_claim_metadata(tmp_path):
     database_path = str(tmp_path / "predictive-warm-queue-claim-metadata.db")
     ensure_database(database_path)
-    store = SQLitePredictiveWarmQueueStore(database_path)
+    conn = create_connection(database_path)
+    store = SQLitePredictiveWarmQueueStore(conn)
     task = store.enqueue(
         request=GenerationRequest.model_validate(
             {
@@ -167,7 +172,8 @@ def test_predictive_warm_queue_store_records_claim_metadata(tmp_path):
 def test_predictive_warm_queue_store_ages_routine_tasks_into_claim_rotation(tmp_path):
     database_path = str(tmp_path / "predictive-warm-queue-aged-routine.db")
     ensure_database(database_path)
-    store = SQLitePredictiveWarmQueueStore(database_path, routine_starvation_minutes=5)
+    conn = create_connection(database_path)
+    store = SQLitePredictiveWarmQueueStore(conn, routine_starvation_minutes=5)
     student_id = str(uuid4())
     aged_routine_task = store.enqueue(
         request=GenerationRequest.model_validate(
@@ -225,7 +231,8 @@ def test_predictive_warm_queue_store_ages_routine_tasks_into_claim_rotation(tmp_
 def test_predictive_warm_queue_store_cancels_stale_pending_tasks_before_claim(tmp_path):
     database_path = str(tmp_path / "predictive-warm-queue-stale.db")
     ensure_database(database_path)
-    store = SQLitePredictiveWarmQueueStore(database_path, stale_after_minutes=1)
+    conn = create_connection(database_path)
+    store = SQLitePredictiveWarmQueueStore(conn, stale_after_minutes=1)
     task = store.enqueue(
         request=GenerationRequest.model_validate(
             {
@@ -269,7 +276,8 @@ def test_predictive_warm_queue_store_cancels_stale_pending_tasks_before_claim(tm
 def test_predictive_warm_queue_store_spreads_claims_across_priority_classes(tmp_path):
     database_path = str(tmp_path / "predictive-warm-queue-bounded-batch.db")
     ensure_database(database_path)
-    store = SQLitePredictiveWarmQueueStore(database_path)
+    conn = create_connection(database_path)
+    store = SQLitePredictiveWarmQueueStore(conn)
     student_id = str(uuid4())
     store.enqueue(
         request=GenerationRequest.model_validate(
@@ -325,7 +333,8 @@ def test_predictive_warm_queue_store_spreads_claims_across_priority_classes(tmp_
 def test_predictive_warm_queue_store_defers_retry_until_backoff_expires(tmp_path):
     database_path = str(tmp_path / "predictive-warm-queue-retry.db")
     ensure_database(database_path)
-    store = SQLitePredictiveWarmQueueStore(database_path, retry_backoff_seconds=30)
+    conn = create_connection(database_path)
+    store = SQLitePredictiveWarmQueueStore(conn, retry_backoff_seconds=30)
     task = store.enqueue(
         request=GenerationRequest.model_validate(
             {
@@ -373,7 +382,8 @@ def test_predictive_warm_queue_store_defers_retry_until_backoff_expires(tmp_path
 def test_predictive_warm_queue_store_sweep_requeues_stale_processing_tasks(tmp_path):
     database_path = str(tmp_path / "predictive-warm-queue-sweep.db")
     ensure_database(database_path)
-    store = SQLitePredictiveWarmQueueStore(database_path, processing_timeout_seconds=30)
+    conn = create_connection(database_path)
+    store = SQLitePredictiveWarmQueueStore(conn, processing_timeout_seconds=30)
     task = store.enqueue(
         request=GenerationRequest.model_validate(
             {
@@ -417,7 +427,8 @@ def test_predictive_warm_queue_store_sweep_requeues_stale_processing_tasks(tmp_p
 def test_predictive_warm_queue_store_uses_lower_retry_cap_for_routine_tasks(tmp_path):
     database_path = str(tmp_path / "predictive-warm-queue-routine-cap.db")
     ensure_database(database_path)
-    store = SQLitePredictiveWarmQueueStore(database_path, max_retry_attempts=3)
+    conn = create_connection(database_path)
+    store = SQLitePredictiveWarmQueueStore(conn, max_retry_attempts=3)
     task = store.enqueue(
         request=GenerationRequest.model_validate(
             {
@@ -465,7 +476,8 @@ def test_predictive_warm_queue_store_uses_lower_retry_cap_for_routine_tasks(tmp_
 def test_predictive_warm_queue_store_uses_shorter_backoff_for_urgent_tasks(tmp_path):
     database_path = str(tmp_path / "predictive-warm-queue-urgency-backoff.db")
     ensure_database(database_path)
-    store = SQLitePredictiveWarmQueueStore(database_path, retry_backoff_seconds=30)
+    conn = create_connection(database_path)
+    store = SQLitePredictiveWarmQueueStore(conn, retry_backoff_seconds=30)
     student_id = str(uuid4())
     urgent_task = store.enqueue(
         request=GenerationRequest.model_validate(

@@ -10,6 +10,7 @@ from dibble.models.classroom_membership import ClassroomMembershipRole
 from dibble.services.auth import hash_credential
 from dibble.services.classroom_membership_store import SQLiteClassroomMembershipStore
 from dibble.services.profile_store import SQLiteProfileStore
+from dibble.services.sqlite_connection import create_connection
 from dibble.services.user_store import SQLiteUserStore
 from dibble.storage import ensure_database
 
@@ -22,7 +23,8 @@ def _make_app(tmp_path):
 
 
 def _seed_admin(db_path: str) -> None:
-    store = SQLiteUserStore(db_path)
+    conn = create_connection(db_path)
+    store = SQLiteUserStore(conn)
     now = datetime.now(timezone.utc).isoformat()
     store.create(
         User(
@@ -40,8 +42,9 @@ def _seed_admin(db_path: str) -> None:
 def test_user_endpoints_derive_sections_from_membership_store(tmp_path):
     app, db_path = _make_app(tmp_path)
     _seed_admin(db_path)
-    user_store = SQLiteUserStore(db_path)
-    membership_store = SQLiteClassroomMembershipStore(db_path)
+    conn = create_connection(db_path)
+    user_store = SQLiteUserStore(conn)
+    membership_store = SQLiteClassroomMembershipStore(conn)
     now = datetime.now(timezone.utc).isoformat()
     user_store.create(
         User(
@@ -74,8 +77,9 @@ def test_user_endpoints_derive_sections_from_membership_store(tmp_path):
 def test_updating_user_without_section_ids_does_not_rewrite_memberships(tmp_path):
     app, db_path = _make_app(tmp_path)
     _seed_admin(db_path)
-    user_store = SQLiteUserStore(db_path)
-    membership_store = SQLiteClassroomMembershipStore(db_path)
+    conn = create_connection(db_path)
+    user_store = SQLiteUserStore(conn)
+    membership_store = SQLiteClassroomMembershipStore(conn)
     now = datetime.now(timezone.utc).isoformat()
     user_store.create(
         User(
@@ -112,7 +116,9 @@ def test_updating_user_without_section_ids_does_not_rewrite_memberships(tmp_path
 def test_creating_learner_auto_creates_profile(tmp_path):
     app, db_path = _make_app(tmp_path)
     _seed_admin(db_path)
-    profile_store = SQLiteProfileStore(db_path)
+    conn = create_connection(db_path)
+    profile_store = SQLiteProfileStore(conn)
+    user_store = SQLiteUserStore(conn)
 
     with TestClient(app) as client:
         response = client.post(
@@ -123,15 +129,22 @@ def test_creating_learner_auto_creates_profile(tmp_path):
 
     assert response.status_code == 200
     user_id = response.json()["user_id"]
-    profile = profile_store.get(UUID(user_id))
+    user = user_store.get(user_id)
+    assert user is not None
+    assert user.learner_id is not None
+    # learner_id is auto-generated as a valid UUID
+    learner_uuid = UUID(user.learner_id)
+    profile = profile_store.get(learner_uuid)
     assert profile is not None
-    assert profile.student_id == UUID(user_id)
+    assert profile.student_id == learner_uuid
 
 
 def test_updating_learner_does_not_overwrite_existing_profile(tmp_path):
     app, db_path = _make_app(tmp_path)
     _seed_admin(db_path)
-    profile_store = SQLiteProfileStore(db_path)
+    conn = create_connection(db_path)
+    profile_store = SQLiteProfileStore(conn)
+    user_store = SQLiteUserStore(conn)
 
     with TestClient(app) as client:
         headers = {"X-API-Key": "admin-key"}
@@ -141,9 +154,10 @@ def test_updating_learner_does_not_overwrite_existing_profile(tmp_path):
             json={"display_name": "Learner A", "role": "learner"},
         )
         user_id = create_response.json()["user_id"]
+        learner_id = UUID(user_store.get(user_id).learner_id)
 
         # Modify the profile (simulating progression — add mastery data)
-        profile = profile_store.get(UUID(user_id))
+        profile = profile_store.get(learner_id)
         assert profile is not None
         profile.knowledge_state.kc_mastery = {"kc-1": 0.85}
         profile.grade_level = "7"
@@ -156,7 +170,48 @@ def test_updating_learner_does_not_overwrite_existing_profile(tmp_path):
             json={"display_name": "Learner A Updated"},
         )
 
-    profile_after = profile_store.get(UUID(user_id))
+    profile_after = profile_store.get(learner_id)
     assert profile_after is not None
     assert profile_after.knowledge_state.kc_mastery == {"kc-1": 0.85}
     assert profile_after.grade_level == "7"
+
+
+def test_learner_id_is_auto_generated_uuid(tmp_path):
+    app, db_path = _make_app(tmp_path)
+    _seed_admin(db_path)
+    conn = create_connection(db_path)
+    user_store = SQLiteUserStore(conn)
+
+    with TestClient(app) as client:
+        headers = {"X-API-Key": "admin-key"}
+        resp = client.post(
+            "/api/users",
+            headers=headers,
+            json={"display_name": "Ava", "role": "learner"},
+        )
+
+    assert resp.status_code == 200
+    user = user_store.get(resp.json()["user_id"])
+    assert user is not None
+    assert user.learner_id is not None
+    UUID(user.learner_id)  # must be a valid UUID
+
+
+def test_non_learner_does_not_get_learner_id(tmp_path):
+    app, db_path = _make_app(tmp_path)
+    _seed_admin(db_path)
+    conn = create_connection(db_path)
+    user_store = SQLiteUserStore(conn)
+
+    with TestClient(app) as client:
+        headers = {"X-API-Key": "admin-key"}
+        resp = client.post(
+            "/api/users",
+            headers=headers,
+            json={"display_name": "Ms. Rivera", "role": "teacher"},
+        )
+
+    assert resp.status_code == 200
+    user = user_store.get(resp.json()["user_id"])
+    assert user is not None
+    assert user.learner_id is None

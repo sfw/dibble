@@ -6,6 +6,7 @@ from dibble.models.profile import (
     LearnerFlowSummary,
 )
 from dibble.services.audit_store import SQLiteAuditStore
+from dibble.services.sqlite_connection import create_connection
 from dibble.services.teacher_intervention_actions import (
     TeacherInterventionActionService,
 )
@@ -23,7 +24,8 @@ class StubLearnerFlowService:
 def test_teacher_intervention_labels_follow_repair_stage_for_lesson_options(tmp_path):
     database_path = str(tmp_path / "teacher-intervention-repair.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     flow = LearnerFlowSummary(
         status="active",
@@ -78,7 +80,8 @@ def test_teacher_intervention_labels_follow_repair_stage_for_lesson_options(tmp_
 def test_teacher_intervention_labels_follow_transfer_stage_for_lesson_options(tmp_path):
     database_path = str(tmp_path / "teacher-intervention-transfer.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     flow = LearnerFlowSummary(
         status="active",

@@ -4,6 +4,7 @@ from dibble.models.observations import LearnerObservation
 from dibble.models.profile import SignalLevel
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.learner_state_signal import LearnerStateSignalService
+from dibble.services.sqlite_connection import create_connection
 from dibble.services.state_inference import LearnerStateInferenceService
 from dibble.storage import ensure_database
 
@@ -138,7 +139,8 @@ def test_state_inference_is_task_aware_for_supported_vs_assessment_work():
 def test_state_inference_blends_high_confidence_durable_state_profile(tmp_path):
     database_path = str(tmp_path / "state-inference-durable.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     audit_store.append(
         event_type="learning.state.profile",
@@ -205,7 +207,8 @@ def test_state_inference_blends_high_confidence_durable_state_profile(tmp_path):
 def test_state_inference_ignores_weak_mismatched_durable_profile(tmp_path):
     database_path = str(tmp_path / "state-inference-durable-mismatch.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     audit_store.append(
         event_type="learning.state.profile",
@@ -278,7 +281,8 @@ def test_state_inference_downweights_high_confidence_durable_profile_when_curren
 ):
     database_path = str(tmp_path / "state-inference-rich-current.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     audit_store.append(
         event_type="learning.state.profile",
@@ -370,7 +374,8 @@ def test_state_inference_blends_durable_load_more_than_affect_when_reliability_i
 ):
     database_path = str(tmp_path / "state-inference-dimension-specific.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     audit_store.append(
         event_type="learning.state.profile",

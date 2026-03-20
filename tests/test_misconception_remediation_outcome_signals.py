@@ -13,13 +13,15 @@ from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.misconception_remediation_outcome_signals import (
     MisconceptionRemediationOutcomeSignalService,
 )
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
 def _store(tmp_path) -> SQLiteAuditStore:
     db = str(tmp_path / "test.db")
     ensure_database(db)
-    return SQLiteAuditStore(db)
+    conn = create_connection(db)
+    return SQLiteAuditStore(conn)
 
 
 def _remediation_outcome_event(

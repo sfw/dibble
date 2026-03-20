@@ -9,6 +9,7 @@ from dibble.services.learning_trait_profiles import LearnerTraitProfileSignalSer
 from dibble.services.learner_strategy_signal import LearnerStrategySignalService
 from dibble.services.learner_summary_service import LearnerSummaryService
 from dibble.services.profile_store import SQLiteProfileStore
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 from tests.support import build_profile
 
@@ -18,8 +19,9 @@ def test_learner_summary_service_prefers_calibration_profile_and_recent_activity
 ):
     database_path = str(tmp_path / "learner-summary-service.db")
     ensure_database(database_path)
-    profile_store = SQLiteProfileStore(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    profile_store = SQLiteProfileStore(conn)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     profile_store.upsert(
         LearnerProfile.model_validate(
@@ -198,8 +200,9 @@ def test_learner_summary_service_falls_back_to_run_summary_when_profile_missing(
 ):
     database_path = str(tmp_path / "learner-summary-service-fallback.db")
     ensure_database(database_path)
-    profile_store = SQLiteProfileStore(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    profile_store = SQLiteProfileStore(conn)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     profile_store.upsert(LearnerProfile.model_validate(build_profile(student_id)))
     audit_store.append(

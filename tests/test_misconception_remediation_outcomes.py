@@ -19,13 +19,15 @@ from dibble.services.misconception_remediation_outcomes import (
     MisconceptionRemediationOutcomeTracker,
 )
 from dibble.services.remediation_session_store import SQLiteRemediationSessionStore
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
 def _stores(tmp_path):
     db = str(tmp_path / "test.db")
     ensure_database(db)
-    return SQLiteAuditStore(db), SQLiteRemediationSessionStore(db)
+    conn = create_connection(db)
+    return SQLiteAuditStore(conn), SQLiteRemediationSessionStore(conn)
 
 
 def _completed_session(

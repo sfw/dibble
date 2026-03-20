@@ -129,6 +129,7 @@ from dibble.services.within_session_adaptation import WithinSessionAdaptationSer
 from dibble.services.within_session_controller_store import (
     SQLiteWithinSessionControllerStore,
 )
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
@@ -194,32 +195,33 @@ class ApplicationServices:
 
 def build_application_services(settings: Settings) -> ApplicationServices:
     ensure_database(settings.database_path)
+    conn = create_connection(settings.database_path)
 
-    assignment_store = SQLiteAssignmentStore(settings.database_path)
-    profile_store = SQLiteProfileStore(settings.database_path)
-    course_store = SQLiteCourseStore(settings.database_path)
-    classroom_store = SQLiteClassroomStore(settings.database_path)
-    classroom_membership_store = SQLiteClassroomMembershipStore(settings.database_path)
-    outcome_store = SQLiteOutcomeStore(settings.database_path)
-    strand_store = SQLiteStrandStore(settings.database_path)
-    knowledge_component_store = SQLiteKnowledgeComponentStore(settings.database_path)
-    audit_store = SQLiteAuditStore(settings.database_path)
-    generated_content_store = SQLiteGeneratedContentStore(settings.database_path)
-    predictive_warm_queue_store = SQLitePredictiveWarmQueueStore(settings.database_path)
-    observation_store = SQLiteObservationStore(settings.database_path)
-    socratic_session_store = SQLiteSocraticSessionStore(settings.database_path)
-    remediation_session_store = SQLiteRemediationSessionStore(settings.database_path)
-    within_session_controller_store = SQLiteWithinSessionControllerStore(
-        settings.database_path
-    )
-    provider_health_store = SQLiteProviderHealthStore(settings.database_path)
-    user_store = SQLiteUserStore(settings.database_path)
+    assignment_store = SQLiteAssignmentStore(conn)
+    profile_store = SQLiteProfileStore(conn)
+    course_store = SQLiteCourseStore(conn)
+    classroom_store = SQLiteClassroomStore(conn)
+    classroom_membership_store = SQLiteClassroomMembershipStore(conn)
+    outcome_store = SQLiteOutcomeStore(conn)
+    strand_store = SQLiteStrandStore(conn)
+    knowledge_component_store = SQLiteKnowledgeComponentStore(conn)
+    audit_store = SQLiteAuditStore(conn)
+    generated_content_store = SQLiteGeneratedContentStore(conn)
+    predictive_warm_queue_store = SQLitePredictiveWarmQueueStore(conn)
+    observation_store = SQLiteObservationStore(conn)
+    socratic_session_store = SQLiteSocraticSessionStore(conn)
+    remediation_session_store = SQLiteRemediationSessionStore(conn)
+    within_session_controller_store = SQLiteWithinSessionControllerStore(conn)
+    provider_health_store = SQLiteProviderHealthStore(conn)
+    user_store = SQLiteUserStore(conn)
     auth_service = AuthService.from_settings(
         settings,
-        session_store=SQLiteAuthSessionStore(settings.database_path),
+        session_store=SQLiteAuthSessionStore(conn),
         user_store=user_store,
     )
-    plugins = build_generation_plugins(settings, outcome_store=outcome_store)
+    plugins = build_generation_plugins(
+        settings, outcome_store=outcome_store, connection=conn
+    )
     learner_strategy_signal_service = LearnerStrategySignalService(
         audit_store=audit_store
     )
@@ -346,7 +348,7 @@ def build_application_services(settings: Settings) -> ApplicationServices:
     ordinary_mastery_profile_recorder = OrdinaryMasteryProfileRecorder(
         audit_store=audit_store
     )
-    mastery_snapshot_store = SQLiteMasterySnapshotStore(settings.database_path)
+    mastery_snapshot_store = SQLiteMasterySnapshotStore(conn)
     mastery_snapshot_service = MasterySnapshotService(
         snapshot_store=mastery_snapshot_store
     )

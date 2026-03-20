@@ -1,3 +1,5 @@
+from dibble.services.sqlite_connection import create_connection
+
 from tests.support import (
     build_outcome,
     build_knowledge_component,
@@ -173,7 +175,8 @@ def test_generation_modes_use_persisted_calibration_profiles(
 ):
     from dibble.services.audit_store import SQLiteAuditStore
 
-    audit_store = SQLiteAuditStore(app_settings.database_path)
+    conn = create_connection(app_settings.database_path)
+    audit_store = SQLiteAuditStore(conn)
     client.put(
         f"/api/learners/{student_id}/profile",
         json=build_profile(
@@ -226,7 +229,8 @@ def test_generation_modes_use_persisted_progress_profiles(
 ):
     from dibble.services.audit_store import SQLiteAuditStore
 
-    audit_store = SQLiteAuditStore(app_settings.database_path)
+    conn = create_connection(app_settings.database_path)
+    audit_store = SQLiteAuditStore(conn)
     client.put(
         f"/api/learners/{student_id}/profile",
         json=build_profile(

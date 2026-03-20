@@ -5,6 +5,7 @@ from uuid import uuid4
 from dibble.models.generation import GenerationRequest
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.router_calibration_signals import RouterCalibrationSignalService
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
@@ -13,7 +14,8 @@ def test_router_calibration_signal_service_returns_negative_signal_for_recent_st
 ):
     database_path = str(tmp_path / "router-calibration-negative.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     audit_store.append(
         event_type="content.generate",
@@ -73,7 +75,8 @@ def test_router_calibration_signal_service_returns_negative_signal_for_recent_st
 def test_router_calibration_signal_service_prefers_same_session_matches(tmp_path):
     database_path = str(tmp_path / "router-calibration-session.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     audit_store.append(
         event_type="content.generate",
@@ -169,7 +172,8 @@ def test_router_calibration_signal_service_returns_insufficient_without_matching
 ):
     database_path = str(tmp_path / "router-calibration-insufficient.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
 
     request = GenerationRequest.model_validate(
         {
@@ -192,7 +196,8 @@ def test_router_calibration_signal_service_returns_insufficient_without_matching
 def test_router_calibration_signal_service_prefers_persisted_run_summaries(tmp_path):
     database_path = str(tmp_path / "router-calibration-summary-events.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     audit_store.append(
         event_type="learning.run.summary",
@@ -248,7 +253,8 @@ def test_router_calibration_signal_service_prefers_persisted_run_summaries(tmp_p
 def test_router_calibration_signal_service_prefers_progress_profiles(tmp_path):
     database_path = str(tmp_path / "router-calibration-progress-profile.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     audit_store.append(
         event_type="learning.progress.profile",

@@ -11,6 +11,7 @@ from dibble.services.knowledge_state_migration import KnowledgeStateMigrator
 from dibble.services.observation_profile_update import ObservationProfileUpdater
 from dibble.services.ordinary_mastery_profiles import OrdinaryMasterySignalService
 from dibble.services.audit_store import SQLiteAuditStore
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 from tests.support import build_profile
 
@@ -213,7 +214,8 @@ def test_observation_profile_updater_uses_durable_mastery_signal_for_low_support
 ):
     database_path = str(tmp_path / "observation-ordinary-mastery.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     audit_store.append(
         event_type="learning.ordinary_mastery.profile",

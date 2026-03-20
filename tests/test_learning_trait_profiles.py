@@ -5,13 +5,15 @@ from dibble.services.learning_trait_profiles import (
     LearningTraitProfileRecorder,
     LearnerTraitProfileSignalService,
 )
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
 def test_learning_trait_profile_recorder_compacts_recent_observations(tmp_path):
     database_path = str(tmp_path / "learning-trait-profile.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     recorder = LearningTraitProfileRecorder(audit_store=audit_store)
     observation_events = []
@@ -72,7 +74,8 @@ def test_learning_trait_profile_recorder_compacts_recent_observations(tmp_path):
 def test_learner_trait_profile_signal_service_returns_latest_profile(tmp_path):
     database_path = str(tmp_path / "learning-trait-profile-signal.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     audit_store.append(
         event_type="learning.cognitive_trait.profile",

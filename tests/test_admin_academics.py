@@ -7,6 +7,7 @@ from dibble.app import create_app
 from dibble.config import Settings
 from dibble.models.auth import User
 from dibble.services.auth import hash_credential
+from dibble.services.sqlite_connection import create_connection
 from dibble.services.user_store import SQLiteUserStore
 from dibble.storage import ensure_database
 
@@ -21,7 +22,8 @@ def _make_app(tmp_path):
 
 
 def _seed_admin(db_path: str) -> None:
-    store = SQLiteUserStore(db_path)
+    conn = create_connection(db_path)
+    store = SQLiteUserStore(conn)
     now = datetime.now(timezone.utc).isoformat()
     store.create(
         User(
@@ -39,7 +41,6 @@ def _seed_admin(db_path: str) -> None:
 def test_admin_can_manage_courses_and_sections(tmp_path):
     app, db_path = _make_app(tmp_path)
     _seed_admin(db_path)
-    student_id = uuid4()
 
     with TestClient(app) as client:
         headers = {"X-API-Key": "admin-key"}
@@ -78,7 +79,6 @@ def test_admin_can_manage_courses_and_sections(tmp_path):
             json={
                 "display_name": "Ava Learner",
                 "role": "learner",
-                "learner_id": str(student_id),
                 "section_ids": ["SEC-5A"],
             },
         )
@@ -138,7 +138,8 @@ def test_admin_section_requires_existing_course(tmp_path):
 def test_admin_can_manage_section_memberships(tmp_path):
     app, db_path = _make_app(tmp_path)
     _seed_admin(db_path)
-    store = SQLiteUserStore(db_path)
+    conn = create_connection(db_path)
+    store = SQLiteUserStore(conn)
     now = datetime.now(timezone.utc).isoformat()
     store.create(
         User(
@@ -157,7 +158,7 @@ def test_admin_can_manage_section_memberships(tmp_path):
             display_name="Ava Learner",
             role="learner",
             passphrase_hash=hash_credential("correct horse battery staple"),
-            learner_id="learner-ava",
+            learner_id=str(uuid4()),
             section_ids=[],
             created_at=now,
             updated_at=now,
@@ -223,7 +224,8 @@ def test_admin_can_manage_section_memberships(tmp_path):
 def test_admin_section_memberships_validate_user_roles(tmp_path):
     app, db_path = _make_app(tmp_path)
     _seed_admin(db_path)
-    store = SQLiteUserStore(db_path)
+    conn = create_connection(db_path)
+    store = SQLiteUserStore(conn)
     now = datetime.now(timezone.utc).isoformat()
     store.create(
         User(

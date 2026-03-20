@@ -80,7 +80,6 @@ function CreateUserForm({
       const result = await createUser(config, {
         display_name: form.display_name,
         role: form.role,
-        learner_id: form.role === 'learner' ? form.learner_id : undefined,
       })
       onCreated(result)
     } catch (err) {
@@ -106,13 +105,7 @@ function CreateUserForm({
           <Label htmlFor="create-role">Role</Label>
           <Select
             value={form.role}
-            onValueChange={(v) =>
-              setForm((current) => ({
-                ...current,
-                role: v,
-                learner_id: v === 'learner' ? current.learner_id : undefined,
-              }))
-            }
+            onValueChange={(v) => setForm((current) => ({ ...current, role: v }))}
           >
             <SelectTrigger id="create-role">
               <SelectValue />
@@ -127,17 +120,6 @@ function CreateUserForm({
           </Select>
         </div>
       </div>
-      {form.role === 'learner' && (
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="create-learner">Learner ID</Label>
-          <Input
-            id="create-learner"
-            placeholder="Optional"
-            value={form.learner_id ?? ''}
-            onChange={(e) => setForm({ ...form, learner_id: e.target.value || undefined })}
-          />
-        </div>
-      )}
       <p className="text-xs text-muted-foreground">
         Create the user here, then assign teachers and learners to sections from Courses &amp; Sections.
       </p>
@@ -209,10 +191,9 @@ function BulkImportPanel({
     if (lines.length === 0) return []
 
     return lines.map((line) => {
-      const [display_name, role, learner_id] = line.split(',').map((s) => s.trim())
+      const [display_name, role] = line.split(',').map((s) => s.trim())
       const req: UserCreateRequest = { role: role || 'learner' }
       if (display_name) req.display_name = display_name
-      if (learner_id) req.learner_id = learner_id
       return req
     })
   }
@@ -238,12 +219,12 @@ function BulkImportPanel({
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-muted-foreground">
-        Paste CSV rows: <code className="text-xs">display_name, role, learner_id</code>
+        Paste CSV rows: <code className="text-xs">display_name, role</code>
       </p>
       <textarea
         value={csv}
         onChange={(e) => setCsv(e.target.value)}
-        placeholder={'Alice, learner, student-1\nMs Rivera, teacher,'}
+        placeholder={'Alice, learner\nMs Rivera, teacher'}
         rows={6}
         className="w-full rounded-md border bg-white px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
       />
@@ -282,7 +263,6 @@ function UserRow({
   const [form, setForm] = useState({
     display_name: user.display_name ?? '',
     role: user.role,
-    learner_id: user.learner_id ?? '',
   })
   const [loading, setLoading] = useState(false)
 
@@ -292,7 +272,6 @@ function UserRow({
       const updated = await updateUser(config, user.user_id, {
         display_name: form.display_name || undefined,
         role: form.role,
-        learner_id: form.role === 'learner' ? form.learner_id || undefined : undefined,
       })
       onUpdated(updated)
       setEditing(false)
@@ -342,13 +321,7 @@ function UserRow({
         <td className="px-4 py-2">
           <Select
             value={form.role}
-            onValueChange={(v) =>
-              setForm((current) => ({
-                ...current,
-                role: v,
-                learner_id: v === 'learner' ? current.learner_id : '',
-              }))
-            }
+            onValueChange={(v) => setForm((current) => ({ ...current, role: v }))}
           >
             <SelectTrigger className="h-8 text-sm">
               <SelectValue />
@@ -362,17 +335,8 @@ function UserRow({
             </SelectContent>
           </Select>
         </td>
-        <td className="px-4 py-2">
-          {form.role === 'learner' ? (
-            <Input
-              aria-label="Edit learner ID"
-              value={form.learner_id}
-              onChange={(e) => setForm({ ...form, learner_id: e.target.value })}
-              className="h-8 text-sm"
-            />
-          ) : (
-            <span className="text-sm text-muted-foreground">-</span>
-          )}
+        <td className="px-4 py-2 text-sm text-muted-foreground">
+          {user.learner_id ?? '-'}
         </td>
         <td className="px-4 py-2">
           <span className="text-sm text-muted-foreground">

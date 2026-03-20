@@ -13,6 +13,7 @@ from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.learner_state_signal import LearnerStateSignalService
 from dibble.services.learner_state_calibration import LearnerStateCalibrator
 from dibble.services.router_calibration_signals import RouterCalibrationSignalService
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
@@ -21,7 +22,8 @@ def test_learner_state_calibrator_strengthens_metacognition_after_positive_run(
 ):
     database_path = str(tmp_path / "learner-state-positive.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     audit_store.append(
         event_type="content.generate",
@@ -104,7 +106,8 @@ def test_learner_state_calibrator_reduces_metacognitive_readiness_after_negative
 ):
     database_path = str(tmp_path / "learner-state-negative.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     audit_store.append(
         event_type="content.generate",
@@ -183,7 +186,8 @@ def test_learner_state_calibrator_leaves_state_unchanged_without_durable_signal(
 ):
     database_path = str(tmp_path / "learner-state-insufficient.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     calibrator = LearnerStateCalibrator(
         calibration_signal_service=RouterCalibrationSignalService(
@@ -222,7 +226,8 @@ def test_learner_state_calibrator_leaves_state_unchanged_without_durable_signal(
 def test_learner_state_calibrator_blends_durable_state_profile_when_available(tmp_path):
     database_path = str(tmp_path / "learner-state-profile-calibration.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     audit_store.append(
         event_type="learning.state.profile",
@@ -313,7 +318,8 @@ def test_learner_state_calibrator_skips_durable_independence_when_current_observ
 ):
     database_path = str(tmp_path / "learner-state-profile-strain-guard.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     audit_store.append(
         event_type="learning.state.profile",
@@ -435,7 +441,8 @@ def test_learner_state_calibrator_does_not_force_support_profile_over_productive
 ):
     database_path = str(tmp_path / "learner-state-productive-struggle.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     audit_store.append(
         event_type="learning.state.profile",
@@ -512,7 +519,8 @@ def test_learner_state_calibrator_blocks_release_profile_when_current_evidence_s
 ):
     database_path = str(tmp_path / "learner-state-overload-guardrail.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     audit_store.append(
         event_type="learning.state.profile",

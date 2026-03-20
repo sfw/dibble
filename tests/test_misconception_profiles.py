@@ -7,13 +7,15 @@ from dibble.services.misconception_profiles import (
     LearningMisconceptionProfileResolver,
     _recurrence_decay,
 )
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
 def test_misconception_profile_recorder_compacts_remediation_signals(tmp_path):
     database_path = str(tmp_path / "misconception-profiles.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     recorder = LearningMisconceptionProfileRecorder(audit_store=audit_store)
     student_id = str(uuid4())
 
@@ -54,7 +56,8 @@ def test_misconception_profile_recorder_compacts_remediation_signals(tmp_path):
 def test_misconception_profile_resolver_emits_persistent_profile_signal(tmp_path):
     database_path = str(tmp_path / "misconception-profile-resolver.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     resolver = LearningMisconceptionProfileResolver()
     student_id = str(uuid4())
 
@@ -101,7 +104,8 @@ def test_misconception_profile_recorder_marks_recurring_and_relapsing_patterns(
 ):
     database_path = str(tmp_path / "misconception-profile-recurrence.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     recorder = LearningMisconceptionProfileRecorder(audit_store=audit_store)
     student_id = str(uuid4())
 
@@ -182,7 +186,8 @@ def test_resolver_decays_old_recurrence_to_lower_signal(tmp_path):
     weaker level."""
     database_path = str(tmp_path / "misconception-profile-decay.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     resolver = LearningMisconceptionProfileResolver()
     student_id = str(uuid4())
 
@@ -228,7 +233,8 @@ def test_resolver_preserves_recent_recurrence_signal(tmp_path):
     counts and signal unchanged."""
     database_path = str(tmp_path / "misconception-profile-recent.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     resolver = LearningMisconceptionProfileResolver()
     student_id = str(uuid4())
 

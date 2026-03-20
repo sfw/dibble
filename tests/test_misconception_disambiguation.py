@@ -12,6 +12,7 @@ from dibble.services.misconception_disambiguation import (
 )
 from dibble.services.misconception_profiles import LearningMisconceptionProfileResolver
 from dibble.services.remediation_planner import RemediationPlanner
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 from tests.support import build_knowledge_component, build_profile
 
@@ -19,7 +20,8 @@ from tests.support import build_knowledge_component, build_profile
 def test_misconception_detector_marks_one_primary_signal_per_kc(tmp_path):
     database_path = str(tmp_path / "misconception-disambiguation.db")
     ensure_database(database_path)
-    kc_store = SQLiteKnowledgeComponentStore(database_path)
+    conn = create_connection(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(conn)
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
             build_knowledge_component(
@@ -89,8 +91,9 @@ def test_misconception_detector_marks_one_primary_signal_per_kc(tmp_path):
 def test_misconception_detector_merges_profile_recurrence_with_catalog_match(tmp_path):
     database_path = str(tmp_path / "misconception-disambiguation-profile.db")
     ensure_database(database_path)
-    kc_store = SQLiteKnowledgeComponentStore(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(conn)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
@@ -160,7 +163,8 @@ def test_misconception_detector_merges_profile_recurrence_with_catalog_match(tmp
 def test_remediation_planner_uses_primary_misconception_targets_per_kc(tmp_path):
     database_path = str(tmp_path / "misconception-disambiguation-plan.db")
     ensure_database(database_path)
-    kc_store = SQLiteKnowledgeComponentStore(database_path)
+    conn = create_connection(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(conn)
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
             build_knowledge_component("KC-1", name="Compare whole-number counts")

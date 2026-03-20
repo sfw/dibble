@@ -4,13 +4,15 @@ from dibble.models.generation import GenerationRequest
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.learner_state_signal import LearnerStateSignalService
 from dibble.services.learning_state_recorder import LearningStateProfileRecorder
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
 def test_learning_state_profile_recorder_persists_durable_state_targets(tmp_path):
     database_path = str(tmp_path / "learning-state-profile.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     recorder = LearningStateProfileRecorder(audit_store=audit_store)
     student_id = str(uuid4())
 
@@ -87,7 +89,8 @@ def test_learning_state_profile_recorder_persists_durable_state_targets(tmp_path
 def test_learner_state_signal_service_prefers_matching_state_profiles(tmp_path):
     database_path = str(tmp_path / "learning-state-profile-signal.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     audit_store.append(
         event_type="learning.state.profile",

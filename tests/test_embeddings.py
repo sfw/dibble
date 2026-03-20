@@ -12,6 +12,7 @@ from dibble.services.retrieval.embeddings import (
     OpenAICompatibleEmbedder,
     build_embedder,
 )
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 from tests.support import build_outcome, build_profile
 
@@ -46,7 +47,8 @@ def test_build_embedder_uses_openai_compatible_embedder_when_configured():
 def test_retriever_reuses_persisted_resource_embeddings(tmp_path):
     database_path = str(tmp_path / "embeddings-cache.db")
     ensure_database(database_path)
-    store = SQLiteOutcomeStore(database_path)
+    conn = create_connection(database_path)
+    store = SQLiteOutcomeStore(conn)
     resource = store.upsert(OutcomeUpsert(**build_outcome("CURR-1")))
     profile = LearnerProfile.model_validate(
         build_profile(uuid4(), frustration="low", total_load=0.2)
@@ -56,7 +58,7 @@ def test_retriever_reuses_persisted_resource_embeddings(tmp_path):
         curriculum_context=["Explain equivalent fractions with area models."],
     )
     embedder = CountingEmbedder()
-    embedding_store = SQLiteEmbeddingStore(database_path)
+    embedding_store = SQLiteEmbeddingStore(conn)
     retriever = RAGRetriever(store, embedding_store=embedding_store, embedder=embedder)
 
     retriever.retrieve(profile, request)
@@ -71,7 +73,8 @@ def test_retriever_reuses_persisted_resource_embeddings(tmp_path):
 def test_retriever_refreshes_embeddings_after_resource_update(tmp_path):
     database_path = str(tmp_path / "embeddings-refresh.db")
     ensure_database(database_path)
-    store = SQLiteOutcomeStore(database_path)
+    conn = create_connection(database_path)
+    store = SQLiteOutcomeStore(conn)
     resource = store.upsert(OutcomeUpsert(**build_outcome("CURR-1")))
     profile = LearnerProfile.model_validate(
         build_profile(uuid4(), frustration="low", total_load=0.2)
@@ -81,7 +84,7 @@ def test_retriever_refreshes_embeddings_after_resource_update(tmp_path):
         curriculum_context=["Explain equivalent fractions with area models."],
     )
     embedder = CountingEmbedder()
-    embedding_store = SQLiteEmbeddingStore(database_path)
+    embedding_store = SQLiteEmbeddingStore(conn)
     retriever = RAGRetriever(store, embedding_store=embedding_store, embedder=embedder)
 
     retriever.retrieve(profile, request)

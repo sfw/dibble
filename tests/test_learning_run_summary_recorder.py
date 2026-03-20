@@ -4,6 +4,7 @@ from uuid import uuid4
 
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.learning_run_summary_recorder import LearningRunSummaryRecorder
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
@@ -12,7 +13,8 @@ def test_learning_run_summary_recorder_records_summary_for_observation_trigger(
 ):
     database_path = str(tmp_path / "learning-run-summary-recorder.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     recorder = LearningRunSummaryRecorder(audit_store=audit_store)
     student_id = str(uuid4())
     audit_store.append(

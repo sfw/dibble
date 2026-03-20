@@ -5,6 +5,7 @@ from dibble.models.profile import CognitiveTraitScore
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.cognitive_trait_inference import CognitiveTraitInferenceService
 from dibble.services.learning_trait_profiles import LearnerTraitProfileSignalService
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
@@ -84,7 +85,8 @@ def test_cognitive_trait_inference_merges_with_existing_trait_scores():
 def test_cognitive_trait_inference_blends_durable_trait_profile(tmp_path):
     database_path = str(tmp_path / "cognitive-trait-profile.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     audit_store.append(
         event_type="learning.cognitive_trait.profile",
@@ -141,7 +143,8 @@ def test_cognitive_trait_inference_uses_trait_stability_and_challenge_tolerance_
 ):
     database_path = str(tmp_path / "cognitive-trait-profile-stability.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     audit_store.append(
         event_type="learning.cognitive_trait.profile",
@@ -196,7 +199,8 @@ def test_cognitive_trait_inference_downweights_mismatched_tentative_durable_prof
 ):
     database_path = str(tmp_path / "cognitive-trait-profile-mismatch.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     audit_store.append(
         event_type="learning.cognitive_trait.profile",
@@ -265,7 +269,8 @@ def test_cognitive_trait_inference_downweights_stable_durable_profile_when_curre
 ):
     database_path = str(tmp_path / "cognitive-trait-profile-strong-current.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     audit_store.append(
         event_type="learning.cognitive_trait.profile",
@@ -354,7 +359,8 @@ def test_cognitive_trait_inference_uses_stable_durable_profile_more_when_current
 ):
     database_path = str(tmp_path / "cognitive-trait-profile-sparse-current.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     audit_store.append(
         event_type="learning.cognitive_trait.profile",
@@ -414,7 +420,8 @@ def test_cognitive_trait_inference_prefers_reliable_durable_traits_over_unreliab
 ):
     database_path = str(tmp_path / "cognitive-trait-profile-reliability.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     audit_store.append(
         event_type="learning.cognitive_trait.profile",

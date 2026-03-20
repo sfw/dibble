@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import dataclass
+
 from datetime import datetime, timezone
 
 
@@ -20,19 +21,18 @@ class StoredEmbedding:
 
 
 class SQLiteEmbeddingStore:
-    def __init__(self, database_path: str) -> None:
-        self.database_path = database_path
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        self._conn = connection
 
     def get(self, resource_id: str) -> StoredEmbedding | None:
-        with sqlite3.connect(self.database_path) as connection:
-            row = connection.execute(
-                """
-                SELECT resource_id, vector, dimensions, source_updated_at, indexed_at
-                FROM curriculum_resource_embeddings
-                WHERE resource_id = ?
-                """,
-                (resource_id,),
-            ).fetchone()
+        row = self._conn.execute(
+            """
+            SELECT resource_id, vector, dimensions, source_updated_at, indexed_at
+            FROM curriculum_resource_embeddings
+            WHERE resource_id = ?
+            """,
+            (resource_id,),
+        ).fetchone()
 
         if row is None:
             return None
@@ -55,26 +55,25 @@ class SQLiteEmbeddingStore:
             source_updated_at=source_updated_at,
             indexed_at=utc_now_iso(),
         )
-        with sqlite3.connect(self.database_path) as connection:
-            connection.execute(
-                """
-                INSERT INTO curriculum_resource_embeddings(resource_id, vector, dimensions, source_updated_at, indexed_at)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(resource_id) DO UPDATE SET
-                    vector = excluded.vector,
-                    dimensions = excluded.dimensions,
-                    source_updated_at = excluded.source_updated_at,
-                    indexed_at = excluded.indexed_at
-                """,
-                (
-                    stored.resource_id,
-                    json.dumps(stored.vector),
-                    stored.dimensions,
-                    stored.source_updated_at,
-                    stored.indexed_at,
-                ),
-            )
-            connection.commit()
+        self._conn.execute(
+            """
+            INSERT INTO curriculum_resource_embeddings(resource_id, vector, dimensions, source_updated_at, indexed_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(resource_id) DO UPDATE SET
+                vector = excluded.vector,
+                dimensions = excluded.dimensions,
+                source_updated_at = excluded.source_updated_at,
+                indexed_at = excluded.indexed_at
+            """,
+            (
+                stored.resource_id,
+                json.dumps(stored.vector),
+                stored.dimensions,
+                stored.source_updated_at,
+                stored.indexed_at,
+            ),
+        )
+        self._conn.commit()
         return stored
 
 

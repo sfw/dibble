@@ -4,6 +4,7 @@ from tests.api_support import parse_sse_events
 from dibble.app import create_app
 from dibble.config import Settings
 from dibble.services.audit_store import SQLiteAuditStore
+from dibble.services.sqlite_connection import create_connection
 from dibble.services.within_session_adaptation import WithinSessionAdaptationService
 from dibble.services.within_session_controller_store import (
     SQLiteWithinSessionControllerStore,
@@ -141,7 +142,8 @@ def test_generated_content_can_be_reloaded_by_generation_id(client, student_id):
 def test_generation_endpoint_preserves_strategy_hold_target_as_workflow_action(
     client, student_id, app_settings
 ):
-    audit_store = SQLiteAuditStore(app_settings.database_path)
+    conn = create_connection(app_settings.database_path)
+    audit_store = SQLiteAuditStore(conn)
     client.put(
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
@@ -197,8 +199,9 @@ def test_generation_endpoint_preserves_strategy_hold_target_as_workflow_action(
 def test_generation_endpoint_preserves_bridge_hold_as_workflow_action(
     client, student_id, app_settings
 ):
-    audit_store = SQLiteAuditStore(app_settings.database_path)
-    controller_store = SQLiteWithinSessionControllerStore(app_settings.database_path)
+    conn = create_connection(app_settings.database_path)
+    audit_store = SQLiteAuditStore(conn)
+    controller_store = SQLiteWithinSessionControllerStore(conn)
     adaptation_service = WithinSessionAdaptationService(
         audit_store=audit_store,
         controller_store=controller_store,
@@ -554,7 +557,8 @@ def test_generation_endpoint_holds_target_when_recent_same_session_evidence_is_s
 def test_generation_endpoint_uses_durable_ordinary_mastery_to_hold_assessment_request(
     client, student_id, app_settings
 ):
-    audit_store = SQLiteAuditStore(app_settings.database_path)
+    conn = create_connection(app_settings.database_path)
+    audit_store = SQLiteAuditStore(conn)
     client.put(
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
@@ -855,7 +859,8 @@ def test_negative_practice_generation_predictively_warms_remediation_after_relap
 ):
     from dibble.services.audit_store import SQLiteAuditStore
 
-    audit_store = SQLiteAuditStore(app_settings.database_path)
+    conn = create_connection(app_settings.database_path)
+    audit_store = SQLiteAuditStore(conn)
     client.put(
         f"/api/learners/{student_id}/profile",
         json=build_profile(
@@ -927,7 +932,8 @@ def test_remedial_trigger_returns_remedial_generated_content(
 ):
     from dibble.services.audit_store import SQLiteAuditStore
 
-    audit_store = SQLiteAuditStore(app_settings.database_path)
+    conn = create_connection(app_settings.database_path)
+    audit_store = SQLiteAuditStore(conn)
     client.put(f"/api/learners/{student_id}/profile", json=build_profile(student_id))
     client.put("/api/curriculum/outcomes/CURR-1", json=build_outcome())
     audit_store.append(
@@ -1095,7 +1101,8 @@ def test_generation_endpoint_rebuilds_prerequisite_before_requested_target(
 ):
     from dibble.services.audit_store import SQLiteAuditStore
 
-    audit_store = SQLiteAuditStore(app_settings.database_path)
+    conn = create_connection(app_settings.database_path)
+    audit_store = SQLiteAuditStore(conn)
     client.put(
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),
@@ -1166,7 +1173,8 @@ def test_generation_endpoint_uses_repair_target_ordinary_mastery_to_hold_backend
 ):
     from dibble.services.audit_store import SQLiteAuditStore
 
-    audit_store = SQLiteAuditStore(app_settings.database_path)
+    conn = create_connection(app_settings.database_path)
+    audit_store = SQLiteAuditStore(conn)
     client.put(
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="low", total_load=0.2),

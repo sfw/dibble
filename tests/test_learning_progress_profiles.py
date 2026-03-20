@@ -5,13 +5,15 @@ from dibble.services.learning_progress_profiles import (
     LearningProgressProfileBuilder,
     LearningProgressProfileRecorder,
 )
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
 def test_learning_progress_profile_recorder_persists_progress_trend(tmp_path):
     database_path = str(tmp_path / "learning-progress-profile.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     recorder = LearningProgressProfileRecorder(audit_store=audit_store)
     student_id = str(uuid4())
 
@@ -96,7 +98,8 @@ def test_learning_progress_profile_builder_marks_declining_when_recent_runs_drop
 ):
     database_path = str(tmp_path / "learning-progress-profile-declining.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     builder = LearningProgressProfileBuilder()
     student_id = str(uuid4())
 
@@ -182,7 +185,8 @@ def test_learning_progress_profile_builder_marks_tentative_without_prior_history
 ):
     database_path = str(tmp_path / "learning-progress-profile-tentative.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     builder = LearningProgressProfileBuilder()
     student_id = str(uuid4())
 

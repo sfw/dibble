@@ -21,6 +21,7 @@ from dibble.services.llm_client import LLMClientError, OpenAICompatibleChatClien
 from dibble.services.llm_prompting import build_generation_prompts
 from dibble.services.llm_provider import LLMOrchestrationProvider
 from dibble.services.provider_health import SQLiteProviderHealthStore
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 from tests.support import build_profile
 
@@ -383,14 +384,17 @@ def test_provider_streams_upstream_ndjson_chunks(
 def test_plugin_loader_passes_settings_to_provider_factory(tmp_path):
     database_path = str(tmp_path / "provider-loader.db")
     ensure_database(database_path)
-    outcome_store = SQLiteOutcomeStore(database_path)
+    conn = create_connection(database_path)
+    outcome_store = SQLiteOutcomeStore(conn)
     settings = Settings(
         database_path=database_path,
         llm_api_key="secret",
         llm_model="demo-model",
     )
 
-    plugins = build_generation_plugins(settings, outcome_store=outcome_store)
+    plugins = build_generation_plugins(
+        settings, outcome_store=outcome_store, connection=conn
+    )
 
     assert isinstance(plugins.provider, LLMOrchestrationProvider)
     assert plugins.provider.clients
@@ -642,7 +646,8 @@ def test_provider_hydrates_latency_history_from_health_store(
 ):
     database_path = str(tmp_path / "provider-latency-history.db")
     ensure_database(database_path)
-    health_store = SQLiteProviderHealthStore(database_path)
+    conn = create_connection(database_path)
+    health_store = SQLiteProviderHealthStore(conn)
     clock = {"value": 100.0}
 
     warm_primary = FakeClient(
@@ -731,7 +736,8 @@ def test_provider_hydrates_open_circuit_from_health_store(
 ):
     database_path = str(tmp_path / "provider-circuit-history.db")
     ensure_database(database_path)
-    health_store = SQLiteProviderHealthStore(database_path)
+    conn = create_connection(database_path)
+    health_store = SQLiteProviderHealthStore(conn)
     current_time = {"value": 100.0}
     warm_provider = LLMOrchestrationProvider(
         clients=[

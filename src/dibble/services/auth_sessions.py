@@ -17,20 +17,19 @@ class StoredAuthSession:
 
 
 class SQLiteAuthSessionStore:
-    def __init__(self, database_path: str) -> None:
-        self.database_path = database_path
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        self._conn = connection
 
     def get(self, session_id: str) -> StoredAuthSession | None:
-        with sqlite3.connect(self.database_path) as connection:
-            row = connection.execute(
-                """
-                SELECT session_id, principal_id, role, refresh_token_hash, created_at,
-                       access_expires_at, refresh_expires_at, revoked_at
-                FROM auth_sessions
-                WHERE session_id = ?
-                """,
-                (session_id,),
-            ).fetchone()
+        row = self._conn.execute(
+            """
+            SELECT session_id, principal_id, role, refresh_token_hash, created_at,
+                   access_expires_at, refresh_expires_at, revoked_at
+            FROM auth_sessions
+            WHERE session_id = ?
+            """,
+            (session_id,),
+        ).fetchone()
 
         if row is None:
             return None
@@ -38,40 +37,38 @@ class SQLiteAuthSessionStore:
         return StoredAuthSession(*row)
 
     def upsert(self, session: StoredAuthSession) -> StoredAuthSession:
-        with sqlite3.connect(self.database_path) as connection:
-            connection.execute(
-                """
-                INSERT INTO auth_sessions(
-                    session_id, principal_id, role, refresh_token_hash, created_at,
-                    access_expires_at, refresh_expires_at, revoked_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(session_id) DO UPDATE SET
-                    principal_id = excluded.principal_id,
-                    role = excluded.role,
-                    refresh_token_hash = excluded.refresh_token_hash,
-                    access_expires_at = excluded.access_expires_at,
-                    refresh_expires_at = excluded.refresh_expires_at,
-                    revoked_at = excluded.revoked_at
-                """,
-                (
-                    session.session_id,
-                    session.principal_id,
-                    session.role,
-                    session.refresh_token_hash,
-                    session.created_at,
-                    session.access_expires_at,
-                    session.refresh_expires_at,
-                    session.revoked_at,
-                ),
+        self._conn.execute(
+            """
+            INSERT INTO auth_sessions(
+                session_id, principal_id, role, refresh_token_hash, created_at,
+                access_expires_at, refresh_expires_at, revoked_at
             )
-            connection.commit()
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(session_id) DO UPDATE SET
+                principal_id = excluded.principal_id,
+                role = excluded.role,
+                refresh_token_hash = excluded.refresh_token_hash,
+                access_expires_at = excluded.access_expires_at,
+                refresh_expires_at = excluded.refresh_expires_at,
+                revoked_at = excluded.revoked_at
+            """,
+            (
+                session.session_id,
+                session.principal_id,
+                session.role,
+                session.refresh_token_hash,
+                session.created_at,
+                session.access_expires_at,
+                session.refresh_expires_at,
+                session.revoked_at,
+            ),
+        )
+        self._conn.commit()
         return session
 
     def revoke(self, session_id: str, *, revoked_at: str) -> None:
-        with sqlite3.connect(self.database_path) as connection:
-            connection.execute(
-                "UPDATE auth_sessions SET revoked_at = ? WHERE session_id = ?",
-                (revoked_at, session_id),
-            )
-            connection.commit()
+        self._conn.execute(
+            "UPDATE auth_sessions SET revoked_at = ? WHERE session_id = ?",
+            (revoked_at, session_id),
+        )
+        self._conn.commit()

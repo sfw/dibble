@@ -6,13 +6,15 @@ from dibble.services.within_session_adaptation import WithinSessionAdaptationSer
 from dibble.services.within_session_controller_store import (
     SQLiteWithinSessionControllerStore,
 )
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
 def test_within_session_adaptation_detects_live_struggle_from_observations(tmp_path):
     database_path = str(tmp_path / "within-session-adaptation-negative.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     audit_store.append(
         event_type="learner.observe",
@@ -51,7 +53,8 @@ def test_within_session_adaptation_detects_live_struggle_from_observations(tmp_p
 def test_within_session_adaptation_detects_transfer_readiness_from_assessment(tmp_path):
     database_path = str(tmp_path / "within-session-adaptation-positive.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     audit_store.append(
         event_type="assessment.socratic",
@@ -88,7 +91,8 @@ def test_within_session_adaptation_uses_explicit_socratic_steering_action_when_p
 ):
     database_path = str(tmp_path / "within-session-adaptation-steering.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     audit_store.append(
         event_type="assessment.socratic",
@@ -123,8 +127,9 @@ def test_within_session_adaptation_uses_explicit_socratic_steering_action_when_p
 def test_within_session_controller_persists_repair_state_across_steps(tmp_path):
     database_path = str(tmp_path / "within-session-controller-repair.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
-    controller_store = SQLiteWithinSessionControllerStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
+    controller_store = SQLiteWithinSessionControllerStore(conn)
     student_id = uuid4()
     service = WithinSessionAdaptationService(
         audit_store=audit_store,
@@ -196,8 +201,9 @@ def test_within_session_controller_persists_repair_state_across_steps(tmp_path):
 def test_within_session_controller_detects_support_loop_after_budget_is_used(tmp_path):
     database_path = str(tmp_path / "within-session-controller-loop-risk.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
-    controller_store = SQLiteWithinSessionControllerStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
+    controller_store = SQLiteWithinSessionControllerStore(conn)
     student_id = uuid4()
     service = WithinSessionAdaptationService(
         audit_store=audit_store,
@@ -258,8 +264,9 @@ def test_within_session_controller_moves_from_repair_to_transfer_check_after_rec
 ):
     database_path = str(tmp_path / "within-session-controller-recovery.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
-    controller_store = SQLiteWithinSessionControllerStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
+    controller_store = SQLiteWithinSessionControllerStore(conn)
     student_id = uuid4()
     service = WithinSessionAdaptationService(
         audit_store=audit_store,
@@ -328,8 +335,9 @@ def test_within_session_controller_moves_through_consolidate_and_bridge_before_t
 ):
     database_path = str(tmp_path / "within-session-controller-bridge.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
-    controller_store = SQLiteWithinSessionControllerStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
+    controller_store = SQLiteWithinSessionControllerStore(conn)
     student_id = uuid4()
     service = WithinSessionAdaptationService(
         audit_store=audit_store,
@@ -388,8 +396,9 @@ def test_within_session_controller_blocks_transfer_when_live_evidence_still_show
 ):
     database_path = str(tmp_path / "within-session-controller-support-dependence.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
-    controller_store = SQLiteWithinSessionControllerStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
+    controller_store = SQLiteWithinSessionControllerStore(conn)
     student_id = uuid4()
     service = WithinSessionAdaptationService(
         audit_store=audit_store,
@@ -468,7 +477,8 @@ def test_within_session_adaptation_keeps_productive_struggle_out_of_negative_buc
 ):
     database_path = str(tmp_path / "within-session-adaptation-productive-struggle.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     audit_store.append(
         event_type="learner.observe",
