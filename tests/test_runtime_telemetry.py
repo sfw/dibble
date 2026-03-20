@@ -102,6 +102,29 @@ def test_debug_telemetry_writes_debug_payload_to_session_log(
     assert "I think the fractions match." in log_text
 
 
+def test_debug_telemetry_redacts_sensitive_headers(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    client = _build_client(tmp_path, telemetry_level="debug")
+
+    response = client.get(
+        "/health",
+        headers={
+            "X-API-Key": "super-secret",
+            "Cookie": "session=abc123",
+        },
+    )
+
+    assert response.status_code == 200
+
+    log_text = (tmp_path / ".dibble" / "logs" / "system.log").read_text()
+    assert '"x-api-key": "***"' in log_text
+    assert '"cookie": "***"' in log_text
+    assert "super-secret" not in log_text
+    assert "abc123" not in log_text
+
+
 def test_sessionless_requests_are_written_to_system_log(
     tmp_path: Path, monkeypatch
 ) -> None:

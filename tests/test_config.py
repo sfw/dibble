@@ -228,6 +228,51 @@ level = "verbose"
         with pytest.raises(ValueError, match="telemetry_level"):
             get_settings(config_path=path)
 
+    def test_load_restores_backup_when_live_config_has_placeholder_key(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        path = _write_toml(
+            tmp_path,
+            """
+[llm]
+api_key = "sk-test"
+model = "gpt-4o"
+""",
+        )
+        backup_path = tmp_path / "config.backup.toml"
+        backup_path.write_text(
+            """
+[llm]
+api_key = "sk-real"
+model = "kimi-k2.5"
+"""
+        )
+
+        with caplog.at_level("WARNING"):
+            loaded = _load_toml_config(path)
+
+        assert loaded["llm_api_key"] == "sk-real"
+        assert loaded["llm_model"] == "kimi-k2.5"
+        assert "restoring backup" in caplog.text
+        assert 'api_key = "sk-real"' in path.read_text()
+
+    def test_load_writes_backup_for_non_placeholder_config(self, tmp_path: Path) -> None:
+        path = _write_toml(
+            tmp_path,
+            """
+[llm]
+api_key = "sk-real"
+model = "kimi-k2.5"
+""",
+        )
+
+        loaded = _load_toml_config(path)
+
+        assert loaded["llm_api_key"] == "sk-real"
+        backup_path = tmp_path / "config.backup.toml"
+        assert backup_path.is_file()
+        assert 'api_key = "sk-real"' in backup_path.read_text()
+
 
 # ---------------------------------------------------------------------------
 # Env overrides TOML

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 import pytest
 
@@ -21,6 +23,32 @@ class TestSetupStatus:
         data = response.json()
         assert data["configured"] is False
         assert data["has_llm_key"] is False
+
+    def test_status_does_not_rewrite_live_config_toml(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("HOME", str(tmp_path))
+        config_dir = tmp_path / ".dibble"
+        config_dir.mkdir(parents=True)
+        config_path = config_dir / "config.toml"
+        original_text = "\n".join(
+            [
+                "[llm]",
+                'api_base = "https://api.moonshot.ai/v1"',
+                'api_key = "sk-real"',
+                'model = "kimi-k2.5"',
+                "",
+            ]
+        )
+        config_path.write_text(original_text)
+
+        client = TestClient(create_app())
+
+        response = client.get("/api/setup/status")
+
+        assert response.status_code == 200
+        assert config_path.read_text() == original_text
+        assert (config_dir / "config.backup.toml").is_file()
 
 
 class TestHealthIncludesConfigured:
@@ -57,6 +85,27 @@ class TestSetupConfigure:
                     database_path=str(tmp_path / "dibble.db"),
                     llm_api_key="already-set",
                 )
+            )
+        )
+
+        response = client.post("/api/setup/configure", json={"llm_model": "gpt-4o"})
+
+        assert response.status_code == 409
+        assert response.json()["code"] == "setup_already_configured"
+
+    def test_configure_rejects_when_runtime_settings_loader_is_configured(
+        self, tmp_path
+    ) -> None:
+        startup_settings = Settings(database_path=str(tmp_path / "dibble.db"))
+        runtime_settings = Settings(
+            database_path=str(tmp_path / "dibble.db"),
+            llm_api_key="live-key",
+            llm_model="kimi-k2.5",
+        )
+        client = TestClient(
+            create_app(
+                startup_settings,
+                settings_loader=lambda: runtime_settings,
             )
         )
 

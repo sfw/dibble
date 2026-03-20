@@ -80,6 +80,27 @@ class TestGetStatus:
         status = service.get_status()
         assert status.has_embedding_key is True
 
+    def test_status_uses_runtime_settings_loader(self, tmp_path: Path) -> None:
+        db_path = str(tmp_path / "dibble.db")
+        ensure_database(db_path)
+        conn = create_connection(db_path)
+        runtime_settings = Settings(
+            database_path=db_path,
+            llm_api_key="live-key",
+            llm_model="kimi-k2.5",
+        )
+        service = SetupConfigService(
+            Settings(database_path=db_path),
+            user_store=SQLiteUserStore(conn),
+            settings_loader=lambda: runtime_settings,
+        )
+
+        status = service.get_status()
+
+        assert status.configured is True
+        assert status.has_llm_key is True
+        assert status.llm_model == "kimi-k2.5"
+
 
 class TestWriteConfig:
     def test_writes_toml(self, tmp_path: Path, monkeypatch: object) -> None:
@@ -145,6 +166,20 @@ class TestWriteConfig:
                 database_path=str(tmp_path / "dibble.db"),
                 llm_api_key="already-set",
             )
+        )
+
+        with pytest.raises(RuntimeError, match="already complete"):
+            service.write_config(SetupConfigureRequest(llm_model="gpt-4o"))
+
+    def test_rejects_reconfiguration_when_runtime_settings_are_configured(
+        self, tmp_path: Path
+    ) -> None:
+        service = SetupConfigService(
+            Settings(database_path=str(tmp_path / "dibble.db")),
+            settings_loader=lambda: Settings(
+                database_path=str(tmp_path / "dibble.db"),
+                llm_api_key="live-key",
+            ),
         )
 
         with pytest.raises(RuntimeError, match="already complete"):

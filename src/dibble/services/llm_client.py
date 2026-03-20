@@ -88,21 +88,10 @@ class OpenAICompatibleChatClient:
     def complete(
         self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2
     ) -> LLMCompletion:
-        response = self.transport(
-            f"{self.api_base}/chat/completions",
-            payload={
-                "model": self.model,
-                "temperature": temperature,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-            },
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-            timeout=self.timeout_seconds,
+        response = self._complete_with_temperature(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=temperature,
         )
         return LLMCompletion(
             content=self._extract_content(response),
@@ -117,26 +106,11 @@ class OpenAICompatibleChatClient:
         user_prompt: str,
         temperature: float = 0.2,
     ) -> Iterator[str]:
-        lines = self.stream_transport(
-            f"{self.api_base}/chat/completions",
-            payload={
-                "model": self.model,
-                "temperature": temperature,
-                "stream": True,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-            },
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-                "Accept": "text/event-stream",
-            },
-            timeout=self.timeout_seconds,
-        )
-
-        for line in lines:
+        for line in self._stream_lines_with_temperature(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=temperature,
+        ):
             stripped = line.strip()
             if not stripped or not stripped.startswith("data: "):
                 continue
@@ -152,6 +126,97 @@ class OpenAICompatibleChatClient:
 
             for part in self._extract_stream_content_parts(chunk):
                 yield part
+
+    def _complete_with_temperature(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float,
+    ) -> dict[str, Any]:
+        try:
+            return self.transport(
+                f"{self.api_base}/chat/completions",
+                payload=self._build_payload(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    temperature=temperature,
+                ),
+                headers=self._request_headers(),
+                timeout=self.timeout_seconds,
+            )
+        except LLMClientError as exc:
+            if temperature != 1.0 and self._requires_fixed_temperature(exc):
+                return self._complete_with_temperature(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    temperature=1.0,
+                )
+            raise
+
+    def _stream_lines_with_temperature(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float,
+    ) -> Iterator[str]:
+        try:
+            lines = self.stream_transport(
+                f"{self.api_base}/chat/completions",
+                payload=self._build_payload(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    temperature=temperature,
+                    stream=True,
+                ),
+                headers=self._request_headers(stream=True),
+                timeout=self.timeout_seconds,
+            )
+            for line in lines:
+                yield line
+        except LLMClientError as exc:
+            if temperature != 1.0 and self._requires_fixed_temperature(exc):
+                yield from self._stream_lines_with_temperature(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    temperature=1.0,
+                )
+                return
+            raise
+
+    def _build_payload(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float,
+        stream: bool = False,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "temperature": temperature,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        }
+        if stream:
+            payload["stream"] = True
+        return payload
+
+    def _request_headers(self, *, stream: bool = False) -> dict[str, str]:
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        if stream:
+            headers["Accept"] = "text/event-stream"
+        return headers
+
+    def _requires_fixed_temperature(self, exc: LLMClientError) -> bool:
+        message = str(exc).lower()
+        return "invalid temperature" in message and "only 1 is allowed" in message
 
     def _extract_content(self, response: dict[str, Any]) -> str:
         choices = response.get("choices")

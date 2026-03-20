@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 _UNSET: Any = object()
 _TELEMETRY_LEVELS = frozenset({"off", "normal", "debug"})
+_PLACEHOLDER_LLM_API_KEYS = frozenset({"sk-test"})
 
 
 @dataclass(slots=True)
@@ -288,10 +289,8 @@ def write_config_toml(updates: dict[str, Any], *, path: Path | None = None) -> P
     sectioned_updates = _unflatten_to_toml(updates)
     merged = _prune_empty_tables(_deep_merge(existing, sectioned_updates))
 
-    with path.open("wb") as fh:
-        tomli_w.dump(merged, fh)
-
-    path.chmod(0o600)
+    _write_sectioned_toml(merged, path)
+    _write_config_backup(merged, path)
     return path
 
 
@@ -322,10 +321,62 @@ def _load_toml_config(path: Path | None = None) -> dict[str, Any]:
 
     _check_permissions(path)
 
-    with path.open("rb") as fh:
-        raw = tomllib.load(fh)
+    raw = _load_sectioned_toml(path)
+    raw = _restore_backup_if_placeholder(path, raw)
+    _write_config_backup(raw, path)
 
     return _flatten_toml(raw)
+
+
+def _load_sectioned_toml(path: Path) -> dict[str, Any]:
+    with path.open("rb") as fh:
+        return tomllib.load(fh)
+
+
+def _write_sectioned_toml(raw: dict[str, Any], path: Path) -> None:
+    with path.open("wb") as fh:
+        tomli_w.dump(raw, fh)
+    path.chmod(0o600)
+
+
+def _config_backup_path(path: Path) -> Path:
+    return path.with_name(f"{path.stem}.backup{path.suffix}")
+
+
+def _write_config_backup(raw: dict[str, Any], path: Path) -> None:
+    if _contains_placeholder_llm_key(raw):
+        return
+    _write_sectioned_toml(raw, _config_backup_path(path))
+
+
+def _restore_backup_if_placeholder(path: Path, raw: dict[str, Any]) -> dict[str, Any]:
+    if not _contains_placeholder_llm_key(raw):
+        return raw
+
+    backup_path = _config_backup_path(path)
+    if not backup_path.is_file():
+        return raw
+
+    backup_raw = _load_sectioned_toml(backup_path)
+    if _contains_placeholder_llm_key(backup_raw):
+        return raw
+
+    logger.warning(
+        "%s contains a placeholder LLM key; restoring backup from %s",
+        path,
+        backup_path,
+    )
+    _write_sectioned_toml(backup_raw, path)
+    return backup_raw
+
+
+def _contains_placeholder_llm_key(raw: dict[str, Any]) -> bool:
+    llm = raw.get("llm")
+    if not isinstance(llm, dict):
+        return False
+
+    api_key = llm.get("api_key")
+    return isinstance(api_key, str) and api_key.strip() in _PLACEHOLDER_LLM_API_KEYS
 
 
 # ---------------------------------------------------------------------------

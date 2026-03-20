@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from fastapi import FastAPI
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,10 +16,21 @@ from dibble.services.runtime_telemetry import (
 )
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
-    settings = settings or get_settings()
+def create_app(
+    settings: Settings | None = None,
+    *,
+    settings_loader: Callable[[], Settings] | None = None,
+) -> FastAPI:
+    if settings is None:
+        settings_loader = settings_loader or get_settings
+        settings = settings_loader()
+    elif settings_loader is None:
+        def _current_settings() -> Settings:
+            return settings
+
+        settings_loader = _current_settings
     setup_runtime_telemetry(settings)
-    services = build_application_services(settings)
+    services = build_application_services(settings, settings_loader=settings_loader)
 
     app = FastAPI(
         title=settings.app_name,
