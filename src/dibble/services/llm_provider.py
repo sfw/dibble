@@ -286,7 +286,17 @@ class LLMOrchestrationProvider:
                     blocks=[block.model_dump(mode="json") for block in blocks],
                 )
                 return blocks
-            except (LLMClientError, LLMProviderError):
+            except (LLMClientError, LLMProviderError) as exc:
+                if telemetry_debug_enabled():
+                    log_runtime_event(
+                        logger,
+                        logging.DEBUG,
+                        "llm.generate.failure",
+                        provider_name=name,
+                        model_used=self.client_models.get(name),
+                        error_type=type(exc).__name__,
+                        error=str(exc),
+                    )
                 logger.warning(
                     "LLM client %r failed, trying next",
                     name,
@@ -385,7 +395,19 @@ class LLMOrchestrationProvider:
                     model_used=self.client_models.get(name),
                 )
                 return
-            except (LLMClientError, LLMProviderError):
+            except (LLMClientError, LLMProviderError) as exc:
+                if telemetry_debug_enabled():
+                    log_runtime_event(
+                        logger,
+                        logging.DEBUG,
+                        "llm.stream.failure",
+                        provider_name=name,
+                        model_used=self.client_models.get(name),
+                        error_type=type(exc).__name__,
+                        error=str(exc),
+                        chunk_count=len(raw_deltas),
+                        partial_content="".join(raw_deltas),
+                    )
                 logger.warning(
                     "LLM stream client %r failed, trying next",
                     name,

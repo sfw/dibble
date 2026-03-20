@@ -21,6 +21,10 @@ from dibble.services.llm_client import LLMClientError, OpenAICompatibleChatClien
 from dibble.services.llm_prompting import build_generation_prompts
 from dibble.services.llm_provider import LLMOrchestrationProvider
 from dibble.services.provider_health import SQLiteProviderHealthStore
+from dibble.services.runtime_telemetry import (
+    bind_runtime_telemetry,
+    reset_runtime_telemetry,
+)
 from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 from tests.support import build_profile
@@ -292,6 +296,37 @@ def test_provider_falls_back_to_mock_when_llm_call_fails(
     assert "Cue: Use visual fraction models" in blocks[0].body
 
 
+def test_provider_logs_generate_failure_details_in_debug_telemetry(
+    sample_profile,
+    sample_request,
+    sample_route,
+    sample_grounding,
+    caplog: pytest.LogCaptureFixture,
+):
+    provider = LLMOrchestrationProvider(
+        clients=[("primary", FakeClient(error=LLMClientError("boom")))],
+        fallback_provider=MockLLMProvider(),
+    )
+    tokens = bind_runtime_telemetry(
+        session_id=sample_request.learning_session_id,
+        telemetry_level="debug",
+    )
+
+    try:
+        with caplog.at_level("DEBUG", logger="dibble.services.llm_provider"):
+            provider.generate(
+                sample_profile,
+                sample_request,
+                sample_route,
+                sample_grounding,
+            )
+    finally:
+        reset_runtime_telemetry(tokens)
+
+    assert 'llm.generate.failure {"error": "boom"' in caplog.text
+    assert '"error_type": "LLMClientError"' in caplog.text
+
+
 def test_chat_client_parses_openai_compatible_payload():
     captured: dict[str, object] = {}
 
@@ -379,6 +414,41 @@ def test_provider_streams_upstream_ndjson_chunks(
 
     assert [chunk.kind for chunk in chunks] == ["summary", "summary", "instruction"]
     assert chunks[-1].done is True
+
+
+def test_provider_logs_stream_failure_details_in_debug_telemetry(
+    sample_profile,
+    sample_request,
+    sample_route,
+    sample_grounding,
+    caplog: pytest.LogCaptureFixture,
+):
+    provider = LLMOrchestrationProvider(
+        clients=[("primary", FakeClient(error=LLMClientError("stream boom")))],
+        fallback_provider=MockLLMProvider(),
+    )
+    tokens = bind_runtime_telemetry(
+        session_id=sample_request.learning_session_id,
+        telemetry_level="debug",
+    )
+
+    try:
+        with caplog.at_level("DEBUG", logger="dibble.services.llm_provider"):
+            list(
+                provider.stream_generate(
+                    sample_profile,
+                    sample_request,
+                    sample_route,
+                    sample_grounding,
+                )
+            )
+    finally:
+        reset_runtime_telemetry(tokens)
+
+    assert 'llm.stream.failure {"chunk_count": 0' in caplog.text
+    assert '"error": "stream boom"' in caplog.text
+    assert '"error_type": "LLMClientError"' in caplog.text
+    assert '"partial_content": ""' in caplog.text
 
 
 def test_plugin_loader_passes_settings_to_provider_factory(tmp_path):
