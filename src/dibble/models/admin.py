@@ -43,6 +43,7 @@ class SystemConfigValues(BaseModel):
     generation_cache_ttl_seconds: int
     predictive_warm_inline_process_limit: int
     llm_debug_prompts_enabled: bool
+    telemetry_level: Literal["off", "normal", "debug"]
 
 
 class SystemConfigResponse(BaseModel):
@@ -51,8 +52,45 @@ class SystemConfigResponse(BaseModel):
     values: SystemConfigValues
 
 
-class SystemConfigUpdateRequest(SystemConfigValues):
-    pass
+class SystemConfigUpdateRequest(BaseModel):
+    app_name: str | None = None
+    app_version: str | None = None
+    database_path: str | None = None
+    router_plugin: str | None = None
+    retriever_plugin: str | None = None
+    provider_plugin: str | None = None
+    validator_plugin: str | None = None
+    llm_api_base: str | None = None
+    llm_api_key: str | None = None
+    llm_model: str | None = None
+    llm_timeout_seconds: float | None = None
+    llm_allow_mock_fallback: bool | None = None
+    llm_secondary_api_base: str | None = None
+    llm_secondary_api_key: str | None = None
+    llm_secondary_model: str | None = None
+    llm_secondary_timeout_seconds: float | None = None
+    llm_circuit_breaker_threshold: int | None = None
+    llm_circuit_breaker_cooldown_seconds: float | None = None
+    llm_selection_strategy: str | None = None
+    prompt_library_version: str | None = None
+    prompt_experiment_enabled: bool | None = None
+    prompt_adaptive_selection_enabled: bool | None = None
+    prompt_variant_override: str | None = None
+    embedding_api_base: str | None = None
+    embedding_api_key: str | None = None
+    embedding_model: str | None = None
+    embedding_dimensions: int | None = None
+    embedding_timeout_seconds: float | None = None
+    embedding_allow_local_fallback: bool | None = None
+    auth_enabled: bool | None = None
+    auth_token_secret: str | None = None
+    auth_token_issuer: str | None = None
+    auth_token_ttl_seconds: int | None = None
+    auth_refresh_ttl_seconds: int | None = None
+    generation_cache_ttl_seconds: int | None = None
+    predictive_warm_inline_process_limit: int | None = None
+    llm_debug_prompts_enabled: bool | None = None
+    telemetry_level: Literal["off", "normal", "debug"] | None = None
 
 
 class SystemConfigUpdateResponse(BaseModel):

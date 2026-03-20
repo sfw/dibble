@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,6 +17,9 @@ from dibble.models.setup import (
 )
 from dibble.services.auth import hash_credential
 from dibble.services.protocols import UserStore
+from dibble.services.runtime_telemetry import log_runtime_event
+
+logger = logging.getLogger(__name__)
 
 
 class SetupConfigService:
@@ -43,8 +47,21 @@ class SetupConfigService:
         )
 
     def write_config(self, request: SetupConfigureRequest) -> SetupConfigureResponse:
+        if self._settings.llm_api_key is not None:
+            raise RuntimeError(
+                "Setup configuration is already complete. Use the system configuration endpoint for later changes."
+            )
         updates = request.model_dump(exclude_none=True)
         path = write_config_toml(updates)
+        log_runtime_event(
+            logger,
+            logging.INFO,
+            "config.write.setup",
+            config_path=str(path),
+            updated_fields=sorted(updates.keys()),
+            llm_model=updates.get("llm_model"),
+            llm_api_base=updates.get("llm_api_base"),
+        )
         return SetupConfigureResponse(
             status="ok",
             config_path=str(path),

@@ -46,6 +46,7 @@ class TestDefaults:
         assert settings.app_name == "Dibble Adaptive Platform"
         assert settings.llm_api_base == "https://api.openai.com/v1"
         assert settings.auth_enabled is False
+        assert settings.telemetry_level == "off"
 
     def test_default_database_path_is_absolute(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -166,6 +167,23 @@ predictive_warm_inline_process_limit = 5
         assert settings.generation_cache_ttl_seconds == 7200
         assert settings.predictive_warm_inline_process_limit == 5
 
+    def test_toml_telemetry_section(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        for key in list(os.environ):
+            if key.startswith("DIBBLE_"):
+                monkeypatch.delenv(key)
+
+        path = _write_toml(
+            tmp_path,
+            """
+[telemetry]
+level = "debug"
+""",
+        )
+        settings = get_settings(config_path=path)
+        assert settings.telemetry_level == "debug"
+
     def test_toml_top_level_database_path(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -198,6 +216,17 @@ predictive_warm_inline_process_limit = 5
         path = _write_toml(tmp_path, "this is not [valid toml =")
         with pytest.raises(Exception):
             _load_toml_config(path)
+
+    def test_invalid_telemetry_level_raises(self, tmp_path: Path) -> None:
+        path = _write_toml(
+            tmp_path,
+            """
+[telemetry]
+level = "verbose"
+""",
+        )
+        with pytest.raises(ValueError, match="telemetry_level"):
+            get_settings(config_path=path)
 
 
 # ---------------------------------------------------------------------------
@@ -354,6 +383,7 @@ class TestFlatten:
             "prompts": {"library_version": "2.0"},
             "embedding": {"dimensions": 512},
             "auth": {"enabled": True},
+            "telemetry": {"level": "normal"},
             "cache": {"generation_cache_ttl_seconds": 999},
             "performance": {"predictive_warm_inline_process_limit": 10},
         }
@@ -365,6 +395,7 @@ class TestFlatten:
         assert flat["prompt_library_version"] == "2.0"
         assert flat["embedding_dimensions"] == 512
         assert flat["auth_enabled"] is True
+        assert flat["telemetry_level"] == "normal"
         assert flat["generation_cache_ttl_seconds"] == 999
         assert flat["predictive_warm_inline_process_limit"] == 10
 
@@ -448,6 +479,11 @@ class TestUnflatten:
         flat = {"auth_enabled": True, "auth_token_secret": "secret"}
         result = _unflatten_to_toml(flat)
         assert result == {"auth": {"enabled": True, "token_secret": "secret"}}
+
+    def test_telemetry_fields_unflatten(self) -> None:
+        flat = {"telemetry_level": "debug"}
+        result = _unflatten_to_toml(flat)
+        assert result == {"telemetry": {"level": "debug"}}
 
     def test_round_trip_flatten_unflatten(self) -> None:
         raw = {

@@ -29,6 +29,7 @@ from dibble.plugins.contracts import (
 from dibble.services.content_moderation import ContentModerationService
 from dibble.services.generation_modes import build_generation_mode_plan
 from dibble.services.protocols import GeneratedContentStore
+from dibble.services.runtime_telemetry import log_runtime_event
 
 logger = logging.getLogger(__name__)
 
@@ -73,9 +74,28 @@ class GenerationEngine:
     ) -> GenerationResponse:
         grounding = self._safe_retrieve(profile, request)
         route = self.router.route(profile, request)
+        log_runtime_event(
+            logger,
+            logging.DEBUG,
+            "generation.engine.route",
+            student_id=str(profile.student_id),
+            learning_session_id=request.learning_session_id,
+            intervention_type=route.intervention_type.value,
+            delivery_mode=route.delivery_mode.value,
+            scaffolding_level=route.scaffolding_level,
+            grounding_count=len(grounding),
+        )
         cache_key = self._cache_key(profile, request, route, grounding)
         cached = self._get_cached_content(cache_key=cache_key)
         if cached is not None:
+            log_runtime_event(
+                logger,
+                logging.DEBUG,
+                "generation.engine.cache_hit",
+                generation_id=cached.response.generation_id,
+                student_id=str(profile.student_id),
+                learning_session_id=request.learning_session_id,
+            )
             return cached.response
 
         started_at = self.time_provider()
@@ -132,6 +152,17 @@ class GenerationEngine:
             ),
         )
         self._store_generated_content(cache_key=cache_key, content=content)
+        log_runtime_event(
+            logger,
+            logging.DEBUG,
+            "generation.engine.complete",
+            generation_id=content.generation_id,
+            student_id=str(profile.student_id),
+            learning_session_id=request.learning_session_id,
+            moderation_status=moderation.status,
+            validation_issue_count=len(response.validation_issues),
+            generation_latency_ms=content.quality.generation_latency_ms,
+        )
         return content.response
 
     def stream_generate(
@@ -142,6 +173,14 @@ class GenerationEngine:
         cache_key = self._cache_key(profile, request, route, grounding)
         cached = self._get_cached_content(cache_key=cache_key)
         if cached is not None:
+            log_runtime_event(
+                logger,
+                logging.DEBUG,
+                "generation.engine.stream.cache_hit",
+                generation_id=cached.response.generation_id,
+                student_id=str(profile.student_id),
+                learning_session_id=request.learning_session_id,
+            )
             yield GenerationStreamEvent(
                 event="start",
                 student_id=profile.student_id,
@@ -255,6 +294,17 @@ class GenerationEngine:
             ),
         )
         self._store_generated_content(cache_key=cache_key, content=content)
+        log_runtime_event(
+            logger,
+            logging.DEBUG,
+            "generation.engine.stream.complete",
+            generation_id=content.generation_id,
+            student_id=str(profile.student_id),
+            learning_session_id=request.learning_session_id,
+            moderation_status=moderation.status,
+            validation_issue_count=len(response.validation_issues),
+            generation_latency_ms=content.quality.generation_latency_ms,
+        )
         yield GenerationStreamEvent(
             event="complete",
             student_id=profile.student_id,

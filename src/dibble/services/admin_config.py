@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import asdict
 
 from dibble.config import Settings, dibble_dir, write_config_toml
@@ -9,6 +10,9 @@ from dibble.models.admin import (
     SystemConfigUpdateResponse,
     SystemConfigValues,
 )
+from dibble.services.runtime_telemetry import log_runtime_event
+
+logger = logging.getLogger(__name__)
 
 
 class AdminConfigService:
@@ -26,7 +30,17 @@ class AdminConfigService:
     def update_config(
         self, request: SystemConfigUpdateRequest
     ) -> SystemConfigUpdateResponse:
-        path = write_config_toml(request.model_dump(exclude_none=True))
+        updates = request.model_dump(exclude_unset=True, exclude_none=True)
+        path = write_config_toml(updates)
+        log_runtime_event(
+            logger,
+            logging.INFO,
+            "config.write.admin",
+            config_path=str(path),
+            updated_fields=sorted(updates.keys()),
+            llm_model=updates.get("llm_model"),
+            llm_api_base=updates.get("llm_api_base"),
+        )
         return SystemConfigUpdateResponse(
             status="ok",
             config_path=str(path),

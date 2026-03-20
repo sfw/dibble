@@ -56,6 +56,7 @@ def _make_update_request(**overrides):
         generation_cache_ttl_seconds=3600,
         predictive_warm_inline_process_limit=2,
         llm_debug_prompts_enabled=False,
+        telemetry_level="off",
     )
     defaults.update(overrides)
     return SystemConfigUpdateRequest(**defaults)
@@ -157,3 +158,46 @@ def test_update_config_preserves_existing_when_none(tmp_path: Path, monkeypatch)
     assert raw["llm"]["model"] == "gpt-4o"
     assert raw["embedding"]["api_key"] == "embed-key"
     assert raw["embedding"]["model"] == "text-embedding-3-small"
+
+
+def test_update_config_does_not_persist_unrelated_runtime_values(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "[llm]",
+                'api_key = "toml-key"',
+                'model = "toml-model"',
+            ]
+        )
+        + "\n"
+    )
+
+    import dibble.services.admin_config as mod
+
+    original = mod.write_config_toml
+
+    def patched_write(updates: dict, **kw: object) -> Path:
+        return original(updates, path=config_path)
+
+    monkeypatch.setattr(mod, "write_config_toml", patched_write)
+
+    service = AdminConfigService(
+        Settings(
+            database_path=str(tmp_path / "dibble.db"),
+            llm_api_key="env-key",
+            llm_model="env-model",
+        )
+    )
+    response = service.update_config(SystemConfigUpdateRequest(auth_enabled=True))
+
+    assert response.status == "ok"
+
+    with config_path.open("rb") as fh:
+        raw = tomllib.load(fh)
+
+    assert raw["llm"]["api_key"] == "toml-key"
+    assert raw["llm"]["model"] == "toml-model"
+    assert raw["auth"]["enabled"] is True
