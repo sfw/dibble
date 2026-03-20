@@ -72,7 +72,7 @@ def build_learner_router(context: ApiContext) -> APIRouter:
     @router.post(
         "/learners/{student_id}/observations",
         response_model=InferredLearnerState,
-        dependencies=context.deps("editor"),
+        dependencies=context.deps("learner"),
     )
     def observe_learner_state(
         student_id: UUID, observation: LearnerObservationCreate

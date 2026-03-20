@@ -52,7 +52,9 @@ export function LearnerHome() {
         <p className="mt-1 text-muted-foreground">
           {isIdle
             ? "You're all caught up. Check your progress or review past work."
-            : `You have a ${learnerFlowType(flow.flow_type).toLowerCase()} ready to continue.`}
+            : progression.current_outcome?.title
+              ? `Your ${learnerFlowType(flow.flow_type).toLowerCase()} on ${progression.current_outcome.title} is ready.`
+              : `You have a ${learnerFlowType(flow.flow_type).toLowerCase()} ready to continue.`}
         </p>
       </section>
 
@@ -70,7 +72,13 @@ export function LearnerHome() {
               <h2 className="mt-1 text-lg font-semibold">
                 {learnerContinueAction(continueAction.kind, continueAction.display_label)}
               </h2>
-              {artifact.content_type && (
+              {progression.current_outcome?.title && (
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  {progression.current_outcome.title}
+                  {artifact.content_type ? ` \u2022 ${learnerContentType(artifact.content_type)}` : ''}
+                </p>
+              )}
+              {!progression.current_outcome?.title && artifact.content_type && (
                 <p className="mt-0.5 text-sm text-muted-foreground">
                   {learnerContentType(artifact.content_type)}
                 </p>
