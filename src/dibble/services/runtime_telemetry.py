@@ -4,11 +4,13 @@ import json
 import logging
 import re
 from contextvars import ContextVar, Token
+from dataclasses import dataclass
 from pathlib import Path
 from time import monotonic
 from typing import Any
 
 from fastapi import Request
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from dibble.config import Settings, ensure_dibble_logs_dir
 
@@ -43,6 +45,14 @@ _SESSION_PATH_PATTERNS = (
     re.compile(r"^/api/assessments/socratic/(?P<session_id>[^/]+)"),
 )
 _LOGGER = logging.getLogger("dibble.runtime")
+
+
+@dataclass(slots=True)
+class CapturedRequest:
+    body: bytes
+    payload: object | None
+    request: Request
+    receive: Receive
 
 
 def telemetry_debug_enabled() -> bool:
@@ -119,24 +129,130 @@ def setup_runtime_telemetry(
     return path
 
 
-async def extract_request_payload(request: Request) -> tuple[bytes, object | None]:
-    body = await request.body()
+class RuntimeTelemetryMiddleware:
+    def __init__(self, app: ASGIApp, *, settings: Settings) -> None:
+        self.app = app
+        self.settings = settings
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        captured = await capture_request(scope, receive)
+        session_id = resolve_request_session_id(captured.request, captured.payload)
+        tokens = bind_runtime_telemetry(
+            session_id=session_id,
+            telemetry_level=self.settings.telemetry_level,
+        )
+        started_at = monotonic()
+        status_code = 500
+        content_type: str | None = None
+
+        async def send_with_capture(message: Message) -> None:
+            nonlocal status_code, content_type
+            if message["type"] == "http.response.start":
+                status_code = int(message["status"])
+                headers = {
+                    key.decode("latin-1"): value.decode("latin-1")
+                    for key, value in message.get("headers", [])
+                }
+                content_type = headers.get("content-type")
+            await send(message)
+
+        try:
+            log_runtime_event(
+                logging.getLogger(__name__),
+                logging.INFO,
+                "request.started",
+                **request_summary(captured.request),
+            )
+            if telemetry_debug_enabled():
+                log_runtime_event(
+                    logging.getLogger(__name__),
+                    logging.DEBUG,
+                    "request.payload",
+                    payload=scrub_payload(captured.payload),
+                )
+            await self.app(scope, captured.receive, send_with_capture)
+            log_runtime_event(
+                logging.getLogger(__name__),
+                logging.INFO,
+                "request.completed",
+                **request_summary(captured.request),
+                **response_summary(
+                    status_code=status_code,
+                    duration_ms=duration_ms(started_at),
+                    content_type=content_type,
+                ),
+            )
+        except Exception:
+            log_runtime_event(
+                logging.getLogger(__name__),
+                logging.ERROR,
+                "request.failed",
+                **request_summary(captured.request),
+                duration_ms=duration_ms(started_at),
+            )
+            logging.getLogger(__name__).exception("Unhandled application exception")
+            raise
+        finally:
+            reset_runtime_telemetry(tokens)
+
+
+async def capture_request(scope: Scope, receive: Receive) -> CapturedRequest:
+    body_chunks: list[bytes] = []
+    disconnected = False
+
+    while True:
+        message = await receive()
+        if message["type"] == "http.disconnect":
+            disconnected = True
+            break
+        if message["type"] != "http.request":
+            continue
+        body_chunks.append(message.get("body", b""))
+        if not message.get("more_body", False):
+            break
+
+    body = b"".join(body_chunks)
+    payload = _parse_json_payload(scope, body)
+    request_sent = False
+
+    async def replay_receive() -> Message:
+        nonlocal request_sent, disconnected
+        if not request_sent:
+            request_sent = True
+            return {"type": "http.request", "body": body, "more_body": False}
+        if disconnected:
+            return {"type": "http.disconnect"}
+        message = await receive()
+        if message["type"] == "http.disconnect":
+            disconnected = True
+        return message
+
+    request = Request(scope, receive=replay_receive)
+    return CapturedRequest(
+        body=body,
+        payload=payload,
+        request=request,
+        receive=replay_receive,
+    )
+
+
+def _parse_json_payload(scope: Scope, body: bytes) -> object | None:
     if not body:
-        return body, None
-
-    async def receive() -> dict[str, object]:
-        return {"type": "http.request", "body": body, "more_body": False}
-
-    request._receive = receive  # type: ignore[attr-defined]
-
-    content_type = request.headers.get("content-type", "")
-    if "application/json" not in content_type:
-        return body, None
-
+        return None
+    headers = {
+        key.decode("latin-1").lower(): value.decode("latin-1")
+        for key, value in scope.get("headers", [])
+    }
+    if "application/json" not in headers.get("content-type", ""):
+        return None
     try:
-        return body, json.loads(body)
+        return json.loads(body)
     except json.JSONDecodeError:
-        return body, None
+        return None
 
 
 def resolve_request_session_id(request: Request, payload: object | None) -> str:
