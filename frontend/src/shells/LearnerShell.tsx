@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { NavLink, Outlet } from 'react-router'
 import { BookOpen, ClipboardList, Clock, Home, LogOut, TrendingUp } from 'lucide-react'
 import { useLearnerWorkspace } from '../hooks/useLearnerWorkspace'
@@ -45,13 +45,13 @@ export function LearnerShell() {
   const { baseUrl } = useConfigContext()
 
   // Build config from auth state — bearer token from auth, no demo fallback in authenticated mode
-  const learnerConfig: FrontendConfig = {
-    baseUrl,
-    apiKey: auth.getApiKey(),
-    bearerToken: auth.getToken(),
-    useDemoFallback: !auth.authenticated,
-    showDebugPanels: false,
-  }
+  const apiKey = auth.getApiKey()
+  const bearerToken = auth.getToken()
+  const useDemoFallback = !auth.authenticated
+  const learnerConfig: FrontendConfig = useMemo(
+    () => ({ baseUrl, apiKey, bearerToken, useDemoFallback, showDebugPanels: false }),
+    [baseUrl, apiKey, bearerToken, useDemoFallback],
+  )
 
   const [, setDataSource] = useState<DataSource>('demo')
   const handleDataSourceChange = useCallback((source: DataSource) => setDataSource(source), [])

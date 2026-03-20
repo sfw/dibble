@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { NavLink, Outlet } from 'react-router'
 import { BarChart3, ClipboardList, GraduationCap, LayoutDashboard, LogOut, School } from 'lucide-react'
 import { useTeacherSections } from '../hooks/useTeacherSections'
@@ -32,13 +32,13 @@ const navItems = [
 export function TeacherShell() {
   const auth = useAuthContext()
   const { baseUrl } = useConfigContext()
-  const teacherConfig: FrontendConfig = {
-    baseUrl,
-    apiKey: auth.getApiKey(),
-    bearerToken: auth.getToken(),
-    useDemoFallback: !auth.authenticated,
-    showDebugPanels: false,
-  }
+  const apiKey = auth.getApiKey()
+  const bearerToken = auth.getToken()
+  const useDemoFallback = !auth.authenticated
+  const teacherConfig: FrontendConfig = useMemo(
+    () => ({ baseUrl, apiKey, bearerToken, useDemoFallback, showDebugPanels: false }),
+    [baseUrl, apiKey, bearerToken, useDemoFallback],
+  )
 
   const [, setDataSource] = useState<DataSource>('demo')
   const handleDataSourceChange = useCallback((source: DataSource) => setDataSource(source), [])

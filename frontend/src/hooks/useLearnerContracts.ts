@@ -97,6 +97,15 @@ export function useLearnerContracts({
     }
   }, [applyDemoFallback, config, learnerId, onDataSourceChange])
 
+  const generationOffset = useRef(0)
+  const socraticOffset = useRef(0)
+  const remediationOffset = useRef(0)
+
+  // Keep offsets in sync with current history lengths
+  generationOffset.current = generationHistory.length
+  socraticOffset.current = socraticHistory.length
+  remediationOffset.current = remediationHistory.length
+
   const loadMoreHistory = useCallback(async () => {
     setLoadingMore(true)
     try {
@@ -104,7 +113,7 @@ export function useLearnerContracts({
 
       if (hasMoreGenerations) {
         fetches.push(
-          getGenerationHistory(config, learnerId, 20, generationHistory.length).then((page) => {
+          getGenerationHistory(config, learnerId, 20, generationOffset.current).then((page) => {
             setGenerationHistory((prev) => [...prev, ...page.items])
             setHasMoreGenerations(page.has_more)
           }),
@@ -112,7 +121,7 @@ export function useLearnerContracts({
       }
       if (hasMoreSocratic) {
         fetches.push(
-          getSocraticHistory(config, learnerId, 20, socraticHistory.length).then((page) => {
+          getSocraticHistory(config, learnerId, 20, socraticOffset.current).then((page) => {
             setSocraticHistory((prev) => [...prev, ...page.items])
             setHasMoreSocratic(page.has_more)
           }),
@@ -120,7 +129,7 @@ export function useLearnerContracts({
       }
       if (hasMoreRemediation) {
         fetches.push(
-          getRemediationHistory(config, learnerId, 20, remediationHistory.length).then((page) => {
+          getRemediationHistory(config, learnerId, 20, remediationOffset.current).then((page) => {
             setRemediationHistory((prev) => [...prev, ...page.items])
             setHasMoreRemediation(page.has_more)
           }),
@@ -133,7 +142,7 @@ export function useLearnerContracts({
     } finally {
       setLoadingMore(false)
     }
-  }, [config, learnerId, generationHistory.length, socraticHistory.length, remediationHistory.length, hasMoreGenerations, hasMoreSocratic, hasMoreRemediation])
+  }, [config, learnerId, hasMoreGenerations, hasMoreSocratic, hasMoreRemediation])
 
   const hasMoreHistory = hasMoreGenerations || hasMoreSocratic || hasMoreRemediation
 
@@ -196,8 +205,13 @@ export function useLearnerContracts({
     [config, learnerId, onDataSourceChange],
   )
 
+  const prevLearnerIdRef = useRef(learnerId)
+
   useEffect(() => {
-    if (hasBootstrapped.current && !learnerId) {
+    const learnerChanged = prevLearnerIdRef.current !== learnerId
+    prevLearnerIdRef.current = learnerId
+
+    if (hasBootstrapped.current && !learnerChanged) {
       return
     }
 
