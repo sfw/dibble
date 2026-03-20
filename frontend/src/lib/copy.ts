@@ -263,3 +263,46 @@ export function teacherRemediationPhase(phase: string | null | undefined, backen
 export function teacherProgressionAction(action: string | null | undefined, backendLabel?: string | null): string {
   return lookup(teacherProgressionActionLabels, action, undefined, backendLabel)
 }
+
+// ---------------------------------------------------------------------------
+// Mastery / evidence signals
+// ---------------------------------------------------------------------------
+
+const teacherMasterySignalLabels: Record<string, string> = {
+  insufficient: 'Insufficient data',
+  improving: 'Improving',
+  stable: 'Stable',
+  declining: 'Declining',
+  strong: 'Strong',
+  weak: 'Weak',
+}
+
+const teacherEvidenceSignalLabels: Record<string, string> = {
+  steady: 'Steady',
+  improving: 'Improving',
+  declining: 'Declining',
+  strong: 'Strong',
+  weak: 'Weak',
+  struggling: 'Struggling',
+  progressing: 'Progressing',
+}
+
+const teacherProgressSignalLabels: Record<string, string> = {
+  insufficient: 'Insufficient data',
+  advancing: 'Advancing',
+  stalled: 'Stalled',
+  regressing: 'Regressing',
+  steady: 'Steady',
+}
+
+export function teacherMasterySignal(signal: string | null | undefined, backendLabel?: string | null): string {
+  return lookup(teacherMasterySignalLabels, signal, undefined, backendLabel)
+}
+
+export function teacherEvidenceSignal(signal: string | null | undefined, backendLabel?: string | null): string {
+  return lookup(teacherEvidenceSignalLabels, signal, undefined, backendLabel)
+}
+
+export function teacherProgressSignal(signal: string | null | undefined, backendLabel?: string | null): string {
+  return lookup(teacherProgressSignalLabels, signal, undefined, backendLabel)
+}

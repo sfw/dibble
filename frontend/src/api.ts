@@ -485,11 +485,19 @@ export function revokeAuthToken(config: FrontendConfig, refreshToken?: string) {
 }
 
 export function getLearnerMasteryHistory(config: FrontendConfig, studentId: string, days = 30) {
-  return requestJson<MasteryHistoryResponse>(config, `/api/learners/${studentId}/mastery-history?days=${days}`)
+  return requestJson<MasteryHistoryResponse>(
+    config,
+    `/api/learners/${studentId}/mastery-history?days=${days}`,
+    { headers: buildHeaders(config, false) },
+  )
 }
 
 export function getSectionMasteryTrends(config: FrontendConfig, sectionId: string, days = 30) {
-  return requestJson<SectionMasteryTrendsResponse>(config, `/api/teachers/sections/${sectionId}/mastery-trends?days=${days}`)
+  return requestJson<SectionMasteryTrendsResponse>(
+    config,
+    `/api/teachers/sections/${sectionId}/mastery-trends?days=${days}`,
+    { headers: buildHeaders(config, false) },
+  )
 }
 
 // ---------------------------------------------------------------------------
