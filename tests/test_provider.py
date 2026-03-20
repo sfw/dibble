@@ -90,7 +90,7 @@ class FakeClient:
         self.stream_calls = 0
 
     def complete(
-        self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2
+        self, *, system_prompt: str, user_prompt: str, temperature: float | None = None
     ):
         self.complete_calls += 1
         if self.clock is not None:
@@ -105,7 +105,7 @@ class FakeClient:
         return Result(self.content or "")
 
     def stream_complete(
-        self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2
+        self, *, system_prompt: str, user_prompt: str, temperature: float | None = None
     ):
         self.stream_calls += 1
         if self.clock is not None:

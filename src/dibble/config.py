@@ -30,6 +30,7 @@ class Settings:
     llm_api_key: str | None = None
     llm_model: str | None = None
     llm_timeout_seconds: float = 20.0
+    llm_temperature: float | None = None
     llm_allow_mock_fallback: bool = True
     llm_secondary_api_base: str | None = None
     llm_secondary_api_key: str | None = None

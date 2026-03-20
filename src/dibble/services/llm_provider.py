@@ -44,6 +44,7 @@ class LLMProviderConfig:
     api_key: str | None
     model: str | None
     timeout_seconds: float
+    temperature: float | None = None
     allow_mock_fallback: bool = True
 
 
@@ -66,6 +67,7 @@ def build_llm_clients(
             api_key=settings.llm_api_key,
             model=settings.llm_model,
             timeout_seconds=settings.llm_timeout_seconds,
+            temperature=settings.llm_temperature,
             allow_mock_fallback=settings.llm_allow_mock_fallback,
         ),
         LLMProviderConfig(
@@ -75,6 +77,7 @@ def build_llm_clients(
             model=settings.llm_secondary_model,
             timeout_seconds=settings.llm_secondary_timeout_seconds
             or settings.llm_timeout_seconds,
+            temperature=settings.llm_temperature,
             allow_mock_fallback=settings.llm_allow_mock_fallback,
         ),
     ]
@@ -91,6 +94,7 @@ def build_llm_clients(
                     api_key=config.api_key,
                     model=config.model,
                     timeout_seconds=config.timeout_seconds,
+                    temperature=config.temperature,
                 ),
             )
         )

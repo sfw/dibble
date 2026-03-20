@@ -59,6 +59,7 @@ def _make_update_request(**overrides):
         validator_plugin="dibble.plugins.defaults.validator:build",
         llm_api_base="https://api.openai.com/v1",
         llm_timeout_seconds=20.0,
+        llm_temperature=None,
         llm_allow_mock_fallback=True,
         llm_circuit_breaker_threshold=2,
         llm_circuit_breaker_cooldown_seconds=30.0,

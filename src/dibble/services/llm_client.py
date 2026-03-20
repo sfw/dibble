@@ -68,6 +68,8 @@ def post_event_stream(
 
 
 class OpenAICompatibleChatClient:
+    DEFAULT_TEMPERATURE = 0.2
+
     def __init__(
         self,
         *,
@@ -75,6 +77,7 @@ class OpenAICompatibleChatClient:
         api_key: str,
         model: str,
         timeout_seconds: float = 20.0,
+        temperature: float | None = None,
         transport: Transport = post_json,
         stream_transport: StreamTransport = post_event_stream,
     ) -> None:
@@ -82,16 +85,19 @@ class OpenAICompatibleChatClient:
         self.api_key = api_key
         self.model = model
         self.timeout_seconds = timeout_seconds
+        self.default_temperature = (
+            temperature if temperature is not None else self.DEFAULT_TEMPERATURE
+        )
         self.transport = transport
         self.stream_transport = stream_transport
 
     def complete(
-        self, *, system_prompt: str, user_prompt: str, temperature: float = 0.2
+        self, *, system_prompt: str, user_prompt: str, temperature: float | None = None
     ) -> LLMCompletion:
         response = self._complete_with_temperature(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            temperature=temperature,
+            temperature=temperature if temperature is not None else self.default_temperature,
         )
         return LLMCompletion(
             content=self._extract_content(response),
@@ -104,12 +110,12 @@ class OpenAICompatibleChatClient:
         *,
         system_prompt: str,
         user_prompt: str,
-        temperature: float = 0.2,
+        temperature: float | None = None,
     ) -> Iterator[str]:
         for line in self._stream_lines_with_temperature(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            temperature=temperature,
+            temperature=temperature if temperature is not None else self.default_temperature,
         ):
             stripped = line.strip()
             if not stripped or not stripped.startswith("data: "):
