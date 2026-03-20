@@ -29,6 +29,7 @@ from dibble.services.cognitive_trait_inference import CognitiveTraitInferenceSer
 from dibble.services.outcome_store import SQLiteOutcomeStore
 from dibble.services.strand_store import SQLiteStrandStore
 from dibble.services.generation_engine import GenerationEngine
+from dibble.services.surplus_practice_cache import SurplusPracticeCache
 from dibble.services.generation_mode_calibration import GenerationModeCalibrator
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
 from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
@@ -258,12 +259,17 @@ def build_application_services(
         strategy_signal_service=learner_strategy_signal_service,
         within_session_adaptation_service=within_session_adaptation_service,
     )
+    surplus_practice_cache = SurplusPracticeCache(
+        generated_content_store=generated_content_store,
+        cache_ttl_seconds=settings.generation_cache_ttl_seconds,
+    )
     generation_engine = GenerationEngine(
         retriever=plugins.retriever,
         router=router_plugin,
         provider=plugins.provider,
         validator=plugins.validator,
         generated_content_store=generated_content_store,
+        surplus_practice_cache=surplus_practice_cache,
         cache_ttl_seconds=settings.generation_cache_ttl_seconds,
     )
     misconception_remediation_outcome_signal_service = (
