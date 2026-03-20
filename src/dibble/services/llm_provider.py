@@ -25,7 +25,7 @@ from dibble.services.llm_prompting import (
 from dibble.services.provider_health import ProviderRoutingSnapshot
 from dibble.services.protocols import AuditStore, ProviderHealthStore
 from dibble.services.prompt_manager import PromptManager
-from dibble.services.runtime_telemetry import log_runtime_event
+from dibble.services.runtime_telemetry import log_runtime_event, telemetry_debug_enabled
 from dibble.services.generation_prompt_selector import GenerationPromptSelector
 from dibble.services.socratic_prompt_selector import SocraticPromptSelector
 from dibble.services.streaming import iter_block_chunks
@@ -222,6 +222,14 @@ class LLMOrchestrationProvider:
             client_names=[name for name, _ in self.clients],
             selection_strategy=self.selection_strategy,
         )
+        if telemetry_debug_enabled():
+            log_runtime_event(
+                logger,
+                logging.DEBUG,
+                "llm.generate.prompts",
+                system_prompt=prompts.system_prompt,
+                user_prompt=prompts.user_prompt,
+            )
         if not self.clients:
             return self._fallback(
                 profile,
@@ -239,7 +247,31 @@ class LLMOrchestrationProvider:
                     system_prompt=prompts.system_prompt,
                     user_prompt=prompts.user_prompt,
                 )
-                blocks = self._parse_blocks(completion.content)
+                if telemetry_debug_enabled():
+                    log_runtime_event(
+                        logger,
+                        logging.DEBUG,
+                        "llm.generate.response",
+                        provider_name=name,
+                        model_used=self.client_models.get(name),
+                        finish_reason=completion.finish_reason,
+                        content=completion.content,
+                        raw_response=completion.raw_response,
+                    )
+                try:
+                    blocks = self._parse_blocks(completion.content)
+                except LLMProviderError:
+                    if telemetry_debug_enabled():
+                        log_runtime_event(
+                            logger,
+                            logging.DEBUG,
+                            "llm.generate.parse_failure",
+                            provider_name=name,
+                            model_used=self.client_models.get(name),
+                            content=completion.content,
+                            raw_response=completion.raw_response,
+                        )
+                    raise
                 self._set_last_used_descriptor(name, prompts)
                 self._record_success(
                     name, latency_ms=(self.time_provider() - started_at) * 1000.0
@@ -251,6 +283,7 @@ class LLMOrchestrationProvider:
                     provider_name=name,
                     model_used=self.client_models.get(name),
                     block_count=len(blocks),
+                    blocks=[block.model_dump(mode="json") for block in blocks],
                 )
                 return blocks
             except (LLMClientError, LLMProviderError):
@@ -295,6 +328,14 @@ class LLMOrchestrationProvider:
             client_names=[name for name, _ in self.clients],
             selection_strategy=self.selection_strategy,
         )
+        if telemetry_debug_enabled():
+            log_runtime_event(
+                logger,
+                logging.DEBUG,
+                "llm.stream.prompts",
+                system_prompt=prompts.system_prompt,
+                user_prompt=prompts.user_prompt,
+            )
         if not self.clients:
             yield from iter_block_chunks(
                 self._fallback(
@@ -310,16 +351,28 @@ class LLMOrchestrationProvider:
         for name, client in self._iter_candidate_clients():
             parser = StreamingChunkParser()
             started_at = self.time_provider()
+            raw_deltas: list[str] = []
             try:
                 for delta in client.stream_complete(
                     system_prompt=prompts.system_prompt,
                     user_prompt=prompts.user_prompt,
                 ):
+                    raw_deltas.append(delta)
                     for chunk in parser.push(delta):
                         yield chunk
 
                 for chunk in parser.flush():
                     yield chunk
+                if telemetry_debug_enabled():
+                    log_runtime_event(
+                        logger,
+                        logging.DEBUG,
+                        "llm.stream.response",
+                        provider_name=name,
+                        model_used=self.client_models.get(name),
+                        content="".join(raw_deltas),
+                        chunk_count=len(raw_deltas),
+                    )
                 self._set_last_used_descriptor(name, prompts)
                 self._record_success(
                     name, latency_ms=(self.time_provider() - started_at) * 1000.0
@@ -544,6 +597,13 @@ class LLMOrchestrationProvider:
             model_used=self.last_used_descriptor.get("model_used"),
             reason=reason,
         )
+        if telemetry_debug_enabled():
+            log_runtime_event(
+                logger,
+                logging.DEBUG,
+                "llm.fallback.blocks",
+                blocks=[block.model_dump(mode="json") for block in blocks],
+            )
         return blocks
 
     def _parse_blocks(self, response_text: str) -> list[GeneratedBlock]:

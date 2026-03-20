@@ -371,6 +371,9 @@ class ContentWorkflowService:
                 if prepared.request.mode_calibration is not None
                 else None
             ),
+            prepared_request=prepared.request.model_dump(mode="json"),
+            generation_response=response.model_dump(mode="json"),
+            finalized_content=finalized.model_dump(mode="json"),
         )
         return finalized
 
