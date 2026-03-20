@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router'
 import { ArrowRight, BookOpen, ChevronLeft, Loader2, Send } from 'lucide-react'
 import type { LearnerContext } from '../../shells/LearnerShell'
@@ -27,6 +27,21 @@ export function ContinueLearning() {
   })
 
   const [learnerResponse, setLearnerResponse] = useState('')
+
+  // Auto-trigger content generation when arriving with no existing content
+  const autoTriggered = useRef(false)
+  useEffect(() => {
+    if (
+      !autoTriggered.current &&
+      !generation.result &&
+      !generation.streaming &&
+      !generation.error &&
+      !loading
+    ) {
+      autoTriggered.current = true
+      void generation.handleStream()
+    }
+  }, [generation, loading])
 
   const artifact = workspace.active_artifact
   const continueAction = workspace.continue_action

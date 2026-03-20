@@ -448,7 +448,7 @@ export interface GeneratedContent {
     generation_id?: string | null
     generation_metadata?: GenerationMetadata | null
   }
-  quality: GenerationMetadata
+  quality: GenerationMetadata | null
   created_at: string
   expires_at?: string | null
 }

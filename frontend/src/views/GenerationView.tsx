@@ -14,7 +14,7 @@ export function GenerationView(props: {
   onFormChange: Dispatch<SetStateAction<GenerationFormState>>
   loading: boolean
   error: string
-  result: GeneratedContent
+  result: GeneratedContent | null
   streaming: boolean
   streamEvents: GenerationStreamEvent[]
   streamedBlocks: GeneratedBlock[]
@@ -37,7 +37,7 @@ export function GenerationView(props: {
   } =
     props
 
-  const blocksToRender = streamedBlocks.length > 0 ? streamedBlocks : result.response.blocks
+  const blocksToRender = streamedBlocks.length > 0 ? streamedBlocks : (result?.response.blocks ?? [])
 
   return (
     <section className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.92fr)]">
@@ -155,6 +155,7 @@ export function GenerationView(props: {
           {error ? <InlineError message={error} /> : null}
         </div>
 
+        {result && (
         <div className="panel">
           <SectionHeader
             eyebrow="Workflow summary"
@@ -171,24 +172,25 @@ export function GenerationView(props: {
                 { label: 'Scaffolding', value: formatContractLabel(result.response.route.scaffolding_level) },
                 {
                   label: 'Latency',
-                  value: `${result.quality.generation_latency_ms} ms`,
+                  value: `${result.quality?.generation_latency_ms ?? '—'} ms`,
                 },
                 {
                   label: 'Cache hit',
-                  value: String(result.quality.cache_hit),
+                  value: String(result.quality?.cache_hit ?? '—'),
                 },
               ]}
             />
             <MetricList
               title="Safety and quality"
               items={[
-                { label: 'Validation passed', value: String(result.quality.validation_passed) },
-                { label: 'Quality score', value: formatPercent(result.quality.quality_score) },
-                { label: 'Moderation', value: formatContractLabel(result.quality.moderation.status) },
+                { label: 'Validation passed', value: String(result.quality?.validation_passed ?? '—') },
+                { label: 'Quality score', value: result.quality ? formatPercent(result.quality.quality_score) : '—' },
+                { label: 'Moderation', value: result.quality ? formatContractLabel(result.quality.moderation.status) : '—' },
                 {
                   label: 'Template',
-                  value:
-                    `${result.quality.prompt_template_name ?? 'unknown'} / ${result.quality.prompt_template_variant ?? 'n/a'}`,
+                  value: result.quality
+                    ? `${result.quality.prompt_template_name ?? 'unknown'} / ${result.quality.prompt_template_variant ?? 'n/a'}`
+                    : '—',
                 },
                 {
                   label: 'Grounding count',
@@ -203,6 +205,7 @@ export function GenerationView(props: {
             ))}
           </div>
         </div>
+        )}
 
         <div className="panel">
           <SectionHeader
@@ -230,7 +233,7 @@ export function GenerationView(props: {
             description="The revised system depends on grounded, inspectable generation."
           />
           <div className="flex flex-col gap-4">
-            {result.response.grounding.map((grounding) => (
+            {(result?.response.grounding ?? []).map((grounding) => (
               <article key={grounding.resource_id} className="grounding-card">
                 <div className="grounding-card__header">
                   <strong>{grounding.title}</strong>

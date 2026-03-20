@@ -26,7 +26,9 @@ export function useGenerationWorkspace({
   onDataSourceChange: (source: DataSource) => void
 }) {
   const [form, setForm] = useState<GenerationFormState>(initialGenerationForm)
-  const [result, setResult] = useState<GeneratedContent>(demoGeneration)
+  const [result, setResult] = useState<GeneratedContent | null>(
+    workspace.generated_content ?? null,
+  )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [streaming, setStreaming] = useState(false)
@@ -35,7 +37,7 @@ export function useGenerationWorkspace({
 
   useEffect(() => {
     setForm(buildGenerationFormFromWorkspace(workspace, initialGenerationForm))
-    setResult(workspace.generated_content ?? demoGeneration)
+    setResult(workspace.generated_content ?? null)
     setError('')
     setStreamEvents([])
     setStreamedBlocks([])
@@ -89,9 +91,9 @@ export function useGenerationWorkspace({
               learning_session_id: form.learning_session_id,
               source: 'stream',
             },
-            workflow_summary: demoGeneration.workflow_summary,
+            workflow_summary: null,
             response: event.response,
-            quality: event.response.generation_metadata ?? demoGeneration.quality,
+            quality: event.response.generation_metadata ?? null,
             created_at: event.response.generated_at,
             expires_at: null,
           })

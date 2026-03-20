@@ -647,9 +647,9 @@ function ArtifactReviewPanel({
             {/* Metadata bar */}
             <div className="mb-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
               <span>Type: {titleCase(content.content_type)}</span>
-              <span>Quality: {Math.round(content.quality.quality_score * 100)}%</span>
-              <span>Validation: {content.quality.validation_passed ? 'Passed' : 'Issues found'}</span>
-              <span>Grounding: {content.quality.grounding_count} ref{content.quality.grounding_count !== 1 ? 's' : ''}</span>
+              {content.quality && <span>Quality: {Math.round(content.quality.quality_score * 100)}%</span>}
+              {content.quality && <span>Validation: {content.quality.validation_passed ? 'Passed' : 'Issues found'}</span>}
+              {content.quality && <span>Grounding: {content.quality.grounding_count} ref{content.quality.grounding_count !== 1 ? 's' : ''}</span>}
               <span>Created: {formatTimestamp(content.created_at)}</span>
             </div>
 

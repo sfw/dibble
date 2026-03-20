@@ -85,12 +85,27 @@ async function requestJson<T>(
 async function extractError(response: Response): Promise<string> {
   const headerCode = response.headers.get('X-Dibble-Error-Code')
   try {
-    const payload = (await response.json()) as { detail?: string; code?: string }
+    const payload = (await response.json()) as { detail?: unknown; code?: string }
     const code = payload.code ?? headerCode
-    if (code && payload.detail) {
-      return `${payload.detail} (${code})`
+
+    // FastAPI 422 validation errors return detail as an array of objects
+    let detail: string | undefined
+    if (typeof payload.detail === 'string') {
+      detail = payload.detail
+    } else if (Array.isArray(payload.detail)) {
+      detail = payload.detail
+        .map((e: { msg?: string; loc?: unknown[] }) => {
+          const field = e.loc?.slice(1).join('.') ?? ''
+          return field ? `${field}: ${e.msg}` : (e.msg ?? '')
+        })
+        .filter(Boolean)
+        .join('; ')
     }
-    return payload.detail ?? code ?? `${response.status} ${response.statusText}`
+
+    if (code && detail) {
+      return `${detail} (${code})`
+    }
+    return detail ?? code ?? `${response.status} ${response.statusText}`
   } catch {
     return headerCode ? `${response.status} ${response.statusText} (${headerCode})` : `${response.status} ${response.statusText}`
   }
