@@ -174,6 +174,12 @@ class RuntimeTelemetryMiddleware:
                     "request.payload",
                     payload=scrub_payload(captured.payload),
                 )
+                log_runtime_event(
+                    logging.getLogger(__name__),
+                    logging.DEBUG,
+                    "request.headers",
+                    headers=_scrub_headers(captured.request.headers),
+                )
             await self.app(scope, captured.receive, send_with_capture)
             log_runtime_event(
                 logging.getLogger(__name__),
@@ -300,6 +306,16 @@ def scrub_payload(payload: object | None) -> object | None:
     if isinstance(payload, list):
         return [scrub_payload(item) for item in payload]
     return payload
+
+
+def _scrub_headers(headers) -> dict[str, str]:
+    redacted: dict[str, str] = {}
+    for key, value in headers.items():
+        if key.lower() in _SENSITIVE_KEYS:
+            redacted[key] = "***"
+            continue
+        redacted[key] = value
+    return redacted
 
 
 def request_summary(request: Request) -> dict[str, object]:

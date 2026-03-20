@@ -84,6 +84,9 @@ class GenerationEngine:
             delivery_mode=route.delivery_mode.value,
             scaffolding_level=route.scaffolding_level,
             grounding_count=len(grounding),
+            request=request.model_dump(mode="json"),
+            route=route.model_dump(mode="json"),
+            grounding=[item.model_dump(mode="json") for item in grounding],
         )
         cache_key = self._cache_key(profile, request, route, grounding)
         cached = self._get_cached_content(cache_key=cache_key)
@@ -95,6 +98,7 @@ class GenerationEngine:
                 generation_id=cached.response.generation_id,
                 student_id=str(profile.student_id),
                 learning_session_id=request.learning_session_id,
+                cached_content=cached.model_dump(mode="json"),
             )
             return cached.response
 
@@ -162,6 +166,8 @@ class GenerationEngine:
             moderation_status=moderation.status,
             validation_issue_count=len(response.validation_issues),
             generation_latency_ms=content.quality.generation_latency_ms,
+            response=response.model_dump(mode="json"),
+            generated_content=content.model_dump(mode="json"),
         )
         return content.response
 
@@ -180,6 +186,7 @@ class GenerationEngine:
                 generation_id=cached.response.generation_id,
                 student_id=str(profile.student_id),
                 learning_session_id=request.learning_session_id,
+                cached_content=cached.model_dump(mode="json"),
             )
             yield GenerationStreamEvent(
                 event="start",
@@ -304,6 +311,8 @@ class GenerationEngine:
             moderation_status=moderation.status,
             validation_issue_count=len(response.validation_issues),
             generation_latency_ms=content.quality.generation_latency_ms,
+            response=response.model_dump(mode="json"),
+            generated_content=content.model_dump(mode="json"),
         )
         yield GenerationStreamEvent(
             event="complete",
