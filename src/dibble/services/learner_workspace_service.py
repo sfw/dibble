@@ -121,6 +121,7 @@ class LearnerWorkspaceService:
                 )
 
             continue_action = LearnerContinueAction.generate_follow_up(
+                display_label=f"Start {next_outcome.title}",
                 outcome_id=next_outcome.outcome_id,
                 generation_id=(
                     generated_content.generation_id

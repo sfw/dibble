@@ -362,6 +362,7 @@ class LearnerContinueAction(BaseModel):
     def generate_follow_up(
         cls,
         *,
+        display_label: str | None = None,
         endpoint: str = "/api/content/generate",
         outcome_id: str | None = None,
         generation_id: str | None = None,
@@ -374,6 +375,7 @@ class LearnerContinueAction(BaseModel):
     ) -> "LearnerContinueAction":
         return cls(
             kind=ContinueActionKind.generate_follow_up,
+            display_label=display_label,
             method=ContinueActionMethod.post,
             endpoint=endpoint,
             outcome_id=outcome_id,
