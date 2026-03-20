@@ -71,8 +71,8 @@ export const initialGenerationForm: GenerationFormState = {
   learning_session_id: 'session-fractions-bridge',
   target_kc_ids: 'KC-1',
   target_lo_ids: 'LO-1',
-  intent: 'practice',
-  requested_content_type: 'practice_problem',
+  intent: 'explanation',
+  requested_content_type: '',
   learner_prompt: 'Use a supportive tone and name the transfer move explicitly.',
   curriculum_context: 'Equivalent fractions',
 }
