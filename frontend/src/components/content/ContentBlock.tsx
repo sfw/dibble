@@ -1,5 +1,9 @@
 import { BookOpen, Code, Image, Lightbulb, PenTool, HelpCircle } from 'lucide-react'
 import type { GeneratedBlock } from '../../types'
+import {
+  InteractivePracticeBlock,
+  type PracticeInteractionSubmission,
+} from './InteractivePracticeBlock'
 
 /**
  * Renders a GeneratedBlock according to its `kind`.
@@ -16,16 +20,29 @@ import type { GeneratedBlock } from '../../types'
  *
  * Falls back to prose rendering for unknown kinds.
  */
-export function ContentBlock({ block }: { block: GeneratedBlock }) {
+export function ContentBlock({
+  block,
+  disabled = false,
+  onPracticeSubmit,
+}: {
+  block: GeneratedBlock
+  disabled?: boolean
+  onPracticeSubmit?: (submission: PracticeInteractionSubmission) => void
+}) {
   const renderer = blockRenderers[block.kind] ?? blockRenderers['default']
-  return renderer(block)
+  return renderer(block, { disabled, onPracticeSubmit })
 }
 
 // ---------------------------------------------------------------------------
 // Block renderers by kind
 // ---------------------------------------------------------------------------
 
-const blockRenderers: Record<string, (block: GeneratedBlock) => React.JSX.Element> = {
+type RendererContext = {
+  disabled: boolean
+  onPracticeSubmit?: (submission: PracticeInteractionSubmission) => void
+}
+
+const blockRenderers: Record<string, (block: GeneratedBlock, context: RendererContext) => React.JSX.Element> = {
   // Code blocks
   code_example: (block) => (
     <article className="rounded-xl border bg-slate-900 p-5 shadow-sm">
@@ -63,7 +80,7 @@ const blockRenderers: Record<string, (block: GeneratedBlock) => React.JSX.Elemen
     </article>
   ),
 
-  diagram: (block) => blockRenderers['visual_representation'](block),
+  diagram: (block, context) => blockRenderers['visual_representation'](block, context),
 
   // Worked examples — step-by-step with distinct styling
   worked_example: (block) => (
@@ -79,17 +96,28 @@ const blockRenderers: Record<string, (block: GeneratedBlock) => React.JSX.Elemen
   ),
 
   // Practice problems — interactive feel
-  practice_problem: (block) => (
-    <article className="rounded-xl border-l-4 border-l-emerald-400 bg-white p-6 shadow-sm">
-      {block.title && (
-        <div className="mb-3 flex items-center gap-2">
-          <HelpCircle className="h-4 w-4 text-emerald-500" />
-          <h2 className="text-lg font-semibold">{block.title}</h2>
-        </div>
-      )}
-      <div className="text-base leading-relaxed">{renderParagraphs(block.body)}</div>
-    </article>
-  ),
+  practice_problem: (block, context) => {
+    if (block.interaction?.type === 'multiple_choice' && context.onPracticeSubmit) {
+      return (
+        <InteractivePracticeBlock
+          block={block}
+          disabled={context.disabled}
+          onSubmit={context.onPracticeSubmit}
+        />
+      )
+    }
+    return (
+      <article className="rounded-xl border-l-4 border-l-emerald-400 bg-white p-6 shadow-sm">
+        {block.title && (
+          <div className="mb-3 flex items-center gap-2">
+            <HelpCircle className="h-4 w-4 text-emerald-500" />
+            <h2 className="text-lg font-semibold">{block.title}</h2>
+          </div>
+        )}
+        <div className="text-base leading-relaxed">{renderParagraphs(block.body)}</div>
+      </article>
+    )
+  },
 
   // Scaffolded steps
   scaffolded_steps: (block) => (
@@ -132,7 +160,7 @@ const blockRenderers: Record<string, (block: GeneratedBlock) => React.JSX.Elemen
     </article>
   ),
 
-  exposition: (block) => blockRenderers['conceptual_explanation'](block),
+  exposition: (block, context) => blockRenderers['conceptual_explanation'](block, context),
 
   // Default / unknown kind — clean prose
   default: (block) => (

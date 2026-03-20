@@ -27,6 +27,7 @@ from dibble.plugins.contracts import (
     ValidatorPlugin,
 )
 from dibble.services.content_moderation import ContentModerationService
+from dibble.services.generated_block_normalizer import normalize_generated_blocks
 from dibble.services.generation_modes import build_generation_mode_plan
 from dibble.services.protocols import GeneratedContentStore
 from dibble.services.runtime_telemetry import log_runtime_event
@@ -123,6 +124,7 @@ class GenerationEngine:
             route.delivery_mode = DeliveryMode.static_fallback
         else:
             blocks = self.provider.generate(profile, request, route, grounding)
+            blocks = normalize_generated_blocks(blocks)
             moderation = self.moderation_service.moderate_blocks(blocks)
             if moderation.status == "flagged":
                 original_blocks = len(blocks)
@@ -249,6 +251,9 @@ class GenerationEngine:
             for chunk in self.provider.stream_generate(
                 profile, request, route, grounding
             ):
+                if chunk.block is not None:
+                    block_buffers[chunk.block_index] = chunk.block
+                    continue
                 current = block_buffers.get(chunk.block_index)
                 if current is None:
                     current = GeneratedBlock(
@@ -256,7 +261,9 @@ class GenerationEngine:
                     )
                     block_buffers[chunk.block_index] = current
                 current.body += chunk.body_delta
-            blocks = [block_buffers[index] for index in sorted(block_buffers)]
+            blocks = normalize_generated_blocks(
+                [block_buffers[index] for index in sorted(block_buffers)]
+            )
             moderation = self.moderation_service.moderate_blocks(blocks)
             if moderation.status == "flagged":
                 original_blocks = len(blocks)

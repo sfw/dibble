@@ -145,6 +145,10 @@ export function applyStreamChunk(
   chunk: NonNullable<GenerationStreamEvent['chunk']>,
 ): GeneratedBlock[] {
   const next = [...existing]
+  if (chunk.block) {
+    next[chunk.block_index] = chunk.block
+    return next
+  }
   const current = next[chunk.block_index]
 
   if (!current) {

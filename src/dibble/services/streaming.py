@@ -14,6 +14,16 @@ def iter_block_chunks(
     blocks: Iterable[GeneratedBlock], *, chunk_size: int = 120
 ) -> Iterator[GeneratedBlockChunk]:
     for block_index, block in enumerate(blocks):
+        if block.interaction is not None:
+            yield GeneratedBlockChunk(
+                block_index=block_index,
+                kind=block.kind,
+                title=block.title,
+                block=block,
+                done=True,
+            )
+            continue
+
         parts = _chunk_text(block.body, chunk_size=chunk_size)
         if not parts:
             yield GeneratedBlockChunk(

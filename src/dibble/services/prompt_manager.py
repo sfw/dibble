@@ -123,7 +123,10 @@ class PromptManager:
                 "Make the modeled reasoning explicit and concise, and keep the fade plan aligned to named step roles rather than unlabeled step counts."
             )
         if content_type == RequestedContentType.practice_problem:
-            return "Include at least one practice block, keep the answer-check guidance lightweight, and make any distractor contrast purposeful rather than random."
+            return (
+                "Include at least one practice_problem block with a typed multiple_choice interaction, "
+                "keep the answer-check guidance lightweight, and make any distractor contrast purposeful rather than random."
+            )
         if content_type == RequestedContentType.assessment_probe:
             if variant == "causal_probe":
                 return (
@@ -141,7 +144,10 @@ class PromptManager:
         if content_type == RequestedContentType.worked_example:
             return "Show the learner how and why each visible step works, then clearly name the remaining learner-owned step."
         if content_type == RequestedContentType.practice_problem:
-            return "Use one concrete problem, one short cue, and distractors that reveal specific reasoning choices rather than superficial traps."
+            return (
+                "Use one concrete problem, one short cue, and distractors that reveal specific reasoning choices rather than superficial traps. "
+                "Put the choices in structured interaction options, not markdown."
+            )
         if content_type == RequestedContentType.assessment_probe:
             if variant == "causal_probe":
                 return "Favor why/how wording and nearby contrasts so the learner has to explain reasoning, not just answer."

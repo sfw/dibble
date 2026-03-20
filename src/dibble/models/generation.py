@@ -189,17 +189,52 @@ class GroundingReference(BaseModel):
 
 
 class GeneratedBlock(BaseModel):
+    block_id: str | None = None
     kind: str
     title: str
     body: str
+    interaction: "MultipleChoiceInteraction | None" = None
+
+
+class MultipleChoiceOption(BaseModel):
+    option_id: str
+    label: str
+    body: str
+    rationale: str | None = None
+
+
+class DeferredTextReveal(BaseModel):
+    trigger: Literal["after_selection"] = "after_selection"
+    prompt: str
+    support: str | None = None
+    placeholder: str | None = None
+
+
+class MultipleChoiceInteraction(BaseModel):
+    type: Literal["multiple_choice"] = "multiple_choice"
+    prompt: str
+    options: list[MultipleChoiceOption] = Field(default_factory=list)
+    correct_option_id: str
+    reveal: DeferredTextReveal | None = None
+    allow_retry: bool = False
 
 
 class GeneratedBlockChunk(BaseModel):
     block_index: int
-    kind: str
-    title: str
-    body_delta: str
+    kind: str = ""
+    title: str = ""
+    body_delta: str = ""
+    block: GeneratedBlock | None = None
     done: bool = False
+
+    @model_validator(mode="after")
+    def populate_legacy_fields(self) -> "GeneratedBlockChunk":
+        if self.block is not None:
+            if not self.kind:
+                self.kind = self.block.kind
+            if not self.title:
+                self.title = self.block.title
+        return self
 
 
 class GeneratedTextArtifact(BaseModel):
@@ -219,7 +254,7 @@ def build_text_artifacts(blocks: list["GeneratedBlock"]) -> list[GeneratedTextAr
             sequence_index=index,
             role=block.kind,
             title=block.title,
-            text=block.body,
+            text=block.body or (block.interaction.prompt if block.interaction else ""),
         )
         for index, block in enumerate(blocks)
     ]

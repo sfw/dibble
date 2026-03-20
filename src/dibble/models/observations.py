@@ -28,6 +28,14 @@ class ObservationSupportLevel(str, Enum):
     high = "high"
 
 
+class LearnerInteractionEvent(BaseModel):
+    event_type: str
+    block_id: str
+    selected_option_id: str | None = None
+    correct: bool | None = None
+    response_text: str | None = None
+
+
 class LearnerObservationCreate(BaseModel):
     response_time_ms: int = Field(ge=0)
     hints_used: int = Field(default=0, ge=0)
@@ -44,6 +52,8 @@ class LearnerObservationCreate(BaseModel):
     observed_content_type: str | None = None
     target_kc_ids: list[str] = Field(default_factory=list)
     target_lo_ids: list[str] = Field(default_factory=list)
+    interaction_events: list[LearnerInteractionEvent] = Field(default_factory=list)
+    response_text: str | None = None
 
 
 class LearnerObservation(LearnerObservationCreate):

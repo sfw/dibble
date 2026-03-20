@@ -7,6 +7,7 @@ import {
   getTeacherSection,
   getTeacherSections,
   getLearnerWorkspace,
+  recordLearnerObservation,
   recordTeacherInterventionAction,
   streamGeneration,
 } from './api'
@@ -136,6 +137,58 @@ describe('api contract helpers', () => {
           decision: 'approve',
           option_id: null,
           note: 'Looks right for this learner.',
+        }),
+      }),
+    )
+  })
+
+  it('posts learner observations for generated interactions', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ status: 'ok' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await recordLearnerObservation(defaultConfig, demoProfileSummary.student_id, {
+      response_time_ms: 4200,
+      task_type: 'practice',
+      support_level: 'medium',
+      learning_session_id: 'session-1',
+      generation_id: demoGeneration.generation_id,
+      observed_content_type: 'practice_problem',
+      target_kc_ids: ['KC-1'],
+      target_lo_ids: ['LO-1'],
+      interaction_events: [
+        {
+          event_type: 'multiple_choice_selected',
+          block_id: 'block-1',
+          selected_option_id: 'B',
+          correct: true,
+        },
+      ],
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${defaultConfig.baseUrl}/api/learners/${demoProfileSummary.student_id}/observations`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          response_time_ms: 4200,
+          task_type: 'practice',
+          support_level: 'medium',
+          learning_session_id: 'session-1',
+          generation_id: demoGeneration.generation_id,
+          observed_content_type: 'practice_problem',
+          target_kc_ids: ['KC-1'],
+          target_lo_ids: ['LO-1'],
+          interaction_events: [
+            {
+              event_type: 'multiple_choice_selected',
+              block_id: 'block-1',
+              selected_option_id: 'B',
+              correct: true,
+            },
+          ],
         }),
       }),
     )

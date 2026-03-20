@@ -141,6 +141,39 @@ export function getLearnerWorkspace(config: FrontendConfig, studentId: string) {
   })
 }
 
+export function recordLearnerObservation(
+  config: FrontendConfig,
+  studentId: string,
+  payload: {
+    response_time_ms: number
+    hints_used?: number
+    error_count?: number
+    completed?: boolean
+    confidence?: number
+    task_type: 'practice' | 'assessment' | 'worked_example' | 'explanation' | 'remediation' | 'generic'
+    support_level: 'low' | 'medium' | 'high'
+    learning_session_id?: string | null
+    generation_id?: string | null
+    observed_content_type?: string | null
+    target_kc_ids: string[]
+    target_lo_ids: string[]
+    interaction_events?: Array<{
+      event_type: string
+      block_id: string
+      selected_option_id?: string | null
+      correct?: boolean | null
+      response_text?: string | null
+    }>
+    response_text?: string | null
+  },
+) {
+  return requestJson<unknown>(config, `/api/learners/${studentId}/observations`, {
+    method: 'POST',
+    headers: buildHeaders(config),
+    body: JSON.stringify(payload),
+  })
+}
+
 export function getLearnerProgression(config: FrontendConfig, studentId: string) {
   return requestJson<LearnerCurriculumProgressionSummary>(
     config,

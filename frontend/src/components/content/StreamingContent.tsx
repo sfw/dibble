@@ -1,6 +1,7 @@
 import { Loader2 } from 'lucide-react'
 import { ContentBlock } from './ContentBlock'
 import type { GeneratedBlock } from '../../types'
+import type { PracticeInteractionSubmission } from './InteractivePracticeBlock'
 
 /**
  * Progressive content renderer that shows blocks as they stream in.
@@ -10,9 +11,11 @@ import type { GeneratedBlock } from '../../types'
 export function StreamingContent({
   blocks,
   streaming,
+  onPracticeSubmit,
 }: {
   blocks: GeneratedBlock[]
   streaming: boolean
+  onPracticeSubmit?: (submission: PracticeInteractionSubmission) => void
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -22,7 +25,11 @@ export function StreamingContent({
           className="animate-fade-in-up"
           style={{ animationDelay: `${index * 80}ms` }}
         >
-          <ContentBlock block={block} />
+          <ContentBlock
+            block={block}
+            disabled={streaming}
+            onPracticeSubmit={onPracticeSubmit}
+          />
         </div>
       ))}
       {streaming && (

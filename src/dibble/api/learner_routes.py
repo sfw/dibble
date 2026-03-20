@@ -160,6 +160,11 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 "observed_content_type": observation.observed_content_type,
                 "target_kc_ids": observation.target_kc_ids,
                 "target_lo_ids": observation.target_lo_ids,
+                "interaction_events": [
+                    item.model_dump(mode="json")
+                    for item in observation.interaction_events
+                ],
+                "response_text": observation.response_text,
                 "observation_mastery_applied": observation_profile_update.applied,
                 "observation_inferred_mastery": observation_profile_update.inferred_mastery,
                 "observation_evidence_strength": (

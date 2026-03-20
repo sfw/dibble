@@ -167,7 +167,13 @@ def test_problem_endpoint_returns_difficulty_band_metadata(client, student_id):
         payload["request_context"]["practice_distractor_remediation_hint"]
         == "Compare the whole amount before comparing the parts."
     )
-    assert any(block["kind"] == "practice" for block in payload["response"]["blocks"])
+    practice_blocks = [
+        block
+        for block in payload["response"]["blocks"]
+        if block["kind"] == "practice_problem"
+    ]
+    assert practice_blocks
+    assert practice_blocks[0]["interaction"]["type"] == "multiple_choice"
 
 
 def test_generation_modes_use_persisted_calibration_profiles(
