@@ -17,7 +17,7 @@ def build_assessment_router(context: ApiContext) -> APIRouter:
     @router.post(
         "/assessments/socratic",
         response_model=SocraticAssessmentResponse,
-        dependencies=context.deps("editor"),
+        dependencies=context.deps("learner"),
     )
     def assess_socratically(
         request: SocraticAssessmentRequest,

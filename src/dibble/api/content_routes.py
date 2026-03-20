@@ -50,7 +50,7 @@ def build_content_router(context: ApiContext) -> APIRouter:
     @router.post(
         "/content/generate",
         response_model=GeneratedContent,
-        dependencies=context.deps("editor"),
+        dependencies=context.deps("learner"),
     )
     def generate_content(request: GenerationRequest) -> GeneratedContent:
         try:
@@ -150,7 +150,7 @@ def build_content_router(context: ApiContext) -> APIRouter:
     @router.post(
         "/remedial/trigger",
         response_model=GeneratedContent,
-        dependencies=context.deps("editor"),
+        dependencies=context.deps("learner"),
     )
     def trigger_remedial_content(request: RemedialTriggerRequest) -> GeneratedContent:
         try:
@@ -186,7 +186,7 @@ def build_content_router(context: ApiContext) -> APIRouter:
     @router.post(
         "/remedial/sessions/{session_id}/advance",
         response_model=RemediationWorkflowAdvanceResponse,
-        dependencies=context.deps("editor"),
+        dependencies=context.deps("learner"),
     )
     def advance_remediation_session(
         session_id: str,
@@ -222,7 +222,7 @@ def build_content_router(context: ApiContext) -> APIRouter:
                 code="remediation_advance_failed",
             ) from exc
 
-    @router.post("/llm/stream", dependencies=context.deps("editor"))
+    @router.post("/llm/stream", dependencies=context.deps("learner"))
     def stream_generated_content(request: GenerationRequest) -> StreamingResponse:
         try:
             prepared = services.content_workflow_service.prepare_generation_request(

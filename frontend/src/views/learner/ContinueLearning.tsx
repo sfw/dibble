@@ -1,12 +1,13 @@
 import { useCallback, useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router'
-import { ArrowRight, BookOpen, ChevronLeft, Loader2 } from 'lucide-react'
+import { ArrowRight, BookOpen, ChevronLeft, Loader2, Send } from 'lucide-react'
 import type { LearnerContext } from '../../shells/LearnerShell'
 import { PageContainer } from '../../components/shell/PageContainer'
 import { ErrorBanner } from '@/components/ui/error-banner'
 import { AffectiveSupport } from '../../components/content/AffectiveSupport'
 import { StreamingContent } from '../../components/content/StreamingContent'
 import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
 import { learnerContentType, learnerContinueAction, learnerStage } from '../../lib/copy'
 import { useGenerationWorkspace } from '../../hooks/useGenerationWorkspace'
 import type { DataSource } from '../../app/workspace'
@@ -24,6 +25,8 @@ export function ContinueLearning() {
     workspace,
     onDataSourceChange: handleDataSourceChange,
   })
+
+  const [learnerResponse, setLearnerResponse] = useState('')
 
   const artifact = workspace.active_artifact
   const continueAction = workspace.continue_action
@@ -43,12 +46,22 @@ export function ContinueLearning() {
   const isStreaming = generation.streaming
   const displayBlocks = isStreaming ? generation.streamedBlocks : staticBlocks
   const hasContent = displayBlocks.length > 0
+  const hasPracticePrompt = !isStreaming && hasContent && displayBlocks.some(
+    (b) => b.kind === 'practice_problem',
+  )
 
   const masteryPercent = Math.round(
     (progression.mastered_outcome_count / Math.max(progression.outcome_count, 1)) * 100,
   )
 
   function handleContinue() {
+    if (hasPracticePrompt && learnerResponse.trim()) {
+      generation.setForm((current) => ({
+        ...current,
+        learner_prompt: learnerResponse.trim(),
+      }))
+    }
+    setLearnerResponse('')
     void generation.handleStream()
   }
 
@@ -114,6 +127,28 @@ export function ContinueLearning() {
         </div>
       )}
 
+      {/* Interactive response area for practice problems */}
+      {hasPracticePrompt && (
+        <div className="rounded-xl border-l-4 border-l-emerald-400 bg-white p-6 shadow-sm animate-fade-in-up flex flex-col gap-3">
+          <p className="text-sm font-medium text-emerald-700">Write your answer</p>
+          <Textarea
+            value={learnerResponse}
+            onChange={(e) => setLearnerResponse(e.target.value)}
+            placeholder="Type your response here..."
+            className="min-h-[100px] resize-none transition-shadow focus:shadow-sm"
+          />
+          <Button
+            onClick={handleContinue}
+            disabled={loading || isStreaming || !learnerResponse.trim()}
+            className="w-full transition-all"
+            size="lg"
+          >
+            <Send className="mr-2 h-4 w-4" />
+            Submit your answer
+          </Button>
+        </div>
+      )}
+
       {/* Progress rail — animated bar */}
       <div className="rounded-lg bg-slate-100 px-4 py-3 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
         <div className="flex items-baseline justify-between text-sm mb-2">
@@ -130,8 +165,8 @@ export function ContinueLearning() {
         </div>
       </div>
 
-      {/* Next step CTA */}
-      {continueAction.kind !== 'idle' && (
+      {/* Next step CTA — hidden when practice response area is shown */}
+      {continueAction.kind !== 'idle' && !hasPracticePrompt && (
         <Button
           size="lg"
           className="w-full transition-all"
