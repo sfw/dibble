@@ -4,13 +4,15 @@ from dibble.models.session_adaptation import WithinSessionControllerState
 from dibble.services.within_session_controller_store import (
     SQLiteWithinSessionControllerStore,
 )
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
 def test_within_session_controller_store_round_trips_state(tmp_path):
     database_path = str(tmp_path / "within-session-controller-store.db")
     ensure_database(database_path)
-    store = SQLiteWithinSessionControllerStore(database_path)
+    conn = create_connection(database_path)
+    store = SQLiteWithinSessionControllerStore(conn)
     session = WithinSessionControllerState(
         learning_session_id="session-1",
         student_id=uuid4(),

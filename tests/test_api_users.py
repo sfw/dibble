@@ -10,6 +10,7 @@ from dibble.models.classroom_membership import ClassroomMembershipRole
 from dibble.services.auth import hash_credential
 from dibble.services.classroom_membership_store import SQLiteClassroomMembershipStore
 from dibble.services.profile_store import SQLiteProfileStore
+from dibble.services.sqlite_connection import create_connection
 from dibble.services.user_store import SQLiteUserStore
 from dibble.storage import ensure_database
 
@@ -22,7 +23,8 @@ def _make_app(tmp_path):
 
 
 def _seed_admin(db_path: str) -> None:
-    store = SQLiteUserStore(db_path)
+    conn = create_connection(db_path)
+    store = SQLiteUserStore(conn)
     now = datetime.now(timezone.utc).isoformat()
     store.create(
         User(
@@ -40,8 +42,9 @@ def _seed_admin(db_path: str) -> None:
 def test_user_endpoints_derive_sections_from_membership_store(tmp_path):
     app, db_path = _make_app(tmp_path)
     _seed_admin(db_path)
-    user_store = SQLiteUserStore(db_path)
-    membership_store = SQLiteClassroomMembershipStore(db_path)
+    conn = create_connection(db_path)
+    user_store = SQLiteUserStore(conn)
+    membership_store = SQLiteClassroomMembershipStore(conn)
     now = datetime.now(timezone.utc).isoformat()
     user_store.create(
         User(
@@ -74,8 +77,9 @@ def test_user_endpoints_derive_sections_from_membership_store(tmp_path):
 def test_updating_user_without_section_ids_does_not_rewrite_memberships(tmp_path):
     app, db_path = _make_app(tmp_path)
     _seed_admin(db_path)
-    user_store = SQLiteUserStore(db_path)
-    membership_store = SQLiteClassroomMembershipStore(db_path)
+    conn = create_connection(db_path)
+    user_store = SQLiteUserStore(conn)
+    membership_store = SQLiteClassroomMembershipStore(conn)
     now = datetime.now(timezone.utc).isoformat()
     user_store.create(
         User(
@@ -112,7 +116,8 @@ def test_updating_user_without_section_ids_does_not_rewrite_memberships(tmp_path
 def test_creating_learner_auto_creates_profile(tmp_path):
     app, db_path = _make_app(tmp_path)
     _seed_admin(db_path)
-    profile_store = SQLiteProfileStore(db_path)
+    conn = create_connection(db_path)
+    profile_store = SQLiteProfileStore(conn)
 
     with TestClient(app) as client:
         response = client.post(
@@ -131,7 +136,8 @@ def test_creating_learner_auto_creates_profile(tmp_path):
 def test_updating_learner_does_not_overwrite_existing_profile(tmp_path):
     app, db_path = _make_app(tmp_path)
     _seed_admin(db_path)
-    profile_store = SQLiteProfileStore(db_path)
+    conn = create_connection(db_path)
+    profile_store = SQLiteProfileStore(conn)
 
     with TestClient(app) as client:
         headers = {"X-API-Key": "admin-key"}
@@ -165,7 +171,8 @@ def test_updating_learner_does_not_overwrite_existing_profile(tmp_path):
 def test_learner_with_non_uuid_learner_id_gets_profile(tmp_path):
     app, db_path = _make_app(tmp_path)
     _seed_admin(db_path)
-    profile_store = SQLiteProfileStore(db_path)
+    conn = create_connection(db_path)
+    profile_store = SQLiteProfileStore(conn)
 
     with TestClient(app) as client:
         headers = {"X-API-Key": "admin-key"}

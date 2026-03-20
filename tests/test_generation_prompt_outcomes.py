@@ -4,13 +4,15 @@ from uuid import uuid4
 
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.generation_prompt_outcomes import GenerationPromptOutcomeScorer
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
 def test_generation_prompt_outcome_scorer_uses_follow_up_observation(tmp_path):
     database_path = str(tmp_path / "generation-outcomes.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     generation_event = audit_store.append(
         event_type="content.generate",
@@ -62,7 +64,8 @@ def test_generation_prompt_outcome_scorer_returns_none_without_follow_up_observa
 ):
     database_path = str(tmp_path / "generation-outcomes-none.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     generation_event = audit_store.append(
         event_type="content.generate",
         status="success",
@@ -93,7 +96,8 @@ def test_generation_prompt_outcome_scorer_prefers_exact_generation_link_over_clo
 ):
     database_path = str(tmp_path / "generation-outcomes-linked.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     generation_event = audit_store.append(
         event_type="content.generate",
@@ -158,7 +162,8 @@ def test_generation_prompt_outcome_scorer_prefers_same_learning_session_when_gen
 ):
     database_path = str(tmp_path / "generation-outcomes-session.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     generation_event = audit_store.append(
         event_type="content.generate",
@@ -223,7 +228,8 @@ def test_generation_prompt_outcome_scorer_uses_same_session_socratic_assessment(
 ):
     database_path = str(tmp_path / "generation-outcomes-assessment.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     generation_event = audit_store.append(
         event_type="content.generate",
@@ -271,7 +277,8 @@ def test_generation_prompt_outcome_scorer_aggregates_multi_event_session_trace(
 ):
     database_path = str(tmp_path / "generation-outcomes-trace.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     generation_event = audit_store.append(
         event_type="content.generate",
@@ -365,7 +372,8 @@ def test_generation_prompt_outcome_scorer_aggregates_multi_event_session_trace(
 def test_generation_prompt_outcome_scorer_uses_later_same_session_run_outcome(tmp_path):
     database_path = str(tmp_path / "generation-outcomes-session-run.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     first_generation = audit_store.append(
         event_type="content.generate",
@@ -447,7 +455,8 @@ def test_generation_prompt_outcome_scorer_prefers_persisted_run_summary_for_matc
 ):
     database_path = str(tmp_path / "generation-outcomes-persisted-summary.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     generation_event = audit_store.append(
         event_type="content.generate",

@@ -14,6 +14,7 @@ from dibble.services.socratic_assessment import SocraticAssessmentService
 from dibble.services.socratic_evidence import SocraticEvidenceScorer
 from dibble.services.socratic_policy import SocraticTurnPolicy
 from dibble.services.socratic_session_store import SQLiteSocraticSessionStore
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 from tests.support import build_profile
 
@@ -65,9 +66,10 @@ class FakeGenerationEngine:
 def build_service(tmp_path, response: GenerationResponse) -> SocraticAssessmentService:
     database_path = str(tmp_path / "socratic.db")
     ensure_database(database_path)
+    conn = create_connection(database_path)
     return SocraticAssessmentService(
         generation_engine=FakeGenerationEngine(response),
-        session_store=SQLiteSocraticSessionStore(database_path),
+        session_store=SQLiteSocraticSessionStore(conn),
         evidence_scorer=SocraticEvidenceScorer(FakeOutcomeStore()),
         turn_policy=SocraticTurnPolicy(),
     )

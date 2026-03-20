@@ -8,6 +8,7 @@ from dibble.services.learning_calibration_profiles import (
     LearningCalibrationProfileRecorder,
 )
 from dibble.services.router_calibration_signals import RouterCalibrationSignalService
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
@@ -16,7 +17,8 @@ def test_learning_calibration_profile_recorder_compacts_matching_run_summaries(
 ):
     database_path = str(tmp_path / "learning-calibration-profile-recorder.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     recorder = LearningCalibrationProfileRecorder(audit_store=audit_store)
     student_id = str(uuid4())
     audit_store.append(
@@ -71,7 +73,8 @@ def test_router_calibration_signal_service_prefers_cross_session_profile_events(
 ):
     database_path = str(tmp_path / "router-calibration-profile-events.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     audit_store.append(
         event_type="learning.calibration.profile",

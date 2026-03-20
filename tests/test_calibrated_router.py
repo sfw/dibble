@@ -18,6 +18,7 @@ from dibble.services.within_session_adaptation import WithinSessionAdaptationSer
 from dibble.services.within_session_controller_store import (
     SQLiteWithinSessionControllerStore,
 )
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 from tests.support import build_profile
 
@@ -35,7 +36,8 @@ class AlwaysReteachRouter:
 def test_calibrated_router_holds_back_stretch_after_negative_run_signal(tmp_path):
     database_path = str(tmp_path / "calibrated-router-negative.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     profile = LearnerProfile.model_validate(
         build_profile(
             uuid4(),
@@ -106,7 +108,8 @@ def test_calibrated_router_holds_back_stretch_after_negative_run_signal(tmp_path
 def test_calibrated_router_relaxes_scaffolding_after_positive_run_signal(tmp_path):
     database_path = str(tmp_path / "calibrated-router-positive.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     profile = LearnerProfile.model_validate(
         build_profile(
             uuid4(),
@@ -176,7 +179,8 @@ def test_calibrated_router_relaxes_scaffolding_after_positive_run_signal(tmp_pat
 def test_calibrated_router_raises_support_for_declining_progress_profile(tmp_path):
     database_path = str(tmp_path / "calibrated-router-declining-progress.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     profile = LearnerProfile.model_validate(
         build_profile(
             uuid4(),
@@ -240,7 +244,8 @@ def test_calibrated_router_uses_strategy_profile_when_recent_calibration_is_insu
 ):
     database_path = str(tmp_path / "calibrated-router-strategy.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     profile = LearnerProfile.model_validate(
         build_profile(
             uuid4(),
@@ -304,7 +309,8 @@ def test_calibrated_router_uses_same_session_observation_before_cross_session_hi
 ):
     database_path = str(tmp_path / "calibrated-router-session-negative.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     profile = LearnerProfile.model_validate(
         build_profile(
             uuid4(),
@@ -364,7 +370,8 @@ def test_calibrated_router_relaxes_support_after_same_session_demonstrated_asses
 ):
     database_path = str(tmp_path / "calibrated-router-session-positive.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     profile = LearnerProfile.model_validate(
         build_profile(
             uuid4(),
@@ -420,8 +427,9 @@ def test_calibrated_router_uses_persisted_session_controller_before_cross_sessio
 ):
     database_path = str(tmp_path / "calibrated-router-session-controller.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
-    controller_store = SQLiteWithinSessionControllerStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
+    controller_store = SQLiteWithinSessionControllerStore(conn)
     profile = LearnerProfile.model_validate(
         build_profile(
             uuid4(),

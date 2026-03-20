@@ -12,6 +12,7 @@ from dibble.models.classroom_membership import (
     ClassroomMembershipUpsert,
 )
 from dibble.services.classroom_membership_store import SQLiteClassroomMembershipStore
+from dibble.services.sqlite_connection import create_connection
 from dibble.services.user_store import SQLiteUserStore
 from dibble.storage import ensure_database
 
@@ -41,8 +42,9 @@ def _seed_api_user(
     display_name: str | None = None,
     section_ids: list[str] | None = None,
 ) -> User:
-    store = SQLiteUserStore(db_path)
-    membership_store = SQLiteClassroomMembershipStore(db_path)
+    conn = create_connection(db_path)
+    store = SQLiteUserStore(conn)
+    membership_store = SQLiteClassroomMembershipStore(conn)
     now = datetime.now(timezone.utc).isoformat()
     user = store.create(
         User(
@@ -158,7 +160,8 @@ def test_teacher_classroom_read_model_packages_learner_cards_and_counts(
             "section_ids": ["CLASS-1"],
         },
     )
-    SQLiteClassroomMembershipStore(app_settings.database_path).upsert(
+    conn = create_connection(app_settings.database_path)
+    SQLiteClassroomMembershipStore(conn).upsert(
         ClassroomMembershipUpsert(
             classroom_id="CLASS-1",
             user_id="missing-student-id",

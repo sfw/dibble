@@ -10,13 +10,15 @@ from dibble.services.remediation_workflows import (
     RemediationWorkflowCompleteError,
     RemediationWorkflowCoordinator,
 )
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
 def test_remediation_workflow_coordinator_persists_and_advances_steps(tmp_path):
     database_path = str(tmp_path / "remediation-workflows.db")
     ensure_database(database_path)
-    session_store = SQLiteRemediationSessionStore(database_path)
+    conn = create_connection(database_path)
+    session_store = SQLiteRemediationSessionStore(conn)
     coordinator = RemediationWorkflowCoordinator(session_store=session_store)
 
     plan = RemediationPlan(
@@ -163,7 +165,8 @@ def test_remediation_workflow_coordinator_persists_and_advances_steps(tmp_path):
 def test_remediation_workflow_coordinator_carries_bridge_sequence_context(tmp_path):
     database_path = str(tmp_path / "remediation-workflows-bridge.db")
     ensure_database(database_path)
-    session_store = SQLiteRemediationSessionStore(database_path)
+    conn = create_connection(database_path)
+    session_store = SQLiteRemediationSessionStore(conn)
     coordinator = RemediationWorkflowCoordinator(session_store=session_store)
 
     plan = RemediationPlan(

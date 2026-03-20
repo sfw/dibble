@@ -11,6 +11,7 @@ from dibble.services.observation_profile_update import ObservationProfileUpdater
 from dibble.services.observation_store import SQLiteObservationStore
 from dibble.services.progression_ownership import ProgressionOwnershipService
 from dibble.services.within_session_adaptation import WithinSessionAdaptationSummary
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
@@ -236,8 +237,9 @@ def test_progression_ownership_holds_target_when_recent_success_is_support_heavy
 ):
     database_path = str(tmp_path / "progression-hold.db")
     ensure_database(database_path)
-    observation_store = SQLiteObservationStore(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    observation_store = SQLiteObservationStore(conn)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     for observation in [
         _build_observation(
@@ -292,8 +294,9 @@ def test_progression_ownership_uses_repair_target_evidence_after_backend_redirec
 ):
     database_path = str(tmp_path / "progression-repair-evidence.db")
     ensure_database(database_path)
-    observation_store = SQLiteObservationStore(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    observation_store = SQLiteObservationStore(conn)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     for observation in [
         _build_observation(
@@ -365,8 +368,9 @@ def test_progression_ownership_attempts_transfer_when_assessment_confirms_readin
 ):
     database_path = str(tmp_path / "progression-transfer.db")
     ensure_database(database_path)
-    observation_store = SQLiteObservationStore(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    observation_store = SQLiteObservationStore(conn)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     for observation in [
         _build_observation(
@@ -439,8 +443,9 @@ def test_progression_ownership_holds_assessment_request_on_target_practice_until
 ):
     database_path = str(tmp_path / "progression-mastery-gate.db")
     ensure_database(database_path)
-    observation_store = SQLiteObservationStore(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    observation_store = SQLiteObservationStore(conn)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     for observation in [
         _build_observation(
@@ -501,8 +506,9 @@ def test_progression_ownership_prefers_strong_same_session_transfer_over_prerequ
 ):
     database_path = str(tmp_path / "progression-transfer-override.db")
     ensure_database(database_path)
-    observation_store = SQLiteObservationStore(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    observation_store = SQLiteObservationStore(conn)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     for observation in [
         _build_observation(

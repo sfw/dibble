@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import dataclass
+
 from uuid import uuid4
 
 from dibble.models.telemetry import ProviderHealthEvent, ProviderStatusSnapshot
@@ -20,8 +21,8 @@ class ProviderRoutingSnapshot:
 
 
 class SQLiteProviderHealthStore:
-    def __init__(self, database_path: str) -> None:
-        self.database_path = database_path
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        self._conn = connection
 
     def append(
         self,
@@ -36,34 +37,32 @@ class SQLiteProviderHealthStore:
             status=status,
             detail=detail or {},
         )
-        with sqlite3.connect(self.database_path) as connection:
-            connection.execute(
-                """
-                INSERT INTO provider_health_events(event_id, provider_name, status, detail, created_at)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    event.event_id,
-                    event.provider_name,
-                    event.status,
-                    json.dumps(event.detail),
-                    event.created_at.isoformat(),
-                ),
-            )
-            connection.commit()
+        self._conn.execute(
+            """
+            INSERT INTO provider_health_events(event_id, provider_name, status, detail, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                event.event_id,
+                event.provider_name,
+                event.status,
+                json.dumps(event.detail),
+                event.created_at.isoformat(),
+            ),
+        )
+        self._conn.commit()
         return event
 
     def list(self, *, limit: int = 100) -> list[ProviderHealthEvent]:
-        with sqlite3.connect(self.database_path) as connection:
-            rows = connection.execute(
-                """
-                SELECT event_id, provider_name, status, detail, created_at
-                FROM provider_health_events
-                ORDER BY created_at DESC, event_id DESC
-                LIMIT ?
-                """,
-                (limit,),
-            ).fetchall()
+        rows = self._conn.execute(
+            """
+            SELECT event_id, provider_name, status, detail, created_at
+            FROM provider_health_events
+            ORDER BY created_at DESC, event_id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
 
         return [
             ProviderHealthEvent(

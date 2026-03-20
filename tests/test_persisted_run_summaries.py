@@ -4,13 +4,15 @@ from uuid import uuid4
 
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.persisted_run_summaries import PersistedRunSummaryResolver
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
 def test_persisted_run_summary_resolver_prefers_richer_summary_for_generation(tmp_path):
     database_path = str(tmp_path / "persisted-run-summary-resolver.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     generation_event = audit_store.append(
         event_type="content.generate",
@@ -61,7 +63,8 @@ def test_persisted_run_summary_resolver_prefers_richer_summary_for_generation(tm
 def test_persisted_run_summary_resolver_ignores_unrelated_summaries(tmp_path):
     database_path = str(tmp_path / "persisted-run-summary-resolver-ignore.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     generation_event = audit_store.append(
         event_type="content.generate",

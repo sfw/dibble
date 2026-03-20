@@ -8,6 +8,7 @@ from dibble.services.misconception_detector import MisconceptionDetector
 from dibble.services.misconception_profiles import LearningMisconceptionProfileResolver
 from dibble.services.observation_store import SQLiteObservationStore
 from dibble.services.remediation_planner import RemediationPlanner
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 from tests.support import build_knowledge_component, build_profile
 
@@ -51,7 +52,8 @@ def _append_observation(
 def test_misconception_detector_prefers_low_mastery_prerequisites(tmp_path):
     database_path = str(tmp_path / "misconceptions.db")
     ensure_database(database_path)
-    kc_store = SQLiteKnowledgeComponentStore(database_path)
+    conn = create_connection(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(conn)
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
             build_knowledge_component("KC-1", name="Identify numerator and denominator")
@@ -86,7 +88,8 @@ def test_misconception_detector_prefers_low_mastery_prerequisites(tmp_path):
 def test_misconception_detector_matches_catalogued_misconception_patterns(tmp_path):
     database_path = str(tmp_path / "misconceptions-catalog.db")
     ensure_database(database_path)
-    kc_store = SQLiteKnowledgeComponentStore(database_path)
+    conn = create_connection(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(conn)
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
             build_knowledge_component(
@@ -132,7 +135,8 @@ def test_misconception_detector_matches_catalogued_misconception_patterns(tmp_pa
 def test_misconception_detector_matches_alias_terms_for_catalogued_patterns(tmp_path):
     database_path = str(tmp_path / "misconceptions-alias-catalog.db")
     ensure_database(database_path)
-    kc_store = SQLiteKnowledgeComponentStore(database_path)
+    conn = create_connection(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(conn)
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
             build_knowledge_component(
@@ -175,8 +179,9 @@ def test_misconception_detector_uses_recent_behavioral_struggle_to_reinforce_pre
 ):
     database_path = str(tmp_path / "misconceptions-behavioral-prereq.db")
     ensure_database(database_path)
-    kc_store = SQLiteKnowledgeComponentStore(database_path)
-    observation_store = SQLiteObservationStore(database_path)
+    conn = create_connection(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(conn)
+    observation_store = SQLiteObservationStore(conn)
     student_id = uuid4()
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
@@ -250,8 +255,9 @@ def test_misconception_detector_adapts_prerequisite_threshold_to_behavioral_stru
     learner is actively struggling with are flagged more aggressively."""
     database_path = str(tmp_path / "misconceptions-adaptive-threshold.db")
     ensure_database(database_path)
-    kc_store = SQLiteKnowledgeComponentStore(database_path)
-    observation_store = SQLiteObservationStore(database_path)
+    conn = create_connection(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(conn)
+    observation_store = SQLiteObservationStore(conn)
     student_id = uuid4()
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
@@ -320,8 +326,9 @@ def test_misconception_detector_relaxes_prerequisite_threshold_for_recent_succes
     to trigger a gap signal."""
     database_path = str(tmp_path / "misconceptions-adaptive-relax.db")
     ensure_database(database_path)
-    kc_store = SQLiteKnowledgeComponentStore(database_path)
-    observation_store = SQLiteObservationStore(database_path)
+    conn = create_connection(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(conn)
+    observation_store = SQLiteObservationStore(conn)
     student_id = uuid4()
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
@@ -392,8 +399,9 @@ def test_misconception_detector_uses_repair_target_behavioral_evidence_for_catal
 ):
     database_path = str(tmp_path / "misconceptions-behavioral-catalog.db")
     ensure_database(database_path)
-    kc_store = SQLiteKnowledgeComponentStore(database_path)
-    observation_store = SQLiteObservationStore(database_path)
+    conn = create_connection(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(conn)
+    observation_store = SQLiteObservationStore(conn)
     student_id = uuid4()
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
@@ -481,7 +489,8 @@ def test_misconception_detector_uses_repair_target_behavioral_evidence_for_catal
 def test_remediation_planner_uses_misconception_signals_to_order_focus(tmp_path):
     database_path = str(tmp_path / "remediation-plan.db")
     ensure_database(database_path)
-    kc_store = SQLiteKnowledgeComponentStore(database_path)
+    conn = create_connection(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(conn)
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
             build_knowledge_component("KC-1", name="Identify numerator and denominator")
@@ -519,7 +528,8 @@ def test_misconception_detector_weights_nearby_prerequisites_above_deeper_links(
 ):
     database_path = str(tmp_path / "misconceptions-prereq-depth.db")
     ensure_database(database_path)
-    kc_store = SQLiteKnowledgeComponentStore(database_path)
+    conn = create_connection(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(conn)
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
             build_knowledge_component("KC-1", name="Understand fraction language")
@@ -567,7 +577,8 @@ def test_remediation_planner_builds_structured_blueprint_for_known_misconception
 ):
     database_path = str(tmp_path / "remediation-blueprint.db")
     ensure_database(database_path)
-    kc_store = SQLiteKnowledgeComponentStore(database_path)
+    conn = create_connection(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(conn)
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
             build_knowledge_component(
@@ -638,7 +649,8 @@ def test_remediation_planner_builds_structured_blueprint_for_known_misconception
 def test_remediation_planner_can_hold_target_before_prerequisite_step_back(tmp_path):
     database_path = str(tmp_path / "remediation-hold-target.db")
     ensure_database(database_path)
-    kc_store = SQLiteKnowledgeComponentStore(database_path)
+    conn = create_connection(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(conn)
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
             build_knowledge_component("KC-1", name="Identify numerator and denominator")
@@ -681,7 +693,8 @@ def test_remediation_planner_can_hold_target_before_prerequisite_step_back(tmp_p
 def test_remediation_planner_adds_same_lo_bridge_between_repair_and_return(tmp_path):
     database_path = str(tmp_path / "remediation-bridge.db")
     ensure_database(database_path)
-    kc_store = SQLiteKnowledgeComponentStore(database_path)
+    conn = create_connection(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(conn)
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
             build_knowledge_component("KC-1", name="Identify numerator and denominator")
@@ -744,7 +757,8 @@ def test_remediation_planner_adds_same_lo_bridge_between_repair_and_return(tmp_p
 def test_remediation_planner_can_bridge_through_curated_taxonomy_neighbor(tmp_path):
     database_path = str(tmp_path / "remediation-taxonomy-bridge.db")
     ensure_database(database_path)
-    kc_store = SQLiteKnowledgeComponentStore(database_path)
+    conn = create_connection(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(conn)
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
             build_knowledge_component(
@@ -820,8 +834,9 @@ def test_misconception_detector_uses_profile_signals_to_reinforce_prior_patterns
 
     database_path = str(tmp_path / "misconception-profile-detector.db")
     ensure_database(database_path)
-    kc_store = SQLiteKnowledgeComponentStore(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(conn)
+    audit_store = SQLiteAuditStore(conn)
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(
             build_knowledge_component(
@@ -905,8 +920,9 @@ def test_remediation_planner_prioritizes_recurring_profile_patterns(tmp_path):
 
     database_path = str(tmp_path / "remediation-recurring-profile.db")
     ensure_database(database_path)
-    kc_store = SQLiteKnowledgeComponentStore(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    kc_store = SQLiteKnowledgeComponentStore(conn)
+    audit_store = SQLiteAuditStore(conn)
     student_id = uuid4()
     kc_store.upsert(
         KnowledgeComponentUpsert.model_validate(

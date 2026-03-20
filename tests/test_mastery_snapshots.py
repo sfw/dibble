@@ -11,13 +11,15 @@ from dibble.models.profile import (
 )
 from dibble.services.mastery_snapshot_service import MasterySnapshotService
 from dibble.services.mastery_snapshot_store import SQLiteMasterySnapshotStore
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
 def _store(tmp_path) -> SQLiteMasterySnapshotStore:
     db = str(tmp_path / "test.db")
     ensure_database(db)
-    return SQLiteMasterySnapshotStore(db)
+    conn = create_connection(db)
+    return SQLiteMasterySnapshotStore(conn)
 
 
 _SENTINEL = object()

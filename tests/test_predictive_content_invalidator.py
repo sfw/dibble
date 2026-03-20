@@ -14,6 +14,7 @@ from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
 from dibble.services.predictive_content_invalidator import PredictiveContentInvalidator
 from dibble.services.predictive_warm_queue_store import SQLitePredictiveWarmQueueStore
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
@@ -22,9 +23,10 @@ def test_predictive_content_invalidator_expires_only_matching_predictive_entries
 ):
     database_path = str(tmp_path / "predictive-cache.db")
     ensure_database(database_path)
-    generated_content_store = SQLiteGeneratedContentStore(database_path)
-    queue_store = SQLitePredictiveWarmQueueStore(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    generated_content_store = SQLiteGeneratedContentStore(conn)
+    queue_store = SQLitePredictiveWarmQueueStore(conn)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
 
     generated_content_store.upsert(

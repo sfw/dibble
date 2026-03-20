@@ -14,6 +14,7 @@ from dibble.services.llm_provider import LLMOrchestrationProvider
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
 from dibble.services.predictive_warm_queue_store import SQLitePredictiveWarmQueueStore
 from dibble.services.provider_health import SQLiteProviderHealthStore
+from dibble.services.sqlite_connection import create_connection
 from dibble.services.telemetry import TelemetryService
 from dibble.storage import ensure_database
 from tests.support import build_profile
@@ -54,9 +55,10 @@ class SucceedsClient:
 def test_telemetry_snapshot_includes_provider_health(tmp_path):
     database_path = str(tmp_path / "provider-health.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
-    generated_content_store = SQLiteGeneratedContentStore(database_path)
-    health_store = SQLiteProviderHealthStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
+    generated_content_store = SQLiteGeneratedContentStore(conn)
+    health_store = SQLiteProviderHealthStore(conn)
     provider = LLMOrchestrationProvider(
         clients=[("primary", AlwaysFailsClient()), ("secondary", SucceedsClient())],
         health_store=health_store,
@@ -104,9 +106,10 @@ def test_telemetry_snapshot_includes_provider_health(tmp_path):
 def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
     database_path = str(tmp_path / "cache-metrics.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
-    generated_content_store = SQLiteGeneratedContentStore(database_path)
-    queue_store = SQLitePredictiveWarmQueueStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
+    generated_content_store = SQLiteGeneratedContentStore(conn)
+    queue_store = SQLitePredictiveWarmQueueStore(conn)
     telemetry = TelemetryService(
         audit_store, generated_content_store, predictive_warm_queue_store=queue_store
     )
@@ -294,7 +297,8 @@ def test_telemetry_snapshot_includes_cache_metrics(tmp_path):
 def test_telemetry_snapshot_includes_generation_prompt_outcomes(tmp_path):
     database_path = str(tmp_path / "generation-prompt-telemetry.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     telemetry = TelemetryService(audit_store)
     student_id = str(uuid4())
 
@@ -359,7 +363,8 @@ def test_telemetry_snapshot_includes_generation_prompt_outcomes(tmp_path):
 def test_telemetry_snapshot_includes_cross_generation_session_outcomes(tmp_path):
     database_path = str(tmp_path / "generation-session-telemetry.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     telemetry = TelemetryService(audit_store)
     student_id = str(uuid4())
 
@@ -419,7 +424,8 @@ def test_telemetry_snapshot_includes_cross_generation_session_outcomes(tmp_path)
 def test_telemetry_snapshot_reports_persisted_run_summary_coverage(tmp_path):
     database_path = str(tmp_path / "generation-persisted-summary-telemetry.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     telemetry = TelemetryService(audit_store)
     student_id = str(uuid4())
 
@@ -464,7 +470,8 @@ def test_telemetry_snapshot_reports_persisted_run_summary_coverage(tmp_path):
 def test_telemetry_snapshot_includes_socratic_assessment_metrics(tmp_path):
     database_path = str(tmp_path / "socratic-telemetry.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     telemetry = TelemetryService(audit_store)
 
     audit_store.append(

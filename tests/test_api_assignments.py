@@ -7,6 +7,7 @@ from dibble.app import create_app
 from dibble.config import Settings
 from dibble.models.auth import User
 from dibble.services.auth import hash_credential
+from dibble.services.sqlite_connection import create_connection
 from dibble.services.user_store import SQLiteUserStore
 from dibble.storage import ensure_database
 
@@ -25,7 +26,8 @@ def _seed_user(
     role: str,
     user_id: str,
 ) -> None:
-    store = SQLiteUserStore(db_path)
+    conn = create_connection(db_path)
+    store = SQLiteUserStore(conn)
     now = datetime.now(timezone.utc).isoformat()
     store.create(
         User(

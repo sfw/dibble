@@ -9,6 +9,7 @@ from dibble.config import Settings
 from dibble.models.setup import CreateInitialAdminRequest, SetupConfigureRequest
 from dibble.services.auth import hash_credential
 from dibble.services.setup_config import SetupConfigService
+from dibble.services.sqlite_connection import create_connection
 from dibble.services.user_store import SQLiteUserStore
 from dibble.storage import ensure_database
 
@@ -22,11 +23,12 @@ def _make_service(
     db_path = str(tmp_path / "dibble.db")
     if with_db:
         ensure_database(db_path)
+    conn = create_connection(db_path)
     settings = Settings(
         database_path=db_path,
         llm_api_key=llm_api_key,
     )
-    user_store = SQLiteUserStore(db_path) if with_db else SQLiteUserStore(db_path)
+    user_store = SQLiteUserStore(conn)
     if with_db:
         service = SetupConfigService(settings, user_store=user_store)
     else:
@@ -38,8 +40,9 @@ class TestGetStatus:
     def test_unconfigured(self, tmp_path: Path) -> None:
         db_path = str(tmp_path / "nonexistent.db")
         ensure_database(db_path)
+        conn = create_connection(db_path)
         settings = Settings(database_path=db_path)
-        user_store = SQLiteUserStore(db_path)
+        user_store = SQLiteUserStore(conn)
         service = SetupConfigService(settings, user_store=user_store)
         status = service.get_status()
         assert status.configured is False
@@ -49,12 +52,13 @@ class TestGetStatus:
     def test_configured(self, tmp_path: Path) -> None:
         db_path = str(tmp_path / "dibble.db")
         ensure_database(db_path)
+        conn = create_connection(db_path)
         Path(db_path).touch()
         settings = Settings(
             database_path=db_path,
             llm_api_key="sk-test-123",
         )
-        user_store = SQLiteUserStore(db_path)
+        user_store = SQLiteUserStore(conn)
         service = SetupConfigService(settings, user_store=user_store)
         status = service.get_status()
         assert status.configured is True
@@ -67,11 +71,12 @@ class TestGetStatus:
     def test_embedding_key_reported(self, tmp_path: Path) -> None:
         db_path = str(tmp_path / "dibble.db")
         ensure_database(db_path)
+        conn = create_connection(db_path)
         settings = Settings(
             database_path=db_path,
             embedding_api_key="embed-key",
         )
-        service = SetupConfigService(settings, user_store=SQLiteUserStore(db_path))
+        service = SetupConfigService(settings, user_store=SQLiteUserStore(conn))
         status = service.get_status()
         assert status.has_embedding_key is True
 
@@ -137,7 +142,8 @@ class TestCreateInitialAdmin:
     def test_creates_admin(self, tmp_path: Path) -> None:
         db_path = str(tmp_path / "dibble.db")
         ensure_database(db_path)
-        user_store = SQLiteUserStore(db_path)
+        conn = create_connection(db_path)
+        user_store = SQLiteUserStore(conn)
         service = SetupConfigService(
             Settings(database_path=db_path), user_store=user_store
         )
@@ -162,7 +168,8 @@ class TestCreateInitialAdmin:
     def test_rejects_second_admin(self, tmp_path: Path) -> None:
         db_path = str(tmp_path / "dibble.db")
         ensure_database(db_path)
-        user_store = SQLiteUserStore(db_path)
+        conn = create_connection(db_path)
+        user_store = SQLiteUserStore(conn)
         service = SetupConfigService(
             Settings(database_path=db_path), user_store=user_store
         )

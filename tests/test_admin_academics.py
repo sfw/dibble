@@ -7,6 +7,7 @@ from dibble.app import create_app
 from dibble.config import Settings
 from dibble.models.auth import User
 from dibble.services.auth import hash_credential
+from dibble.services.sqlite_connection import create_connection
 from dibble.services.user_store import SQLiteUserStore
 from dibble.storage import ensure_database
 
@@ -21,7 +22,8 @@ def _make_app(tmp_path):
 
 
 def _seed_admin(db_path: str) -> None:
-    store = SQLiteUserStore(db_path)
+    conn = create_connection(db_path)
+    store = SQLiteUserStore(conn)
     now = datetime.now(timezone.utc).isoformat()
     store.create(
         User(
@@ -138,7 +140,8 @@ def test_admin_section_requires_existing_course(tmp_path):
 def test_admin_can_manage_section_memberships(tmp_path):
     app, db_path = _make_app(tmp_path)
     _seed_admin(db_path)
-    store = SQLiteUserStore(db_path)
+    conn = create_connection(db_path)
+    store = SQLiteUserStore(conn)
     now = datetime.now(timezone.utc).isoformat()
     store.create(
         User(
@@ -223,7 +226,8 @@ def test_admin_can_manage_section_memberships(tmp_path):
 def test_admin_section_memberships_validate_user_roles(tmp_path):
     app, db_path = _make_app(tmp_path)
     _seed_admin(db_path)
-    store = SQLiteUserStore(db_path)
+    conn = create_connection(db_path)
+    store = SQLiteUserStore(conn)
     now = datetime.now(timezone.utc).isoformat()
     store.create(
         User(

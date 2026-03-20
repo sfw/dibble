@@ -1,4 +1,5 @@
 from dibble.services.audit_store import SQLiteAuditStore
+from dibble.services.sqlite_connection import create_connection
 
 from tests.support import build_profile
 
@@ -6,7 +7,8 @@ from tests.support import build_profile
 def test_observation_endpoint_updates_inferred_state_and_profile(
     client, student_id, app_settings
 ):
-    audit_store = SQLiteAuditStore(app_settings.database_path)
+    conn = create_connection(app_settings.database_path)
+    audit_store = SQLiteAuditStore(conn)
     client.put(
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, frustration="none", total_load=0.2),

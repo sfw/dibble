@@ -10,6 +10,7 @@ from dibble.services.router_calibration_signals import RouterCalibrationSignalSe
 from dibble.services.socratic_conversation_signals import (
     SocraticConversationSignalService,
 )
+from dibble.services.sqlite_connection import create_connection
 from dibble.services.within_session_adaptation import WithinSessionAdaptationService
 from dibble.services.within_session_controller_store import (
     SQLiteWithinSessionControllerStore,
@@ -22,7 +23,8 @@ def test_generation_mode_calibrator_raises_independence_for_strong_positive_prof
 ):
     database_path = str(tmp_path / "generation-mode-positive.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     audit_store.append(
         event_type="learning.calibration.profile",
@@ -72,7 +74,8 @@ def test_generation_mode_calibrator_raises_independence_for_strong_positive_prof
 def test_generation_mode_calibrator_adds_support_for_negative_run_summary(tmp_path):
     database_path = str(tmp_path / "generation-mode-negative.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     audit_store.append(
         event_type="learning.run.summary",
@@ -121,7 +124,8 @@ def test_generation_mode_calibrator_adds_support_for_negative_run_summary(tmp_pa
 def test_generation_mode_calibrator_uses_improving_progress_profile(tmp_path):
     database_path = str(tmp_path / "generation-mode-progress-profile.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     audit_store.append(
         event_type="learning.progress.profile",
@@ -176,7 +180,8 @@ def test_generation_mode_calibrator_can_use_strategy_profile_without_run_calibra
 ):
     database_path = str(tmp_path / "generation-mode-strategy-profile.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     audit_store.append(
         event_type="learning.strategy.profile",
@@ -242,7 +247,8 @@ def test_generation_mode_calibrator_exposes_transfer_sequence_for_independence_r
 ):
     database_path = str(tmp_path / "generation-mode-strategy-sequencing.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     audit_store.append(
         event_type="learning.strategy.profile",
@@ -301,7 +307,8 @@ def test_generation_mode_calibrator_uses_durable_state_profile_when_other_signal
 ):
     database_path = str(tmp_path / "generation-mode-state-profile.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     audit_store.append(
         event_type="learning.state.profile",
@@ -358,7 +365,8 @@ def test_generation_mode_calibrator_uses_durable_state_profile_when_other_signal
 def test_generation_mode_calibrator_surfaces_trait_profile_release_readiness(tmp_path):
     database_path = str(tmp_path / "generation-mode-trait-profile.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     audit_store.append(
         event_type="learning.cognitive_trait.profile",
@@ -410,7 +418,8 @@ def test_generation_mode_calibrator_uses_same_session_observation_to_raise_suppo
 ):
     database_path = str(tmp_path / "generation-mode-session-negative.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     audit_store.append(
         event_type="learner.observe",
@@ -463,7 +472,8 @@ def test_generation_mode_calibrator_uses_same_session_assessment_to_attempt_tran
 ):
     database_path = str(tmp_path / "generation-mode-session-positive.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     audit_store.append(
         event_type="assessment.socratic",
@@ -517,8 +527,9 @@ def test_generation_mode_calibrator_uses_persisted_session_controller_metadata(
 ):
     database_path = str(tmp_path / "generation-mode-session-controller.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
-    controller_store = SQLiteWithinSessionControllerStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
+    controller_store = SQLiteWithinSessionControllerStore(conn)
     student_id = uuid4()
     service = WithinSessionAdaptationService(
         audit_store=audit_store,
@@ -574,8 +585,9 @@ def test_generation_mode_calibrator_uses_persisted_session_controller_metadata(
 def test_generation_mode_calibrator_carries_session_arc_loop_metadata(tmp_path):
     database_path = str(tmp_path / "generation-mode-session-loop-risk.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
-    controller_store = SQLiteWithinSessionControllerStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
+    controller_store = SQLiteWithinSessionControllerStore(conn)
     student_id = uuid4()
     service = WithinSessionAdaptationService(
         audit_store=audit_store,
@@ -639,7 +651,8 @@ def test_generation_mode_calibrator_carries_session_arc_loop_metadata(tmp_path):
 def test_generation_mode_calibrator_carries_recent_socratic_prompt_metadata(tmp_path):
     database_path = str(tmp_path / "generation-mode-session-socratic-steering.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     audit_store.append(
         event_type="assessment.socratic",
@@ -696,7 +709,8 @@ def test_generation_mode_calibrator_prefers_explicit_socratic_steering_action_ov
 ):
     database_path = str(tmp_path / "generation-mode-session-explicit-steering.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     audit_store.append(
         event_type="assessment.socratic",
@@ -745,7 +759,8 @@ def test_generation_mode_calibrator_carries_current_evidence_guardrail_from_sess
 ):
     database_path = str(tmp_path / "generation-mode-session-current-evidence.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     audit_store.append(
         event_type="learner.observe",
@@ -802,7 +817,8 @@ def test_generation_mode_calibrator_can_use_durable_socratic_history_when_sessio
 ):
     database_path = str(tmp_path / "generation-mode-durable-socratic.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     for session_id, steering_action in [
         ("session-a", "verify_transfer"),

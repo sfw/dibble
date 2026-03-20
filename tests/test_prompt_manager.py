@@ -5,6 +5,7 @@ from dibble.models.generation import GenerationModeCalibration, RequestedContent
 from dibble.services.socratic_prompt_selector import SocraticPromptSelector
 from dibble.services.generation_prompt_selector import GenerationPromptSelector
 from dibble.services.audit_store import SQLiteAuditStore
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
@@ -64,7 +65,8 @@ def test_prompt_manager_experiments_on_assessment_probes():
 def test_prompt_manager_can_adaptively_select_assessment_probe_variant(tmp_path):
     database_path = str(tmp_path / "prompt-manager-selector.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     for score in (0.76, 0.82):
         audit_store.append(
             event_type="assessment.socratic",
@@ -109,7 +111,8 @@ def test_prompt_manager_can_adaptively_select_assessment_probe_variant(tmp_path)
 def test_prompt_manager_can_adaptively_select_generation_variant(tmp_path):
     database_path = str(tmp_path / "prompt-manager-generation-selector.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     for quality_score in (0.91, 0.96):
         audit_store.append(
             event_type="content.generate",
@@ -158,7 +161,8 @@ def test_prompt_manager_can_use_recent_socratic_steering_for_generation_variant(
 ):
     database_path = str(tmp_path / "prompt-manager-socratic-steering.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     manager = PromptManager(
         library_version="1.0",
         experiment_enabled=True,
@@ -189,7 +193,8 @@ def test_prompt_manager_uses_guided_reflection_for_restate_then_apply_socratic_f
 ):
     database_path = str(tmp_path / "prompt-manager-socratic-restate.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     manager = PromptManager(
         library_version="1.0",
         experiment_enabled=True,

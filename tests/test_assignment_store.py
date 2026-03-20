@@ -2,13 +2,15 @@ from __future__ import annotations
 
 from dibble.models.assignment import Assignment, AssignmentStatus
 from dibble.services.assignment_store import SQLiteAssignmentStore
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
 def _make_store(tmp_path) -> SQLiteAssignmentStore:
     db = str(tmp_path / "test.db")
     ensure_database(db)
-    return SQLiteAssignmentStore(db)
+    conn = create_connection(db)
+    return SQLiteAssignmentStore(conn)
 
 
 def _make_assignment(**overrides) -> Assignment:

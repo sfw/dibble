@@ -3,6 +3,7 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 from dibble.app import create_app
+from dibble.services.sqlite_connection import create_connection
 
 from tests.support import (
     assert_machine_readable_error,
@@ -125,7 +126,8 @@ def test_profile_summary_exposes_recent_calibration_and_activity(
 ):
     from dibble.services.audit_store import SQLiteAuditStore
 
-    audit_store = SQLiteAuditStore(app_settings.database_path)
+    conn = create_connection(app_settings.database_path)
+    audit_store = SQLiteAuditStore(conn)
     client.put(
         f"/api/learners/{student_id}/profile",
         json=build_profile(student_id, engagement="high", help_seeking="medium"),

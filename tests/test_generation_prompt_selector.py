@@ -3,13 +3,15 @@ from __future__ import annotations
 from dibble.models.generation import GenerationModeCalibration, RequestedContentType
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.generation_prompt_selector import GenerationPromptSelector
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
 def test_generation_prompt_selector_prefers_higher_quality_variant(tmp_path):
     database_path = str(tmp_path / "generation-selector.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     selector = GenerationPromptSelector(
         audit_store=audit_store, min_samples_per_variant=2
     )
@@ -53,7 +55,8 @@ def test_generation_prompt_selector_prefers_higher_quality_variant(tmp_path):
 def test_generation_prompt_selector_falls_back_when_samples_are_sparse(tmp_path):
     database_path = str(tmp_path / "generation-selector-sparse.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     selector = GenerationPromptSelector(
         audit_store=audit_store, min_samples_per_variant=2
     )
@@ -83,7 +86,8 @@ def test_generation_prompt_selector_falls_back_when_samples_are_sparse(tmp_path)
 def test_generation_prompt_selector_can_prefer_better_downstream_outcome(tmp_path):
     database_path = str(tmp_path / "generation-selector-outcomes.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     selector = GenerationPromptSelector(
         audit_store=audit_store, min_samples_per_variant=2
     )
@@ -161,7 +165,8 @@ def test_generation_prompt_selector_can_prefer_variant_with_stronger_same_sessio
 ):
     database_path = str(tmp_path / "generation-selector-assessment.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     selector = GenerationPromptSelector(
         audit_store=audit_store, min_samples_per_variant=2
     )
@@ -238,7 +243,8 @@ def test_generation_prompt_selector_can_prefer_variant_with_stronger_same_sessio
 def test_generation_prompt_selector_can_prefer_deeper_session_trace(tmp_path):
     database_path = str(tmp_path / "generation-selector-trace-depth.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     selector = GenerationPromptSelector(
         audit_store=audit_store, min_samples_per_variant=2
     )
@@ -316,7 +322,8 @@ def test_generation_prompt_selector_can_prefer_deeper_session_trace(tmp_path):
 def test_generation_prompt_selector_uses_session_arc_to_break_support_loop(tmp_path):
     database_path = str(tmp_path / "generation-selector-session-arc.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     selector = GenerationPromptSelector(
         audit_store=audit_store, min_samples_per_variant=2
     )
@@ -343,8 +350,9 @@ def test_generation_prompt_selector_steers_guided_reflection_for_reliable_overlo
 ):
     database_path = str(tmp_path / "generation-selector-state-steer.db")
     ensure_database(database_path)
+    conn = create_connection(database_path)
     selector = GenerationPromptSelector(
-        audit_store=SQLiteAuditStore(database_path), min_samples_per_variant=2
+        audit_store=SQLiteAuditStore(conn), min_samples_per_variant=2
     )
 
     variant = selector.select_variant(
@@ -364,8 +372,9 @@ def test_generation_prompt_selector_steers_guided_reflection_for_reliable_overlo
 def test_generation_prompt_selector_steers_baseline_for_stable_trait_release(tmp_path):
     database_path = str(tmp_path / "generation-selector-trait-steer.db")
     ensure_database(database_path)
+    conn = create_connection(database_path)
     selector = GenerationPromptSelector(
-        audit_store=SQLiteAuditStore(database_path), min_samples_per_variant=2
+        audit_store=SQLiteAuditStore(conn), min_samples_per_variant=2
     )
 
     variant = selector.select_variant(
@@ -388,7 +397,8 @@ def test_generation_prompt_selector_prefers_variant_with_stronger_persisted_run_
 ):
     database_path = str(tmp_path / "generation-selector-persisted-summary.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     selector = GenerationPromptSelector(
         audit_store=audit_store, min_samples_per_variant=2
     )
@@ -477,7 +487,8 @@ def test_generation_prompt_selector_can_prefer_better_cross_generation_session_o
 ):
     database_path = str(tmp_path / "generation-selector-session-run.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     selector = GenerationPromptSelector(
         audit_store=audit_store, min_samples_per_variant=2
     )
@@ -588,7 +599,8 @@ def test_generation_prompt_selector_can_prefer_better_cross_generation_session_o
 def test_generation_prompt_selector_can_use_durable_socratic_profile_signal(tmp_path):
     database_path = str(tmp_path / "generation-selector-durable-socratic.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     selector = GenerationPromptSelector(audit_store=audit_store)
 
     variant = selector.select_variant(
@@ -607,7 +619,8 @@ def test_generation_prompt_selector_can_use_durable_socratic_profile_signal(tmp_
 def test_generation_prompt_selector_can_prefer_stronger_positive_run_signal(tmp_path):
     database_path = str(tmp_path / "generation-selector-run-signal.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     selector = GenerationPromptSelector(
         audit_store=audit_store, min_samples_per_variant=2
     )

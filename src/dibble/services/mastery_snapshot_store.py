@@ -8,8 +8,8 @@ from dibble.models.mastery_history import MasterySnapshot
 
 
 class SQLiteMasterySnapshotStore:
-    def __init__(self, database_path: str) -> None:
-        self.database_path = database_path
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        self._conn = connection
 
     def record(
         self,
@@ -41,34 +41,33 @@ class SQLiteMasterySnapshotStore:
             total_load=total_load,
             created_at=now,
         )
-        with sqlite3.connect(self.database_path) as connection:
-            connection.execute(
-                """
-                INSERT INTO mastery_snapshots(
-                    snapshot_id, student_id,
-                    overall_kc_mastery, overall_lo_mastery,
-                    kc_count, lo_count,
-                    mastered_kc_count, struggling_kc_count,
-                    engagement, frustration, total_load,
-                    created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    snapshot_id,
-                    student_id,
-                    round(overall_kc_mastery, 4),
-                    round(overall_lo_mastery, 4),
-                    kc_count,
-                    lo_count,
-                    mastered_kc_count,
-                    struggling_kc_count,
-                    engagement,
-                    frustration,
-                    round(total_load, 4),
-                    now.isoformat(),
-                ),
-            )
-            connection.commit()
+        self._conn.execute(
+            """
+            INSERT INTO mastery_snapshots(
+                snapshot_id, student_id,
+                overall_kc_mastery, overall_lo_mastery,
+                kc_count, lo_count,
+                mastered_kc_count, struggling_kc_count,
+                engagement, frustration, total_load,
+                created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                snapshot_id,
+                student_id,
+                round(overall_kc_mastery, 4),
+                round(overall_lo_mastery, 4),
+                kc_count,
+                lo_count,
+                mastered_kc_count,
+                struggling_kc_count,
+                engagement,
+                frustration,
+                round(total_load, 4),
+                now.isoformat(),
+            ),
+        )
+        self._conn.commit()
         return snapshot
 
     def list_for_student(
@@ -79,22 +78,21 @@ class SQLiteMasterySnapshotStore:
         limit: int = 500,
     ) -> list[MasterySnapshot]:
         cutoff = datetime.now(timezone.utc) - timedelta(days=max(1, days))
-        with sqlite3.connect(self.database_path) as connection:
-            rows = connection.execute(
-                """
-                SELECT snapshot_id, student_id,
-                       overall_kc_mastery, overall_lo_mastery,
-                       kc_count, lo_count,
-                       mastered_kc_count, struggling_kc_count,
-                       engagement, frustration, total_load,
-                       created_at
-                FROM mastery_snapshots
-                WHERE student_id = ? AND created_at >= ?
-                ORDER BY created_at ASC
-                LIMIT ?
-                """,
-                (student_id, cutoff.isoformat(), limit),
-            ).fetchall()
+        rows = self._conn.execute(
+            """
+            SELECT snapshot_id, student_id,
+                   overall_kc_mastery, overall_lo_mastery,
+                   kc_count, lo_count,
+                   mastered_kc_count, struggling_kc_count,
+                   engagement, frustration, total_load,
+                   created_at
+            FROM mastery_snapshots
+            WHERE student_id = ? AND created_at >= ?
+            ORDER BY created_at ASC
+            LIMIT ?
+            """,
+            (student_id, cutoff.isoformat(), limit),
+        ).fetchall()
         return [self._row_to_snapshot(row) for row in rows]
 
     def _row_to_snapshot(self, row: tuple) -> MasterySnapshot:

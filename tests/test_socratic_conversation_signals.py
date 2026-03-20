@@ -5,6 +5,7 @@ from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.socratic_conversation_signals import (
     SocraticConversationSignalService,
 )
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
@@ -13,7 +14,8 @@ def test_socratic_conversation_signal_service_detects_model_then_release_history
 ):
     database_path = str(tmp_path / "socratic-conversation-model.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_uuid = uuid4()
     student_id = str(student_uuid)
     for session_id, steering_action, evidence_strength in [
@@ -58,7 +60,8 @@ def test_socratic_conversation_signal_service_detects_model_then_release_history
 def test_socratic_conversation_signal_service_detects_transfer_ready_history(tmp_path):
     database_path = str(tmp_path / "socratic-conversation-transfer.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_uuid = uuid4()
     student_id = str(student_uuid)
     for session_id, steering_action in [

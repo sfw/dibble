@@ -4,13 +4,15 @@ from dibble.models.generation import GenerationRequest
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.learner_strategy_signal import LearnerStrategySignalService
 from dibble.services.learning_strategy_recorder import LearningStrategyProfileRecorder
+from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
 
 def test_learning_strategy_profile_recorder_persists_support_intensive_signal(tmp_path):
     database_path = str(tmp_path / "learning-strategy-profile.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     recorder = LearningStrategyProfileRecorder(audit_store=audit_store)
     student_id = str(uuid4())
 
@@ -68,7 +70,8 @@ def test_learning_strategy_profile_recorder_persists_support_intensive_signal(tm
 def test_learner_strategy_signal_service_prefers_matching_strategy_profile(tmp_path):
     database_path = str(tmp_path / "learner-strategy-service.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     audit_store.append(
         event_type="learning.strategy.profile",
@@ -121,7 +124,8 @@ def test_learner_strategy_signal_service_derives_plateau_from_progress_profiles(
 ):
     database_path = str(tmp_path / "learner-strategy-plateau.db")
     ensure_database(database_path)
-    audit_store = SQLiteAuditStore(database_path)
+    conn = create_connection(database_path)
+    audit_store = SQLiteAuditStore(conn)
     student_id = str(uuid4())
     audit_store.append(
         event_type="learning.progress.profile",
