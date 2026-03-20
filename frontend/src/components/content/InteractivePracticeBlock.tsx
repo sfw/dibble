@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { CheckCircle2, Circle, ArrowRight } from 'lucide-react'
+import { CheckCircle2, Circle, XCircle, ArrowRight } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -26,6 +26,7 @@ export function InteractivePracticeBlock({
   const interaction = block.interaction
   const startedAt = useRef<number | null>(null)
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null)
+  const [submitted, setSubmitted] = useState(false)
   const [responseText, setResponseText] = useState('')
 
   if (interaction?.type !== 'multiple_choice') {
@@ -47,11 +48,14 @@ export function InteractivePracticeBlock({
         <p className="text-base font-medium leading-7 text-slate-900">{interaction.prompt}</p>
         {interaction.options.map((option) => {
           const selected = option.option_id === selectedOptionId
+          const isCorrectOption = option.option_id === interaction.correct_option_id
+          const showCorrect = submitted && isCorrectOption
+          const showIncorrect = submitted && selected && !isCorrectOption
           return (
             <button
               key={option.option_id}
               type="button"
-              disabled={disabled}
+              disabled={disabled || submitted}
               onClick={() => {
                 if (startedAt.current === null) {
                   startedAt.current = Date.now()
@@ -60,23 +64,33 @@ export function InteractivePracticeBlock({
               }}
               className={[
                 'w-full rounded-xl border px-4 py-4 text-left transition-colors',
-                selected
+                showCorrect
                   ? 'border-emerald-500 bg-emerald-50 shadow-sm'
-                  : 'border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white',
-                disabled ? 'cursor-not-allowed opacity-70' : '',
+                  : showIncorrect
+                    ? 'border-red-400 bg-red-50 shadow-sm'
+                    : selected
+                      ? 'border-emerald-500 bg-emerald-50 shadow-sm'
+                      : 'border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white',
+                disabled || submitted ? 'cursor-not-allowed opacity-70' : '',
               ].join(' ')}
             >
               <div className="flex items-start gap-3">
-                {selected ? (
+                {showCorrect ? (
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+                ) : showIncorrect ? (
+                  <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />
+                ) : selected ? (
                   <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
                 ) : (
                   <Circle className="mt-0.5 h-5 w-5 shrink-0 text-slate-400" />
                 )}
                 <div className="space-y-1">
                   <p className="text-sm font-semibold text-slate-900">{option.label}</p>
-                  <p className="whitespace-pre-line text-sm leading-6 text-slate-700">
-                    {option.body}
-                  </p>
+                  {submitted && option.body && (
+                    <p className="whitespace-pre-line text-sm leading-6 text-slate-700">
+                      {option.body}
+                    </p>
+                  )}
                 </div>
               </div>
             </button>
@@ -107,6 +121,7 @@ export function InteractivePracticeBlock({
           if (!selectedOptionId) {
             return
           }
+          setSubmitted(true)
           onSubmit({
             blockId: block.block_id ?? block.title,
             selectedOptionId,
