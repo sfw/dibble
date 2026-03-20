@@ -88,7 +88,9 @@ class SQLiteGeneratedContentStore:
             return None
         return generation_content
 
-    def get(self, *, generation_id: str) -> GeneratedContent | None:
+    def get(
+        self, *, generation_id: str, now: datetime | None = None
+    ) -> GeneratedContent | None:
         row = self._conn.execute(
             """
             SELECT generation_id, student_id, content_type, request_context, workflow_summary_payload, response_payload, quality_payload, created_at, expires_at
@@ -99,7 +101,11 @@ class SQLiteGeneratedContentStore:
         ).fetchone()
         if row is None:
             return None
-        return self._content_from_row(row)
+        content = self._content_from_row(row)
+        comparison_time = now or datetime.now(timezone.utc)
+        if content.expires_at is not None and content.expires_at <= comparison_time:
+            return None
+        return content
 
     def refresh(self, *, content: GeneratedContent) -> GeneratedContent:
         self._conn.execute(
