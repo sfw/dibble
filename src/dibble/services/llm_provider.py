@@ -180,6 +180,19 @@ class LLMOrchestrationProvider:
             or build_prompt_manager_from_settings(settings),
         )
         provider.debug_prompts = settings.llm_debug_prompts_enabled
+        if clients:
+            logger.info(
+                "LLM provider ready with %d client(s): %s",
+                len(clients),
+                ", ".join(f"{n} ({client_models.get(n, '?')})" for n, _ in clients),
+            )
+        else:
+            logger.warning(
+                "No LLM clients configured (llm_api_key=%s, llm_model=%s). "
+                "All generation will use mock fallback.",
+                "set" if settings.llm_api_key else "MISSING",
+                settings.llm_model or "MISSING",
+            )
         return provider
 
     def generate(
@@ -221,11 +234,17 @@ class LLMOrchestrationProvider:
                 )
                 return blocks
             except (LLMClientError, LLMProviderError):
+                logger.warning(
+                    "LLM client %r failed, trying next",
+                    name,
+                    exc_info=True,
+                )
                 self._record_failure(
                     name, latency_ms=(self.time_provider() - started_at) * 1000.0
                 )
                 continue
 
+        logger.warning("All LLM clients exhausted; falling back to mock provider")
         return self._fallback(
             profile, request, route, grounding, prompts, "LLM call failed."
         )
@@ -276,11 +295,17 @@ class LLMOrchestrationProvider:
                 )
                 return
             except (LLMClientError, LLMProviderError):
+                logger.warning(
+                    "LLM stream client %r failed, trying next",
+                    name,
+                    exc_info=True,
+                )
                 self._record_failure(
                     name, latency_ms=(self.time_provider() - started_at) * 1000.0
                 )
                 continue
 
+        logger.warning("All LLM stream clients exhausted; falling back to mock provider")
         yield from iter_block_chunks(
             self._fallback(
                 profile, request, route, grounding, prompts, "LLM stream failed."
