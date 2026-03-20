@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
@@ -29,6 +30,8 @@ from dibble.services.content_moderation import ContentModerationService
 from dibble.services.generation_modes import build_generation_mode_plan
 from dibble.services.protocols import GeneratedContentStore
 
+logger = logging.getLogger(__name__)
+
 
 class GenerationEngine:
     def __init__(
@@ -51,10 +54,24 @@ class GenerationEngine:
         self.cache_ttl_seconds = max(0, cache_ttl_seconds)
         self.time_provider = time_provider
 
+    def _safe_retrieve(
+        self, profile: LearnerProfile, request: GenerationRequest
+    ) -> list[GroundingReference]:
+        """Retrieve grounding references, falling back to empty on error."""
+        try:
+            return self.retriever.retrieve(profile, request)
+        except Exception:
+            logger.warning(
+                "Retriever failed for student %s; proceeding without grounding",
+                profile.student_id,
+                exc_info=True,
+            )
+            return []
+
     def generate(
         self, profile: LearnerProfile, request: GenerationRequest
     ) -> GenerationResponse:
-        grounding = self.retriever.retrieve(profile, request)
+        grounding = self._safe_retrieve(profile, request)
         route = self.router.route(profile, request)
         cache_key = self._cache_key(profile, request, route, grounding)
         cached = self._get_cached_content(cache_key=cache_key)
@@ -120,7 +137,7 @@ class GenerationEngine:
     def stream_generate(
         self, profile: LearnerProfile, request: GenerationRequest
     ) -> Iterator[GenerationStreamEvent]:
-        grounding = self.retriever.retrieve(profile, request)
+        grounding = self._safe_retrieve(profile, request)
         route = self.router.route(profile, request)
         cache_key = self._cache_key(profile, request, route, grounding)
         cached = self._get_cached_content(cache_key=cache_key)
