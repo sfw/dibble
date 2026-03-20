@@ -29,6 +29,7 @@ export function LearnerHome() {
   const artifact = workspace.active_artifact
   const continueAction = workspace.continue_action
   const isIdle = continueAction.kind === 'idle'
+  const activeOutcome = progression.current_outcome ?? progression.next_outcome
 
   function handleResume() {
     if (continueAction.kind === 'continue_socratic' && flow.socratic_session_id) {
@@ -52,8 +53,8 @@ export function LearnerHome() {
         <p className="mt-1 text-muted-foreground">
           {isIdle
             ? "You're all caught up. Check your progress or review past work."
-            : progression.current_outcome?.title
-              ? `Your ${learnerFlowType(flow.flow_type).toLowerCase()} on ${progression.current_outcome.title} is ready.`
+            : activeOutcome?.title
+              ? `Your ${learnerFlowType(flow.flow_type).toLowerCase()} on ${activeOutcome.title} is ready.`
               : `You have a ${learnerFlowType(flow.flow_type).toLowerCase()} ready to continue.`}
         </p>
       </section>
@@ -72,13 +73,13 @@ export function LearnerHome() {
               <h2 className="mt-1 text-lg font-semibold">
                 {learnerContinueAction(continueAction.kind, continueAction.display_label)}
               </h2>
-              {progression.current_outcome?.title && (
+              {activeOutcome?.title && (
                 <p className="mt-0.5 text-sm text-muted-foreground">
-                  {progression.current_outcome.title}
+                  {activeOutcome.title}
                   {artifact.content_type ? ` \u2022 ${learnerContentType(artifact.content_type)}` : ''}
                 </p>
               )}
-              {!progression.current_outcome?.title && artifact.content_type && (
+              {!activeOutcome?.title && artifact.content_type && (
                 <p className="mt-0.5 text-sm text-muted-foreground">
                   {learnerContentType(artifact.content_type)}
                 </p>
@@ -110,7 +111,7 @@ export function LearnerHome() {
           />
           <FocusItem
             label="Working on"
-            value={progression.current_outcome?.title ?? 'No active outcome'}
+            value={activeOutcome?.title ?? 'No active outcome'}
           />
         </div>
         {flow.rationale && (

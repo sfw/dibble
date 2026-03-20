@@ -53,6 +53,7 @@ class Settings:
     auth_refresh_ttl_seconds: int = 604800
     generation_cache_ttl_seconds: int = 3600
     predictive_warm_inline_process_limit: int = 2
+    llm_debug_prompts_enabled: bool = False
 
 
 # ---------------------------------------------------------------------------
