@@ -112,6 +112,12 @@ export const systemConfigSections: SystemConfigSectionDefinition[] = [
         description: 'Permit mock responses when no real provider is available.',
         input: 'boolean',
       },
+      {
+        key: 'llm_debug_prompts_enabled',
+        label: 'Debug prompts',
+        description: 'Log all LLM system and user prompts to the backend console at INFO level.',
+        input: 'boolean',
+      },
     ],
   },
   {

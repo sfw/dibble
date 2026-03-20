@@ -991,6 +991,7 @@ export interface SystemConfigValues {
   auth_refresh_ttl_seconds: number
   generation_cache_ttl_seconds: number
   predictive_warm_inline_process_limit: number
+  llm_debug_prompts_enabled: boolean
 }
 
 export interface SystemConfigResponse {

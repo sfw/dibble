@@ -26,7 +26,7 @@ class AdminConfigService:
     def update_config(
         self, request: SystemConfigUpdateRequest
     ) -> SystemConfigUpdateResponse:
-        path = write_config_toml(request.model_dump())
+        path = write_config_toml(request.model_dump(exclude_none=True))
         return SystemConfigUpdateResponse(
             status="ok",
             config_path=str(path),
