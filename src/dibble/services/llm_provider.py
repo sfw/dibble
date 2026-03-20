@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Iterator
 from dataclasses import dataclass
 from time import monotonic
@@ -27,6 +28,8 @@ from dibble.services.prompt_manager import PromptManager
 from dibble.services.generation_prompt_selector import GenerationPromptSelector
 from dibble.services.socratic_prompt_selector import SocraticPromptSelector
 from dibble.services.streaming import iter_block_chunks
+
+logger = logging.getLogger(__name__)
 
 
 class LLMProviderError(RuntimeError):
@@ -141,6 +144,7 @@ class LLMOrchestrationProvider:
         self.client_states = {name: ClientCircuitState() for name, _ in clients}
         self.health_store = health_store
         self.prompt_manager = prompt_manager or PromptManager()
+        self.debug_prompts = False
         self.round_robin_cursor = 0
         self.last_used_descriptor = {
             "provider_name": None,
@@ -164,7 +168,7 @@ class LLMOrchestrationProvider:
         )
         clients, client_models = build_llm_clients(settings)
 
-        return cls(
+        provider = cls(
             clients=clients,
             client_models=client_models,
             fallback_provider=fallback_provider,
@@ -175,6 +179,8 @@ class LLMOrchestrationProvider:
             prompt_manager=prompt_manager
             or build_prompt_manager_from_settings(settings),
         )
+        provider.debug_prompts = settings.llm_debug_prompts_enabled
+        return provider
 
     def generate(
         self,
@@ -190,6 +196,7 @@ class LLMOrchestrationProvider:
             grounding,
             prompt_manager=self.prompt_manager,
         )
+        self._log_prompts(prompts)
         if not self.clients:
             return self._fallback(
                 profile,
@@ -237,6 +244,7 @@ class LLMOrchestrationProvider:
             grounding,
             prompt_manager=self.prompt_manager,
         )
+        self._log_prompts(prompts)
         if not self.clients:
             yield from iter_block_chunks(
                 self._fallback(
@@ -415,6 +423,21 @@ class LLMOrchestrationProvider:
         if self.health_store is None:
             return
         self.health_store.append(provider_name=name, status=status, detail=detail)
+
+    def _log_prompts(self, prompts) -> None:
+        if not self.debug_prompts:
+            return
+        logger.info(
+            "[LLM DEBUG] template=%s v=%s variant=%s\n"
+            "--- SYSTEM PROMPT ---\n%s\n"
+            "--- USER PROMPT ---\n%s\n"
+            "--- END ---",
+            prompts.template_name,
+            prompts.template_version,
+            prompts.template_variant,
+            prompts.system_prompt,
+            prompts.user_prompt,
+        )
 
     def _set_last_used_descriptor(self, name: str, prompts) -> None:
         self.last_used_descriptor = {
