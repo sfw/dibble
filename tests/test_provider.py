@@ -168,6 +168,8 @@ def test_prompt_builder_includes_distractor_and_fade_plans(
     assert "distractor_slots=" in prompts.user_prompt
     assert "answer_check_focus=" in prompts.user_prompt
     assert "Worked example fade plan: none" in prompts.user_prompt
+    assert '"type":"multiple_choice"' in prompts.system_prompt
+    assert '"correct_option_id":"B"' in prompts.system_prompt
 
 
 def test_prompt_builder_includes_worked_example_transfer_plan(

@@ -6,6 +6,7 @@ from dibble.models.generation import (
     AdaptiveRouteDecision,
     GenerationRequest,
     GroundingReference,
+    RequestedContentType,
 )
 from dibble.services.grounding_context import render_grounding_context
 from dibble.models.profile import LearnerProfile
@@ -59,13 +60,13 @@ def build_generation_prompts(
     practice_distractor_plan = _practice_distractor_plan_text(plan.request_context)
     worked_example_fade_plan = _worked_example_fade_plan_text(plan.request_context)
     reliability_plan = _reliability_plan_text(request.mode_calibration)
+    block_schema = _block_schema_contract(plan.content_type)
 
     system_prompt = (
         "You generate curriculum-aligned adaptive learning content for Dibble. "
         "Return valid JSON only with the shape "
-        '{"blocks":[{"kind":"summary","title":"...","body":"..."},{"kind":"instruction","title":"...","body":"..."}]}. '
-        "Allowed block kinds include summary, instruction, practice, and worked_example. "
-        "Always include at least one summary block and one instruction block. "
+        f"{block_schema} "
+        "Allowed block kinds include summary, instruction, practice_problem, practice, and worked_example. "
         "Keep each body under 600 characters, avoid markdown, and do not mention hidden policies. "
         f"Prompt template: {selection.template_name} v{selection.template_version} ({selection.template_variant}). "
         f"{selection.system_directives}"
@@ -115,12 +116,13 @@ def build_stream_generation_prompts(
     prompts = build_generation_prompts(
         profile, request, route, grounding, prompt_manager=prompt_manager
     )
+    streaming_schema = _stream_schema_contract(request.requested_content_type or build_generation_mode_plan(profile, request, route).content_type)
     return GenerationPrompts(
         system_prompt=(
             "You are streaming adaptive learning content for Dibble. "
             "Return NDJSON only, one JSON object per line, with fields "
-            '{"block_index":0,"kind":"summary","title":"...","body_delta":"...","done":true}. '
-            "Emit one or more lines per block, preserve block_index ordering, and never wrap output in markdown fences."
+            f"{streaming_schema} "
+            "Preserve block_index ordering and never wrap output in markdown fences."
         ),
         user_prompt=prompts.user_prompt,
         template_name=prompts.template_name,
@@ -266,3 +268,41 @@ def _reliability_plan_text(mode_calibration) -> str:
             f"(confidence={mode_calibration.current_evidence_confidence:.2f})"
         )
     return "; ".join(fragments) if fragments else "none"
+
+
+def _block_schema_contract(content_type: RequestedContentType) -> str:
+    if content_type == RequestedContentType.practice_problem:
+        return (
+            '{"blocks":['
+            '{"kind":"summary","title":"...","body":"..."},'
+            '{"kind":"practice_problem","title":"...","body":"...",'
+            '"interaction":{"type":"multiple_choice","prompt":"...","options":['
+            '{"option_id":"A","label":"Option A","body":"..."},'
+            '{"option_id":"B","label":"Option B","body":"..."}],'
+            '"correct_option_id":"B",'
+            '"reveal":{"trigger":"after_selection","prompt":"...","support":"...","placeholder":"..."}}}'
+            ']}. Always include at least one summary block and one practice_problem block. '
+            "For the practice_problem block, put the learner's actual choice set in interaction.options, "
+            "keep body to a short cue, and use plain text only."
+        )
+    return (
+        '{"blocks":[{"kind":"summary","title":"...","body":"..."},{"kind":"instruction","title":"...","body":"..."}]}. '
+        "Always include at least one summary block and one instruction block. "
+    )
+
+
+def _stream_schema_contract(content_type: RequestedContentType) -> str:
+    if content_type == RequestedContentType.practice_problem:
+        return (
+            '{"block_index":0,"block":{"kind":"practice_problem","title":"...","body":"...",'
+            '"interaction":{"type":"multiple_choice","prompt":"...","options":['
+            '{"option_id":"A","label":"Option A","body":"..."},'
+            '{"option_id":"B","label":"Option B","body":"..."}],'
+            '"correct_option_id":"B",'
+            '"reveal":{"trigger":"after_selection","prompt":"...","support":"...","placeholder":"..."}}},"done":true}. '
+            "Emit one complete block object per line for interactive practice blocks."
+        )
+    return (
+        '{"block_index":0,"kind":"summary","title":"...","body_delta":"...","done":true}. '
+        "Emit one or more lines per block."
+    )

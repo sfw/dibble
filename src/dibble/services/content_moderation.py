@@ -300,7 +300,18 @@ class ContentModerationService:
         )
 
     def moderate_blocks(self, blocks: list[GeneratedBlock]) -> ModerationResult:
-        text = " ".join(f"{block.title} {block.body}" for block in blocks)
+        fragments: list[str] = []
+        for block in blocks:
+            fragments.append(f"{block.title} {block.body}".strip())
+            if block.interaction is None:
+                continue
+            fragments.append(block.interaction.prompt)
+            fragments.extend(option.body for option in block.interaction.options)
+            if block.interaction.reveal is not None:
+                fragments.append(block.interaction.reveal.prompt)
+                if block.interaction.reveal.support:
+                    fragments.append(block.interaction.reveal.support)
+        text = " ".join(fragment for fragment in fragments if fragment)
         return self._moderate_text(
             text=text,
             stage="response",

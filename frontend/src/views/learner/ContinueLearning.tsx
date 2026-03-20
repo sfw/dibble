@@ -11,6 +11,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { learnerContentType, learnerContinueAction, learnerStage } from '../../lib/copy'
 import { useGenerationWorkspace } from '../../hooks/useGenerationWorkspace'
 import type { DataSource } from '../../app/workspace'
+import { recordLearnerObservation } from '../../api'
+import { parseList } from '../../lib/forms'
+import type { PracticeInteractionSubmission } from '../../components/content/InteractivePracticeBlock'
 
 export function ContinueLearning() {
   const { config, workspace, flow, progression, loading } = useOutletContext<LearnerContext>()
@@ -27,6 +30,8 @@ export function ContinueLearning() {
   })
 
   const [learnerResponse, setLearnerResponse] = useState('')
+  const [interactionError, setInteractionError] = useState('')
+  const [submittingInteraction, setSubmittingInteraction] = useState(false)
 
   // Auto-trigger content generation when arriving with no existing content
   const autoTriggered = useRef(false)
@@ -56,8 +61,13 @@ export function ContinueLearning() {
   const isStreaming = generation.streaming
   const displayBlocks = isStreaming ? generation.streamedBlocks : staticBlocks
   const hasContent = displayBlocks.length > 0
+  const interactivePracticeBlock = !isStreaming
+    ? (displayBlocks.find(
+        (block) => block.kind === 'practice_problem' && block.interaction?.type === 'multiple_choice',
+      ) ?? null)
+    : null
   const hasPracticePrompt = !isStreaming && hasContent && displayBlocks.some(
-    (b) => b.kind === 'practice_problem',
+    (b) => b.kind === 'practice_problem' && b.interaction?.type !== 'multiple_choice',
   )
 
   const masteryPercent = Math.round(
@@ -66,13 +76,73 @@ export function ContinueLearning() {
 
   function handleContinue() {
     if (hasPracticePrompt && learnerResponse.trim()) {
-      generation.setForm((current) => ({
-        ...current,
-        learner_prompt: learnerResponse.trim(),
-      }))
+      const nextPrompt = learnerResponse.trim()
+      void generation.handleStream({ learner_prompt: nextPrompt })
+      setLearnerResponse('')
+      return
     }
-    setLearnerResponse('')
     void generation.handleStream()
+  }
+
+  async function handlePracticeSubmit(submission: PracticeInteractionSubmission) {
+    const generationId = generation.result?.generation_id ?? workspace.generated_content?.generation_id ?? null
+    const requestContextSession =
+      typeof generation.result?.request_context?.learning_session_id === 'string'
+        ? generation.result.request_context.learning_session_id
+        : null
+    const learningSessionId =
+      requestContextSession ??
+      generation.form.learning_session_id ??
+      workspace.active_artifact.learning_session_id ??
+      flow.learning_session_id
+
+    setSubmittingInteraction(true)
+    setInteractionError('')
+    try {
+      await recordLearnerObservation(config, workspace.student_id, {
+        response_time_ms: submission.responseTimeMs,
+        hints_used: submission.hintsUsed,
+        error_count: submission.isCorrect ? 0 : 1,
+        completed: true,
+        confidence: submission.isCorrect ? 0.8 : 0.4,
+        task_type: 'practice',
+        support_level: 'medium',
+        learning_session_id: learningSessionId ?? null,
+        generation_id: generationId,
+        observed_content_type: generation.result?.content_type ?? workspace.active_artifact.content_type ?? 'practice_problem',
+        target_kc_ids: parseList(generation.form.target_kc_ids),
+        target_lo_ids: parseList(generation.form.target_lo_ids),
+        response_text: submission.responseText || null,
+        interaction_events: [
+          {
+            event_type: 'multiple_choice_selected',
+            block_id: submission.blockId,
+            selected_option_id: submission.selectedOptionId,
+            correct: submission.isCorrect,
+          },
+          {
+            event_type: 'reasoning_submitted',
+            block_id: submission.blockId,
+            selected_option_id: submission.selectedOptionId,
+            correct: submission.isCorrect,
+            response_text: submission.responseText || null,
+          },
+        ],
+      })
+
+      const learnerPrompt = [
+        `The learner selected option ${submission.selectedOptionId}.`,
+        submission.responseText ? `Reasoning: ${submission.responseText}` : null,
+      ]
+        .filter(Boolean)
+        .join(' ')
+
+      await generation.handleStream({ learner_prompt: learnerPrompt })
+    } catch (caughtError) {
+      setInteractionError(caughtError instanceof Error ? caughtError.message : 'Unable to record learner interaction.')
+    } finally {
+      setSubmittingInteraction(false)
+    }
   }
 
   return (
@@ -113,17 +183,21 @@ export function ContinueLearning() {
       )}
 
       {(hasContent || isStreaming) && (
-        <StreamingContent blocks={displayBlocks} streaming={isStreaming} />
+        <StreamingContent
+          blocks={displayBlocks}
+          streaming={isStreaming}
+          onPracticeSubmit={interactivePracticeBlock ? handlePracticeSubmit : undefined}
+        />
       )}
 
-      {generation.error && (
+      {(generation.error || interactionError) && (
         <div className="flex flex-col gap-2">
-          <ErrorBanner message={generation.error} />
+          <ErrorBanner message={generation.error || interactionError} />
           <Button
             variant="outline"
             size="sm"
             onClick={handleContinue}
-            disabled={loading || isStreaming}
+            disabled={loading || isStreaming || submittingInteraction}
             className="self-start"
           >
             Try again
@@ -149,7 +223,7 @@ export function ContinueLearning() {
           />
           <Button
             onClick={handleContinue}
-            disabled={loading || isStreaming || !learnerResponse.trim()}
+            disabled={loading || isStreaming || submittingInteraction || !learnerResponse.trim()}
             className="w-full transition-all"
             size="lg"
           >
@@ -176,11 +250,11 @@ export function ContinueLearning() {
       </div>
 
       {/* Next step CTA — hidden when practice response area is shown */}
-      {continueAction.kind !== 'idle' && !hasPracticePrompt && (
+      {continueAction.kind !== 'idle' && !hasPracticePrompt && !interactivePracticeBlock && (
         <Button
           size="lg"
           className="w-full transition-all"
-          disabled={loading || isStreaming}
+          disabled={loading || isStreaming || submittingInteraction}
           onClick={handleContinue}
         >
           {isStreaming ? 'Generating...' : learnerContinueAction(continueAction.kind, continueAction.display_label)}

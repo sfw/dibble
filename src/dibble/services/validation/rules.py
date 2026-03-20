@@ -37,7 +37,15 @@ class InstructionBlockRule:
     def validate(
         self, blocks: list[GeneratedBlock], grounding: list[GroundingReference]
     ) -> list[str]:
-        if any(block.kind == "instruction" for block in blocks):
+        if any(
+            block.kind == "instruction"
+            or (
+                block.kind == "practice_problem"
+                and block.interaction is not None
+                and block.interaction.reveal is not None
+            )
+            for block in blocks
+        ):
             return []
         return ["Generated content is missing an instructional block."]
 
@@ -66,7 +74,7 @@ class CurriculumAlignmentRule:
         if not any(block.kind == "instruction" for block in blocks):
             return []
 
-        combined_text = " ".join(f"{block.title} {block.body}" for block in blocks)
+        combined_text = " ".join(_block_text(block) for block in blocks)
         score = curriculum_alignment_score(combined_text, grounding)
         if score >= self.minimum_alignment_score:
             return []
@@ -91,7 +99,7 @@ class InstructionGroundingCoverageRule:
         if not instruction_blocks:
             return []
 
-        combined_text = " ".join(f"{block.title} {block.body}" for block in blocks)
+        combined_text = " ".join(_block_text(block) for block in blocks)
         if (
             curriculum_alignment_score(combined_text, grounding)
             < self.minimum_alignment_score
@@ -99,7 +107,7 @@ class InstructionGroundingCoverageRule:
             return []
 
         instruction_text = " ".join(
-            f"{block.title} {block.body}" for block in instruction_blocks
+            _block_text(block) for block in instruction_blocks
         )
         coverage_score = grounding_coverage_score(instruction_text, grounding)
         if coverage_score >= self.minimum_coverage_score:
@@ -122,7 +130,7 @@ class GradeLevelReadabilityRule:
         if target_grade is None or target_grade > 5:
             return []
 
-        combined_text = " ".join(block.body for block in blocks)
+        combined_text = " ".join(_block_text(block) for block in blocks)
         if not combined_text.strip():
             return []
 
@@ -177,9 +185,7 @@ class SafetyLanguageRule:
     def validate(
         self, blocks: list[GeneratedBlock], grounding: list[GroundingReference]
     ) -> list[str]:
-        combined_text = " ".join(
-            f"{block.title} {block.body}" for block in blocks
-        ).lower()
+        combined_text = " ".join(_block_text(block) for block in blocks).lower()
         if any(term in combined_text for term in self.flagged_terms):
             return [
                 "Generated content includes language that should trigger safety review before delivery."
@@ -192,7 +198,7 @@ class MathSanityRule:
     def validate(
         self, blocks: list[GeneratedBlock], grounding: list[GroundingReference]
     ) -> list[str]:
-        combined_text = " ".join(block.body for block in blocks)
+        combined_text = " ".join(_block_text(block) for block in blocks)
         invalid_equations = [
             check.expression
             for check in find_equation_checks(combined_text)
@@ -203,3 +209,15 @@ class MathSanityRule:
                 "Generated content includes a math statement that failed a basic arithmetic check."
             ]
         return []
+
+
+def _block_text(block: GeneratedBlock) -> str:
+    fragments = [block.title, block.body]
+    if block.interaction is not None:
+        fragments.append(block.interaction.prompt)
+        fragments.extend(option.body for option in block.interaction.options)
+        if block.interaction.reveal is not None:
+            fragments.append(block.interaction.reveal.prompt)
+            if block.interaction.reveal.support:
+                fragments.append(block.interaction.reveal.support)
+    return " ".join(fragment for fragment in fragments if fragment)

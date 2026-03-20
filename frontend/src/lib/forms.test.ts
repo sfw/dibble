@@ -117,4 +117,61 @@ describe('forms helpers', () => {
       },
     ])
   })
+
+  it('replaces a streamed block when the chunk carries a full block payload', () => {
+    expect(
+      applyStreamChunk([], {
+        block_index: 0,
+        kind: '',
+        title: '',
+        body_delta: '',
+        block: {
+          block_id: 'block-1',
+          kind: 'practice_problem',
+          title: 'Choose the Setup',
+          body: 'Select the correct setup.',
+          interaction: {
+            type: 'multiple_choice',
+            prompt: 'Which setup preserves place value?',
+            options: [
+              { option_id: 'A', label: 'Option A', body: 'Misaligned digits.' },
+              { option_id: 'B', label: 'Option B', body: 'Aligned decimals.' },
+            ],
+            correct_option_id: 'B',
+            reveal: {
+              trigger: 'after_selection',
+              prompt: 'Explain why the decimal points align.',
+              support: 'Keep tenths under tenths.',
+              placeholder: 'Explain your thinking.',
+            },
+            allow_retry: false,
+          },
+        },
+        done: true,
+      }),
+    ).toEqual([
+      {
+        block_id: 'block-1',
+        kind: 'practice_problem',
+        title: 'Choose the Setup',
+        body: 'Select the correct setup.',
+        interaction: {
+          type: 'multiple_choice',
+          prompt: 'Which setup preserves place value?',
+          options: [
+            { option_id: 'A', label: 'Option A', body: 'Misaligned digits.' },
+            { option_id: 'B', label: 'Option B', body: 'Aligned decimals.' },
+          ],
+          correct_option_id: 'B',
+          reveal: {
+            trigger: 'after_selection',
+            prompt: 'Explain why the decimal points align.',
+            support: 'Keep tenths under tenths.',
+            placeholder: 'Explain your thinking.',
+          },
+          allow_retry: false,
+        },
+      },
+    ])
+  })
 })

@@ -6,11 +6,14 @@ from uuid import uuid4
 from dibble.models.generation import (
     AdaptiveRouteDecision,
     DeliveryMode,
+    DeferredTextReveal,
     GeneratedBlock,
     GeneratedBlockChunk,
     GenerationRequest,
     GroundingReference,
     InterventionType,
+    MultipleChoiceInteraction,
+    MultipleChoiceOption,
 )
 from dibble.models.profile import LearnerProfile
 from dibble.services.generation_engine import GenerationEngine
@@ -182,6 +185,130 @@ def test_generation_engine_replaces_flagged_response_with_moderation_fallback():
     assert response.generation_metadata.moderation.replacement_block_count == 2
     assert "shame" not in " ".join(block.body.lower() for block in response.blocks)
     assert response.blocks[1].title == "Teacher-safe next step"
+
+
+def test_generation_engine_normalizes_markdown_multiple_choice_into_interactive_block():
+    profile = _profile()
+    provider = CountingProvider(
+        [
+            GeneratedBlock(
+                kind="summary",
+                title="Add Decimals",
+                body="Line up the decimal points before adding.",
+            ),
+            GeneratedBlock(
+                kind="summary",
+                title="Choose the Setup",
+                body=(
+                    "**Option A (Misalignment Mirror):**\n"
+                    "```\n4.25\n+ 1.8\n------\n4.43\n```\n"
+                    "*This lines up the rightmost digits.*\n\n"
+                    "**Option B (Structural Contrast):**\n"
+                    "```\n4.25\n+ 1.80\n------\n6.05\n```\n"
+                    "*This aligns the decimal points.*"
+                ),
+            ),
+            GeneratedBlock(
+                kind="summary",
+                title="Verify Your Reasoning",
+                body=(
+                    "**Answer Check:** Explain why Option B preserves place value.\n\n"
+                    "**Support:** Use grid paper to align the columns."
+                ),
+            ),
+        ]
+    )
+    engine = GenerationEngine(
+        retriever=StubRetriever(),
+        router=StubRouter(),
+        provider=provider,
+        validator=PassValidator(),
+    )
+
+    response = engine.generate(
+        profile,
+        GenerationRequest(
+            student_id=profile.student_id,
+            target_kc_ids=["KC-1"],
+            requested_content_type="practice_problem",
+            curriculum_context=["Equivalent fractions"],
+        ),
+    )
+
+    practice_block = response.blocks[1]
+    assert practice_block.kind == "practice_problem"
+    assert practice_block.interaction is not None
+    assert practice_block.interaction.type == "multiple_choice"
+    assert practice_block.interaction.correct_option_id == "B"
+    assert practice_block.interaction.reveal is not None
+    assert len(practice_block.interaction.options) == 2
+
+
+def test_generation_engine_stream_accepts_full_interactive_block_chunks():
+    profile = _profile()
+    provider = CountingProvider(
+        [
+            GeneratedBlock(
+                kind="practice_problem",
+                title="Choose the Setup",
+                body="Select the setup that preserves place value.",
+                interaction=MultipleChoiceInteraction(
+                    prompt="Which setup is correct?",
+                    options=[
+                        MultipleChoiceOption(
+                            option_id="A",
+                            label="Option A",
+                            body="Add by rightmost digit.",
+                        ),
+                        MultipleChoiceOption(
+                            option_id="B",
+                            label="Option B",
+                            body="Align the decimal points first.",
+                        ),
+                    ],
+                    correct_option_id="B",
+                    reveal=DeferredTextReveal(
+                        prompt="Explain why the decimal points must align.",
+                        support="Keep tenths under tenths.",
+                    ),
+                ),
+            )
+        ]
+    )
+
+    def interactive_stream_generate(
+        profile, request, route, grounding
+    ) -> Iterator[GeneratedBlockChunk]:
+        yield GeneratedBlockChunk(
+            block_index=0,
+            block=provider.blocks[0],
+            done=True,
+        )
+
+    provider.stream_generate = interactive_stream_generate  # type: ignore[method-assign]
+    engine = GenerationEngine(
+        retriever=StubRetriever(),
+        router=StubRouter(),
+        provider=provider,
+        validator=PassValidator(),
+    )
+
+    events = list(
+        engine.stream_generate(
+            profile,
+            GenerationRequest(
+                student_id=profile.student_id,
+                target_kc_ids=["KC-1"],
+                requested_content_type="practice_problem",
+                curriculum_context=["Equivalent fractions"],
+            ),
+        )
+    )
+
+    complete = events[-1]
+    assert complete.response is not None
+    assert complete.response.blocks[0].interaction is not None
+    assert complete.response.blocks[0].interaction.correct_option_id == "B"
 
 
 def test_generation_engine_stream_emits_moderation_event_for_flagged_response():

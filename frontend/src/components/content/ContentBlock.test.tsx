@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
 import { ContentBlock } from './ContentBlock'
 import type { GeneratedBlock } from '../../types'
 
@@ -78,5 +79,51 @@ describe('ContentBlock', () => {
     render(<ContentBlock block={makeBlock({ title: '' })} />)
     expect(screen.getByText('Test body content.')).toBeInTheDocument()
     expect(screen.queryByRole('heading')).not.toBeInTheDocument()
+  })
+
+  it('renders interactive practice blocks and submits learner input', async () => {
+    const user = userEvent.setup()
+    const onPracticeSubmit = vi.fn()
+
+    render(
+      <ContentBlock
+        block={makeBlock({
+          block_id: 'block-1',
+          kind: 'practice_problem',
+          title: 'Choose the Setup',
+          body: 'Select the best setup.',
+          interaction: {
+            type: 'multiple_choice',
+            prompt: 'Which setup preserves place value?',
+            options: [
+              { option_id: 'A', label: 'Option A', body: 'Right-align every digit.' },
+              { option_id: 'B', label: 'Option B', body: 'Align the decimal points.' },
+            ],
+            correct_option_id: 'B',
+            reveal: {
+              trigger: 'after_selection',
+              prompt: 'Explain why your choice is correct.',
+              support: 'Line up tenths with tenths.',
+              placeholder: 'Explain your thinking.',
+            },
+            allow_retry: false,
+          },
+        })}
+        onPracticeSubmit={onPracticeSubmit}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: /option b/i }))
+    await user.type(screen.getByPlaceholderText('Explain your thinking.'), 'The decimal points line up.')
+    await user.click(screen.getByRole('button', { name: /submit and continue/i }))
+
+    expect(onPracticeSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        blockId: 'block-1',
+        selectedOptionId: 'B',
+        isCorrect: true,
+        responseText: 'The decimal points line up.',
+      }),
+    )
   })
 })

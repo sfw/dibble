@@ -66,14 +66,15 @@ export function useGenerationWorkspace({
     }
   }, [config, form, learnerId, onDataSourceChange])
 
-  const handleStream = useCallback(async () => {
+  const handleStream = useCallback(async (overrides?: Partial<GenerationFormState>) => {
     setStreaming(true)
     setError('')
     setStreamEvents([])
     setStreamedBlocks([])
 
     try {
-      const payload = buildGenerationPayload(learnerId, form)
+      const nextForm = { ...form, ...overrides }
+      const payload = buildGenerationPayload(learnerId, nextForm)
       await streamGeneration(config, payload, (event) => {
         setStreamEvents((current) => [...current, event])
 
@@ -86,9 +87,9 @@ export function useGenerationWorkspace({
           setResult({
             generation_id: event.response.generation_id ?? 'stream-complete',
             student_id: learnerId,
-            content_type: form.requested_content_type || form.intent || 'generated_content',
+            content_type: nextForm.requested_content_type || nextForm.intent || 'generated_content',
             request_context: {
-              learning_session_id: form.learning_session_id,
+              learning_session_id: nextForm.learning_session_id,
               source: 'stream',
             },
             workflow_summary: null,

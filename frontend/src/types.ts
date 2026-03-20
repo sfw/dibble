@@ -377,9 +377,34 @@ export interface GroundingReference {
 }
 
 export interface GeneratedBlock {
+  block_id?: string | null
   kind: string
   title: string
   body: string
+  interaction?: MultipleChoiceInteraction | null
+}
+
+export interface MultipleChoiceOption {
+  option_id: string
+  label: string
+  body: string
+  rationale?: string | null
+}
+
+export interface DeferredTextReveal {
+  trigger: 'after_selection'
+  prompt: string
+  support?: string | null
+  placeholder?: string | null
+}
+
+export interface MultipleChoiceInteraction {
+  type: 'multiple_choice'
+  prompt: string
+  options: MultipleChoiceOption[]
+  correct_option_id: string
+  reveal?: DeferredTextReveal | null
+  allow_retry: boolean
 }
 
 export interface GenerationMetadata {
@@ -611,6 +636,7 @@ export interface GenerationStreamEvent {
     kind: string
     title: string
     body_delta: string
+    block?: GeneratedBlock
     done: boolean
   }
   grounding?: GroundingReference[]

@@ -4,10 +4,13 @@ from collections.abc import Iterator
 
 from dibble.models.generation import (
     AdaptiveRouteDecision,
+    DeferredTextReveal,
     GeneratedBlock,
     GeneratedBlockChunk,
     GenerationRequest,
     GroundingReference,
+    MultipleChoiceInteraction,
+    MultipleChoiceOption,
 )
 from dibble.models.profile import LearnerProfile
 from dibble.services.generation_modes import build_generation_mode_plan
@@ -117,21 +120,42 @@ class MockLLMProvider:
             )
             return [
                 GeneratedBlock(
-                    kind="practice",
-                    title="Try a problem",
+                    kind="practice_problem",
+                    title="Choose the next step",
                     body=(
                         f"Try one {plan.request_context['difficulty_band']}-difficulty {focus} problem from {grounding_summary}. "
-                        f"Cue: {grounding_excerpt}. Use {distractor_family} distractors at {support_intensity} intensity around {distractor_focus}. "
-                        f"{blueprint_text}"
+                        f"Watch for {distractor_focus}. Use the transfer move named in the cue."
                     ),
-                ),
-                GeneratedBlock(
-                    kind="instruction",
-                    title="Check your thinking",
-                    body=(
-                        f"Give {route.scaffolding_level} support for {focus}. "
-                        f"Cue: {grounding_excerpt}. "
-                        f"{instruction_close}"
+                    interaction=MultipleChoiceInteraction(
+                        prompt=(
+                            f"Which setup best preserves the right structure for {focus}?"
+                        ),
+                        options=[
+                            MultipleChoiceOption(
+                                option_id="A",
+                                label="Option A",
+                                body=(
+                                    f"Tempting distractor around {distractor_focus}. "
+                                    f"Use {distractor_family} at {support_intensity} intensity."
+                                ),
+                            ),
+                            MultipleChoiceOption(
+                                option_id="B",
+                                label="Option B",
+                                body=(
+                                    f"Correct structural setup grounded in {grounding_excerpt}. "
+                                    f"{blueprint_text}".strip()
+                                ),
+                            ),
+                        ],
+                        correct_option_id="B",
+                        reveal=DeferredTextReveal(
+                            prompt=(
+                                "Explain why the correct setup preserves the intended structure."
+                            ),
+                            support=instruction_close,
+                            placeholder="Name what the correct structure preserves.",
+                        ),
                     ),
                 ),
             ]

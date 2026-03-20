@@ -1750,9 +1750,13 @@ def test_explanations_and_problems_endpoints_specialize_generation(client, stude
     problem_payload = problem_response.json()
     assert explanation_payload["content_type"] == "micro_explanation"
     assert problem_payload["content_type"] == "practice_problem"
-    assert any(
-        block["kind"] == "practice" for block in problem_payload["response"]["blocks"]
-    )
+    practice_blocks = [
+        block
+        for block in problem_payload["response"]["blocks"]
+        if block["kind"] == "practice_problem"
+    ]
+    assert practice_blocks
+    assert practice_blocks[0]["interaction"]["type"] == "multiple_choice"
 
 
 def test_generation_endpoint_auto_selects_worked_example_when_metacognitive_signals_require_modeling(
@@ -2091,6 +2095,7 @@ def test_stream_generation_hydrates_target_kc_hints_for_practice_content(
     assert response.status_code == 200
     assert complete_response["route"]["delivery_mode"] == "generated"
     assert "Whole-number bias" in complete_response["blocks"][1]["body"]
+    assert complete_response["blocks"][1]["interaction"]["type"] == "multiple_choice"
 
 
 def test_stream_generation_emits_explicit_moderation_event_for_flagged_request(
