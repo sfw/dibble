@@ -75,6 +75,7 @@ function buildValues(): SystemConfigValues {
     generation_cache_ttl_seconds: 3600,
     predictive_warm_inline_process_limit: 2,
     llm_debug_prompts_enabled: false,
+    telemetry_level: 'off',
   }
 }
 
@@ -119,9 +120,9 @@ describe('SystemConfig', () => {
         expect.objectContaining({
           baseUrl: 'http://localhost:8000',
         }),
-        expect.objectContaining({
+        {
           app_name: 'Dibble Control Plane',
-        }),
+        },
       )
     })
 

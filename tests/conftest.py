@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+import logging
 import pytest
 from fastapi.testclient import TestClient
 
@@ -9,6 +10,26 @@ from dibble.app import create_app
 from dibble.config import Settings
 from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
+
+
+@pytest.fixture(autouse=True)
+def restore_dibble_logger_state():
+    logger = logging.getLogger("dibble")
+    original_handlers = list(logger.handlers)
+    original_filters = list(logger.filters)
+    original_level = logger.level
+    original_propagate = logger.propagate
+    original_disabled = logger.disabled
+    try:
+        yield
+    finally:
+        for handler in list(logger.handlers):
+            handler.close()
+        logger.handlers = original_handlers
+        logger.filters = original_filters
+        logger.setLevel(original_level)
+        logger.propagate = original_propagate
+        logger.disabled = original_disabled
 
 
 @pytest.fixture

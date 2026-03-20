@@ -6,7 +6,11 @@ export interface SystemConfigFieldDefinition {
   key: SystemConfigFieldKey
   label: string
   description: string
-  input: 'text' | 'password' | 'number' | 'url' | 'boolean'
+  input: 'text' | 'password' | 'number' | 'url' | 'boolean' | 'select'
+  options?: Array<{
+    label: string
+    value: string
+  }>
   step?: string
   placeholder?: string
 }
@@ -41,6 +45,17 @@ export const systemConfigSections: SystemConfigSectionDefinition[] = [
         label: 'Database path',
         description: 'SQLite database file used by the backend.',
         input: 'text',
+      },
+      {
+        key: 'telemetry_level',
+        label: 'Telemetry level',
+        description: 'Controls whether runtime telemetry is off, records normal request activity, or emits richer debug traces into ~/.dibble/logs.',
+        input: 'select',
+        options: [
+          { label: 'Off', value: 'off' },
+          { label: 'Normal', value: 'normal' },
+          { label: 'Debug', value: 'debug' },
+        ],
       },
     ],
   },

@@ -32,7 +32,14 @@ def build_setup_router(context: ApiContext) -> APIRouter:
         dependencies=_admin_guard(),
     )
     def configure(payload: SetupConfigureRequest) -> SetupConfigureResponse:
-        return context.services.setup_config_service.write_config(payload)
+        try:
+            return context.services.setup_config_service.write_config(payload)
+        except RuntimeError as exc:
+            raise api_error(
+                status_code=409,
+                detail=str(exc),
+                code="setup_already_configured",
+            ) from exc
 
     @router.post(
         "/models",

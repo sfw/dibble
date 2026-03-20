@@ -137,6 +137,19 @@ class TestWriteConfig:
         finally:
             mod.write_config_toml = original  # type: ignore[assignment]
 
+    def test_rejects_reconfiguration_when_llm_is_already_configured(
+        self, tmp_path: Path
+    ) -> None:
+        service = SetupConfigService(
+            Settings(
+                database_path=str(tmp_path / "dibble.db"),
+                llm_api_key="already-set",
+            )
+        )
+
+        with pytest.raises(RuntimeError, match="already complete"):
+            service.write_config(SetupConfigureRequest(llm_model="gpt-4o"))
+
 
 class TestCreateInitialAdmin:
     def test_creates_admin(self, tmp_path: Path) -> None:

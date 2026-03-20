@@ -992,6 +992,7 @@ export interface SystemConfigValues {
   generation_cache_ttl_seconds: number
   predictive_warm_inline_process_limit: number
   llm_debug_prompts_enabled: boolean
+  telemetry_level: 'off' | 'normal' | 'debug'
 }
 
 export interface SystemConfigResponse {

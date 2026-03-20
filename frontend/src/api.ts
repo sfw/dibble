@@ -556,7 +556,7 @@ export function getSystemConfig(config: FrontendConfig) {
 
 export function updateSystemConfig(
   config: FrontendConfig,
-  payload: SystemConfigValues,
+  payload: Partial<SystemConfigValues>,
 ) {
   return requestJson<SystemConfigUpdateResponse>(config, '/api/admin/config', {
     method: 'PUT',

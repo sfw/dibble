@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -59,8 +60,11 @@ from dibble.services.remediation_workflows import (
     RemediationWorkflowCoordinator,
     RemediationWorkflowNotFoundError,
 )
+from dibble.services.runtime_telemetry import log_runtime_event
 from dibble.services.within_session_adaptation import WithinSessionAdaptationService
 from dibble.services.workflow_rationale import decision_grade_rationale
+
+logger = logging.getLogger(__name__)
 
 
 class LearnerProfileNotFoundError(LookupError):
@@ -151,6 +155,22 @@ class ContentWorkflowService:
         return decision
 
     def generate_content(self, request: GenerationRequest) -> GeneratedContent:
+        log_runtime_event(
+            logger,
+            logging.INFO,
+            "content.generate.begin",
+            student_id=str(request.student_id),
+            learning_session_id=request.learning_session_id,
+            intent=request.intent.value,
+            requested_content_type=(
+                request.requested_content_type.value
+                if request.requested_content_type is not None
+                else None
+            ),
+            target_kc_count=len(request.target_kc_ids),
+            target_lo_count=len(request.target_lo_ids),
+            predictive_warm=request.predictive_warm,
+        )
         prepared = self.prepare_generation_request(request)
         response = self.generation_engine.generate(prepared.profile, prepared.request)
         plan = build_generation_mode_plan(
@@ -315,12 +335,44 @@ class ContentWorkflowService:
                 "prompt_template_variant": metadata.prompt_template_variant,
             },
         )
-        return self.finalize_generated_content(
+        finalized = self.finalize_generated_content(
             profile=prepared.profile,
             request=prepared.request,
             response=response,
             progression_decision=prepared.progression_decision,
         )
+        log_runtime_event(
+            logger,
+            logging.INFO,
+            "content.generate.complete",
+            generation_id=finalized.generation_id,
+            student_id=str(request.student_id),
+            learning_session_id=request.learning_session_id,
+            content_type=finalized.content_type,
+            delivery_mode=response.route.delivery_mode.value,
+            cache_hit=metadata.cache_hit,
+            grounding_count=len(response.grounding),
+            validation_issue_count=len(response.validation_issues),
+            moderation_status=metadata.moderation.status,
+        )
+        log_runtime_event(
+            logger,
+            logging.DEBUG,
+            "content.generate.debug",
+            generation_id=finalized.generation_id,
+            route_reasons=response.route.reasons,
+            progression_action=prepared.progression_decision.action,
+            progression_source=prepared.progression_decision.source,
+            progression_target_stage=prepared.progression_decision.target_stage,
+            prompt_template_name=metadata.prompt_template_name,
+            prompt_template_variant=metadata.prompt_template_variant,
+            mode_calibration=(
+                prepared.request.mode_calibration.model_dump(mode="json")
+                if prepared.request.mode_calibration is not None
+                else None
+            ),
+        )
+        return finalized
 
     def prepare_generation_request(
         self, request: GenerationRequest
@@ -333,6 +385,22 @@ class ContentWorkflowService:
         )
         calibrated_request = self.generation_mode_calibrator.calibrate_request(
             request=enriched_request
+        )
+        log_runtime_event(
+            logger,
+            logging.DEBUG,
+            "content.prepare",
+            student_id=str(request.student_id),
+            learning_session_id=request.learning_session_id,
+            requested_target_kc_ids=progression_decision.requested_target_kc_ids,
+            applied_target_kc_ids=progression_decision.applied_target_kc_ids,
+            deferred_target_kc_ids=progression_decision.deferred_target_kc_ids,
+            transfer_target_kc_ids=progression_decision.transfer_target_kc_ids,
+            progression_action=progression_decision.action,
+            progression_source=progression_decision.source,
+            target_stage=progression_decision.target_stage,
+            requested_content_type=progression_decision.requested_content_type,
+            applied_content_type=progression_decision.applied_content_type,
         )
         return PreparedGenerationRequest(
             profile=profile,

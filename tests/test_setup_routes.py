@@ -3,6 +3,9 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 import pytest
 
+from dibble.app import create_app
+from dibble.config import Settings
+
 
 class TestSetupStatus:
     def test_returns_status(self, client: TestClient) -> None:
@@ -46,6 +49,21 @@ class TestSetupConfigure:
     def test_configure_empty_body(self, client: TestClient) -> None:
         response = client.post("/api/setup/configure", json={})
         assert response.status_code == 200
+
+    def test_configure_rejects_already_configured_backend(self, tmp_path) -> None:
+        client = TestClient(
+            create_app(
+                Settings(
+                    database_path=str(tmp_path / "dibble.db"),
+                    llm_api_key="already-set",
+                )
+            )
+        )
+
+        response = client.post("/api/setup/configure", json={"llm_model": "gpt-4o"})
+
+        assert response.status_code == 409
+        assert response.json()["code"] == "setup_already_configured"
 
 
 class TestSetupModels:

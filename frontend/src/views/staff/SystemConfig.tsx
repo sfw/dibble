@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { ErrorBanner } from '../../components/ui/error-banner'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
 import { Switch } from '../../components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs'
 import type { SystemConfigValues } from '../../types'
@@ -15,6 +16,17 @@ import { useStaffApiConfig } from './useStaffApiConfig'
 
 function normalizeNullableString(value: string) {
   return value.trim() ? value : null
+}
+
+function buildConfigPatch(
+  draft: SystemConfigValues,
+  savedConfig: SystemConfigValues,
+): Partial<SystemConfigValues> {
+  const entries = Object.entries(draft).filter(([key, value]) => (
+    JSON.stringify(value) !== JSON.stringify(savedConfig[key as SystemConfigFieldKey])
+  ))
+
+  return Object.fromEntries(entries) as Partial<SystemConfigValues>
 }
 
 function ConfigField({
@@ -42,6 +54,30 @@ function ConfigField({
             onCheckedChange={(checked) => onChange(field.key, checked)}
           />
         </div>
+      </div>
+    )
+  }
+
+  if (field.input === 'select') {
+    return (
+      <div className="flex flex-col gap-2 rounded-2xl border border-border bg-white/80 p-4">
+        <Label htmlFor={id} className="text-sm font-medium text-slate-900">{field.label}</Label>
+        <Select
+          value={typeof value === 'string' ? value : ''}
+          onValueChange={(selected) => onChange(field.key, selected)}
+        >
+          <SelectTrigger id={id}>
+            <SelectValue placeholder={field.placeholder ?? 'Select a value'} />
+          </SelectTrigger>
+          <SelectContent>
+            {field.options?.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-sm leading-6 text-slate-500">{field.description}</p>
       </div>
     )
   }
@@ -134,7 +170,7 @@ export function SystemConfig() {
   }, [draft, savedConfig])
 
   async function handleSave() {
-    if (!draft) {
+    if (!draft || !savedConfig) {
       return
     }
 
@@ -142,7 +178,7 @@ export function SystemConfig() {
     setError('')
     setSuccessMessage('')
     try {
-      const response = await updateSystemConfig(apiConfig, draft)
+      const response = await updateSystemConfig(apiConfig, buildConfigPatch(draft, savedConfig))
       setSavedConfig(draft)
       setConfigPath(response.config_path)
       setSuccessMessage('Configuration saved. Restart the backend to apply runtime changes.')

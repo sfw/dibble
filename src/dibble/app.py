@@ -8,10 +8,15 @@ from dibble.api.common import build_api_error_response
 from dibble.api.routes import build_router
 from dibble.bootstrap import build_application_services
 from dibble.config import Settings, get_settings
+from dibble.services.runtime_telemetry import (
+    RuntimeTelemetryMiddleware,
+    setup_runtime_telemetry,
+)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
+    setup_runtime_telemetry(settings)
     services = build_application_services(settings)
 
     app = FastAPI(
@@ -26,6 +31,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_middleware(RuntimeTelemetryMiddleware, settings=settings)
 
     @app.exception_handler(HTTPException)
     async def handle_http_exception(_, exc: HTTPException):

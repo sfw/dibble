@@ -25,6 +25,7 @@ from dibble.services.llm_prompting import (
 from dibble.services.provider_health import ProviderRoutingSnapshot
 from dibble.services.protocols import AuditStore, ProviderHealthStore
 from dibble.services.prompt_manager import PromptManager
+from dibble.services.runtime_telemetry import log_runtime_event
 from dibble.services.generation_prompt_selector import GenerationPromptSelector
 from dibble.services.socratic_prompt_selector import SocraticPromptSelector
 from dibble.services.streaming import iter_block_chunks
@@ -210,6 +211,17 @@ class LLMOrchestrationProvider:
             prompt_manager=self.prompt_manager,
         )
         self._log_prompts(prompts)
+        log_runtime_event(
+            logger,
+            logging.DEBUG,
+            "llm.generate.start",
+            student_id=str(profile.student_id),
+            learning_session_id=request.learning_session_id,
+            template_name=prompts.template_name,
+            template_variant=prompts.template_variant,
+            client_names=[name for name, _ in self.clients],
+            selection_strategy=self.selection_strategy,
+        )
         if not self.clients:
             return self._fallback(
                 profile,
@@ -231,6 +243,14 @@ class LLMOrchestrationProvider:
                 self._set_last_used_descriptor(name, prompts)
                 self._record_success(
                     name, latency_ms=(self.time_provider() - started_at) * 1000.0
+                )
+                log_runtime_event(
+                    logger,
+                    logging.DEBUG,
+                    "llm.generate.success",
+                    provider_name=name,
+                    model_used=self.client_models.get(name),
+                    block_count=len(blocks),
                 )
                 return blocks
             except (LLMClientError, LLMProviderError):
@@ -264,6 +284,17 @@ class LLMOrchestrationProvider:
             prompt_manager=self.prompt_manager,
         )
         self._log_prompts(prompts)
+        log_runtime_event(
+            logger,
+            logging.DEBUG,
+            "llm.stream.start",
+            student_id=str(profile.student_id),
+            learning_session_id=request.learning_session_id,
+            template_name=prompts.template_name,
+            template_variant=prompts.template_variant,
+            client_names=[name for name, _ in self.clients],
+            selection_strategy=self.selection_strategy,
+        )
         if not self.clients:
             yield from iter_block_chunks(
                 self._fallback(
@@ -292,6 +323,13 @@ class LLMOrchestrationProvider:
                 self._set_last_used_descriptor(name, prompts)
                 self._record_success(
                     name, latency_ms=(self.time_provider() - started_at) * 1000.0
+                )
+                log_runtime_event(
+                    logger,
+                    logging.DEBUG,
+                    "llm.stream.success",
+                    provider_name=name,
+                    model_used=self.client_models.get(name),
                 )
                 return
             except (LLMClientError, LLMProviderError):
@@ -498,6 +536,14 @@ class LLMOrchestrationProvider:
             "prompt_template_version": prompts.template_version,
             "prompt_template_variant": prompts.template_variant,
         }
+        log_runtime_event(
+            logger,
+            logging.DEBUG,
+            "llm.fallback",
+            provider_name=self.last_used_descriptor.get("provider_name"),
+            model_used=self.last_used_descriptor.get("model_used"),
+            reason=reason,
+        )
         return blocks
 
     def _parse_blocks(self, response_text: str) -> list[GeneratedBlock]:

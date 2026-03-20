@@ -13,6 +13,7 @@ from typing import Any, get_args, get_origin, get_type_hints
 logger = logging.getLogger(__name__)
 
 _UNSET: Any = object()
+_TELEMETRY_LEVELS = frozenset({"off", "normal", "debug"})
 
 
 @dataclass(slots=True)
@@ -54,6 +55,14 @@ class Settings:
     generation_cache_ttl_seconds: int = 3600
     predictive_warm_inline_process_limit: int = 2
     llm_debug_prompts_enabled: bool = False
+    telemetry_level: str = "off"
+
+    def __post_init__(self) -> None:
+        self.telemetry_level = self.telemetry_level.strip().lower()
+        if self.telemetry_level not in _TELEMETRY_LEVELS:
+            raise ValueError(
+                "telemetry_level must be one of: off, normal, debug."
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +101,7 @@ _SECTION_MAP: dict[str, str] = {
     "prompts": "prompt_{key}",
     "embedding": "embedding_{key}",
     "auth": "auth_{key}",
+    "telemetry": "telemetry_{key}",
     "cache": "{key}",  # keys are already fully qualified
     "performance": "{key}",
 }
@@ -112,6 +122,14 @@ def dibble_dir() -> Path:
 def ensure_dibble_dir() -> Path:
     """Return ``~/.dibble/``, creating it (mode 0700) if absent."""
     path = dibble_dir()
+    if not path.exists():
+        path.mkdir(mode=0o700, parents=True)
+    return path
+
+
+def ensure_dibble_logs_dir() -> Path:
+    """Return ``~/.dibble/logs/``, creating it (mode 0700) if absent."""
+    path = ensure_dibble_dir() / "logs"
     if not path.exists():
         path.mkdir(mode=0o700, parents=True)
     return path
@@ -323,6 +341,8 @@ def _coerce(field_name: str, value: Any) -> Any:
     # Expand ~ in paths
     if field_name == "database_path" and isinstance(value, str) and "~" in value:
         return str(Path(value).expanduser())
+    if field_name == "telemetry_level" and isinstance(value, str):
+        return value.strip().lower()
 
     return value
 
