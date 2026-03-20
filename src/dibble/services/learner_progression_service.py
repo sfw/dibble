@@ -547,12 +547,18 @@ class LearnerProgressionService:
         kc_mastery: dict[str, float],
         prerequisite_threshold: float = PREREQUISITE_READY_THRESHOLD,
     ) -> list[str]:
+        # Only consider prerequisites EXTERNAL to this outcome.  Internal
+        # KC ordering (e.g. add-sub → mult → div within one outcome) is
+        # handled by the learner flow service, not the progression gate.
+        own_kc_ids = set(kc_ids)
         blocked: list[str] = []
         for kc_id in kc_ids:
             component = components.get(kc_id)
             if component is None:
                 continue
             for prerequisite_id in component.prerequisite_kc_ids:
+                if prerequisite_id in own_kc_ids:
+                    continue
                 if float(kc_mastery.get(prerequisite_id, 0.0)) < prerequisite_threshold:
                     blocked.append(prerequisite_id)
         return list(dict.fromkeys(blocked))
