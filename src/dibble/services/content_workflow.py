@@ -66,6 +66,19 @@ from dibble.services.workflow_rationale import decision_grade_rationale
 
 logger = logging.getLogger(__name__)
 
+_CONTENT_TYPE_TO_INTENT: dict[str | None, str] = {
+    RequestedContentType.micro_explanation.value: "explanation",
+    RequestedContentType.worked_example.value: "explanation",
+    RequestedContentType.practice_problem.value: "practice",
+    RequestedContentType.remedial_micro_module.value: "remediation",
+    RequestedContentType.assessment_probe.value: "assessment",
+}
+
+
+def _intent_for_content_type(content_type: str | None) -> str:
+    """Map a content type string to the matching ``ContentIntent`` value."""
+    return _CONTENT_TYPE_TO_INTENT.get(content_type, "explanation")
+
 
 class LearnerProfileNotFoundError(LookupError):
     def __init__(self, student_id: UUID) -> None:
@@ -1036,6 +1049,7 @@ class ContentWorkflowService:
             ),
             "target_kc_ids": list(next_step.target_kc_ids),
             "target_lo_ids": self._string_list(request_context.get("target_lo_ids")),
+            "intent": _intent_for_content_type(next_step.content_type),
             "requested_content_type": next_step.content_type,
             "curriculum_context": list(generated_content.response.curriculum_context),
             "source_generation_id": generated_content.generation_id,
