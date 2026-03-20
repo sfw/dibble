@@ -362,6 +362,39 @@ def test_chat_client_parses_openai_compatible_payload():
     assert captured["payload"]["model"] == "demo-model"
 
 
+def test_chat_client_retries_with_temperature_one_when_provider_requires_it():
+    temperatures: list[float] = []
+
+    def transport(url, payload, headers, timeout):
+        temperatures.append(payload["temperature"])
+        if len(temperatures) == 1:
+            raise LLMClientError(
+                'LLM request failed with status 400: {"error":{"message":"invalid temperature: only 1 is allowed for this model","type":"invalid_request_error"}}'
+            )
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": '{"blocks":[{"kind":"summary","title":"Ready","body":"Body"}]}'
+                    },
+                    "finish_reason": "stop",
+                }
+            ]
+        }
+
+    client = OpenAICompatibleChatClient(
+        api_base="https://example.test/v1",
+        api_key="secret",
+        model="demo-model",
+        transport=transport,
+    )
+
+    completion = client.complete(system_prompt="sys", user_prompt="usr")
+
+    assert completion.finish_reason == "stop"
+    assert temperatures == [0.2, 1.0]
+
+
 def test_chat_client_streams_openai_compatible_sse_chunks():
     def stream_transport(url, payload, headers, timeout):
         assert payload["stream"] is True
@@ -379,6 +412,32 @@ def test_chat_client_streams_openai_compatible_sse_chunks():
     parts = list(client.stream_complete(system_prompt="sys", user_prompt="usr"))
 
     assert parts == ["hello ", "world"]
+
+
+def test_chat_client_stream_retries_with_temperature_one_when_provider_requires_it():
+    temperatures: list[float] = []
+
+    def stream_transport(url, payload, headers, timeout):
+        temperatures.append(payload["temperature"])
+        if len(temperatures) == 1:
+            raise LLMClientError(
+                'LLM request failed with status 400: {"error":{"message":"invalid temperature: only 1 is allowed for this model","type":"invalid_request_error"}}'
+            )
+        yield 'data: {"choices":[{"delta":{"content":"hello "}}]}\n'
+        yield 'data: {"choices":[{"delta":{"content":"world"}}]}\n'
+        yield "data: [DONE]\n"
+
+    client = OpenAICompatibleChatClient(
+        api_base="https://example.test/v1",
+        api_key="secret",
+        model="demo-model",
+        stream_transport=stream_transport,
+    )
+
+    parts = list(client.stream_complete(system_prompt="sys", user_prompt="usr"))
+
+    assert parts == ["hello ", "world"]
+    assert temperatures == [0.2, 1.0]
 
 
 def test_provider_streams_upstream_ndjson_chunks(

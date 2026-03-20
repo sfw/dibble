@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from dibble.config import Settings
@@ -193,7 +194,11 @@ class ApplicationServices:
     setup_model_catalog_service: SetupModelCatalogService
 
 
-def build_application_services(settings: Settings) -> ApplicationServices:
+def build_application_services(
+    settings: Settings,
+    *,
+    settings_loader: Callable[[], Settings],
+) -> ApplicationServices:
     ensure_database(settings.database_path)
     conn = create_connection(settings.database_path)
 
@@ -512,7 +517,10 @@ def build_application_services(settings: Settings) -> ApplicationServices:
         within_session_adaptation_service=within_session_adaptation_service,
         router_plugin=router_plugin,
         user_store=user_store,
-        admin_config_service=AdminConfigService(settings),
+        admin_config_service=AdminConfigService(
+            settings,
+            settings_loader=settings_loader,
+        ),
         admin_academic_catalog_service=AdminAcademicCatalogService(
             course_store=course_store,
             classroom_store=classroom_store,
@@ -523,6 +531,10 @@ def build_application_services(settings: Settings) -> ApplicationServices:
             classroom_membership_store=classroom_membership_store,
             user_store=user_store,
         ),
-        setup_config_service=SetupConfigService(settings, user_store=user_store),
+        setup_config_service=SetupConfigService(
+            settings,
+            user_store=user_store,
+            settings_loader=settings_loader,
+        ),
         setup_model_catalog_service=SetupModelCatalogService(),
     )

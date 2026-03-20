@@ -26,6 +26,27 @@ def test_get_config_returns_current_settings(tmp_path: Path) -> None:
     assert config.values.auth_enabled is True
 
 
+def test_get_config_prefers_runtime_settings_loader(tmp_path: Path) -> None:
+    startup_settings = Settings(database_path=str(tmp_path / "dibble.db"))
+    runtime_settings = Settings(
+        database_path=str(tmp_path / "dibble.db"),
+        llm_api_base="https://api.moonshot.ai/v1",
+        llm_api_key="live-key",
+        llm_model="kimi-k2.5",
+        auth_enabled=True,
+    )
+
+    service = AdminConfigService(
+        startup_settings,
+        settings_loader=lambda: runtime_settings,
+    )
+    config = service.get_config()
+
+    assert config.values.llm_api_base == "https://api.moonshot.ai/v1"
+    assert config.values.llm_model == "kimi-k2.5"
+    assert config.values.auth_enabled is True
+
+
 def _make_update_request(**overrides):
     """Build a SystemConfigUpdateRequest with sensible defaults."""
     defaults = dict(

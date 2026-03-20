@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 import logging
 import secrets
 from datetime import datetime, timezone
@@ -24,13 +25,21 @@ logger = logging.getLogger(__name__)
 
 class SetupConfigService:
     def __init__(
-        self, settings: Settings, *, user_store: UserStore | None = None
+        self,
+        settings: Settings,
+        *,
+        user_store: UserStore | None = None,
+        settings_loader: Callable[[], Settings] | None = None,
     ) -> None:
         self._settings = settings
         self._user_store = user_store
+        self._settings_loader = settings_loader or (lambda: settings)
+
+    def _current_settings(self) -> Settings:
+        return self._settings_loader()
 
     def get_status(self) -> SetupStatus:
-        s = self._settings
+        s = self._current_settings()
         config_path = dibble_dir() / "config.toml"
         has_admin = self._user_store.count() > 0 if self._user_store else False
         return SetupStatus(
@@ -47,7 +56,7 @@ class SetupConfigService:
         )
 
     def write_config(self, request: SetupConfigureRequest) -> SetupConfigureResponse:
-        if self._settings.llm_api_key is not None:
+        if self._current_settings().llm_api_key is not None:
             raise RuntimeError(
                 "Setup configuration is already complete. Use the system configuration endpoint for later changes."
             )

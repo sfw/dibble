@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 import logging
 from dataclasses import asdict
 
@@ -16,15 +17,25 @@ logger = logging.getLogger(__name__)
 
 
 class AdminConfigService:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        settings_loader: Callable[[], Settings] | None = None,
+    ) -> None:
         self._settings = settings
+        self._settings_loader = settings_loader or (lambda: settings)
+
+    def _current_settings(self) -> Settings:
+        return self._settings_loader()
 
     def get_config(self) -> SystemConfigResponse:
+        settings = self._current_settings()
         config_path = dibble_dir() / "config.toml"
         return SystemConfigResponse(
             config_path=str(config_path),
             config_file_exists=config_path.is_file(),
-            values=SystemConfigValues(**asdict(self._settings)),
+            values=SystemConfigValues(**asdict(settings)),
         )
 
     def update_config(

@@ -11,7 +11,7 @@ def test_plugin_loader_supports_custom_router(tmp_path):
         validator_plugin="tests.fake_plugins:build_validator",
     )
 
-    services = build_application_services(settings)
+    services = build_application_services(settings, settings_loader=lambda: settings)
 
     assert services.router_plugin.__class__.__name__ == "CalibratedRouter"
     assert (

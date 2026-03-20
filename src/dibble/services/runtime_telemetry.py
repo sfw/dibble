@@ -23,16 +23,22 @@ _LOG_LEVELS = {
     "debug": logging.DEBUG,
 }
 _SENSITIVE_KEYS = {
+    "api-key",
     "api_key",
     "authorization",
     "auth_token_secret",
     "bearer_token",
+    "cookie",
     "credential",
     "password",
+    "proxy-authorization",
     "refresh_token",
     "refresh_token_hash",
+    "set-cookie",
     "token",
     "token_secret",
+    "x-api-key",
+    "x-openai-api-key",
 }
 _SESSION_KEY_PRIORITY = (
     "learning_session_id",
