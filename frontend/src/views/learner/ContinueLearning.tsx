@@ -30,18 +30,13 @@ export function ContinueLearning() {
 
   // Auto-trigger content generation when arriving with no existing content
   const autoTriggered = useRef(false)
+  const { result, streaming, error: genError, handleStream } = generation
   useEffect(() => {
-    if (
-      !autoTriggered.current &&
-      !generation.result &&
-      !generation.streaming &&
-      !generation.error &&
-      !loading
-    ) {
+    if (!autoTriggered.current && !result && !streaming && !genError && !loading) {
       autoTriggered.current = true
-      void generation.handleStream()
+      void handleStream()
     }
-  }, [generation, loading])
+  }, [result, streaming, genError, loading, handleStream])
 
   const artifact = workspace.active_artifact
   const continueAction = workspace.continue_action

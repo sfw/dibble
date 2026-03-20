@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from uuid import UUID
 
 from dibble.contract_labels import affective_support_message
+from dibble.models.generation import ContentIntent, GenerationRequest
 from dibble.models.profile import ContinueActionKind, LearnerContinueAction
 from dibble.models.workspace import (
     AffectiveSupportMessage,
@@ -13,6 +15,8 @@ from dibble.models.workspace import (
 from dibble.services.content_workflow import ContentWorkflowService
 from dibble.services.learner_summary_service import LearnerSummaryService
 from dibble.services.socratic_assessment import SocraticAssessmentService
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -101,25 +105,49 @@ class LearnerWorkspaceService:
 
         continue_action = flow.continue_action
         # When the flow is idle but the progression has ready outcomes,
-        # offer a continue action that starts learning on the first one.
+        # eagerly generate content for the first ready outcome so the
+        # learner has a lesson waiting when they click Resume.
         if (
             continue_action.kind == ContinueActionKind.idle
             and summary.curriculum_progression.next_outcome is not None
         ):
             next_outcome = summary.curriculum_progression.next_outcome
+            target_kc_ids = list(next_outcome.knowledge_component_ids)
+
+            if generated_content is None:
+                generated_content = self._eager_generate(
+                    student_id=student_id,
+                    target_kc_ids=target_kc_ids,
+                )
+
             continue_action = LearnerContinueAction.generate_follow_up(
                 outcome_id=next_outcome.outcome_id,
+                generation_id=(
+                    generated_content.generation_id
+                    if generated_content is not None
+                    else None
+                ),
                 target_stage="target",
-                target_kc_ids=list(next_outcome.knowledge_component_ids),
+                target_kc_ids=target_kc_ids,
                 request_payload={
                     "student_id": str(student_id),
-                    "target_kc_ids": list(next_outcome.knowledge_component_ids),
+                    "target_kc_ids": target_kc_ids,
                     "intent": "explanation",
                 },
                 rationale=(
                     f"Ready to start {next_outcome.title}."
                 ),
             )
+
+            if generated_content is not None:
+                artifact = artifact.model_copy(
+                    update={
+                        "kind": "generated_content",
+                        "resource_id": generated_content.generation_id,
+                        "generation_id": generated_content.generation_id,
+                        "content_type": generated_content.content_type,
+                    }
+                )
 
         return LearnerWorkspace(
             student_id=student_id,
@@ -141,6 +169,26 @@ class LearnerWorkspaceService:
             remediation_session=remediation_session,
             socratic_session=socratic_session,
         )
+
+    def _eager_generate(
+        self,
+        *,
+        student_id: UUID,
+        target_kc_ids: list[str],
+    ):
+        """Generate the first lesson eagerly so learners never see an empty page."""
+        try:
+            request = GenerationRequest(
+                student_id=student_id,
+                target_kc_ids=target_kc_ids,
+                intent=ContentIntent.explanation,
+            )
+            return self.content_workflow_service.generate_content(request)
+        except Exception:
+            logger.exception(
+                "Eager content generation failed for student %s", student_id
+            )
+            return None
 
     def _latest_remediation_generation_id(self, remediation_session) -> str | None:
         if remediation_session is None:
