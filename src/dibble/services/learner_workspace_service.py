@@ -7,12 +7,22 @@ from uuid import UUID
 from dibble.contract_labels import affective_support_message
 from dibble.models.generation import ContentIntent, GenerationRequest
 from dibble.models.profile import ContinueActionKind, LearnerContinueAction
+from dibble.models.planning import ActivePlanningState
 from dibble.models.workspace import (
     AffectiveSupportMessage,
     LearnerWorkspace,
     LearnerWorkspaceArtifact,
 )
 from dibble.services.content_workflow import ContentWorkflowService
+from dibble.services.errors import LearnerProfileNotFoundError
+from dibble.services.harness.curriculum_planning import (
+    CurriculumPlanningHarness,
+    EnsureActiveTrajectoryCommand,
+)
+from dibble.services.harness.within_session_control import (
+    EnsureSessionControlCommand,
+    WithinSessionControlHarness,
+)
 from dibble.services.learner_summary_service import LearnerSummaryService
 from dibble.services.socratic_assessment import SocraticAssessmentService
 
@@ -24,12 +34,42 @@ class LearnerWorkspaceService:
     learner_summary_service: LearnerSummaryService
     content_workflow_service: ContentWorkflowService
     socratic_assessment_service: SocraticAssessmentService
+    curriculum_planning_harness: CurriculumPlanningHarness
+    within_session_control_harness: WithinSessionControlHarness
 
     def build_for_student(self, *, student_id: UUID) -> LearnerWorkspace | None:
+        try:
+            planning = self.curriculum_planning_harness.ensure_active_trajectory(
+                EnsureActiveTrajectoryCommand(student_id=student_id)
+            )
+            session_state = self.within_session_control_harness.ensure_session(
+                EnsureSessionControlCommand(student_id=student_id)
+            )
+        except LearnerProfileNotFoundError:
+            return None
         summary = self.learner_summary_service.build_for_student(student_id=student_id)
         if summary is None:
             return None
 
+        flow = summary.current_flow
+        if (
+            session_state is not None
+            and flow.flow_type == "lesson"
+            and session_state.current_generation_id is None
+            and session_state.continue_action.kind == ContinueActionKind.generate_follow_up
+        ):
+            generated = self._eager_generate_from_continue_action(
+                continue_action=session_state.continue_action
+            )
+            if generated is not None:
+                session_state = self.within_session_control_harness.get_active_session(
+                    student_id=student_id
+                )
+                summary = self.learner_summary_service.build_for_student(
+                    student_id=student_id
+                )
+                if summary is None:
+                    return None
         flow = summary.current_flow
         generated_content = None
         remediation_session = None
@@ -77,8 +117,10 @@ class LearnerWorkspaceService:
             )
         else:
             generation_id = (
-                flow.last_generation_id or summary.recent_activity.last_generation_id
-            )
+                session_state.current_generation_id
+                if session_state is not None
+                else None
+            ) or flow.last_generation_id or summary.recent_activity.last_generation_id
             generated_content = (
                 self.content_workflow_service.get_generated_content(generation_id)
                 if generation_id is not None
@@ -103,58 +145,26 @@ class LearnerWorkspaceService:
                 }
             )
 
-        continue_action = flow.continue_action
-        # When the flow is idle but the progression has ready outcomes,
-        # eagerly generate content for the first ready outcome so the
-        # learner has a lesson waiting when they click Resume.
-        if (
-            continue_action.kind == ContinueActionKind.idle
-            and summary.curriculum_progression.next_outcome is not None
-        ):
-            next_outcome = summary.curriculum_progression.next_outcome
-            target_kc_ids = list(next_outcome.knowledge_component_ids)
-
-            if generated_content is None:
-                generated_content = self._eager_generate(
-                    student_id=student_id,
-                    target_kc_ids=target_kc_ids,
-                )
-
-            continue_action = LearnerContinueAction.generate_follow_up(
-                display_label=f"Start {next_outcome.title}",
-                outcome_id=next_outcome.outcome_id,
-                generation_id=(
-                    generated_content.generation_id
-                    if generated_content is not None
-                    else None
-                ),
-                target_stage="target",
-                target_kc_ids=target_kc_ids,
-                request_payload={
-                    "student_id": str(student_id),
-                    "target_kc_ids": target_kc_ids,
-                    "intent": "explanation",
-                },
-                rationale=(
-                    f"Ready to start {next_outcome.title}."
-                ),
-            )
-
-            if generated_content is not None:
-                artifact = artifact.model_copy(
-                    update={
-                        "kind": "generated_content",
-                        "resource_id": generated_content.generation_id,
-                        "generation_id": generated_content.generation_id,
-                        "content_type": generated_content.content_type,
-                    }
-                )
-
         return LearnerWorkspace(
             student_id=student_id,
             summary=summary,
+            planning=ActivePlanningState(
+                goal=planning.goal,
+                trajectory=planning.trajectory,
+            )
+            if planning.goal is not None or planning.trajectory is not None
+            else None,
             active_artifact=artifact,
-            continue_action=continue_action,
+            continue_action=(
+                flow.continue_action
+                if flow.remediation_session_id is not None
+                or flow.socratic_session_id is not None
+                else (
+                    session_state.continue_action
+                    if session_state is not None
+                    else flow.continue_action
+                )
+            ),
             affective_support=(
                 AffectiveSupportMessage.model_validate(message)
                 if (
@@ -189,6 +199,19 @@ class LearnerWorkspaceService:
             logger.exception(
                 "Eager content generation failed for student %s", student_id
             )
+            return None
+
+    def _eager_generate_from_continue_action(
+        self, *, continue_action: LearnerContinueAction
+    ):
+        payload = dict(continue_action.request_payload)
+        if not payload:
+            return None
+        try:
+            request = GenerationRequest.model_validate(payload)
+            return self.content_workflow_service.generate_content(request)
+        except Exception:
+            logger.exception("Eager content generation from continue action failed.")
             return None
 
     def _latest_remediation_generation_id(self, remediation_session) -> str | None:

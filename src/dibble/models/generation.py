@@ -455,6 +455,10 @@ class GenerationWorkflowSummary(BaseModel):
     status: str = "delivered"
     flow_type: str = "lesson"
     learning_session_id: str | None = None
+    goal_id: str | None = None
+    trajectory_id: str | None = None
+    trajectory_node_id: str | None = None
+    trajectory_checkpoint_id: str | None = None
     delivered_phase: str = "target"
     delivered_content_type: str | None = None
     progression_action: str = "stay_on_requested_target"

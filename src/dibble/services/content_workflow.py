@@ -37,6 +37,11 @@ from dibble.services.harness.content_generation import (
     ContentGenerationHarness,
     PreparedContentGeneration,
 )
+from dibble.services.harness.within_session_control import (
+    BindGenerationRequestCommand,
+    SummarizeGeneratedContentCommand,
+    WithinSessionControlHarness,
+)
 from dibble.services.harness.modality_routing import ModalityRoutingHarness
 from dibble.services.learner_strategy_signal import LearnerStrategySignalService
 from dibble.services.misconception_profiles import LearningMisconceptionProfileRecorder
@@ -113,6 +118,7 @@ class ContentWorkflowService:
     misconception_profile_recorder: LearningMisconceptionProfileRecorder
     audit_store: AuditStore
     within_session_adaptation_service: WithinSessionAdaptationService
+    within_session_control_harness: WithinSessionControlHarness
     observation_profile_updater: ObservationProfileUpdater | None = None
     progression_ownership_service: ProgressionOwnershipService | None = None
 
@@ -404,8 +410,11 @@ class ContentWorkflowService:
     def prepare_generation_request(
         self, request: GenerationRequest
     ) -> PreparedGenerationRequest:
-        profile = self._load_profile(request.student_id)
-        progression_decision = self._progression_ownership_decision(request=request)
+        bound_request = self.within_session_control_harness.bind_generation_request(
+            BindGenerationRequestCommand(request=request)
+        ).request
+        profile = self._load_profile(bound_request.student_id)
+        progression_decision = self._progression_ownership_decision(request=bound_request)
         enriched_request = hydrate_target_kc_hints(
             request=progression_decision.request,
             knowledge_component_store=self.knowledge_component_store,
@@ -418,7 +427,7 @@ class ContentWorkflowService:
             logging.DEBUG,
             "content.prepare",
             student_id=str(request.student_id),
-            learning_session_id=request.learning_session_id,
+            learning_session_id=bound_request.learning_session_id,
             requested_target_kc_ids=progression_decision.requested_target_kc_ids,
             applied_target_kc_ids=progression_decision.applied_target_kc_ids,
             deferred_target_kc_ids=progression_decision.deferred_target_kc_ids,
@@ -487,6 +496,13 @@ class ContentWorkflowService:
             generated_content=generated_content,
             progression_decision=progression_decision,
         )
+        summary_result = self.within_session_control_harness.summarize_generated_content(
+            SummarizeGeneratedContentCommand(
+                generated_content=generated_content,
+                persist_session_state=not request.predictive_warm,
+            )
+        )
+        generated_content = summary_result.content
         predictive_plan = self.predictive_content_warmer.plan_follow_ups(
             generated_content
         )
@@ -537,12 +553,8 @@ class ContentWorkflowService:
                     ],
                 },
             )
-        finalized_content = self._apply_generation_workflow_summary(
-            generated_content=generated_content,
-            predictive_plan=predictive_plan,
-        )
-        self._refresh_generated_content(finalized_content)
-        return finalized_content
+        self._refresh_generated_content(generated_content)
+        return generated_content
 
     def _record_moderation_event(
         self,
@@ -1259,9 +1271,14 @@ class ContentWorkflowService:
             return None
         if generated_content.workflow_summary is not None:
             return generated_content
-        return self._apply_generation_workflow_summary(
-            generated_content=generated_content
-        )
+        return (
+            self.within_session_control_harness.summarize_generated_content(
+                SummarizeGeneratedContentCommand(
+                    generated_content=generated_content,
+                    persist_session_state=False,
+                )
+            )
+        ).content
 
     def advance_remediation_session(
         self,

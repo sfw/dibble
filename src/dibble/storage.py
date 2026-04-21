@@ -161,6 +161,43 @@ CREATE TABLE IF NOT EXISTS within_session_controller_states (
 );
 """
 
+LEARNER_GOAL_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS learner_goals (
+    goal_id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    active_trajectory_id TEXT,
+    payload TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+"""
+
+TRAJECTORY_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS learner_trajectories (
+    trajectory_id TEXT PRIMARY KEY,
+    goal_id TEXT NOT NULL,
+    student_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+"""
+
+SESSION_CONTROL_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS session_control_states (
+    learning_session_id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL,
+    goal_id TEXT,
+    trajectory_id TEXT,
+    status TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+"""
+
 CLASSROOM_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS classrooms (
     classroom_id TEXT PRIMARY KEY,
@@ -273,6 +310,9 @@ def ensure_database(database_path: str) -> None:
         connection.execute(SOCRATIC_SESSION_TABLE_SQL)
         connection.execute(REMEDIATION_SESSION_TABLE_SQL)
         connection.execute(WITHIN_SESSION_CONTROLLER_TABLE_SQL)
+        connection.execute(LEARNER_GOAL_TABLE_SQL)
+        connection.execute(TRAJECTORY_TABLE_SQL)
+        connection.execute(SESSION_CONTROL_TABLE_SQL)
         connection.execute(COURSE_TABLE_SQL)
         connection.execute(CLASSROOM_TABLE_SQL)
         connection.execute(CLASSROOM_MEMBERSHIP_TABLE_SQL)

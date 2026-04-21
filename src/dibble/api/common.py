@@ -28,8 +28,10 @@ from dibble.services.generation_engine import GenerationEngine
 from dibble.services.generation_mode_calibration import GenerationModeCalibrator
 from dibble.services.harness.assessment_evidence import AssessmentEvidenceHarness
 from dibble.services.harness.content_generation import ContentGenerationHarness
+from dibble.services.harness.curriculum_planning import CurriculumPlanningHarness
 from dibble.services.harness.learner_profile import LearnerProfileHarness
 from dibble.services.harness.modality_routing import ModalityRoutingHarness
+from dibble.services.harness.within_session_control import WithinSessionControlHarness
 from dibble.services.learning_calibration_profiles import (
     LearningCalibrationProfileRecorder,
 )
@@ -126,6 +128,8 @@ class ApiServices(Protocol):
     assessment_evidence_harness: AssessmentEvidenceHarness
     modality_routing_harness: ModalityRoutingHarness
     content_generation_harness: ContentGenerationHarness
+    curriculum_planning_harness: CurriculumPlanningHarness
+    within_session_control_harness: WithinSessionControlHarness
     remediation_planner: RemediationPlanner
     socratic_assessment_service: SocraticAssessmentService
     socratic_profile_updater: SocraticProfileUpdater

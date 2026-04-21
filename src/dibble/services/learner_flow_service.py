@@ -12,6 +12,7 @@ from dibble.models.profile import (
     LearnerFlowNextStep,
     LearnerFlowSummary,
 )
+from dibble.models.session_control import SessionControlState
 from dibble.models.remediation import RemediationWorkflowSession
 from dibble.models.session_adaptation import WithinSessionControllerState
 from dibble.services.predictive_next_step_planner import PredictiveNextStepPlanner
@@ -19,6 +20,7 @@ from dibble.services.protocols import (
     AuditStore,
     GeneratedContentStore,
     RemediationSessionStore,
+    SessionControlStore,
     SocraticSessionStore,
     WithinSessionControllerStore,
 )
@@ -32,6 +34,7 @@ class LearnerFlowService:
     socratic_session_store: SocraticSessionStore
     remediation_session_store: RemediationSessionStore
     within_session_controller_store: WithinSessionControllerStore | None = None
+    session_control_store: SessionControlStore | None = None
     max_events: int = 300
     max_generated_content: int = 100
     next_step_planner: PredictiveNextStepPlanner = field(
@@ -54,6 +57,10 @@ class LearnerFlowService:
         if socratic_flow is not None:
             candidates.append((2, socratic_flow.updated_at, socratic_flow))
 
+        explicit_flow = self._explicit_session_flow(student_id=student_id)
+        if explicit_flow is not None:
+            candidates.append((1.5, explicit_flow.updated_at, explicit_flow))
+
         generation_flow = self._generation_flow(student_id=student_id, events=events)
         if generation_flow is not None:
             candidates.append((1, generation_flow.updated_at, generation_flow))
@@ -72,12 +79,52 @@ class LearnerFlowService:
 
         candidates.sort(
             key=lambda item: (
-                item[1] or datetime.min,
                 item[0],
+                item[1] or datetime.min,
             ),
             reverse=True,
         )
         return candidates[0][2]
+
+    def _explicit_session_flow(self, *, student_id: UUID) -> LearnerFlowSummary | None:
+        if self.session_control_store is None:
+            return None
+        session = self.session_control_store.get_active_for_student(student_id=student_id)
+        if session is None:
+            return None
+        return self._flow_from_session_control(session=session)
+
+    def _flow_from_session_control(
+        self, *, session: SessionControlState
+    ) -> LearnerFlowSummary:
+        return LearnerFlowSummary(
+            status=session.status,
+            flow_type=session.flow_type,
+            learning_session_id=session.learning_session_id,
+            goal_id=session.goal_id,
+            trajectory_id=session.trajectory_id,
+            trajectory_node_id=session.trajectory_node_id,
+            trajectory_checkpoint_id=session.trajectory_checkpoint_id,
+            remediation_session_id=session.remediation_session_id,
+            socratic_session_id=session.socratic_session_id,
+            current_phase=session.phase,
+            current_content_type=session.current_content_type,
+            last_generation_id=session.current_generation_id,
+            progression_action=session.progression_action,
+            target_stage=session.target_stage,
+            active_target_kc_ids=list(session.active_target_kc_ids),
+            deferred_target_kc_ids=list(session.deferred_target_kc_ids),
+            transfer_target_kc_ids=list(session.transfer_target_kc_ids),
+            session_phase=session.session_phase,
+            session_arc_action=session.session_arc_action,
+            session_stuck_loop_risk=session.session_stuck_loop_risk,
+            rationale=session.rationale,
+            progression_source=session.progression_source,
+            next_step_source="workflow_summary",
+            next_step=session.next_step,
+            continue_action=session.continue_action,
+            updated_at=session.updated_at,
+        )
 
     def _generation_flow(
         self, *, student_id: UUID, events

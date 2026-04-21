@@ -108,6 +108,66 @@ def test_learner_workspace_returns_machine_readable_not_found_error(client, stud
     )
 
 
+def test_workspace_bootstraps_explicit_planning_and_session_state(
+    client, student_id, app_settings
+):
+    conn = create_connection(app_settings.database_path)
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(
+            student_id,
+            frustration="low",
+            total_load=0.2,
+            kc_mastery={"KC-1": 0.86, "KC-2": 0.35},
+        ),
+    )
+    client.put(
+        "/api/curriculum/outcomes/CURR-1",
+        json=build_outcome(
+            "CURR-1",
+            title="Equivalent Fraction Practice",
+            knowledge_component_ids=["KC-2"],
+        ),
+    )
+    client.put(
+        "/api/knowledge-components/KC-1",
+        json=build_knowledge_component("KC-1", name="Fraction foundations"),
+    )
+    client.put(
+        "/api/knowledge-components/KC-2",
+        json=build_knowledge_component(
+            "KC-2",
+            prerequisite_kc_ids=["KC-1"],
+            name="Equivalent fraction practice",
+        ),
+    )
+
+    response = client.get(f"/api/learners/{student_id}/workspace")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["planning"]["goal"]["goal_id"]
+    assert payload["planning"]["trajectory"]["trajectory_id"]
+    assert (
+        payload["summary"]["current_flow"]["goal_id"]
+        == payload["planning"]["goal"]["goal_id"]
+    )
+    assert (
+        payload["summary"]["current_flow"]["trajectory_id"]
+        == payload["planning"]["trajectory"]["trajectory_id"]
+    )
+    assert payload["continue_action"]["kind"] == "generate_follow_up"
+    assert (
+        conn.execute("SELECT count(*) FROM learner_goals").fetchone()[0] >= 1
+    )
+    assert (
+        conn.execute("SELECT count(*) FROM learner_trajectories").fetchone()[0] >= 1
+    )
+    assert (
+        conn.execute("SELECT count(*) FROM session_control_states").fetchone()[0] >= 1
+    )
+
+
 def test_learner_progression_returns_machine_readable_not_found_error(
     client, student_id
 ):

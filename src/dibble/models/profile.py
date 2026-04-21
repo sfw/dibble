@@ -477,6 +477,10 @@ class LearnerCurriculumProgressionSummary(BaseModel):
     flow_type: str = "idle"
     current_stage: str = "idle"
     stage_display_label: str | None = None
+    goal_id: str | None = None
+    trajectory_id: str | None = None
+    trajectory_node_id: str | None = None
+    trajectory_checkpoint_id: str | None = None
     progression_action: str = "monitor"
     active_target_kc_ids: list[str] = Field(default_factory=list)
     outcome_count: int = Field(default=0, ge=0)
@@ -503,6 +507,10 @@ class LearnerFlowSummary(BaseModel):
     status: str = "idle"
     flow_type: str = "idle"
     learning_session_id: str | None = None
+    goal_id: str | None = None
+    trajectory_id: str | None = None
+    trajectory_node_id: str | None = None
+    trajectory_checkpoint_id: str | None = None
     remediation_session_id: str | None = None
     socratic_session_id: str | None = None
     current_phase: str = "idle"

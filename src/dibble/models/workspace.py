@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from dibble.models.assessment import SocraticAssessmentSession
 from dibble.models.generation import GeneratedContent
+from dibble.models.planning import ActivePlanningState
 from dibble.models.profile import LearnerContinueAction, ProfileSummary
 from dibble.models.remediation import RemediationWorkflowSession
 
@@ -31,6 +32,7 @@ class AffectiveSupportMessage(BaseModel):
 class LearnerWorkspace(BaseModel):
     student_id: UUID
     summary: ProfileSummary
+    planning: ActivePlanningState | None = None
     active_artifact: LearnerWorkspaceArtifact = Field(
         default_factory=LearnerWorkspaceArtifact
     )

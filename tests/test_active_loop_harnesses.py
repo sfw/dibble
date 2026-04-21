@@ -25,6 +25,7 @@ from dibble.services.harness.assessment_evidence import (
     RecordObservationEvidenceCommand,
 )
 from dibble.services.harness.content_generation import PreparedContentGeneration
+from dibble.services.harness.within_session_control import BindGenerationRequestResult
 from dibble.services.harness.facades import PreparedAuthoringRequest
 from dibble.services.harness.learner_profile import (
     ApplyObservationEvidenceCommand,
@@ -87,6 +88,14 @@ class _ContentGenerationHarness:
     def prepare_generation(self, *, profile, request, routing_plan=None):
         self.prepare_calls.append((profile, request, routing_plan))
         return self.prepared_generation
+
+
+class _WithinSessionControlHarness:
+    def bind_generation_request(self, command):
+        return BindGenerationRequestResult(request=command.request, session=None)
+
+    def summarize_generated_content(self, command):
+        raise AssertionError("Summary generation should not be used in this test")
 
 
 class _ObservationStore:
@@ -242,6 +251,7 @@ def test_content_workflow_routes_prepare_stage_through_harnesses():
         misconception_profile_recorder=None,
         audit_store=_AuditStore(),
         within_session_adaptation_service=None,
+        within_session_control_harness=_WithinSessionControlHarness(),
     )
     request = GenerationRequest(
         student_id=student_id,
@@ -257,6 +267,9 @@ def test_content_workflow_routes_prepare_stage_through_harnesses():
     assert routing_harness.calls == [(profile, request)]
     assert content_generation_harness.prepare_calls == [(profile, request, None)]
     assert prepared.prepared_generation is prepared_generation
+    assert "student_id" not in prepared.prepared_generation.authoring.curriculum_request.model_dump(
+        mode="json"
+    )
 
 
 def test_observation_evidence_and_profile_harnesses_round_trip_profile_writeback():

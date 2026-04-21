@@ -35,8 +35,10 @@ from dibble.services.generation_engine import GenerationEngine
 from dibble.services.harness.assessment_evidence import AssessmentEvidenceHarness
 from dibble.services.harness.content_generation import ContentGenerationHarness
 from dibble.services.harness.content_library import LocalCurriculumContentLibrary
+from dibble.services.harness.curriculum_planning import CurriculumPlanningHarness
 from dibble.services.harness.learner_profile import LearnerProfileHarness
 from dibble.services.harness.modality_routing import ModalityRoutingHarness
+from dibble.services.harness.within_session_control import WithinSessionControlHarness
 from dibble.services.surplus_practice_cache import SurplusPracticeCache
 from dibble.services.generation_mode_calibration import GenerationModeCalibrator
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
@@ -65,6 +67,7 @@ from dibble.services.mastery_quality_gate_signals import (
 from dibble.services.mastery_snapshot_service import MasterySnapshotService
 from dibble.services.mastery_snapshot_store import SQLiteMasterySnapshotStore
 from dibble.services.learner_flow_service import LearnerFlowService
+from dibble.services.learner_goal_store import SQLiteLearnerGoalStore
 from dibble.services.learner_history_service import LearnerHistoryService
 from dibble.services.learner_progression_service import LearnerProgressionService
 from dibble.services.learner_summary_service import LearnerSummaryService
@@ -102,12 +105,15 @@ from dibble.services.protocols import (
     ClassroomStore,
     ClassroomMembershipStore,
     CourseStore,
+    LearnerGoalStore,
     OutcomeStore,
+    SessionControlStore,
     StrandStore,
     GeneratedContentStore,
     KnowledgeComponentStore,
     ObservationStore,
     ProfileStore,
+    TrajectoryStore,
     SocraticSessionStore,
     UserStore,
 )
@@ -129,6 +135,7 @@ from dibble.services.teacher_intervention_actions import (
     TeacherInterventionActionService,
 )
 from dibble.services.telemetry import TelemetryService
+from dibble.services.trajectory_planner import TrajectoryPlanner
 from dibble.services.learner_state_prediction_outcomes import (
     LearnerStatePredictionOutcomeTracker,
 )
@@ -139,6 +146,8 @@ from dibble.services.within_session_adaptation import WithinSessionAdaptationSer
 from dibble.services.within_session_controller_store import (
     SQLiteWithinSessionControllerStore,
 )
+from dibble.services.session_control_store import SQLiteSessionControlStore
+from dibble.services.trajectory_store import SQLiteTrajectoryStore
 from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 
@@ -156,6 +165,9 @@ class ApplicationServices:
     audit_store: AuditStore
     generated_content_store: GeneratedContentStore
     observation_store: ObservationStore
+    learner_goal_store: LearnerGoalStore
+    trajectory_store: TrajectoryStore
+    session_control_store: SessionControlStore
     auth_service: AuthService
     telemetry_service: TelemetryService
     generation_engine: GenerationEngine
@@ -165,6 +177,8 @@ class ApplicationServices:
     assessment_evidence_harness: AssessmentEvidenceHarness
     modality_routing_harness: ModalityRoutingHarness
     content_generation_harness: ContentGenerationHarness
+    curriculum_planning_harness: CurriculumPlanningHarness
+    within_session_control_harness: WithinSessionControlHarness
     remediation_planner: RemediationPlanner
     socratic_assessment_service: SocraticAssessmentService
     socratic_profile_updater: SocraticProfileUpdater
@@ -230,6 +244,9 @@ def build_application_services(
     socratic_session_store = SQLiteSocraticSessionStore(conn)
     remediation_session_store = SQLiteRemediationSessionStore(conn)
     within_session_controller_store = SQLiteWithinSessionControllerStore(conn)
+    learner_goal_store = SQLiteLearnerGoalStore(conn)
+    trajectory_store = SQLiteTrajectoryStore(conn)
+    session_control_store = SQLiteSessionControlStore(conn)
     provider_health_store = SQLiteProviderHealthStore(conn)
     user_store = SQLiteUserStore(conn)
     auth_service = AuthService.from_settings(
@@ -403,6 +420,7 @@ def build_application_services(
         socratic_session_store=socratic_session_store,
         remediation_session_store=remediation_session_store,
         within_session_controller_store=within_session_controller_store,
+        session_control_store=session_control_store,
     )
     learner_history_service = LearnerHistoryService(
         generated_content_store=generated_content_store,
@@ -416,6 +434,21 @@ def build_application_services(
         learner_flow_service=learner_flow_service,
         ordinary_mastery_signal_service=ordinary_mastery_signal_service,
         quality_gate_signal_service=mastery_quality_gate_signal_service,
+    )
+    curriculum_planning_harness = CurriculumPlanningHarness(
+        profile_store=profile_store,
+        outcome_store=outcome_store,
+        learner_goal_store=learner_goal_store,
+        trajectory_store=trajectory_store,
+        learner_progression_service=learner_progression_service,
+        trajectory_planner=TrajectoryPlanner(
+            kc_sequence_planner=progression_ownership_service.kc_sequence_planner,
+            progression_ownership_service=progression_ownership_service,
+        ),
+    )
+    within_session_control_harness = WithinSessionControlHarness(
+        curriculum_planning_harness=curriculum_planning_harness,
+        session_control_store=session_control_store,
     )
     cross_signal_consistency_service = CrossSignalConsistencyService()
     learner_summary_service = LearnerSummaryService(
@@ -493,6 +526,7 @@ def build_application_services(
         misconception_profile_recorder=misconception_profile_recorder,
         audit_store=audit_store,
         within_session_adaptation_service=within_session_adaptation_service,
+        within_session_control_harness=within_session_control_harness,
         observation_profile_updater=observation_profile_updater,
         progression_ownership_service=progression_ownership_service,
     )
@@ -500,6 +534,8 @@ def build_application_services(
         learner_summary_service=learner_summary_service,
         content_workflow_service=content_workflow_service,
         socratic_assessment_service=socratic_assessment_service,
+        curriculum_planning_harness=curriculum_planning_harness,
+        within_session_control_harness=within_session_control_harness,
     )
 
     return ApplicationServices(
@@ -514,6 +550,9 @@ def build_application_services(
         audit_store=audit_store,
         generated_content_store=generated_content_store,
         observation_store=observation_store,
+        learner_goal_store=learner_goal_store,
+        trajectory_store=trajectory_store,
+        session_control_store=session_control_store,
         auth_service=auth_service,
         telemetry_service=TelemetryService(
             audit_store,
@@ -528,6 +567,8 @@ def build_application_services(
         assessment_evidence_harness=assessment_evidence_harness,
         modality_routing_harness=modality_routing_harness,
         content_generation_harness=content_generation_harness,
+        curriculum_planning_harness=curriculum_planning_harness,
+        within_session_control_harness=within_session_control_harness,
         remediation_planner=remediation_planner,
         socratic_assessment_service=socratic_assessment_service,
         socratic_profile_updater=socratic_profile_updater,
