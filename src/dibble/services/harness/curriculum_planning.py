@@ -8,6 +8,7 @@ from dibble.models.planning import LearnerGoal, TrajectoryPlan
 from dibble.models.profile import LearnerCurriculumProgressionSummary
 from dibble.services.errors import LearnerProfileNotFoundError
 from dibble.services.learner_progression_service import LearnerProgressionService
+from dibble.services.planning_adaptation import PlanningAdaptationService
 from dibble.services.protocols import (
     LearnerGoalStore,
     OutcomeStore,
@@ -52,6 +53,7 @@ class CurriculumPlanningHarness:
     trajectory_store: TrajectoryStore
     learner_progression_service: LearnerProgressionService
     trajectory_planner: TrajectoryPlanner
+    planning_adaptation_service: PlanningAdaptationService | None = None
 
     def create_goal(self, command: CreateLearnerGoalCommand) -> CurriculumPlanningResult:
         profile = self.profile_store.get(command.student_id)
@@ -68,6 +70,7 @@ class CurriculumPlanningHarness:
             student_id=command.student_id,
             goal=goal,
             progression=progression or LearnerCurriculumProgressionSummary(),
+            adaptation_state=self._adaptation_state_for(student_id=command.student_id),
         )
         goal = goal.model_copy(
             update={
@@ -141,6 +144,7 @@ class CurriculumPlanningHarness:
                 student_id=command.student_id,
                 goal=goal,
                 progression=baseline_progression,
+                adaptation_state=self._adaptation_state_for(student_id=command.student_id),
             )
             trajectory = self._bind_checkpoint_trajectory_ids(trajectory=trajectory)
             goal = goal.model_copy(
@@ -158,15 +162,33 @@ class CurriculumPlanningHarness:
                 goal_created=goal_created,
             )
 
-        revised = self.trajectory_planner.revise_plan(
+        adaptation_state = self._adaptation_state_for(
+            student_id=command.student_id,
             existing=existing,
+        )
+        planned = self.trajectory_planner.build_plan(
             student_id=command.student_id,
             goal=goal,
             progression=baseline_progression,
-            rationale=command.rationale or baseline_progression.rationale,
+            trajectory_id=existing.trajectory_id,
+            created_revision_number=len(existing.revisions) + 1,
+            adaptation_state=adaptation_state,
         )
-        revised = self._bind_checkpoint_trajectory_ids(trajectory=revised)
-        if self.trajectory_planner.semantic_signature(existing) != self.trajectory_planner.semantic_signature(revised) or existing.active_node_id != revised.active_node_id:
+        planned = self._bind_checkpoint_trajectory_ids(trajectory=planned)
+        trajectory_changed = (
+            self.trajectory_planner.semantic_signature(existing)
+            != self.trajectory_planner.semantic_signature(planned)
+        )
+        adaptation_changed = (
+            self.trajectory_planner.adaptation_signature(existing)
+            != self.trajectory_planner.adaptation_signature(planned)
+        )
+        if trajectory_changed:
+            revised = self.trajectory_planner.append_revision(
+                existing=existing,
+                planned=planned,
+                rationale=command.rationale or baseline_progression.rationale,
+            )
             goal = goal.model_copy(
                 update={
                     "active_trajectory_id": revised.trajectory_id,
@@ -181,6 +203,31 @@ class CurriculumPlanningHarness:
                 progression=progression,
                 goal_created=goal_created,
                 trajectory_revised=True,
+            )
+        if adaptation_changed:
+            refreshed_adaptation = (
+                planned.adaptation_state.model_copy(
+                    update={"revision_count": len(existing.revisions)}
+                )
+                if planned.adaptation_state is not None
+                else None
+            )
+            refreshed = planned.model_copy(
+                update={
+                    "created_at": existing.created_at,
+                    "revisions": existing.revisions,
+                    "adaptation_state": refreshed_adaptation,
+                }
+            )
+            self.trajectory_store.upsert(refreshed)
+            if goal_created:
+                goal = goal.model_copy(update={"updated_at": datetime.now(timezone.utc)})
+            self.learner_goal_store.upsert(goal)
+            return CurriculumPlanningResult(
+                goal=goal,
+                trajectory=refreshed,
+                progression=progression,
+                goal_created=goal_created,
             )
 
         if goal_created:
@@ -274,3 +321,30 @@ class CurriculumPlanningHarness:
             for checkpoint in trajectory.checkpoints
         ]
         return trajectory.model_copy(update={"checkpoints": checkpoints})
+
+    def get_active_state(self, *, student_id: UUID) -> CurriculumPlanningResult:
+        goal = self.learner_goal_store.get_active_for_student(student_id=student_id)
+        trajectory = (
+            self.trajectory_store.get(goal.active_trajectory_id)
+            if goal is not None and goal.active_trajectory_id is not None
+            else self.trajectory_store.get_active_for_student(student_id=student_id)
+        )
+        progression = self.learner_progression_service.build_for_student(student_id=student_id)
+        return CurriculumPlanningResult(
+            goal=goal,
+            trajectory=trajectory,
+            progression=progression,
+        )
+
+    def _adaptation_state_for(
+        self,
+        *,
+        student_id: UUID,
+        existing: TrajectoryPlan | None = None,
+    ):
+        if self.planning_adaptation_service is None:
+            return existing.adaptation_state if existing is not None else None
+        return self.planning_adaptation_service.build_state(
+            student_id=student_id,
+            existing_state=existing.adaptation_state if existing is not None else None,
+        )

@@ -35,6 +35,7 @@ from dibble.services.generation_engine import GenerationEngine
 from dibble.services.autonomous_teacher_harness import AutonomousTeacherHarness
 from dibble.services.modality_routing_prior_store import SQLiteModalityRoutingPriorStore
 from dibble.services.outcome_driven_adaptation import OutcomeDrivenAdaptationService
+from dibble.services.planning_adaptation import PlanningAdaptationService
 from dibble.services.harness.assessment_evidence import AssessmentEvidenceHarness
 from dibble.services.harness.content_generation import ContentGenerationHarness
 from dibble.services.harness.content_library import (
@@ -490,6 +491,12 @@ def build_application_services(
         trajectory_planner=TrajectoryPlanner(
             kc_sequence_planner=progression_ownership_service.kc_sequence_planner,
             progression_ownership_service=progression_ownership_service,
+        ),
+        planning_adaptation_service=PlanningAdaptationService(
+            audit_store=audit_store,
+            prior_store=modality_routing_prior_store,
+            strategy_signal_service=learner_strategy_signal_service,
+            state_signal_service=learner_state_signal_service,
         ),
     )
     within_session_control_harness = WithinSessionControlHarness(

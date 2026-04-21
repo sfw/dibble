@@ -252,3 +252,53 @@ def test_library_ranking_prefers_stronger_outcome_history_over_newer_candidate(t
         component.label == "historical_outcome" and component.value > 0
         for component in stronger_ranking.score_components
     )
+
+
+def test_library_outcome_contract_promotes_safe_artifact_metadata(tmp_path):
+    db_path = str(tmp_path / "dibble.db")
+    ensure_database(db_path)
+    conn = create_connection(db_path)
+    store = SQLiteCurriculumContentLibraryStore(conn)
+    request = CurriculumContentRequest(
+        grade_level="5",
+        intent=ContentIntent.remediation,
+        content_type=RequestedContentType.remedial_micro_module,
+        target_kc_ids=["KC-1"],
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.reteach,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="medium",
+        reasons=["test"],
+    )
+    key = CurriculumContentKey(request=request, route=route)
+    store.upsert_entry(
+        entry=CurriculumLibraryEntry(
+            content_key=key,
+            content=_generated_content(
+                generation_id="gen-safe-contract",
+                route=route,
+                created_at=datetime.now(timezone.utc),
+            ),
+        )
+    )
+
+    store.record_outcome(
+        source_generation_id="gen-safe-contract",
+        outcome_score=0.81,
+        engagement_score=0.74,
+        progress_score=0.78,
+    )
+    refreshed = store.get_fresh_entry(key=key)
+
+    assert refreshed is not None
+    assert refreshed.provenance is not None
+    assert refreshed.provenance.artifact_outcome_summary is not None
+    assert refreshed.provenance.artifact_outcome_summary.intent == "remediation"
+    assert (
+        refreshed.provenance.artifact_outcome_summary.content_type
+        == "remedial_micro_module"
+    )
+    assert refreshed.provenance.artifact_outcome_summary.pattern_key is not None
+    assert refreshed.provenance.artifact_outcome_summary.sample_count == 1
+    assert refreshed.provenance.artifact_outcome_summary.average_outcome_score == 0.81

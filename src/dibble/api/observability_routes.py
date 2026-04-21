@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from fastapi import APIRouter
 
 from dibble.api.common import ApiContext, api_error
@@ -10,6 +12,7 @@ from dibble.models.generation import (
     ModalityRoutingInspection,
 )
 from dibble.models.household import LearnerRelationshipState
+from dibble.models.planning import ActivePlanningState
 from dibble.models.telemetry import AuditEvent, TelemetrySnapshot
 
 
@@ -68,6 +71,23 @@ def build_observability_router(context: ApiContext) -> APIRouter:
                 code="curriculum_library_unavailable",
             )
         return library.inspect_selection(key=payload)
+
+    @router.get(
+        "/observability/adaptation/planning/{student_id}",
+        response_model=ActivePlanningState,
+        dependencies=context.deps("admin"),
+    )
+    def get_planning_adaptation(student_id: str) -> ActivePlanningState:
+        planning = services.curriculum_planning_harness.get_active_state(
+            student_id=UUID(student_id)
+        )
+        if planning.goal is None and planning.trajectory is None:
+            raise api_error(
+                status_code=404,
+                detail="Active planning state not found.",
+                code="planning_state_not_found",
+            )
+        return ActivePlanningState(goal=planning.goal, trajectory=planning.trajectory)
 
     @router.get(
         "/observability/adaptation/autonomous-teacher/{household_id}/{learner_id}",

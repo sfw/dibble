@@ -739,6 +739,32 @@ class CurriculumLibraryEntry(BaseModel):
                     artifact.provenance.modality
                     for artifact in self.content.response.artifacts
                 ],
+                artifact_outcome_summary=CurriculumArtifactOutcomeSummary(
+                    intent=self.content_key.request.intent.value,
+                    content_type=self.content_key.request.content_type.value,
+                    delivered_phase=(
+                        self.content.workflow_summary.delivered_phase
+                        if self.content.workflow_summary is not None
+                        else None
+                    ),
+                    prompt_template_name=self.content.quality.prompt_template_name,
+                    prompt_template_variant=self.content.quality.prompt_template_variant,
+                    pattern_key=":".join(
+                        str(item)
+                        for item in [
+                            (
+                                self.content.workflow_summary.delivered_phase
+                                if self.content.workflow_summary is not None
+                                else None
+                            ),
+                            self.content_key.request.intent.value,
+                            self.content_key.request.content_type.value,
+                            self.content.quality.prompt_template_variant,
+                        ]
+                        if item
+                    )
+                    or None,
+                ),
             )
         return self
 
@@ -762,6 +788,23 @@ class CurriculumLibraryProvenance(BaseModel):
     average_engagement_score: float = Field(default=0.5, ge=0.0, le=1.0)
     average_progress_score: float = Field(default=0.5, ge=0.0, le=1.0)
     historical_success_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    last_outcome_at: datetime | None = None
+    artifact_outcome_summary: "CurriculumArtifactOutcomeSummary | None" = None
+
+
+class CurriculumArtifactOutcomeSummary(BaseModel):
+    evidence_strength: str = "weak"
+    sample_count: int = Field(default=0, ge=0)
+    average_outcome_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    average_engagement_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    average_progress_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    historical_success_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    intent: str | None = None
+    content_type: str | None = None
+    delivered_phase: str | None = None
+    prompt_template_name: str | None = None
+    prompt_template_variant: str | None = None
+    pattern_key: str | None = None
     last_outcome_at: datetime | None = None
 
 

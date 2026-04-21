@@ -6,10 +6,16 @@ from uuid import UUID, uuid4
 from dibble.models.generation import ContentIntent, GenerationRequest
 from dibble.models.planning import (
     LearnerGoal,
+    PlanningAdaptationState,
+    PlanningEvidenceStrength,
+    PlanningSignalKind,
     TrajectoryCheckpoint,
     TrajectoryNode,
+    TrajectoryNodeAdaptation,
     TrajectoryPlan,
     TrajectoryRevision,
+    TrajectoryRevisionReason,
+    TrajectoryRiskLevel,
 )
 from dibble.models.profile import (
     LearnerCurriculumProgressionSummary,
@@ -33,11 +39,13 @@ class TrajectoryPlanner:
         progression: LearnerCurriculumProgressionSummary,
         trajectory_id: str | None = None,
         created_revision_number: int = 1,
+        adaptation_state: PlanningAdaptationState | None = None,
     ) -> TrajectoryPlan:
         nodes, checkpoints = self._nodes_and_checkpoints(
             student_id=student_id,
             goal=goal,
             progression=progression,
+            adaptation_state=adaptation_state,
         )
         active_node_id = next(
             (
@@ -62,6 +70,13 @@ class TrajectoryPlanner:
             rationale=progression.rationale or goal.rationale,
             active_node_id=active_node_id,
             node_count=len(nodes),
+            reasons=self._revision_reasons(adaptation_state=adaptation_state),
+            adjustments=list(
+                adaptation_state.active_adjustments if adaptation_state is not None else []
+            ),
+            observed_signals=list(
+                adaptation_state.recent_signals if adaptation_state is not None else []
+            ),
         )
         return TrajectoryPlan(
             trajectory_id=trajectory_id or str(uuid4()),
@@ -73,25 +88,23 @@ class TrajectoryPlanner:
             nodes=nodes,
             checkpoints=checkpoints,
             revisions=[revision],
+            adaptation_state=(
+                adaptation_state.model_copy(
+                    update={"revision_count": created_revision_number}
+                )
+                if adaptation_state is not None
+                else None
+            ),
             rationale=combine_rationales(goal.rationale, progression.rationale),
         )
 
-    def revise_plan(
+    def append_revision(
         self,
         *,
         existing: TrajectoryPlan,
-        student_id: UUID,
-        goal: LearnerGoal,
-        progression: LearnerCurriculumProgressionSummary,
+        planned: TrajectoryPlan,
         rationale: str | None,
     ) -> TrajectoryPlan:
-        planned = self.build_plan(
-            student_id=student_id,
-            goal=goal,
-            progression=progression,
-            trajectory_id=existing.trajectory_id,
-            created_revision_number=len(existing.revisions) + 1,
-        )
         revision = planned.revisions[-1].model_copy(
             update={
                 "revision_kind": "revised",
@@ -106,16 +119,61 @@ class TrajectoryPlanner:
             }
         )
 
-    def semantic_signature(self, trajectory: TrajectoryPlan) -> list[tuple[str, str | None, str, tuple[str, ...]]]:
+    def semantic_signature(
+        self, trajectory: TrajectoryPlan
+    ) -> list[tuple[str, str | None, str, tuple[str, ...], int, str, str | None]]:
         return [
             (
                 node.node_kind,
                 node.outcome_id,
                 node.target_stage,
                 tuple(node.target_kc_ids),
+                node.expected_session_count,
+                (
+                    node.adaptation.risk_level.value
+                    if node.adaptation is not None
+                    else TrajectoryRiskLevel.low.value
+                ),
+                (
+                    node.adaptation.recommended_scaffolding_pattern
+                    if node.adaptation is not None
+                    else None
+                ),
             )
             for node in trajectory.nodes
         ]
+
+    def adaptation_signature(self, trajectory: TrajectoryPlan) -> tuple[object, ...]:
+        adaptation = trajectory.adaptation_state
+        if adaptation is None:
+            return ()
+        return (
+            adaptation.active_pacing_adjustment,
+            adaptation.active_revisit_density,
+            adaptation.preferred_scaffolding_pattern,
+            adaptation.preferred_modality,
+            tuple(
+                (
+                    marker.cluster_key,
+                    marker.risk_level.value,
+                    marker.sample_count,
+                    marker.preferred_recovery_pattern,
+                )
+                for marker in adaptation.concept_cluster_markers
+            ),
+            tuple(
+                (
+                    signal.kind.value,
+                    signal.direction,
+                    signal.sample_count,
+                    signal.cluster_key,
+                    signal.content_type,
+                    signal.phase,
+                    signal.modality,
+                )
+                for signal in adaptation.recent_signals
+            ),
+        )
 
     def _nodes_and_checkpoints(
         self,
@@ -123,6 +181,7 @@ class TrajectoryPlanner:
         student_id: UUID,
         goal: LearnerGoal,
         progression: LearnerCurriculumProgressionSummary,
+        adaptation_state: PlanningAdaptationState | None,
     ) -> tuple[list[TrajectoryNode], list[TrajectoryCheckpoint]]:
         candidates = self._candidate_outcomes(goal=goal, progression=progression)
         nodes: list[TrajectoryNode] = []
@@ -133,6 +192,7 @@ class TrajectoryPlanner:
                 summary=summary,
                 goal=goal,
                 progression=progression,
+                adaptation_state=adaptation_state,
             )
             nodes.append(node)
             checkpoints.append(checkpoint)
@@ -150,6 +210,10 @@ class TrajectoryPlanner:
                     ordered_kc_ids=list(goal.target_kc_ids),
                     checkpoint_ids=[checkpoint_id],
                     rationale=goal.rationale,
+                    adaptation=self._node_adaptation(
+                        target_kc_ids=list(goal.target_kc_ids),
+                        adaptation_state=adaptation_state,
+                    ),
                 )
             )
             checkpoints.append(
@@ -163,39 +227,20 @@ class TrajectoryPlanner:
                 )
             )
 
-        if len(nodes) >= 2 and nodes[0].target_kc_ids:
-            review_node_id = str(uuid4())
-            review_checkpoint_id = str(uuid4())
-            review_title = f"Revisit {nodes[0].title}"
-            nodes.insert(
-                min(2, len(nodes)),
-                TrajectoryNode(
-                    node_id=review_node_id,
-                    node_kind="spaced_review",
-                    title=review_title,
-                    outcome_id=nodes[0].outcome_id,
-                    status="planned",
-                    sequence_index=0,
-                    target_stage="transfer",
-                    sequence_action="attempt_transfer",
-                    target_kc_ids=list(nodes[0].target_kc_ids),
-                    ordered_kc_ids=list(nodes[0].target_kc_ids),
-                    transfer_target_kc_ids=list(nodes[0].target_kc_ids),
-                    expected_session_count=1,
-                    checkpoint_ids=[review_checkpoint_id],
-                    rationale=f"Revisit {nodes[0].title} after adjacent work so retention is explicit, not assumed.",
-                ),
-            )
-            checkpoints.append(
-                TrajectoryCheckpoint(
-                    checkpoint_id=review_checkpoint_id,
-                    trajectory_id="pending",
-                    node_id=review_node_id,
-                    label=f"Confirm retention on {nodes[0].title}.",
-                    mastery_focus_kc_ids=list(nodes[0].target_kc_ids),
-                    rationale="Use a short spaced review checkpoint before the trajectory moves too far ahead.",
-                )
-            )
+        nodes, checkpoints = self._apply_recovery_scaffold(
+            nodes=nodes,
+            checkpoints=checkpoints,
+            adaptation_state=adaptation_state,
+        )
+        nodes, checkpoints = self._insert_review_nodes(
+            nodes=nodes,
+            checkpoints=checkpoints,
+            revisit_density=(
+                adaptation_state.active_revisit_density
+                if adaptation_state is not None
+                else 1
+            ),
+        )
 
         for index, node in enumerate(nodes):
             node.sequence_index = index
@@ -239,6 +284,7 @@ class TrajectoryPlanner:
         summary: OutcomeProgressSummary,
         goal: LearnerGoal,
         progression: LearnerCurriculumProgressionSummary,
+        adaptation_state: PlanningAdaptationState | None,
     ) -> tuple[TrajectoryNode, TrajectoryCheckpoint]:
         requested_kc_ids = list(summary.knowledge_component_ids or goal.target_kc_ids)
         sequence = self.kc_sequence_planner.plan(
@@ -296,9 +342,21 @@ class TrajectoryPlanner:
                 summary=summary,
                 bridge_kc_ids=bridge_kc_ids,
                 applied_target_kc_ids=applied_target_kc_ids,
+                adaptation_state=adaptation_state,
+                target_kc_ids=list(applied_target_kc_ids or requested_kc_ids),
             ),
             checkpoint_ids=[checkpoint_id],
-            rationale=rationale,
+            rationale=combine_rationales(
+                rationale,
+                self._adaptation_rationale(
+                    target_kc_ids=list(applied_target_kc_ids or requested_kc_ids),
+                    adaptation_state=adaptation_state,
+                ),
+            ),
+            adaptation=self._node_adaptation(
+                target_kc_ids=list(applied_target_kc_ids or requested_kc_ids),
+                adaptation_state=adaptation_state,
+            ),
         )
         checkpoint = TrajectoryCheckpoint(
             checkpoint_id=checkpoint_id,
@@ -326,8 +384,10 @@ class TrajectoryPlanner:
         summary: OutcomeProgressSummary,
         bridge_kc_ids: list[str],
         applied_target_kc_ids: list[str],
+        adaptation_state: PlanningAdaptationState | None,
+        target_kc_ids: list[str],
     ) -> int:
-        return max(
+        baseline = max(
             1,
             min(
                 4,
@@ -337,6 +397,26 @@ class TrajectoryPlanner:
                 + max(0, len(applied_target_kc_ids) - 1),
             ),
         )
+        if adaptation_state is None:
+            return baseline
+        node_adaptation = self._node_adaptation(
+            target_kc_ids=target_kc_ids,
+            adaptation_state=adaptation_state,
+        )
+        adjustment = 0
+        if adaptation_state.active_pacing_adjustment == "slower":
+            adjustment += 1
+        if (
+            node_adaptation is not None
+            and node_adaptation.risk_level == TrajectoryRiskLevel.high
+        ):
+            adjustment += 1
+        elif (
+            node_adaptation is not None
+            and node_adaptation.risk_level == TrajectoryRiskLevel.moderate
+        ):
+            adjustment += 0
+        return max(1, min(5, baseline + adjustment))
 
     def _checkpoint_label(self, *, summary: OutcomeProgressSummary, target_stage: str) -> str:
         if target_stage == "repair":
@@ -344,3 +424,217 @@ class TrajectoryPlanner:
         if target_stage == "bridge":
             return f"Bridge back into {summary.title} without losing momentum."
         return f"Show independent progress on {summary.title}."
+
+    def _apply_recovery_scaffold(
+        self,
+        *,
+        nodes: list[TrajectoryNode],
+        checkpoints: list[TrajectoryCheckpoint],
+        adaptation_state: PlanningAdaptationState | None,
+    ) -> tuple[list[TrajectoryNode], list[TrajectoryCheckpoint]]:
+        if adaptation_state is None or not nodes:
+            return nodes, checkpoints
+        first_node = nodes[0]
+        if first_node.adaptation is None or first_node.adaptation.risk_level != TrajectoryRiskLevel.high:
+            return nodes, checkpoints
+        if not first_node.target_kc_ids:
+            return nodes, checkpoints
+        recovery_label = (
+            first_node.adaptation.recommended_scaffolding_pattern or "guided recovery"
+        )
+        node_id = str(uuid4())
+        checkpoint_id = str(uuid4())
+        scaffold = TrajectoryNode(
+            node_id=node_id,
+            node_kind="recovery_scaffold",
+            title=f"Rebuild {first_node.title}",
+            outcome_id=first_node.outcome_id,
+            status="planned",
+            sequence_index=0,
+            target_stage="repair",
+            sequence_action="rebuild_prerequisite",
+            target_kc_ids=list(first_node.target_kc_ids),
+            ordered_kc_ids=list(first_node.target_kc_ids),
+            transfer_target_kc_ids=list(first_node.target_kc_ids),
+            expected_session_count=1,
+            checkpoint_ids=[checkpoint_id],
+            rationale=(
+                f"Recent outcomes show this cluster needs a bounded scaffold first. "
+                f"Preferred pattern: {recovery_label}."
+            ),
+            adaptation=TrajectoryNodeAdaptation(
+                risk_level=TrajectoryRiskLevel.high,
+                pacing_adjustment=adaptation_state.active_pacing_adjustment,
+                revisit_priority="high",
+                recommended_scaffolding_pattern=recovery_label,
+                recommended_modality=adaptation_state.preferred_modality,
+                signal_ids=[
+                    signal.signal_id
+                    for signal in adaptation_state.recent_signals
+                    if self._overlaps(signal.target_kc_ids, first_node.target_kc_ids)
+                    or signal.kind == PlanningSignalKind.session_effectiveness
+                ],
+                rationale="Insert a recovery scaffold before the main node when repeated stalls are strong enough to justify a structural change.",
+            ),
+        )
+        checkpoint = TrajectoryCheckpoint(
+            checkpoint_id=checkpoint_id,
+            trajectory_id="pending",
+            node_id=node_id,
+            label=f"Stabilize {first_node.title} before the trajectory resumes.",
+            mastery_focus_kc_ids=list(first_node.target_kc_ids),
+            rationale=scaffold.rationale,
+        )
+        return [scaffold, *nodes], [*checkpoints, checkpoint]
+
+    def _insert_review_nodes(
+        self,
+        *,
+        nodes: list[TrajectoryNode],
+        checkpoints: list[TrajectoryCheckpoint],
+        revisit_density: int,
+    ) -> tuple[list[TrajectoryNode], list[TrajectoryCheckpoint]]:
+        if len(nodes) < 2 or not nodes[0].target_kc_ids:
+            return nodes, checkpoints
+        updated_nodes = list(nodes)
+        updated_checkpoints = list(checkpoints)
+        insert_after_indices = [2]
+        if revisit_density >= 2 and len(nodes) >= 3 and nodes[1].target_kc_ids:
+            insert_after_indices.append(min(4, len(nodes)))
+        for insert_index in insert_after_indices[: max(1, revisit_density)]:
+            anchor = updated_nodes[min(max(insert_index - 2, 0), len(updated_nodes) - 1)]
+            if not anchor.target_kc_ids:
+                continue
+            review_node_id = str(uuid4())
+            review_checkpoint_id = str(uuid4())
+            review_title = f"Revisit {anchor.title}"
+            updated_nodes.insert(
+                min(insert_index, len(updated_nodes)),
+                TrajectoryNode(
+                    node_id=review_node_id,
+                    node_kind="spaced_review",
+                    title=review_title,
+                    outcome_id=anchor.outcome_id,
+                    status="planned",
+                    sequence_index=0,
+                    target_stage="transfer",
+                    sequence_action="attempt_transfer",
+                    target_kc_ids=list(anchor.target_kc_ids),
+                    ordered_kc_ids=list(anchor.target_kc_ids),
+                    transfer_target_kc_ids=list(anchor.target_kc_ids),
+                    expected_session_count=1,
+                    checkpoint_ids=[review_checkpoint_id],
+                    rationale=(
+                        f"Revisit {anchor.title} after adjacent work so retention is explicit, not assumed."
+                    ),
+                    adaptation=anchor.adaptation,
+                ),
+            )
+            updated_checkpoints.append(
+                TrajectoryCheckpoint(
+                    checkpoint_id=review_checkpoint_id,
+                    trajectory_id="pending",
+                    node_id=review_node_id,
+                    label=f"Confirm retention on {anchor.title}.",
+                    mastery_focus_kc_ids=list(anchor.target_kc_ids),
+                    rationale="Use a short spaced review checkpoint before the trajectory moves too far ahead.",
+                )
+            )
+        return updated_nodes, updated_checkpoints
+
+    def _node_adaptation(
+        self,
+        *,
+        target_kc_ids: list[str],
+        adaptation_state: PlanningAdaptationState | None,
+    ) -> TrajectoryNodeAdaptation | None:
+        if adaptation_state is None:
+            return None
+        marker = next(
+            (
+                item
+                for item in adaptation_state.concept_cluster_markers
+                if self._overlaps(item.target_kc_ids, target_kc_ids)
+            ),
+            None,
+        )
+        signal_ids = [
+            signal.signal_id
+            for signal in adaptation_state.recent_signals
+            if self._overlaps(signal.target_kc_ids, target_kc_ids)
+            or (
+                signal.kind == PlanningSignalKind.session_effectiveness
+                and signal.evidence_strength != PlanningEvidenceStrength.weak
+            )
+        ]
+        if marker is None and not signal_ids and adaptation_state.preferred_scaffolding_pattern is None:
+            return None
+        return TrajectoryNodeAdaptation(
+            risk_level=marker.risk_level if marker is not None else TrajectoryRiskLevel.low,
+            pacing_adjustment=adaptation_state.active_pacing_adjustment,
+            revisit_priority=(
+                "high"
+                if marker is not None and marker.risk_level == TrajectoryRiskLevel.high
+                else "elevated"
+                if marker is not None and marker.risk_level == TrajectoryRiskLevel.moderate
+                else "normal"
+            ),
+            recommended_scaffolding_pattern=(
+                marker.preferred_recovery_pattern
+                if marker is not None
+                else adaptation_state.preferred_scaffolding_pattern
+            ),
+            recommended_modality=(
+                marker.preferred_modality
+                if marker is not None
+                else adaptation_state.preferred_modality
+            ),
+            signal_ids=signal_ids,
+            rationale=marker.rationale if marker is not None else None,
+        )
+
+    def _adaptation_rationale(
+        self,
+        *,
+        target_kc_ids: list[str],
+        adaptation_state: PlanningAdaptationState | None,
+    ) -> str | None:
+        node_adaptation = self._node_adaptation(
+            target_kc_ids=target_kc_ids,
+            adaptation_state=adaptation_state,
+        )
+        if node_adaptation is None:
+            return None
+        if node_adaptation.risk_level == TrajectoryRiskLevel.high:
+            return (
+                "Recent outcome history suggests this cluster needs slower pacing and stronger scaffolding."
+            )
+        if node_adaptation.risk_level == TrajectoryRiskLevel.moderate:
+            return "Recent outcomes suggest adding bounded support and explicit revisits."
+        if node_adaptation.recommended_scaffolding_pattern is not None:
+            return (
+                f"Keep {node_adaptation.recommended_scaffolding_pattern} available because it has helped similar recent sessions recover."
+            )
+        return None
+
+    def _revision_reasons(
+        self, *, adaptation_state: PlanningAdaptationState | None
+    ) -> list[TrajectoryRevisionReason]:
+        if adaptation_state is None:
+            return []
+        reasons: list[TrajectoryRevisionReason] = []
+        for signal in adaptation_state.recent_signals[:4]:
+            reasons.append(
+                TrajectoryRevisionReason(
+                    reason_code=f"{signal.kind.value}:{signal.direction}",
+                    signal_kind=signal.kind,
+                    evidence_strength=signal.evidence_strength,
+                    cluster_key=signal.cluster_key,
+                    rationale=signal.rationale
+                    or "Outcome history contributed to this trajectory revision.",
+                )
+            )
+        return reasons
+
+    def _overlaps(self, left: list[str], right: list[str]) -> bool:
+        return bool(set(left).intersection(right))

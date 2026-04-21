@@ -118,6 +118,10 @@ def test_adaptation_observability_routes_expose_modality_and_autonomous_teacher_
             },
         )
         household_id = setup_response.json()["household"]["household_id"]
+        planning_response = client.get(
+            f"/api/observability/adaptation/planning/{student_id}",
+            headers={"X-API-Key": "admin-key"},
+        )
         relationship_response = client.get(
             f"/api/observability/adaptation/autonomous-teacher/{household_id}/{student_id}",
             headers={"X-API-Key": "admin-key"},
@@ -125,10 +129,14 @@ def test_adaptation_observability_routes_expose_modality_and_autonomous_teacher_
 
     assert overview_response.status_code == 200
     assert modality_response.status_code == 200
+    assert planning_response.status_code == 200
     assert relationship_response.status_code == 200
     modality_payload = modality_response.json()
+    planning_payload = planning_response.json()
     relationship_payload = relationship_response.json()
     assert modality_payload["selected_plugin_id"] in {"text", "diagram", "narrative"}
     assert modality_payload["candidate_scores"]
+    assert planning_payload["trajectory"]["adaptation_state"] is not None
+    assert "recent_signals" in planning_payload["trajectory"]["adaptation_state"]
     assert "adaptation_state" in relationship_payload
     assert "latest_decision_trace" in relationship_payload

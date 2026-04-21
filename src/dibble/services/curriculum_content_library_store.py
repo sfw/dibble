@@ -5,6 +5,7 @@ import sqlite3
 from datetime import datetime, timezone
 
 from dibble.models.generation import (
+    CurriculumArtifactOutcomeSummary,
     CurriculumContentKey,
     CurriculumLibraryEntry,
     CurriculumLibraryProvenance,
@@ -197,6 +198,15 @@ class SQLiteCurriculumContentLibraryStore:
                     "average_progress_score": next_progress_average,
                     "historical_success_rate": round(positive_count / next_count, 2),
                     "last_outcome_at": observed_at,
+                    "artifact_outcome_summary": self._artifact_outcome_summary(
+                        entry=entry,
+                        sample_count=next_count,
+                        average_outcome_score=next_outcome_average,
+                        average_engagement_score=next_engagement_average,
+                        average_progress_score=next_progress_average,
+                        historical_success_rate=round(positive_count / next_count, 2),
+                        last_outcome_at=observed_at,
+                    ),
                 }
             )
             updated_entry = entry.model_copy(update={"provenance": updated_provenance})
@@ -230,6 +240,46 @@ class SQLiteCurriculumContentLibraryStore:
             }
         )
 
+    def _artifact_outcome_summary(
+        self,
+        *,
+        entry: CurriculumLibraryEntry,
+        sample_count: int,
+        average_outcome_score: float,
+        average_engagement_score: float,
+        average_progress_score: float,
+        historical_success_rate: float,
+        last_outcome_at: datetime,
+    ) -> CurriculumArtifactOutcomeSummary:
+        request = entry.content_key.request
+        workflow = entry.content.workflow_summary
+        quality = entry.content.quality
+        pattern_key = ":".join(
+            str(item)
+            for item in [
+                workflow.delivered_phase if workflow is not None else None,
+                request.intent.value,
+                request.content_type.value,
+                quality.prompt_template_variant,
+            ]
+            if item
+        )
+        return CurriculumArtifactOutcomeSummary(
+            evidence_strength=_evidence_strength(sample_count),
+            sample_count=sample_count,
+            average_outcome_score=average_outcome_score,
+            average_engagement_score=average_engagement_score,
+            average_progress_score=average_progress_score,
+            historical_success_rate=historical_success_rate,
+            intent=request.intent.value,
+            content_type=request.content_type.value,
+            delivered_phase=workflow.delivered_phase if workflow is not None else None,
+            prompt_template_name=quality.prompt_template_name,
+            prompt_template_variant=quality.prompt_template_variant,
+            pattern_key=pattern_key or None,
+            last_outcome_at=last_outcome_at,
+        )
+
 
 def _rolling_average(
     current_average: float,
@@ -244,3 +294,11 @@ def _rolling_average(
         ((current_average * current_count) + observed_value) / (current_count + 1),
         2,
     )
+
+
+def _evidence_strength(sample_count: int) -> str:
+    if sample_count >= 4:
+        return "strong"
+    if sample_count >= 2:
+        return "emerging"
+    return "weak"

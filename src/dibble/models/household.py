@@ -84,6 +84,10 @@ class LearnerRelationshipAdaptationState(BaseModel):
     recovery_episode_count: int = Field(default=0, ge=0)
     average_session_outcome_score: float = Field(default=0.5, ge=0.0, le=1.0)
     recent_session_outcome_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    planning_revision_count: int = Field(default=0, ge=0)
+    trajectory_risk_level: str = "low"
+    active_pacing_adjustment: str = "standard"
+    active_recovery_pattern: str | None = None
     modality_outcomes: list[AutonomousTeacherModalityOutcome] = Field(
         default_factory=list
     )

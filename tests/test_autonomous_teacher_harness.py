@@ -11,7 +11,14 @@ from dibble.models.profile import (
     LearnerFlowNextStep,
     ProfileSummary,
 )
-from dibble.models.planning import LearnerGoal, TrajectoryNode, TrajectoryPlan
+from dibble.models.planning import (
+    LearnerGoal,
+    PlanningAdaptationState,
+    PlanningConceptClusterMarker,
+    TrajectoryNode,
+    TrajectoryPlan,
+    TrajectoryRiskLevel,
+)
 from dibble.models.session_control import SessionControlState
 from dibble.services.autonomous_teacher_harness import AutonomousTeacherHarness
 
@@ -55,6 +62,19 @@ class _CurriculumPlanningHarness:
                     target_kc_ids=["KC-1"],
                 )
             ],
+            adaptation_state=PlanningAdaptationState(
+                active_pacing_adjustment="slower",
+                preferred_scaffolding_pattern="repair -> remediation",
+                concept_cluster_markers=[
+                    PlanningConceptClusterMarker(
+                        cluster_key="KC-1",
+                        label="KC KC-1",
+                        target_kc_ids=["KC-1"],
+                        risk_level=TrajectoryRiskLevel.moderate,
+                        sample_count=3,
+                    )
+                ],
+            ),
             created_at=now,
             updated_at=now,
         )
@@ -198,6 +218,8 @@ def test_autonomous_teacher_harness_emits_session_suggestion_and_soft_escalation
     assert plan.next_session is not None
     assert plan.next_session.modality == "diagram"
     assert plan.relationship_state.soft_escalation_active is False
+    assert plan.relationship_state.adaptation_state.active_pacing_adjustment == "slower"
+    assert plan.relationship_state.adaptation_state.trajectory_risk_level == "moderate"
     assert plan.weekly_summary is not None
     assert result.notifications
 

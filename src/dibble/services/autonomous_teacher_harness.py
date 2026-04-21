@@ -123,6 +123,7 @@ class AutonomousTeacherHarness:
         adaptation_state, approval_requests = self._adaptation_state_for(
             existing_state=existing_state,
             student_id=student_id,
+            planning=planning,
             last_event_at=summary.recent_activity.last_event_at,
             session_stuck_loop_risk=summary.current_flow.session_stuck_loop_risk,
             frustration=summary.frustration.value,
@@ -312,6 +313,7 @@ class AutonomousTeacherHarness:
         *,
         existing_state: LearnerRelationshipState | None,
         student_id: UUID,
+        planning,
         last_event_at: datetime | None,
         session_stuck_loop_risk: str,
         frustration: str,
@@ -372,6 +374,17 @@ class AutonomousTeacherHarness:
         modality_outcomes = self._modality_outcomes_for(student_id=student_id)
         if not modality_outcomes and base.modality_outcomes:
             modality_outcomes = list(base.modality_outcomes)
+        planning_adaptation = (
+            planning.trajectory.adaptation_state
+            if planning.trajectory is not None
+            else None
+        )
+        trajectory_risk_level = (
+            planning_adaptation.concept_cluster_markers[0].risk_level.value
+            if planning_adaptation is not None
+            and planning_adaptation.concept_cluster_markers
+            else base.trajectory_risk_level
+        )
         updated_state = base.model_copy(
             update={
                 "approval_follow_through_count": approval_follow_through_count,
@@ -379,6 +392,22 @@ class AutonomousTeacherHarness:
                 "recent_session_outcome_score": average_session_outcome_score,
                 "stall_episode_count": stall_episode_count,
                 "recovery_episode_count": recovery_episode_count,
+                "planning_revision_count": (
+                    len(planning.trajectory.revisions)
+                    if planning.trajectory is not None
+                    else base.planning_revision_count
+                ),
+                "trajectory_risk_level": trajectory_risk_level,
+                "active_pacing_adjustment": (
+                    planning_adaptation.active_pacing_adjustment
+                    if planning_adaptation is not None
+                    else base.active_pacing_adjustment
+                ),
+                "active_recovery_pattern": (
+                    planning_adaptation.preferred_scaffolding_pattern
+                    if planning_adaptation is not None
+                    else base.active_recovery_pattern
+                ),
                 "modality_outcomes": modality_outcomes,
                 "updated_at": now,
             }
@@ -493,6 +522,19 @@ class AutonomousTeacherHarness:
                     detail=(
                         "Repeated stalls and recoveries shape how assertively Dibble"
                         " tries to re-engage the learner."
+                    ),
+                ),
+                AutonomousTeacherDecisionFactor(
+                    label="trajectory_adaptation",
+                    score=(
+                        0.2
+                        if adaptation_state.active_pacing_adjustment == "slower"
+                        or adaptation_state.trajectory_risk_level in {"moderate", "high"}
+                        else -0.05
+                    ),
+                    detail=(
+                        "Long-horizon planning adjustments stay visible to the autonomous "
+                        "teacher so re-engagement respects current pacing and risk."
                     ),
                 ),
                 AutonomousTeacherDecisionFactor(
@@ -918,6 +960,16 @@ class AutonomousTeacherHarness:
                 if planning.trajectory is not None
                 else []
             ),
+            "node_kinds": (
+                [node.node_kind for node in planning.trajectory.nodes[:3]]
+                if planning.trajectory is not None
+                else []
+            ),
+            "expected_session_counts": (
+                [node.expected_session_count for node in planning.trajectory.nodes[:3]]
+                if planning.trajectory is not None
+                else []
+            ),
             "target_kc_ids": (
                 sorted(
                     {
@@ -928,6 +980,17 @@ class AutonomousTeacherHarness:
                 )
                 if planning.trajectory is not None
                 else []
+            ),
+            "planning_adjustments": (
+                [
+                    adjustment.action_type.value
+                    for adjustment in (
+                        planning.trajectory.adaptation_state.active_adjustments
+                        if planning.trajectory is not None
+                        and planning.trajectory.adaptation_state is not None
+                        else []
+                    )
+                ]
             ),
         }
         return sha256(

@@ -11,6 +11,7 @@ from dibble.services.harness.curriculum_planning import (
     CurriculumPlanningHarness,
     EnsureActiveTrajectoryCommand,
 )
+from dibble.services.planning_adaptation import PlanningAdaptationService
 from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
 from dibble.services.learner_flow_service import LearnerFlowService
 from dibble.services.learner_goal_store import SQLiteLearnerGoalStore
@@ -97,8 +98,9 @@ def _planning_stack(tmp_path, *, student_id, kc_mastery):
         )
     )
 
+    audit_store = SQLiteAuditStore(conn)
     learner_flow_service = LearnerFlowService(
-        audit_store=SQLiteAuditStore(conn),
+        audit_store=audit_store,
         generated_content_store=SQLiteGeneratedContentStore(conn),
         socratic_session_store=SQLiteSocraticSessionStore(conn),
         remediation_session_store=SQLiteRemediationSessionStore(conn),
@@ -120,13 +122,60 @@ def _planning_stack(tmp_path, *, student_id, kc_mastery):
         trajectory_planner=TrajectoryPlanner(
             kc_sequence_planner=KcSequencePlanner(knowledge_component_store=kc_store),
         ),
+        planning_adaptation_service=PlanningAdaptationService(audit_store=audit_store),
     )
-    return profile_store, goal_store, trajectory_store, harness
+    return profile_store, goal_store, trajectory_store, audit_store, harness
+
+
+def _record_run_summary(
+    audit_store,
+    *,
+    student_id,
+    generation_id: str,
+    target_kc_ids: list[str],
+    run_summary_score: float,
+    intent: str = "practice",
+    content_type: str = "practice_problem",
+    phase: str = "target",
+    modality_plugin_id: str = "text",
+    prompt_variant: str = "baseline",
+):
+    generation_event = audit_store.append(
+        event_type="content.generate",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "generation_id": generation_id,
+            "intent": intent,
+            "content_type": content_type,
+            "target_kc_ids": target_kc_ids,
+            "modality_plugin_id": modality_plugin_id,
+            "progression_target_stage": phase,
+            "prompt_template_variant": prompt_variant,
+        },
+    )
+    return audit_store.append(
+        event_type="learning.run.summary",
+        status="success",
+        student_id=str(student_id),
+        payload={
+            "source_generation_event_id": generation_event.event_id,
+            "generation_id": generation_id,
+            "intent": intent,
+            "content_type": content_type,
+            "target_kc_ids": target_kc_ids,
+            "run_summary_score": run_summary_score,
+            "run_calibration_signal": (
+                "positive" if run_summary_score >= 0.65 else "negative"
+            ),
+            "run_calibration_confidence": 0.8,
+        },
+    )
 
 
 def test_curriculum_planning_harness_creates_goal_and_trajectory(tmp_path):
     student_id = uuid4()
-    _, goal_store, trajectory_store, harness = _planning_stack(
+    _, goal_store, trajectory_store, _, harness = _planning_stack(
         tmp_path,
         student_id=student_id,
         kc_mastery={"KC-1": 0.86, "KC-2": 0.42, "KC-3": 0.15},
@@ -149,7 +198,7 @@ def test_curriculum_planning_harness_creates_goal_and_trajectory(tmp_path):
 
 def test_curriculum_planning_harness_appends_revision_when_progression_moves(tmp_path):
     student_id = uuid4()
-    profile_store, _, _, harness = _planning_stack(
+    profile_store, _, _, _, harness = _planning_stack(
         tmp_path,
         student_id=student_id,
         kc_mastery={"KC-1": 0.86, "KC-2": 0.42, "KC-3": 0.15},
@@ -184,3 +233,111 @@ def test_curriculum_planning_harness_appends_revision_when_progression_moves(tmp
     assert len(revised.trajectory.revisions) == 2
     assert revised.trajectory.active_node_id != initial.trajectory.active_node_id
     assert revised.trajectory.nodes[0].outcome_id == "CURR-3"
+
+
+def test_curriculum_planning_harness_revises_trajectory_from_outcome_history(tmp_path):
+    student_id = uuid4()
+    _, _, _, audit_store, harness = _planning_stack(
+        tmp_path,
+        student_id=student_id,
+        kc_mastery={"KC-1": 0.86, "KC-2": 0.42, "KC-3": 0.15},
+    )
+
+    initial = harness.ensure_active_trajectory(
+        EnsureActiveTrajectoryCommand(student_id=student_id)
+    )
+    _record_run_summary(
+        audit_store,
+        student_id=student_id,
+        generation_id="gen-1",
+        target_kc_ids=["KC-2"],
+        run_summary_score=0.41,
+    )
+    _record_run_summary(
+        audit_store,
+        student_id=student_id,
+        generation_id="gen-2",
+        target_kc_ids=["KC-2"],
+        run_summary_score=0.45,
+    )
+    _record_run_summary(
+        audit_store,
+        student_id=student_id,
+        generation_id="gen-3",
+        target_kc_ids=["KC-2"],
+        run_summary_score=0.82,
+        intent="remediation",
+        content_type="remedial_micro_module",
+        phase="repair",
+        modality_plugin_id="diagram",
+        prompt_variant="rebuild",
+    )
+    _record_run_summary(
+        audit_store,
+        student_id=student_id,
+        generation_id="gen-4",
+        target_kc_ids=["KC-2"],
+        run_summary_score=0.43,
+    )
+    _record_run_summary(
+        audit_store,
+        student_id=student_id,
+        generation_id="gen-5",
+        target_kc_ids=["KC-2"],
+        run_summary_score=0.84,
+        intent="remediation",
+        content_type="remedial_micro_module",
+        phase="repair",
+        modality_plugin_id="diagram",
+        prompt_variant="rebuild",
+    )
+
+    revised = harness.ensure_active_trajectory(
+        EnsureActiveTrajectoryCommand(student_id=student_id)
+    )
+
+    assert initial.trajectory is not None
+    assert revised.trajectory is not None
+    assert revised.trajectory_revised is True
+    assert revised.trajectory.nodes[0].node_kind == "recovery_scaffold"
+    assert revised.trajectory.nodes[1].outcome_id == "CURR-2"
+    assert revised.trajectory.adaptation_state is not None
+    assert revised.trajectory.adaptation_state.active_pacing_adjustment == "slower"
+    assert revised.trajectory.adaptation_state.active_revisit_density >= 2
+    assert revised.trajectory.adaptation_state.preferred_scaffolding_pattern is not None
+    assert revised.trajectory.revisions[-1].reasons
+    assert any(
+        signal.kind.value == "recovery_pattern"
+        for signal in revised.trajectory.revisions[-1].observed_signals
+    )
+
+
+def test_curriculum_planning_harness_keeps_weak_outcome_evidence_conservative(tmp_path):
+    student_id = uuid4()
+    _, _, _, audit_store, harness = _planning_stack(
+        tmp_path,
+        student_id=student_id,
+        kc_mastery={"KC-1": 0.86, "KC-2": 0.42, "KC-3": 0.15},
+    )
+
+    initial = harness.ensure_active_trajectory(
+        EnsureActiveTrajectoryCommand(student_id=student_id)
+    )
+    _record_run_summary(
+        audit_store,
+        student_id=student_id,
+        generation_id="gen-1",
+        target_kc_ids=["KC-2"],
+        run_summary_score=0.44,
+    )
+
+    refreshed = harness.ensure_active_trajectory(
+        EnsureActiveTrajectoryCommand(student_id=student_id)
+    )
+
+    assert initial.trajectory is not None
+    assert refreshed.trajectory is not None
+    assert refreshed.trajectory_revised is False
+    assert refreshed.trajectory.nodes[0].node_kind != "recovery_scaffold"
+    assert refreshed.trajectory.adaptation_state is not None
+    assert refreshed.trajectory.adaptation_state.active_revisit_density == 1
