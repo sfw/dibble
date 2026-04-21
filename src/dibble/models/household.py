@@ -64,6 +64,87 @@ class ParentApprovalRequest(BaseModel):
     decided_at: datetime | None = None
 
 
+class AutonomousTeacherModalityOutcome(BaseModel):
+    modality: str
+    average_outcome_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    sample_count: int = Field(default=0, ge=0)
+    completion_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    last_outcome_at: datetime | None = None
+
+
+class LearnerRelationshipAdaptationState(BaseModel):
+    session_suggestion_count: int = Field(default=0, ge=0)
+    accepted_suggestion_count: int = Field(default=0, ge=0)
+    deferred_suggestion_count: int = Field(default=0, ge=0)
+    snoozed_suggestion_count: int = Field(default=0, ge=0)
+    completed_suggestion_count: int = Field(default=0, ge=0)
+    approval_request_count: int = Field(default=0, ge=0)
+    approval_follow_through_count: int = Field(default=0, ge=0)
+    stall_episode_count: int = Field(default=0, ge=0)
+    recovery_episode_count: int = Field(default=0, ge=0)
+    average_session_outcome_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    recent_session_outcome_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    modality_outcomes: list[AutonomousTeacherModalityOutcome] = Field(
+        default_factory=list
+    )
+    updated_at: datetime = Field(default_factory=utc_now)
+
+    @property
+    def suggestion_completion_rate(self) -> float:
+        if self.accepted_suggestion_count <= 0:
+            return 0.0
+        return round(
+            self.completed_suggestion_count / self.accepted_suggestion_count,
+            2,
+        )
+
+    @property
+    def reengagement_success_rate(self) -> float:
+        if self.session_suggestion_count <= 0:
+            return 0.0
+        return round(
+            self.completed_suggestion_count / self.session_suggestion_count,
+            2,
+        )
+
+    @property
+    def approval_follow_through_rate(self) -> float:
+        if self.approval_request_count <= 0:
+            return 0.0
+        return round(
+            self.approval_follow_through_count / self.approval_request_count,
+            2,
+        )
+
+    @property
+    def recovery_rate(self) -> float:
+        if self.stall_episode_count <= 0:
+            return 0.0
+        return round(
+            self.recovery_episode_count / self.stall_episode_count,
+            2,
+        )
+
+
+class AutonomousTeacherDecisionFactor(BaseModel):
+    label: str
+    score: float = Field(default=0.0, ge=-1.0, le=1.0)
+    detail: str
+
+
+class AutonomousTeacherDecisionTrace(BaseModel):
+    cadence_decision: str
+    suggested_modality: str | None = None
+    blocking_approval_types: list[str] = Field(default_factory=list)
+    average_session_outcome_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    suggestion_completion_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    reengagement_success_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    approval_follow_through_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    recovery_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    factors: list[AutonomousTeacherDecisionFactor] = Field(default_factory=list)
+    generated_at: datetime = Field(default_factory=utc_now)
+
+
 class LearnerRelationshipState(BaseModel):
     household_id: str
     learner_id: str
@@ -85,6 +166,10 @@ class LearnerRelationshipState(BaseModel):
     approved_modalities: list[str] = Field(default_factory=lambda: ["text"])
     active_trajectory_signature: str | None = None
     approval_requests: list[ParentApprovalRequest] = Field(default_factory=list)
+    adaptation_state: LearnerRelationshipAdaptationState = Field(
+        default_factory=LearnerRelationshipAdaptationState
+    )
+    latest_decision_trace: AutonomousTeacherDecisionTrace | None = None
     updated_at: datetime = Field(default_factory=utc_now)
 
 

@@ -23,6 +23,7 @@ from dibble.services.content_warmer import ContentWarmer
 from dibble.services.autonomous_teacher_harness import AutonomousTeacherHarness
 from dibble.services.content_workflow import ContentWorkflowService
 from dibble.services.household_service import HouseholdService
+from dibble.services.outcome_driven_adaptation import OutcomeDrivenAdaptationService
 from dibble.services.protocols import ClassroomStore, CourseStore, UserStore
 from dibble.services.protocols import ClassroomMembershipStore
 from dibble.services.cognitive_trait_inference import CognitiveTraitInferenceService
@@ -56,7 +57,9 @@ from dibble.services.predictive_warm_scheduler import PredictiveWarmScheduler
 from dibble.services.protocols import (
     AssignmentStore,
     AuditStore,
+    CurriculumContentLibraryStore,
     KnowledgeComponentStore,
+    ModalityRoutingPriorStore,
     ObservationStore,
     OutcomeStore,
     ProfileStore,
@@ -119,6 +122,7 @@ class ApiServices(Protocol):
     strand_store: StrandStore
     knowledge_component_store: KnowledgeComponentStore
     audit_store: AuditStore
+    curriculum_content_library_store: CurriculumContentLibraryStore
     observation_store: ObservationStore
     auth_service: AuthService
     telemetry_service: TelemetryService
@@ -126,6 +130,7 @@ class ApiServices(Protocol):
     generation_engine: GenerationEngine
     content_warmer: ContentWarmer
     content_workflow_service: ContentWorkflowService
+    outcome_driven_adaptation_service: OutcomeDrivenAdaptationService
     learner_profile_harness: LearnerProfileHarness
     assessment_evidence_harness: AssessmentEvidenceHarness
     modality_routing_harness: ModalityRoutingHarness
@@ -162,6 +167,7 @@ class ApiServices(Protocol):
     predictive_warm_scheduler: PredictiveWarmScheduler
     within_session_adaptation_service: WithinSessionAdaptationService
     user_store: UserStore
+    modality_routing_prior_store: ModalityRoutingPriorStore
     admin_config_service: AdminConfigService
     admin_academic_catalog_service: AdminAcademicCatalogService
     admin_section_membership_service: AdminSectionMembershipService

@@ -116,6 +116,7 @@ CREATE TABLE IF NOT EXISTS generated_content (
 CURRICULUM_CONTENT_LIBRARY_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS curriculum_content_library (
     cache_key TEXT PRIMARY KEY,
+    selection_key TEXT NOT NULL,
     content_key_payload TEXT NOT NULL,
     content_payload TEXT NOT NULL,
     provenance_payload TEXT,
@@ -310,6 +311,18 @@ CREATE TABLE IF NOT EXISTS parent_notifications (
 );
 """
 
+MODALITY_ROUTING_PRIOR_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS modality_routing_priors (
+    learner_id TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    prior_key TEXT NOT NULL,
+    context_key TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (learner_id, scope, prior_key, context_key)
+);
+"""
+
 CLASSROOM_MEMBERSHIP_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS classroom_memberships (
     classroom_id TEXT NOT NULL,
@@ -354,6 +367,7 @@ def ensure_database(database_path: str) -> None:
         connection.execute(HOUSEHOLD_TABLE_SQL)
         connection.execute(LEARNER_RELATIONSHIP_STATE_TABLE_SQL)
         connection.execute(PARENT_NOTIFICATION_TABLE_SQL)
+        connection.execute(MODALITY_ROUTING_PRIOR_TABLE_SQL)
         connection.execute(STRAND_TABLE_SQL)
         connection.execute(OUTCOME_TABLE_SQL)
         connection.execute(OUTCOME_EMBEDDING_TABLE_SQL)
@@ -376,6 +390,7 @@ def ensure_database(database_path: str) -> None:
             connection,
             table_name="curriculum_content_library",
             columns={
+                "selection_key": "TEXT NOT NULL DEFAULT ''",
                 "provenance_payload": "TEXT",
             },
         )

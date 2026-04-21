@@ -27,6 +27,7 @@ from dibble.models.generation import (
     GeneratedContent,
     GenerationRequest,
     CurriculumLibraryEntry,
+    ModalityRoutingPrior,
     PredictiveWarmSweepResult,
     PredictiveWarmTask,
 )
@@ -206,11 +207,40 @@ class CurriculumContentLibraryStore(Protocol):
         key: CurriculumContentKey,
     ) -> CurriculumLibraryEntry | None: ...
 
+    def list_candidate_entries(
+        self,
+        *,
+        key: CurriculumContentKey,
+        limit: int = 20,
+    ) -> list[CurriculumLibraryEntry]: ...
+
     def upsert_entry(
         self,
         *,
         entry: CurriculumLibraryEntry,
     ) -> CurriculumLibraryEntry: ...
+
+    def record_outcome(
+        self,
+        *,
+        source_generation_id: str,
+        outcome_score: float,
+        engagement_score: float | None,
+        progress_score: float | None,
+    ) -> list[CurriculumLibraryEntry]: ...
+
+
+class ModalityRoutingPriorStore(Protocol):
+    def upsert(self, prior: ModalityRoutingPrior) -> ModalityRoutingPrior: ...
+    def get(
+        self,
+        *,
+        learner_id: UUID,
+        scope: str,
+        prior_key: str,
+        context_key: str,
+    ) -> ModalityRoutingPrior | None: ...
+    def list_for_learner(self, *, learner_id: UUID) -> list[ModalityRoutingPrior]: ...
 
 
 class PredictiveWarmTaskStore(Protocol):

@@ -225,6 +225,68 @@ class RouteCalibrationSummary(BaseModel):
     progress_delta: float = 0.0
 
 
+class RoutingPriorScope(str, Enum):
+    plugin = "plugin"
+    composition = "composition"
+
+
+class AdaptiveScoreComponent(BaseModel):
+    label: str
+    value: float = Field(default=0.0, ge=-1.0, le=1.0)
+    detail: str
+
+
+class ModalityRoutingPrior(BaseModel):
+    learner_id: UUID
+    scope: RoutingPriorScope
+    prior_key: str
+    context_key: str = "__global__"
+    evidence_count: int = Field(default=0, ge=0)
+    average_outcome_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    average_engagement_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    average_progress_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    recent_outcome_delta: float = Field(default=0.0, ge=-1.0, le=1.0)
+    recent_engagement_delta: float = Field(default=0.0, ge=-1.0, le=1.0)
+    recent_progress_delta: float = Field(default=0.0, ge=-1.0, le=1.0)
+    positive_outcome_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    recovery_attempt_count: int = Field(default=0, ge=0)
+    recovery_success_count: int = Field(default=0, ge=0)
+    last_outcome_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    last_selected_at: datetime | None = None
+    last_outcome_at: datetime | None = None
+    updated_at: datetime = Field(default_factory=utc_now)
+
+    @property
+    def recovery_rate(self) -> float:
+        if self.recovery_attempt_count <= 0:
+            return 0.0
+        return round(
+            self.recovery_success_count / self.recovery_attempt_count,
+            2,
+        )
+
+
+class ModalityCandidateScore(BaseModel):
+    plugin_id: str
+    modality: str
+    composition_key: str
+    total_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    evidence_count: int = Field(default=0, ge=0)
+    score_components: list[AdaptiveScoreComponent] = Field(default_factory=list)
+    rationale: list[str] = Field(default_factory=list)
+
+
+class ModalityRoutingInspection(BaseModel):
+    learner_id: UUID
+    context_key: str
+    selected_plugin_id: str
+    selected_modality: str
+    weak_evidence_fallback_applied: bool = False
+    candidate_scores: list[ModalityCandidateScore] = Field(default_factory=list)
+    priors: list[ModalityRoutingPrior] = Field(default_factory=list)
+    generated_at: datetime = Field(default_factory=utc_now)
+
+
 class AdaptiveRouteDecision(BaseModel):
     intervention_type: InterventionType
     delivery_mode: DeliveryMode
@@ -254,6 +316,28 @@ class CurriculumContentKey(BaseModel):
     request: CurriculumContentRequest
     route: "AdaptiveRouteDecision"
     grounding: list[GroundingReference] = Field(default_factory=list)
+
+    def selection_key(self) -> str:
+        payload = {
+            "request": {
+                "grade_level": self.request.grade_level,
+                "intent": self.request.intent.value,
+                "content_type": self.request.content_type.value,
+                "target_kc_ids": sorted(self.request.target_kc_ids),
+                "target_lo_ids": sorted(self.request.target_lo_ids),
+                "curriculum_context": sorted(self.request.curriculum_context),
+                "target_kc_hints": sorted(
+                    hint.model_dump_json()
+                    for hint in self.request.target_kc_hints
+                ),
+            },
+            "route": {
+                "intervention_type": self.route.intervention_type.value,
+                "scaffolding_level": self.route.scaffolding_level,
+            },
+        }
+        serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        return sha256(serialized.encode("utf-8")).hexdigest()
 
     def cache_key(self) -> str:
         payload = {
@@ -673,6 +757,30 @@ class CurriculumLibraryProvenance(BaseModel):
     degraded_mode: bool = False
     degraded_reason: str | None = None
     remote_endpoint: str | None = None
+    outcome_sample_count: int = Field(default=0, ge=0)
+    average_outcome_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    average_engagement_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    average_progress_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    historical_success_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    last_outcome_at: datetime | None = None
+
+
+class CurriculumLibraryCandidateRanking(BaseModel):
+    cache_key: str
+    source_generation_id: str | None = None
+    selected: bool = False
+    total_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    outcome_sample_count: int = Field(default=0, ge=0)
+    score_components: list[AdaptiveScoreComponent] = Field(default_factory=list)
+    rationale: list[str] = Field(default_factory=list)
+
+
+class CurriculumLibrarySelectionTrace(BaseModel):
+    selection_key: str
+    requested_modality: str | None = None
+    selected_cache_key: str | None = None
+    candidates: list[CurriculumLibraryCandidateRanking] = Field(default_factory=list)
+    generated_at: datetime = Field(default_factory=utc_now)
 
 
 class GenerationStreamEvent(BaseModel):

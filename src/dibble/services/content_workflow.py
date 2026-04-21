@@ -360,6 +360,20 @@ class ContentWorkflowService:
                     if response.route.calibration is not None
                     else 0.0
                 ),
+                "selected_modality": prepared.prepared_generation.routing_plan.directive.modality,
+                "modality_plugin_id": prepared.prepared_generation.routing_plan.directive.plugin_id,
+                "modality_composition_mode": (
+                    prepared.prepared_generation.routing_plan.directive.composition_mode
+                ),
+                "selected_modalities": list(
+                    prepared.prepared_generation.routing_plan.directive.plugin_ids
+                ),
+                "routing_context_key": prepared.prepared_generation.routing_plan.context_key,
+                "routing_theme_family": prepared.prepared_generation.routing_plan.theme_family,
+                "routing_locale": prepared.prepared_generation.routing_plan.locale,
+                "routing_rationale": list(
+                    prepared.prepared_generation.routing_plan.rationale
+                ),
                 "prompt_template_name": metadata.prompt_template_name,
                 "prompt_template_version": metadata.prompt_template_version,
                 "prompt_template_variant": metadata.prompt_template_variant,

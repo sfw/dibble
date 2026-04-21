@@ -7,10 +7,14 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 from dibble.models.household import (
+    AutonomousTeacherDecisionFactor,
+    AutonomousTeacherDecisionTrace,
     AutonomousTeacherLearnerPlan,
+    AutonomousTeacherModalityOutcome,
     AutonomousTeacherSessionSuggestion,
     AutonomousTeacherWeeklySummary,
     Household,
+    LearnerRelationshipAdaptationState,
     LearnerRelationshipState,
     ParentApprovalRequest,
     ParentApprovalStatus,
@@ -28,7 +32,9 @@ from dibble.services.harness.within_session_control import (
 )
 from dibble.services.learner_summary_service import LearnerSummaryService
 from dibble.services.protocols import (
+    AuditStore,
     LearnerRelationshipStateStore,
+    ModalityRoutingPriorStore,
     ParentNotificationStore,
     UserStore,
 )
@@ -61,6 +67,8 @@ class AutonomousTeacherHarness:
     learner_relationship_state_store: LearnerRelationshipStateStore
     parent_notification_store: ParentNotificationStore
     user_store: UserStore
+    audit_store: AuditStore | None = None
+    modality_routing_prior_store: ModalityRoutingPriorStore | None = None
 
     def orchestrate_household(
         self,
@@ -112,10 +120,20 @@ class AutonomousTeacherHarness:
             learner_id=learner_id,
         )
         preferences = self._primary_preferences(household=household)
+        adaptation_state, approval_requests = self._adaptation_state_for(
+            existing_state=existing_state,
+            student_id=student_id,
+            last_event_at=summary.recent_activity.last_event_at,
+            session_stuck_loop_risk=summary.current_flow.session_stuck_loop_risk,
+            frustration=summary.frustration.value,
+            progress_signal=summary.progress.signal,
+            now=now,
+        )
         cadence_decision = self._cadence_decision(
             last_event_at=summary.recent_activity.last_event_at,
             session_stuck_loop_risk=summary.current_flow.session_stuck_loop_risk,
             frustration=summary.frustration.value,
+            adaptation_state=adaptation_state,
             now=now,
         )
         consecutive_stall_checks = self._stall_count(
@@ -135,7 +153,13 @@ class AutonomousTeacherHarness:
                 session.next_step.content_type
                 if session is not None
                 else summary.current_flow.next_step.content_type
-            )
+            ),
+            approved_modalities=(
+                list(existing_state.approved_modalities)
+                if existing_state is not None and existing_state.approved_modalities
+                else ["text"]
+            ),
+            adaptation_state=adaptation_state,
         )
         trajectory_signature = self._trajectory_signature(
             planning=planning,
@@ -145,10 +169,6 @@ class AutonomousTeacherHarness:
             list(existing_state.approved_modalities)
             if existing_state is not None and existing_state.approved_modalities
             else ["text"]
-        )
-        approval_requests = self._active_approval_requests(
-            existing_state=existing_state,
-            now=now,
         )
         approval_requests, blocking_approvals = self._resolve_approval_requests(
             household=household,
@@ -200,6 +220,7 @@ class AutonomousTeacherHarness:
             approved_modalities=approved_modalities,
             active_trajectory_signature=trajectory_signature,
             approval_requests=approval_requests,
+            adaptation_state=adaptation_state,
             updated_at=now,
         )
         relationship_state = self._session_suggestion_state_for(
@@ -221,6 +242,20 @@ class AutonomousTeacherHarness:
                     "latest_weekly_summary": weekly_summary,
                 }
             )
+        relationship_state = relationship_state.model_copy(
+            update={
+                "latest_decision_trace": self._decision_trace(
+                    cadence_decision=cadence_decision,
+                    suggested_modality=relationship_state.suggested_modality,
+                    blocking_approvals=blocking_approvals,
+                    adaptation_state=relationship_state.adaptation_state,
+                    session_stuck_loop_risk=summary.current_flow.session_stuck_loop_risk,
+                    frustration=summary.frustration.value,
+                    last_event_at=summary.recent_activity.last_event_at,
+                    now=now,
+                )
+            }
+        )
         self.learner_relationship_state_store.upsert(relationship_state)
 
         learner_notifications = self._notifications_for(
@@ -272,23 +307,244 @@ class AutonomousTeacherHarness:
             return household.parent_profiles[0].preferences
         return ParentPreference()
 
+    def _adaptation_state_for(
+        self,
+        *,
+        existing_state: LearnerRelationshipState | None,
+        student_id: UUID,
+        last_event_at: datetime | None,
+        session_stuck_loop_risk: str,
+        frustration: str,
+        progress_signal: str,
+        now: datetime,
+    ) -> tuple[LearnerRelationshipAdaptationState, list[ParentApprovalRequest]]:
+        base = (
+            existing_state.adaptation_state
+            if existing_state is not None
+            else LearnerRelationshipAdaptationState()
+        )
+        approval_requests = self._active_approval_requests(
+            existing_state=existing_state,
+            now=now,
+        )
+        stalled = (
+            session_stuck_loop_risk == "high"
+            or (frustration == "high" and progress_signal in {"flat", "negative"})
+        )
+        stall_episode_count = base.stall_episode_count
+        recovery_episode_count = base.recovery_episode_count
+        if stalled and (existing_state is None or existing_state.consecutive_stall_checks == 0):
+            stall_episode_count += 1
+        elif (
+            not stalled
+            and existing_state is not None
+            and existing_state.consecutive_stall_checks > 0
+        ):
+            recovery_episode_count += 1
+        average_session_outcome_score = self._recent_session_outcome_score(
+            student_id=student_id
+        )
+        if self.audit_store is None and base.average_session_outcome_score != 0.5:
+            average_session_outcome_score = base.average_session_outcome_score
+        updated_approvals: list[ParentApprovalRequest] = []
+        approval_follow_through_count = base.approval_follow_through_count
+        for approval in approval_requests:
+            if (
+                approval.status == ParentApprovalStatus.approved
+                and approval.decided_at is not None
+                and last_event_at is not None
+                and last_event_at > approval.decided_at
+                and not bool(approval.metadata.get("follow_through_recorded"))
+            ):
+                approval_follow_through_count += 1
+                updated_approvals.append(
+                    approval.model_copy(
+                        update={
+                            "metadata": {
+                                **approval.metadata,
+                                "follow_through_recorded": True,
+                            }
+                        }
+                    )
+                )
+                continue
+            updated_approvals.append(approval)
+        modality_outcomes = self._modality_outcomes_for(student_id=student_id)
+        if not modality_outcomes and base.modality_outcomes:
+            modality_outcomes = list(base.modality_outcomes)
+        updated_state = base.model_copy(
+            update={
+                "approval_follow_through_count": approval_follow_through_count,
+                "average_session_outcome_score": average_session_outcome_score,
+                "recent_session_outcome_score": average_session_outcome_score,
+                "stall_episode_count": stall_episode_count,
+                "recovery_episode_count": recovery_episode_count,
+                "modality_outcomes": modality_outcomes,
+                "updated_at": now,
+            }
+        )
+        return updated_state, updated_approvals
+
+    def _recent_session_outcome_score(self, *, student_id: UUID) -> float:
+        if self.audit_store is None:
+            return 0.5
+        summary_events = [
+            event
+            for event in self.audit_store.list(limit=120)
+            if event.event_type == "learning.run.summary" and event.student_id == student_id
+        ]
+        if not summary_events:
+            return 0.5
+        recent_scores = [
+            float(event.payload.get("run_summary_score", 0.5))
+            for event in summary_events[:5]
+        ]
+        return round(sum(recent_scores) / len(recent_scores), 2)
+
+    def _modality_outcomes_for(
+        self,
+        *,
+        student_id: UUID,
+    ) -> list[AutonomousTeacherModalityOutcome]:
+        if self.modality_routing_prior_store is None:
+            return []
+        priors = [
+            prior
+            for prior in self.modality_routing_prior_store.list_for_learner(
+                learner_id=student_id
+            )
+            if prior.scope == "plugin" and prior.context_key == "__global__"
+        ]
+        outcomes: list[AutonomousTeacherModalityOutcome] = []
+        for prior in priors:
+            outcomes.append(
+                AutonomousTeacherModalityOutcome(
+                    modality=prior.prior_key,
+                    average_outcome_score=prior.average_outcome_score,
+                    sample_count=prior.evidence_count,
+                    completion_rate=prior.positive_outcome_rate,
+                    last_outcome_at=prior.last_outcome_at,
+                )
+            )
+        outcomes.sort(
+            key=lambda item: (
+                item.average_outcome_score,
+                item.completion_rate,
+                item.sample_count,
+                item.modality,
+            ),
+            reverse=True,
+        )
+        return outcomes
+
+    def _decision_trace(
+        self,
+        *,
+        cadence_decision: str,
+        suggested_modality: str | None,
+        blocking_approvals: list[ParentApprovalRequest],
+        adaptation_state: LearnerRelationshipAdaptationState,
+        session_stuck_loop_risk: str,
+        frustration: str,
+        last_event_at: datetime | None,
+        now: datetime,
+    ) -> AutonomousTeacherDecisionTrace:
+        elapsed_days = (
+            round((now - last_event_at).total_seconds() / (60 * 60 * 24), 1)
+            if last_event_at is not None
+            else None
+        )
+        return AutonomousTeacherDecisionTrace(
+            cadence_decision=cadence_decision,
+            suggested_modality=suggested_modality,
+            blocking_approval_types=[
+                approval.approval_type.value for approval in blocking_approvals
+            ],
+            average_session_outcome_score=adaptation_state.average_session_outcome_score,
+            suggestion_completion_rate=adaptation_state.suggestion_completion_rate,
+            reengagement_success_rate=adaptation_state.reengagement_success_rate,
+            approval_follow_through_rate=adaptation_state.approval_follow_through_rate,
+            recovery_rate=adaptation_state.recovery_rate,
+            factors=[
+                AutonomousTeacherDecisionFactor(
+                    label="session_outcomes",
+                    score=round(adaptation_state.average_session_outcome_score - 0.5, 2),
+                    detail="Recent session outcomes provide a bounded long-horizon planning signal.",
+                ),
+                AutonomousTeacherDecisionFactor(
+                    label="follow_through",
+                    score=round(
+                        adaptation_state.suggestion_completion_rate
+                        - adaptation_state.deferred_suggestion_count / max(
+                            adaptation_state.accepted_suggestion_count
+                            + adaptation_state.deferred_suggestion_count,
+                            1,
+                        ),
+                        2,
+                    ),
+                    detail=(
+                        "Parent acceptance versus completion history keeps autonomous"
+                        " suggestions from overcommitting when follow-through is weak."
+                    ),
+                ),
+                AutonomousTeacherDecisionFactor(
+                    label="stall_recovery",
+                    score=round(adaptation_state.recovery_rate - 0.5, 2),
+                    detail=(
+                        "Repeated stalls and recoveries shape how assertively Dibble"
+                        " tries to re-engage the learner."
+                    ),
+                ),
+                AutonomousTeacherDecisionFactor(
+                    label="current_risk",
+                    score=(
+                        0.45
+                        if session_stuck_loop_risk == "high" or frustration == "high"
+                        else -0.1
+                    ),
+                    detail=(
+                        f"Current risk snapshot: stuck_loop={session_stuck_loop_risk},"
+                        f" frustration={frustration}, days_since_activity={elapsed_days}."
+                    ),
+                ),
+            ],
+        )
+
     def _cadence_decision(
         self,
         *,
         last_event_at: datetime | None,
         session_stuck_loop_risk: str,
         frustration: str,
+        adaptation_state: LearnerRelationshipAdaptationState,
         now: datetime,
     ) -> str:
         if session_stuck_loop_risk == "high" or frustration == "high":
+            if (
+                adaptation_state.accepted_suggestion_count >= 2
+                and adaptation_state.suggestion_completion_rate < 0.34
+            ):
+                return "session_due"
             return "check_in"
         if last_event_at is None:
             return "session_due"
         elapsed = now - last_event_at
         if elapsed >= timedelta(days=5):
+            if (
+                adaptation_state.accepted_suggestion_count >= 2
+                and adaptation_state.reengagement_success_rate < 0.34
+            ):
+                return "session_due"
             return "reengage_now"
         if elapsed >= timedelta(days=2):
-            return "session_due"
+            if adaptation_state.accepted_suggestion_count < 2:
+                return "session_due"
+            if (
+                adaptation_state.average_session_outcome_score >= 0.68
+                or adaptation_state.recovery_rate >= 0.5
+            ):
+                return "session_due"
+            return "watch"
         return "watch"
 
     def _stall_count(
@@ -502,12 +758,50 @@ class AutonomousTeacherHarness:
             modality=relationship_state.suggested_modality or "text",
         )
 
-    def _suggested_modality(self, *, content_type: str | None) -> str:
+    def _suggested_modality(
+        self,
+        *,
+        content_type: str | None,
+        approved_modalities: list[str],
+        adaptation_state: LearnerRelationshipAdaptationState,
+    ) -> str:
         if content_type in {"worked_example"}:
-            return "diagram"
-        if content_type in {"micro_explanation", "remedial_micro_module"}:
-            return "narrative"
-        return "text"
+            default = "diagram"
+        elif content_type in {"micro_explanation", "remedial_micro_module"}:
+            default = "narrative"
+        else:
+            default = "text"
+        outcomes = {item.modality: item for item in adaptation_state.modality_outcomes}
+        default_outcome = outcomes.get(default)
+        text_outcome = outcomes.get("text")
+        if (
+            default_outcome is not None
+            and default_outcome.sample_count >= 2
+            and default_outcome.average_outcome_score < 0.56
+            and text_outcome is not None
+            and text_outcome.average_outcome_score
+            >= default_outcome.average_outcome_score + 0.08
+        ):
+            default = "text"
+        approved_outcomes = [
+            item
+            for item in adaptation_state.modality_outcomes
+            if item.modality in approved_modalities and item.sample_count >= 2
+        ]
+        if approved_outcomes:
+            approved_outcomes.sort(
+                key=lambda item: (
+                    item.average_outcome_score,
+                    item.completion_rate,
+                    item.sample_count,
+                    item.modality,
+                ),
+                reverse=True,
+            )
+            best = approved_outcomes[0]
+            if best.average_outcome_score >= 0.68:
+                return best.modality
+        return default
 
     def _weekday_name(self, *, now: datetime) -> str:
         return now.strftime("%A").lower()
@@ -524,11 +818,21 @@ class AutonomousTeacherHarness:
         status = existing_state.session_suggestion_status
         snoozed_until = existing_state.session_suggestion_snoozed_until
         updated_at = existing_state.session_suggestion_updated_at
+        adaptation_state = relationship_state.adaptation_state
         if (
             updated_at is not None
             and relationship_state.last_session_at is not None
             and relationship_state.last_session_at > updated_at
         ):
+            if status == "accepted":
+                adaptation_state = adaptation_state.model_copy(
+                    update={
+                        "completed_suggestion_count": (
+                            adaptation_state.completed_suggestion_count + 1
+                        ),
+                        "updated_at": relationship_state.last_session_at,
+                    }
+                )
             status = "pending"
             snoozed_until = None
             updated_at = relationship_state.last_session_at
@@ -545,6 +849,7 @@ class AutonomousTeacherHarness:
                 "session_suggestion_status": status,
                 "session_suggestion_snoozed_until": snoozed_until,
                 "session_suggestion_updated_at": updated_at,
+                "adaptation_state": adaptation_state,
             }
         )
 

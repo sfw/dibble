@@ -96,6 +96,9 @@ def build_assessment_router(context: ApiContext) -> APIRouter:
                 trigger_event=assessment_audit_event
             )
         )
+        services.outcome_driven_adaptation_service.record_from_summary_events(
+            summary_events=summary_events
+        )
         services.learning_calibration_profile_recorder.record_from_summary_events(
             summary_events=summary_events
         )

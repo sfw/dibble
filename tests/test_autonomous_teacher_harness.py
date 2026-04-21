@@ -649,3 +649,114 @@ def test_autonomous_teacher_harness_emits_follow_up_for_stale_deferred_suggestio
     )
     assert follow_up.title == "Deferred session is ready to revisit"
     assert follow_up.metadata["session_suggestion_status"] == "deferred"
+
+
+def test_autonomous_teacher_harness_uses_relationship_outcomes_to_shift_modality_and_trace():
+    learner_id = str(uuid4())
+    now = datetime(2026, 4, 24, 12, 0, tzinfo=timezone.utc)
+    summary = ProfileSummary.model_validate(
+        {
+            "student_id": learner_id,
+            "grade_level": "5",
+            "profile_version": "v1",
+            "kc_count": 1,
+            "lo_count": 1,
+            "engagement": "medium",
+            "frustration": "low",
+            "total_load": 0.4,
+            "confidence_calibration": 0.4,
+            "help_seeking": "medium",
+            "recent_activity": {"last_event_at": (now - timedelta(days=6)).isoformat()},
+            "current_flow": {
+                "session_stuck_loop_risk": "high",
+                "next_step": {
+                    "action": "stay_on_requested_target",
+                    "content_type": "worked_example",
+                    "target_stage": "target",
+                    "target_kc_ids": ["KC-1"],
+                },
+                "continue_action": {
+                    "kind": "generate_follow_up",
+                    "target_stage": "target",
+                    "target_kc_ids": ["KC-1"],
+                    "request_payload": {},
+                },
+            },
+            "curriculum_progression": {
+                "mastered_outcome_ratio": 0.25,
+                "mastered_outcome_count": 1,
+                "outcome_count": 4,
+            },
+            "updated_at": now.isoformat(),
+        }
+    )
+    relationship_store = _LearnerRelationshipStore()
+    relationship_store.upsert(
+        LearnerRelationshipState.model_validate(
+            {
+                "household_id": "household-1",
+                "learner_id": learner_id,
+                "engagement_status": "medium",
+                "frustration_status": "low",
+                "cadence_status": "watch",
+                "approved_modalities": ["text", "diagram"],
+                "adaptation_state": {
+                    "accepted_suggestion_count": 4,
+                    "completed_suggestion_count": 0,
+                    "deferred_suggestion_count": 3,
+                    "session_suggestion_count": 7,
+                    "average_session_outcome_score": 0.42,
+                    "modality_outcomes": [
+                        {
+                            "modality": "diagram",
+                            "average_outcome_score": 0.48,
+                            "sample_count": 3,
+                            "completion_rate": 0.33,
+                        },
+                        {
+                            "modality": "text",
+                            "average_outcome_score": 0.79,
+                            "sample_count": 4,
+                            "completion_rate": 0.75,
+                        },
+                    ],
+                },
+                "updated_at": now.isoformat(),
+            }
+        )
+    )
+    harness = AutonomousTeacherHarness(
+        learner_summary_service=_LearnerSummaryService(summary),
+        curriculum_planning_harness=_CurriculumPlanningHarness(learner_id),
+        within_session_control_harness=_WithinSessionControlHarness(),
+        learner_relationship_state_store=relationship_store,
+        parent_notification_store=_ParentNotificationStore(),
+        user_store=_UserStore(),
+    )
+    household = Household(
+        household_id="household-1",
+        household_name="Home",
+        parent_profiles=[
+            ParentProfile(
+                parent_user_id="parent-1",
+                display_name="Pat",
+                preferences={
+                    "modality_introduction_requires_approval": False,
+                    "trajectory_revision_requires_approval": False,
+                    "high_autonomy_session_requires_approval": False,
+                },
+            )
+        ],
+        learner_ids=[learner_id],
+    )
+
+    result = harness.orchestrate_household(household=household, now=now)
+
+    plan = result.learner_plans[0]
+    assert plan.cadence_decision == "session_due"
+    assert plan.relationship_state.suggested_modality == "text"
+    assert plan.relationship_state.latest_decision_trace is not None
+    assert any(
+        factor.label == "follow_through"
+        for factor in plan.relationship_state.latest_decision_trace.factors
+    )

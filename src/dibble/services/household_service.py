@@ -419,12 +419,37 @@ class HouseholdService:
         if relationship_state is None:
             return self.get_household_overview(parent_user_id=parent_user_id)
         updated_at = now or datetime.now(timezone.utc)
+        adaptation_state = relationship_state.adaptation_state
+        if (
+            relationship_state.session_suggestion_status != status
+            or relationship_state.session_suggestion_updated_at is None
+        ):
+            update_payload = {
+                "session_suggestion_count": (
+                    adaptation_state.session_suggestion_count + 1
+                ),
+                "updated_at": updated_at,
+            }
+            if status == "accepted":
+                update_payload["accepted_suggestion_count"] = (
+                    adaptation_state.accepted_suggestion_count + 1
+                )
+            elif status == "deferred":
+                update_payload["deferred_suggestion_count"] = (
+                    adaptation_state.deferred_suggestion_count + 1
+                )
+            elif status == "snoozed":
+                update_payload["snoozed_suggestion_count"] = (
+                    adaptation_state.snoozed_suggestion_count + 1
+                )
+            adaptation_state = adaptation_state.model_copy(update=update_payload)
         self.autonomous_teacher_harness.learner_relationship_state_store.upsert(
             relationship_state.model_copy(
                 update={
                     "session_suggestion_status": status,
                     "session_suggestion_snoozed_until": snoozed_until,
                     "session_suggestion_updated_at": updated_at,
+                    "adaptation_state": adaptation_state,
                     "updated_at": updated_at,
                 }
             )
@@ -525,10 +550,12 @@ class HouseholdService:
         decided_at = datetime.now(timezone.utc)
         approved_modalities = list(relationship_state.approved_modalities)
         updated_approvals = []
+        adaptation_state = relationship_state.adaptation_state
         for approval in relationship_state.approval_requests:
             if approval.approval_id != approval_id:
                 updated_approvals.append(approval)
                 continue
+            already_decided = approval.status != ParentApprovalStatus.pending
             resolved = approval.model_copy(
                 update={
                     "status": status,
@@ -536,6 +563,15 @@ class HouseholdService:
                 }
             )
             updated_approvals.append(resolved)
+            if not already_decided:
+                adaptation_state = adaptation_state.model_copy(
+                    update={
+                        "approval_request_count": (
+                            adaptation_state.approval_request_count + 1
+                        ),
+                        "updated_at": decided_at,
+                    }
+                )
             if (
                 status == ParentApprovalStatus.approved
                 and resolved.approval_type == ParentApprovalType.modality_introduction
@@ -548,6 +584,7 @@ class HouseholdService:
                 update={
                     "approved_modalities": approved_modalities,
                     "approval_requests": updated_approvals,
+                    "adaptation_state": adaptation_state,
                     "updated_at": decided_at,
                 }
             )

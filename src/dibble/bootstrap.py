@@ -33,6 +33,8 @@ from dibble.services.outcome_store import SQLiteOutcomeStore
 from dibble.services.strand_store import SQLiteStrandStore
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.autonomous_teacher_harness import AutonomousTeacherHarness
+from dibble.services.modality_routing_prior_store import SQLiteModalityRoutingPriorStore
+from dibble.services.outcome_driven_adaptation import OutcomeDrivenAdaptationService
 from dibble.services.harness.assessment_evidence import AssessmentEvidenceHarness
 from dibble.services.harness.content_generation import ContentGenerationHarness
 from dibble.services.harness.content_library import (
@@ -119,6 +121,7 @@ from dibble.services.protocols import (
     HouseholdStore,
     LearnerGoalStore,
     LearnerRelationshipStateStore,
+    ModalityRoutingPriorStore,
     OutcomeStore,
     ParentNotificationStore,
     SessionControlStore,
@@ -178,6 +181,8 @@ class ApplicationServices:
     knowledge_component_store: KnowledgeComponentStore
     audit_store: AuditStore
     generated_content_store: GeneratedContentStore
+    curriculum_content_library_store: SQLiteCurriculumContentLibraryStore
+    modality_routing_prior_store: ModalityRoutingPriorStore
     observation_store: ObservationStore
     learner_goal_store: LearnerGoalStore
     trajectory_store: TrajectoryStore
@@ -188,6 +193,7 @@ class ApplicationServices:
     generation_engine: GenerationEngine
     content_warmer: ContentWarmer
     content_workflow_service: ContentWorkflowService
+    outcome_driven_adaptation_service: OutcomeDrivenAdaptationService
     learner_profile_harness: LearnerProfileHarness
     assessment_evidence_harness: AssessmentEvidenceHarness
     modality_routing_harness: ModalityRoutingHarness
@@ -258,6 +264,7 @@ def build_application_services(
     knowledge_component_store = SQLiteKnowledgeComponentStore(conn)
     audit_store = SQLiteAuditStore(conn)
     generated_content_store = SQLiteGeneratedContentStore(conn)
+    curriculum_content_library_store = SQLiteCurriculumContentLibraryStore(conn)
     predictive_warm_queue_store = SQLitePredictiveWarmQueueStore(conn)
     observation_store = SQLiteObservationStore(conn)
     socratic_session_store = SQLiteSocraticSessionStore(conn)
@@ -271,6 +278,7 @@ def build_application_services(
     household_store = SQLiteHouseholdStore(conn)
     learner_relationship_state_store = SQLiteLearnerRelationshipStateStore(conn)
     parent_notification_store = SQLiteParentNotificationStore(conn)
+    modality_routing_prior_store = SQLiteModalityRoutingPriorStore(conn)
     auth_service = AuthService.from_settings(
         settings,
         session_store=SQLiteAuthSessionStore(conn),
@@ -317,7 +325,7 @@ def build_application_services(
     )
     local_curriculum_content_library = LibraryFirstCurriculumContentLibrary(
         local_client=LocalStubCloudLibraryClient(
-            SQLiteCurriculumContentLibraryStore(conn)
+            curriculum_content_library_store
         ),
         remote_client=RemoteReadyCloudLibraryClient(
             endpoint=settings.cloud_library_endpoint,
@@ -340,6 +348,8 @@ def build_application_services(
     modality_routing_harness = ModalityRoutingHarness(
         router=router_plugin,
         modality_plugins=modality_plugins,
+        prior_store=modality_routing_prior_store,
+        audit_store=audit_store,
     )
     content_generation_harness = ContentGenerationHarness(
         generation_engine=generation_engine,
@@ -505,6 +515,13 @@ def build_application_services(
         learner_relationship_state_store=learner_relationship_state_store,
         parent_notification_store=parent_notification_store,
         user_store=user_store,
+        audit_store=audit_store,
+        modality_routing_prior_store=modality_routing_prior_store,
+    )
+    outcome_driven_adaptation_service = OutcomeDrivenAdaptationService(
+        audit_store=audit_store,
+        prior_store=modality_routing_prior_store,
+        curriculum_content_library_store=curriculum_content_library_store,
     )
     teacher_intervention_action_service = TeacherInterventionActionService(
         audit_store=audit_store,
@@ -600,6 +617,8 @@ def build_application_services(
         knowledge_component_store=knowledge_component_store,
         audit_store=audit_store,
         generated_content_store=generated_content_store,
+        curriculum_content_library_store=curriculum_content_library_store,
+        modality_routing_prior_store=modality_routing_prior_store,
         observation_store=observation_store,
         learner_goal_store=learner_goal_store,
         trajectory_store=trajectory_store,
@@ -615,6 +634,7 @@ def build_application_services(
         generation_engine=generation_engine,
         content_warmer=content_warmer,
         content_workflow_service=content_workflow_service,
+        outcome_driven_adaptation_service=outcome_driven_adaptation_service,
         learner_profile_harness=learner_profile_harness,
         assessment_evidence_harness=assessment_evidence_harness,
         modality_routing_harness=modality_routing_harness,

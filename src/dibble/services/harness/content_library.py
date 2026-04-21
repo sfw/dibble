@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Protocol
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -9,10 +10,13 @@ from uuid import UUID
 
 from dibble.models.generation import (
     CurriculumContentKey,
+    CurriculumLibraryCandidateRanking,
     CurriculumLibraryEntry,
     CurriculumLibraryProvenance,
+    CurriculumLibrarySelectionTrace,
     CurriculumLibraryStorageScope,
     GeneratedContent,
+    AdaptiveScoreComponent,
 )
 from dibble.services.protocols import (
     CurriculumContentLibraryStore,
@@ -62,6 +66,13 @@ class CloudLibraryClient(Protocol):
         *,
         key: CurriculumContentKey,
     ) -> CurriculumLibraryEntry | None: ...
+
+    def list_candidates(
+        self,
+        *,
+        key: CurriculumContentKey,
+        limit: int = 20,
+    ) -> list[CurriculumLibraryEntry]: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,6 +174,25 @@ class GeneratedContentBackedCurriculumLibraryStore:
             }
         )
 
+    def list_candidate_entries(
+        self,
+        *,
+        key: CurriculumContentKey,
+        limit: int = 20,
+    ) -> list[CurriculumLibraryEntry]:
+        exact = self.get_fresh_entry(key=key)
+        return [exact] if exact is not None else []
+
+    def record_outcome(
+        self,
+        *,
+        source_generation_id: str,
+        outcome_score: float,
+        engagement_score: float | None,
+        progress_score: float | None,
+    ) -> list[CurriculumLibraryEntry]:
+        return []
+
 
 class LocalCurriculumContentLibrary:
     """Local-only curriculum library backed by an explicit curriculum-store seam."""
@@ -183,6 +213,29 @@ class LocalCurriculumContentLibrary:
         entry: CurriculumLibraryEntry,
     ) -> CurriculumLibraryEntry:
         return self._store.upsert_entry(entry=entry)
+
+    def list_candidate_entries(
+        self,
+        *,
+        key: CurriculumContentKey,
+        limit: int = 20,
+    ) -> list[CurriculumLibraryEntry]:
+        return self._store.list_candidate_entries(key=key, limit=limit)
+
+    def record_outcome(
+        self,
+        *,
+        source_generation_id: str,
+        outcome_score: float,
+        engagement_score: float | None,
+        progress_score: float | None,
+    ) -> list[CurriculumLibraryEntry]:
+        return self._store.record_outcome(
+            source_generation_id=source_generation_id,
+            outcome_score=outcome_score,
+            engagement_score=engagement_score,
+            progress_score=progress_score,
+        )
 
     def get_fresh(self, *, key: CurriculumContentKey) -> GeneratedContent | None:
         entry = self.get_fresh_entry(key=key)
@@ -213,6 +266,17 @@ class LocalStubCloudLibraryClient:
         key: CurriculumContentKey,
     ) -> CurriculumLibraryEntry | None:
         return self.store.get_fresh_entry(key=key)
+
+    def list_candidates(
+        self,
+        *,
+        key: CurriculumContentKey,
+        limit: int = 20,
+    ) -> list[CurriculumLibraryEntry]:
+        try:
+            return self.store.list_candidate_entries(key=key, limit=limit)
+        except Exception:
+            return []
 
     def publish(
         self,
@@ -295,6 +359,15 @@ class RemoteReadyCloudLibraryClient:
             CurriculumLibraryEntry.model_validate(entry_payload)
         )
 
+    def list_candidates(
+        self,
+        *,
+        key: CurriculumContentKey,
+        limit: int = 20,
+    ) -> list[CurriculumLibraryEntry]:
+        entry = self.lookup(key=key)
+        return [entry] if entry is not None else []
+
     def _request_with_retry(
         self,
         *,
@@ -375,36 +448,20 @@ class LibraryFirstCurriculumContentLibrary:
                 remote_entry = self.remote_client.lookup(key=key)
             except Exception as exc:  # pragma: no cover - defensive contract handling
                 remote_error = exc
-        if remote_entry is not None:
-            return self._with_library_provenance(
-                remote_entry,
-                lookup_status="remote_hit",
-                publish_status="remote_available",
-                degraded_mode=False,
-            )
-        local_entry = self.local_client.lookup(key=key)
-        if local_entry is None:
+        candidates = self._candidate_entries_for(
+            key=key,
+            remote_entry=remote_entry,
+            remote_error=remote_error,
+        )
+        if not candidates:
             return None
-        if remote_error is not None:
-            return self._with_library_provenance(
-                local_entry,
-                lookup_status="remote_lookup_failed_local_fallback",
-                publish_status=None,
-                degraded_mode=True,
-                degraded_reason=str(remote_error),
-            )
-        if self.remote_client is not None:
-            return self._with_library_provenance(
-                local_entry,
-                lookup_status="remote_miss_local_fallback",
-                publish_status=None,
-                degraded_mode=False,
-            )
-        return self._with_library_provenance(
-            local_entry,
-            lookup_status="local_only",
-            publish_status="local_only",
-            degraded_mode=False,
+        selected = self.inspect_selection(
+            key=key,
+            candidates=candidates,
+        ).selected_cache_key
+        return next(
+            (entry for entry in candidates if entry.cache_key == selected),
+            candidates[0],
         )
 
     def upsert_entry(
@@ -486,6 +543,52 @@ class LibraryFirstCurriculumContentLibrary:
             )
         ).content
 
+    def inspect_selection(
+        self,
+        *,
+        key: CurriculumContentKey,
+        candidates: list[CurriculumLibraryEntry] | None = None,
+    ) -> CurriculumLibrarySelectionTrace:
+        ranked_candidates = candidates or self._candidate_entries_for(
+            key=key,
+            remote_entry=None,
+            remote_error=None,
+        )
+        requested_modalities = {
+            str(item)
+            for item in key.request.generation_constraints.get("selected_modalities", [])
+            if item
+        }
+        requested_modality = key.request.generation_constraints.get("selected_modality")
+        rankings: list[CurriculumLibraryCandidateRanking] = []
+        for entry in ranked_candidates:
+            ranking = self._rank_candidate(
+                key=key,
+                entry=entry,
+                requested_modalities=requested_modalities,
+                requested_modality=(
+                    str(requested_modality) if requested_modality is not None else None
+                ),
+            )
+            rankings.append(ranking)
+        rankings.sort(
+            key=lambda item: (item.total_score, item.outcome_sample_count, item.cache_key),
+            reverse=True,
+        )
+        selected_cache_key = rankings[0].cache_key if rankings else None
+        rankings = [
+            item.model_copy(update={"selected": item.cache_key == selected_cache_key})
+            for item in rankings
+        ]
+        return CurriculumLibrarySelectionTrace(
+            selection_key=key.selection_key(),
+            requested_modality=(
+                str(requested_modality) if requested_modality is not None else None
+            ),
+            selected_cache_key=selected_cache_key,
+            candidates=rankings,
+        )
+
     def _is_verified(self, entry: CurriculumLibraryEntry) -> bool:
         return (
             entry.content.quality.validation_passed
@@ -542,6 +645,124 @@ class LibraryFirstCurriculumContentLibrary:
 
     def _persist_local_entry(self, entry: CurriculumLibraryEntry) -> CurriculumLibraryEntry:
         return self.local_client.publish(entry=entry) or entry
+
+    def _candidate_entries_for(
+        self,
+        *,
+        key: CurriculumContentKey,
+        remote_entry: CurriculumLibraryEntry | None,
+        remote_error: Exception | None,
+    ) -> list[CurriculumLibraryEntry]:
+        candidates: dict[str, CurriculumLibraryEntry] = {}
+        if remote_entry is not None:
+            enriched_remote = self._with_library_provenance(
+                remote_entry,
+                lookup_status="remote_hit",
+                publish_status="remote_available",
+                degraded_mode=False,
+            )
+            candidates[enriched_remote.cache_key or key.cache_key()] = enriched_remote
+        for entry in self.local_client.list_candidates(key=key):
+            lookup_status = "local_only"
+            publish_status = "local_only"
+            degraded_mode = False
+            degraded_reason = None
+            if remote_error is not None:
+                lookup_status = "remote_lookup_failed_local_fallback"
+                degraded_mode = True
+                degraded_reason = str(remote_error)
+            elif self.remote_client is not None:
+                lookup_status = "remote_miss_local_fallback"
+                publish_status = None
+            enriched_local = self._with_library_provenance(
+                entry,
+                lookup_status=lookup_status,
+                publish_status=publish_status,
+                degraded_mode=degraded_mode,
+                degraded_reason=degraded_reason,
+            )
+            if enriched_local.cache_key is not None:
+                candidates[enriched_local.cache_key] = enriched_local
+        return list(candidates.values())
+
+    def _rank_candidate(
+        self,
+        *,
+        key: CurriculumContentKey,
+        entry: CurriculumLibraryEntry,
+        requested_modalities: set[str],
+        requested_modality: str | None,
+    ) -> CurriculumLibraryCandidateRanking:
+        provenance = entry.provenance or CurriculumLibraryProvenance(
+            source_generation_id=entry.source_generation_id or entry.content.generation_id
+        )
+        now = datetime.now(timezone.utc)
+        age_days = max(
+            0.0,
+            (now - entry.content.created_at).total_seconds() / (60 * 60 * 24),
+        )
+        freshness = max(0.0, 1.0 - min(age_days / 30.0, 1.0))
+        modality_overlap = requested_modalities.intersection(set(provenance.modalities))
+        modality_fit = 0.5
+        if requested_modality and requested_modality in provenance.modalities:
+            modality_fit = 1.0
+        elif modality_overlap:
+            modality_fit = 0.8
+        elif requested_modality:
+            modality_fit = 0.25
+        outcome_confidence = min(provenance.outcome_sample_count / 3.0, 1.0)
+        outcome_score = (
+            (provenance.average_outcome_score * outcome_confidence)
+            + (0.5 * (1.0 - outcome_confidence))
+        )
+        total_score = round(
+            (provenance.quality_score * 0.42)
+            + ((1.0 if provenance.validator_passed else 0.0) * 0.12)
+            + (outcome_score * 0.22)
+            + (freshness * 0.14)
+            + (modality_fit * 0.10),
+            2,
+        )
+        return CurriculumLibraryCandidateRanking(
+            cache_key=entry.cache_key or key.cache_key(),
+            source_generation_id=entry.source_generation_id,
+            total_score=total_score,
+            outcome_sample_count=provenance.outcome_sample_count,
+            score_components=[
+                AdaptiveScoreComponent(
+                    label="verifier_quality",
+                    value=round(provenance.quality_score * 0.42, 2),
+                    detail=(
+                        "Verifier quality and validation stay the dominant signal "
+                        "until stronger outcome evidence exists."
+                    ),
+                ),
+                AdaptiveScoreComponent(
+                    label="historical_outcome",
+                    value=round((outcome_score - 0.5) * 0.44, 2),
+                    detail=(
+                        f"{provenance.outcome_sample_count} outcome sample(s) contribute "
+                        "a bounded reuse preference."
+                    ),
+                ),
+                AdaptiveScoreComponent(
+                    label="freshness",
+                    value=round((freshness - 0.5) * 0.28, 2),
+                    detail="Newer curriculum-safe artifacts get a mild freshness bonus.",
+                ),
+                AdaptiveScoreComponent(
+                    label="modality_fit",
+                    value=round((modality_fit - 0.5) * 0.20, 2),
+                    detail="Requested modality fit is considered, but it does not override safety or quality.",
+                ),
+            ],
+            rationale=[
+                f"quality={provenance.quality_score:.2f}",
+                f"outcome_avg={provenance.average_outcome_score:.2f}",
+                f"freshness={freshness:.2f}",
+                f"modality_fit={modality_fit:.2f}",
+            ],
+        )
 
 
 def _parse_json_payload(raw_body: str) -> dict[str, Any] | None:
