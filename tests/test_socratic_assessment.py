@@ -55,23 +55,33 @@ class FakeOutcomeStore:
         )
 
 
-class FakeGenerationEngine:
+class FakeContentGenerationHarness:
     def __init__(self, response: GenerationResponse):
         self.response = response
+        self.last_profile: LearnerProfile | None = None
+        self.last_request = None
 
-    def generate(self, profile: LearnerProfile, request):
+    def generate(self, *, profile: LearnerProfile, request):
+        self.last_profile = profile
+        self.last_request = request
         return self.response
 
 
-def build_service(tmp_path, response: GenerationResponse) -> SocraticAssessmentService:
+def build_service(
+    tmp_path, response: GenerationResponse
+) -> tuple[SocraticAssessmentService, FakeContentGenerationHarness]:
     database_path = str(tmp_path / "socratic.db")
     ensure_database(database_path)
     conn = create_connection(database_path)
-    return SocraticAssessmentService(
-        generation_engine=FakeGenerationEngine(response),
-        session_store=SQLiteSocraticSessionStore(conn),
-        evidence_scorer=SocraticEvidenceScorer(FakeOutcomeStore()),
-        turn_policy=SocraticTurnPolicy(),
+    content_generation_harness = FakeContentGenerationHarness(response)
+    return (
+        SocraticAssessmentService(
+            content_generation_harness=content_generation_harness,
+            session_store=SQLiteSocraticSessionStore(conn),
+            evidence_scorer=SocraticEvidenceScorer(FakeOutcomeStore()),
+            turn_policy=SocraticTurnPolicy(),
+        ),
+        content_generation_harness,
     )
 
 
@@ -112,7 +122,7 @@ def test_socratic_assessment_requests_probe_without_learner_response(tmp_path):
             prompt_template_name="assessment_probe.baseline"
         ),
     )
-    service = build_service(tmp_path, response)
+    service, content_generation_harness = build_service(tmp_path, response)
 
     result = service.assess(
         profile,
@@ -131,6 +141,9 @@ def test_socratic_assessment_requests_probe_without_learner_response(tmp_path):
     assert len(result.conversation_history) == 1
     assert result.summary.latest_prompt_style == "diagnostic"
     assert result.summary.next_step.content_type == "assessment_probe"
+    assert content_generation_harness.last_profile == profile
+    assert content_generation_harness.last_request is not None
+    assert content_generation_harness.last_request.requested_content_type == "assessment_probe"
 
 
 def test_socratic_assessment_advances_when_response_is_grounded(tmp_path):
@@ -170,7 +183,7 @@ def test_socratic_assessment_advances_when_response_is_grounded(tmp_path):
             prompt_template_name="assessment_probe.baseline"
         ),
     )
-    service = build_service(tmp_path, response)
+    service, _ = build_service(tmp_path, response)
 
     result = service.assess(
         profile,
@@ -228,7 +241,7 @@ def test_socratic_assessment_reuses_persisted_session_history(tmp_path):
             prompt_template_name="assessment_probe.baseline"
         ),
     )
-    service = build_service(tmp_path, response)
+    service, _ = build_service(tmp_path, response)
 
     first_result = service.assess(
         profile,

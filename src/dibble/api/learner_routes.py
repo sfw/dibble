@@ -24,6 +24,14 @@ from dibble.models.teacher_actions import (
     TeacherInterventionDecisionRequest,
 )
 from dibble.models.workspace import LearnerWorkspace
+from dibble.services.errors import LearnerProfileNotFoundError
+from dibble.services.harness.assessment_evidence import (
+    RecordObservationEvidenceCommand,
+)
+from dibble.services.harness.learner_profile import (
+    ApplyObservationEvidenceCommand,
+    UpsertLearnerProfileCommand,
+)
 from dibble.services.teacher_intervention_actions import (
     TeacherInterventionActionUnavailableError,
     TeacherInterventionOptionNotFoundError,
@@ -46,7 +54,9 @@ def build_learner_router(context: ApiContext) -> APIRouter:
                 detail="Path student_id must match the profile payload student_id.",
                 code="learner_profile_id_mismatch",
             )
-        return services.profile_store.upsert(profile)
+        return services.learner_profile_harness.upsert_profile(
+            UpsertLearnerProfileCommand(profile=profile)
+        ).profile
 
     @router.get(
         "/learners/{student_id}/profile",
@@ -77,50 +87,29 @@ def build_learner_router(context: ApiContext) -> APIRouter:
     def observe_learner_state(
         student_id: UUID, observation: LearnerObservationCreate
     ) -> InferredLearnerState:
-        profile = services.profile_store.get(student_id)
-        if profile is None:
+        try:
+            observation_evidence = (
+                services.assessment_evidence_harness.record_observation_evidence(
+                    RecordObservationEvidenceCommand(
+                        student_id=student_id,
+                        observation=observation,
+                    )
+                )
+            )
+        except LearnerProfileNotFoundError:
             raise api_error(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Learner profile not found.",
                 code="learner_profile_not_found",
             )
-
-        persisted_observation = services.observation_store.append(
-            student_id=str(student_id), observation=observation
+        profile_result = services.learner_profile_harness.apply_observation_evidence(
+            ApplyObservationEvidenceCommand(evidence=observation_evidence)
         )
-        recent_observations = services.observation_store.list_recent(
-            student_id=str(student_id)
-        )
-        inferred_state = services.state_inference_service.infer(
-            student_id=student_id, observations=recent_observations
-        )
-        calibration = services.learner_state_calibrator.calibrate(
-            student_id=student_id,
-            observation=observation,
-            inferred_state=inferred_state,
-        )
-        inferred_state = calibration.state
-        inferred_cognitive_traits = services.cognitive_trait_inference_service.infer(
-            student_id=student_id,
-            observations=recent_observations,
-            existing_traits=profile.cognitive_traits,
-        )
-        updated_profile = profile.model_copy(
-            update={
-                "cognitive_traits": inferred_cognitive_traits,
-                "affective_state": inferred_state.affective_state,
-                "cognitive_load": inferred_state.cognitive_load,
-                "metacognitive_state": inferred_state.metacognitive_state,
-                "updated_at": inferred_state.last_observation_at or profile.updated_at,
-            }
-        )
-        observation_profile_update = services.observation_profile_updater.apply(
-            updated_profile,
-            persisted_observation,
-            recent_observations=recent_observations,
-        )
-        updated_profile = observation_profile_update.profile
-        services.profile_store.upsert(updated_profile)
+        inferred_state = profile_result.inferred_state
+        calibration = profile_result.calibration
+        inferred_cognitive_traits = profile_result.inferred_cognitive_traits
+        observation_profile_update = profile_result.mastery_update
+        updated_profile = profile_result.profile
         services.mastery_snapshot_service.record_from_profile(updated_profile)
         progression_outcomes = (
             services.progression_outcome_tracker.evaluate_recent_decisions(

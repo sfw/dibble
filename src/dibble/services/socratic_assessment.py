@@ -22,7 +22,7 @@ from dibble.models.profile import (
     LearnerFlowNextStep,
     LearnerProfile,
 )
-from dibble.services.generation_engine import GenerationEngine
+from dibble.services.harness.content_generation import ContentGenerationHarness
 from dibble.services.protocols import SocraticSessionStore
 from dibble.services.socratic_evidence import SocraticEvidenceScorer
 from dibble.services.socratic_policy import SocraticTurnPolicy
@@ -31,7 +31,7 @@ from dibble.services.workflow_rationale import decision_grade_rationale
 
 @dataclass(slots=True)
 class SocraticAssessmentService:
-    generation_engine: GenerationEngine
+    content_generation_harness: ContentGenerationHarness
     session_store: SocraticSessionStore
     evidence_scorer: SocraticEvidenceScorer
     turn_policy: SocraticTurnPolicy
@@ -59,7 +59,10 @@ class SocraticAssessmentService:
             ),
             curriculum_context=session.curriculum_context,
         )
-        response = self.generation_engine.generate(profile, generation_request)
+        response = self.content_generation_harness.generate(
+            profile=profile,
+            request=generation_request,
+        )
         prompt = self._extract_prompt(response.blocks)
         generation_metadata = response.generation_metadata
         turn_id = str(uuid4())

@@ -8,6 +8,9 @@ from dibble.models.assessment import (
     SocraticAssessmentResponse,
     SocraticAssessmentSession,
 )
+from dibble.services.errors import LearnerProfileNotFoundError
+from dibble.services.harness.assessment_evidence import RunSocraticAssessmentCommand
+from dibble.services.harness.learner_profile import ApplySocraticEvidenceCommand
 
 
 def build_assessment_router(context: ApiContext) -> APIRouter:
@@ -22,21 +25,22 @@ def build_assessment_router(context: ApiContext) -> APIRouter:
     def assess_socratically(
         request: SocraticAssessmentRequest,
     ) -> SocraticAssessmentResponse:
-        profile = services.profile_store.get(request.student_id)
-        if profile is None:
+        try:
+            assessment = services.assessment_evidence_harness.run_socratic_assessment(
+                RunSocraticAssessmentCommand(request=request)
+            )
+        except LearnerProfileNotFoundError as exc:
             raise api_error(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Learner profile not found.",
                 code="learner_profile_not_found",
-            )
+            ) from exc
 
-        result = services.socratic_assessment_service.assess(profile, request)
-        session = services.socratic_session_store.get(result.session_id)
-        profile_update = services.socratic_profile_updater.apply(
-            profile, request, result, session
+        profile_result = services.learner_profile_harness.apply_socratic_evidence(
+            ApplySocraticEvidenceCommand(assessment=assessment)
         )
-        if profile_update.applied:
-            services.profile_store.upsert(profile_update.profile)
+        result = assessment.response
+        profile_update = profile_result.profile_update
         assessment_audit_event = services.audit_store.append(
             event_type="assessment.socratic",
             status="success",

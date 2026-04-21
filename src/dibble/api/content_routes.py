@@ -20,7 +20,7 @@ from dibble.models.remediation import (
     RemediationWorkflowAdvanceResponse,
     RemediationWorkflowSession,
 )
-from dibble.services.content_workflow import LearnerProfileNotFoundError
+from dibble.services.errors import LearnerProfileNotFoundError
 from dibble.services.remediation_workflows import (
     RemediationWorkflowCompleteError,
     RemediationWorkflowNotFoundError,
@@ -238,8 +238,8 @@ def build_content_router(context: ApiContext) -> APIRouter:
         def event_stream():
             try:
                 complete_event: GenerationStreamEvent | None = None
-                for event in services.generation_engine.stream_generate(
-                    prepared.profile, prepared.request
+                for event in services.content_generation_harness.stream_generate_prepared(
+                    prepared.prepared_generation
                 ):
                     if event.event == "moderation" and event.moderation is not None:
                         services.audit_store.append(
