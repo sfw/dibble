@@ -80,6 +80,9 @@ class MockLLMProvider:
         grounding_summary: str,
         instruction_close: str,
     ) -> list[GeneratedBlock]:
+        modality_plugin_id = str(
+            request.generation_constraints.get("modality_plugin_id", "text")
+        )
         if request.content_type.value == "practice_problem":
             distractor_focus = str(
                 request.generation_constraints.get(
@@ -184,7 +187,7 @@ class MockLLMProvider:
             learner_owned_move = str(
                 transfer_plan.get("learner_owned_move", hidden_step_role)
             )
-            return [
+            blocks = [
                 GeneratedBlock(
                     kind="worked_example",
                     title="See it solved",
@@ -204,6 +207,20 @@ class MockLLMProvider:
                     ),
                 ),
             ]
+            if modality_plugin_id == "diagram":
+                blocks.insert(
+                    1,
+                    GeneratedBlock(
+                        kind="visual_representation",
+                        title="See the structure",
+                        body=self._diagram_svg(
+                            title=focus,
+                            emphasis=preserve,
+                            caption=grounding_excerpt,
+                        ),
+                    ),
+                )
+            return blocks
 
         if request.content_type.value == "assessment_probe":
             return [
@@ -218,6 +235,47 @@ class MockLLMProvider:
                 ),
             ]
 
+        if modality_plugin_id == "narrative":
+            return [
+                GeneratedBlock(
+                    kind="narrative",
+                    title="A quick story",
+                    body=(
+                        f"A learner meets {focus} in a familiar moment. "
+                        f"They notice {grounding_excerpt}. "
+                        "The teacher names the pattern, slows down the tricky part, "
+                        "and ends by asking the learner what stays the same."
+                    ),
+                ),
+                GeneratedBlock(
+                    kind="instruction",
+                    title=f"{route.intervention_type.value.replace('_', ' ').title()} response",
+                    body=(
+                        f"Retell the key idea in your own words for {focus}. "
+                        f"{instruction_close}"
+                    ),
+                ),
+            ]
+        if modality_plugin_id == "diagram":
+            return [
+                GeneratedBlock(
+                    kind="visual_representation",
+                    title="See the concept",
+                    body=self._diagram_svg(
+                        title=focus,
+                        emphasis=grounding_summary,
+                        caption=grounding_excerpt,
+                    ),
+                ),
+                GeneratedBlock(
+                    kind="instruction",
+                    title=f"{route.intervention_type.value.replace('_', ' ').title()} response",
+                    body=(
+                        f"Name the visual pattern that matters for {focus}. "
+                        f"Cue: {grounding_excerpt}. {instruction_close}"
+                    ),
+                ),
+            ]
         return [
             GeneratedBlock(
                 kind="instruction",
@@ -238,3 +296,27 @@ class MockLLMProvider:
             return "Keep the instructional tone supportive and concise."
         prompt_clause = prompt_clause[0].lower() + prompt_clause[1:]
         return f"Keep the instructional tone supportive and concise, and {prompt_clause}."
+
+    def _diagram_svg(self, *, title: str, emphasis: str, caption: str) -> str:
+        safe_title = title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        safe_emphasis = (
+            emphasis.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        )
+        safe_caption = (
+            caption.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        )
+        return (
+            "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 420 180' role='img' "
+            f"aria-label='{safe_title} diagram'>"
+            "<rect x='12' y='24' width='180' height='28' rx='10' fill='#dbeafe' stroke='#2563eb'/>"
+            "<rect x='228' y='24' width='180' height='28' rx='10' fill='#dcfce7' stroke='#15803d'/>"
+            "<path d='M192 38 H228' stroke='#475569' stroke-width='3' marker-end='url(#arrow)'/>"
+            "<rect x='48' y='96' width='324' height='44' rx='12' fill='#fff7ed' stroke='#ea580c'/>"
+            "<text x='102' y='42' font-size='14' font-family='Arial' fill='#1e3a8a'>Target</text>"
+            "<text x='258' y='42' font-size='14' font-family='Arial' fill='#166534'>What stays true</text>"
+            f"<text x='50' y='122' font-size='14' font-family='Arial' fill='#9a3412'>{safe_emphasis}</text>"
+            f"<text x='18' y='164' font-size='12' font-family='Arial' fill='#334155'>{safe_caption}</text>"
+            "<defs><marker id='arrow' markerWidth='10' markerHeight='10' refX='7' refY='3' orient='auto'>"
+            "<path d='M0,0 L0,6 L9,3 z' fill='#475569'/></marker></defs>"
+            "</svg>"
+        )

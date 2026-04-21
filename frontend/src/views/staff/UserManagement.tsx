@@ -20,6 +20,7 @@ import { useStaffApiConfig } from './useStaffApiConfig'
 const ROLE_STYLES: Record<string, string> = {
   admin: 'bg-amber-100 text-amber-800',
   editor: 'bg-purple-100 text-purple-800',
+  household_admin: 'bg-orange-100 text-orange-800',
   teacher: 'bg-emerald-100 text-emerald-800',
   viewer: 'bg-slate-100 text-slate-700',
   learner: 'bg-blue-100 text-blue-800',
@@ -112,6 +113,7 @@ function CreateUserForm({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="learner">Learner</SelectItem>
+              <SelectItem value="household_admin">Household admin</SelectItem>
               <SelectItem value="viewer">Viewer</SelectItem>
               <SelectItem value="teacher">Teacher</SelectItem>
               <SelectItem value="editor">Editor</SelectItem>
@@ -328,6 +330,7 @@ function UserRow({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="learner">Learner</SelectItem>
+              <SelectItem value="household_admin">Household admin</SelectItem>
               <SelectItem value="viewer">Viewer</SelectItem>
               <SelectItem value="teacher">Teacher</SelectItem>
               <SelectItem value="editor">Editor</SelectItem>

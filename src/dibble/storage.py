@@ -118,6 +118,7 @@ CREATE TABLE IF NOT EXISTS curriculum_content_library (
     cache_key TEXT PRIMARY KEY,
     content_key_payload TEXT NOT NULL,
     content_payload TEXT NOT NULL,
+    provenance_payload TEXT,
     storage_scope TEXT NOT NULL,
     source_generation_id TEXT,
     created_at TEXT NOT NULL,
@@ -273,8 +274,38 @@ CREATE TABLE IF NOT EXISTS users (
     api_key_hash TEXT UNIQUE,
     passphrase_hash TEXT UNIQUE,
     learner_id TEXT,
+    household_id TEXT,
     section_ids TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+"""
+
+HOUSEHOLD_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS households (
+    household_id TEXT PRIMARY KEY,
+    payload TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+"""
+
+LEARNER_RELATIONSHIP_STATE_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS learner_relationship_states (
+    household_id TEXT NOT NULL,
+    learner_id TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (household_id, learner_id)
+);
+"""
+
+PARENT_NOTIFICATION_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS parent_notifications (
+    notification_id TEXT PRIMARY KEY,
+    household_id TEXT NOT NULL,
+    learner_id TEXT,
+    dedupe_key TEXT NOT NULL UNIQUE,
+    payload TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
 """
@@ -320,6 +351,9 @@ def ensure_database(database_path: str) -> None:
         connection.execute(MASTERY_SNAPSHOT_TABLE_SQL)
         connection.execute(PREDICTIVE_WARM_QUEUE_TABLE_SQL)
         connection.execute(USER_TABLE_SQL)
+        connection.execute(HOUSEHOLD_TABLE_SQL)
+        connection.execute(LEARNER_RELATIONSHIP_STATE_TABLE_SQL)
+        connection.execute(PARENT_NOTIFICATION_TABLE_SQL)
         connection.execute(STRAND_TABLE_SQL)
         connection.execute(OUTCOME_TABLE_SQL)
         connection.execute(OUTCOME_EMBEDDING_TABLE_SQL)
@@ -334,7 +368,15 @@ def ensure_database(database_path: str) -> None:
             connection,
             table_name="users",
             columns={
+                "household_id": "TEXT",
                 "section_ids": "TEXT NOT NULL DEFAULT '[]'",
+            },
+        )
+        _ensure_sqlite_columns(
+            connection,
+            table_name="curriculum_content_library",
+            columns={
+                "provenance_payload": "TEXT",
             },
         )
         _ensure_sqlite_columns(

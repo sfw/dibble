@@ -14,6 +14,19 @@ from dibble.models.generation import (
 from dibble.models.profile import LearnerProfile
 
 
+class ModalityPlugin(Protocol):
+    plugin_id: str
+    modality: str
+    composition_mode: str
+
+    def apply(
+        self,
+        *,
+        request: CurriculumContentRequest,
+        accessibility_requirements: list[str],
+    ) -> CurriculumContentRequest: ...
+
+
 class RouterPlugin(Protocol):
     def route(
         self, profile: LearnerProfile, request: GenerationRequest
@@ -58,3 +71,11 @@ class GenerationPlugins:
     retriever: RetrieverPlugin
     provider: ProviderPlugin
     validator: ValidatorPlugin
+
+
+@dataclass(slots=True)
+class ModalityPlugins:
+    plugins: dict[str, ModalityPlugin]
+
+    def get(self, plugin_id: str) -> ModalityPlugin:
+        return self.plugins[plugin_id]

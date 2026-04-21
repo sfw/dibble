@@ -15,6 +15,7 @@ from dibble.models.workspace import (
 )
 from dibble.services.content_workflow import ContentWorkflowService
 from dibble.services.errors import LearnerProfileNotFoundError
+from dibble.services.autonomous_teacher_harness import AutonomousTeacherHarness
 from dibble.services.harness.curriculum_planning import (
     CurriculumPlanningHarness,
     EnsureActiveTrajectoryCommand,
@@ -36,6 +37,7 @@ class LearnerWorkspaceService:
     socratic_assessment_service: SocraticAssessmentService
     curriculum_planning_harness: CurriculumPlanningHarness
     within_session_control_harness: WithinSessionControlHarness
+    autonomous_teacher_harness: AutonomousTeacherHarness | None = None
 
     def build_for_student(self, *, student_id: UUID) -> LearnerWorkspace | None:
         try:

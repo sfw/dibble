@@ -26,6 +26,8 @@ export function Login() {
       const identity = await auth.login(credential.trim(), baseUrl.trim())
       if (identity.role === 'learner') {
         navigate('/learn', { replace: true })
+      } else if (identity.role === 'household_admin' || identity.role === 'parent') {
+        navigate('/parent', { replace: true })
       } else if (identity.role === 'teacher') {
         navigate('/teacher', { replace: true })
       } else {

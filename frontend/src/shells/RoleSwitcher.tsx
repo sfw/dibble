@@ -1,5 +1,5 @@
 import { Link, Navigate } from 'react-router'
-import { BookOpen, GraduationCap, LogIn, Wrench } from 'lucide-react'
+import { BookOpen, GraduationCap, LogIn, Users, Wrench } from 'lucide-react'
 import { useAuthContext } from '../contexts/AuthContext'
 
 const roles = [
@@ -9,6 +9,13 @@ const roles = [
     title: 'Learner',
     description: 'Resume your learning, complete activities, and track your progress.',
     tone: 'learner' as const,
+  },
+  {
+    to: '/parent',
+    icon: Users,
+    title: 'Parent',
+    description: 'Manage a household, review weekly progress, and respond to gentle escalation signals.',
+    tone: 'parent' as const,
   },
   {
     to: '/teacher',
@@ -28,6 +35,7 @@ const roles = [
 
 const toneClasses: Record<string, string> = {
   learner: 'hover:border-blue-400 hover:bg-blue-50',
+  parent: 'hover:border-amber-400 hover:bg-amber-50',
   teacher: 'hover:border-emerald-400 hover:bg-emerald-50',
   staff: 'hover:border-amber-400 hover:bg-amber-50',
 }
@@ -38,6 +46,7 @@ export function RoleSwitcher() {
   // If already authenticated, redirect to the appropriate shell
   if (auth.authenticated && auth.identity) {
     if (auth.identity.role === 'learner') return <Navigate to="/learn" replace />
+    if (auth.identity.role === 'household_admin' || auth.identity.role === 'parent') return <Navigate to="/parent" replace />
     if (auth.identity.role === 'teacher') return <Navigate to="/teacher" replace />
     return <Navigate to="/staff" replace />
   }
@@ -49,7 +58,7 @@ export function RoleSwitcher() {
         <p className="mt-2 text-muted-foreground">Choose how you want to use the platform.</p>
       </header>
 
-      <div className="grid w-full max-w-3xl gap-4 sm:grid-cols-3">
+      <div className="grid w-full max-w-4xl gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {roles.map(({ to, icon: Icon, title, description, tone }) => (
           <Link
             key={to}

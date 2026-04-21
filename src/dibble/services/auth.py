@@ -51,6 +51,7 @@ def _identity_from_user(user: User) -> AuthIdentity:
         role=user.role,
         auth_scheme=scheme,
         learner_id=user.learner_id,
+        household_id=user.household_id,
         display_name=user.display_name,
     )
 
@@ -144,6 +145,7 @@ class AuthService:
         refresh_expires_at = now + timedelta(seconds=self.refresh_ttl_seconds)
         entity_claims = {
             "learner_id": identity.learner_id,
+            "household_id": identity.household_id,
             "display_name": identity.display_name,
         }
         access_claims = AuthTokenClaims(
@@ -187,6 +189,7 @@ class AuthService:
                 role=identity.role,
                 auth_scheme="bearer",
                 learner_id=identity.learner_id,
+                household_id=identity.household_id,
                 display_name=identity.display_name,
             ),
         )
@@ -204,6 +207,7 @@ class AuthService:
                 role=claims.role,
                 auth_scheme="bearer",
                 learner_id=claims.learner_id,
+                household_id=claims.household_id,
                 display_name=claims.display_name,
             ),
             session_id=claims.sid,
@@ -231,6 +235,7 @@ class AuthService:
             role=claims.role,
             auth_scheme="bearer",
             learner_id=claims.learner_id,
+            household_id=claims.household_id,
             display_name=claims.display_name,
         )
         now = datetime.now(timezone.utc)
@@ -238,6 +243,7 @@ class AuthService:
         refresh_expires_at = now + timedelta(seconds=self.refresh_ttl_seconds)
         entity_claims = {
             "learner_id": identity.learner_id,
+            "household_id": identity.household_id,
             "display_name": identity.display_name,
         }
         access_claims = AuthTokenClaims(

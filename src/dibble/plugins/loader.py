@@ -5,7 +5,7 @@ from importlib import import_module
 from typing import Any, Callable
 
 from dibble.config import Settings
-from dibble.plugins.contracts import GenerationPlugins
+from dibble.plugins.contracts import GenerationPlugins, ModalityPlugins
 
 
 def load_object(path: str) -> Any:
@@ -47,4 +47,18 @@ def build_generation_plugins(
             provider_factory, settings=settings, connection=connection
         ),
         validator=_build_with_supported_kwargs(validator_factory, settings=settings),
+    )
+
+
+def build_modality_plugins() -> ModalityPlugins:
+    plugin_paths = {
+        "text": "dibble.plugins.modalities.text:build",
+        "narrative": "dibble.plugins.modalities.narrative:build",
+        "diagram": "dibble.plugins.modalities.diagram:build",
+    }
+    return ModalityPlugins(
+        plugins={
+            plugin_id: load_object(factory_path)()
+            for plugin_id, factory_path in plugin_paths.items()
+        }
     )

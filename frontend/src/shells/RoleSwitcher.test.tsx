@@ -27,11 +27,18 @@ function renderSwitcher(auth: AuthState = unauthenticated) {
 }
 
 describe('RoleSwitcher', () => {
-  it('renders all three role cards', () => {
+  it('renders all four role cards', () => {
     renderSwitcher()
     expect(screen.getByText('Learner')).toBeInTheDocument()
+    expect(screen.getByText('Parent')).toBeInTheDocument()
     expect(screen.getByText('Teacher')).toBeInTheDocument()
     expect(screen.getByText('Staff')).toBeInTheDocument()
+  })
+
+  it('links parent card to /parent', () => {
+    renderSwitcher()
+    const parentLink = screen.getByText('Parent').closest('a')
+    expect(parentLink).toHaveAttribute('href', '/parent')
   })
 
   it('links learner card to /learn', () => {

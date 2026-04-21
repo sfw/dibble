@@ -20,7 +20,9 @@ from dibble.services.admin_section_membership_service import (
     AdminSectionMembershipService,
 )
 from dibble.services.content_warmer import ContentWarmer
+from dibble.services.autonomous_teacher_harness import AutonomousTeacherHarness
 from dibble.services.content_workflow import ContentWorkflowService
+from dibble.services.household_service import HouseholdService
 from dibble.services.protocols import ClassroomStore, CourseStore, UserStore
 from dibble.services.protocols import ClassroomMembershipStore
 from dibble.services.cognitive_trait_inference import CognitiveTraitInferenceService
@@ -130,6 +132,7 @@ class ApiServices(Protocol):
     content_generation_harness: ContentGenerationHarness
     curriculum_planning_harness: CurriculumPlanningHarness
     within_session_control_harness: WithinSessionControlHarness
+    autonomous_teacher_harness: AutonomousTeacherHarness
     remediation_planner: RemediationPlanner
     socratic_assessment_service: SocraticAssessmentService
     socratic_profile_updater: SocraticProfileUpdater
@@ -152,6 +155,7 @@ class ApiServices(Protocol):
     learner_workspace_service: LearnerWorkspaceService
     teacher_section_service: TeacherSectionService
     teacher_intervention_action_service: TeacherInterventionActionService
+    household_service: HouseholdService
     mastery_snapshot_service: MasterySnapshotService
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_invalidator: PredictiveContentInvalidator

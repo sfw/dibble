@@ -57,7 +57,7 @@ class LengthGuardrailRule:
     def validate(
         self, blocks: list[GeneratedBlock], grounding: list[GroundingReference]
     ) -> list[str]:
-        if any(len(block.body) > self.max_length for block in blocks):
+        if any(_guardrail_body_length(block) > self.max_length for block in blocks):
             return ["One or more generated blocks exceed the current length guardrail."]
         return []
 
@@ -212,7 +212,7 @@ class MathSanityRule:
 
 
 def _block_text(block: GeneratedBlock) -> str:
-    fragments = [block.title, block.body]
+    fragments = [block.title, _display_text(block)]
     if block.interaction is not None:
         fragments.append(block.interaction.prompt)
         fragments.extend(option.body for option in block.interaction.options)
@@ -221,3 +221,14 @@ def _block_text(block: GeneratedBlock) -> str:
             if block.interaction.reveal.support:
                 fragments.append(block.interaction.reveal.support)
     return " ".join(fragment for fragment in fragments if fragment)
+
+
+def _display_text(block: GeneratedBlock) -> str:
+    body = block.body or ""
+    if block.kind in {"diagram", "visual_representation"} and body.strip().startswith("<svg"):
+        return ""
+    return body
+
+
+def _guardrail_body_length(block: GeneratedBlock) -> int:
+    return len(_display_text(block))

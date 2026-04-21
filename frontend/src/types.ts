@@ -466,6 +466,7 @@ export interface GeneratedContent {
     generated_at: string
     route: AdaptiveRouteDecision
     blocks: GeneratedBlock[]
+    artifacts?: GeneratedArtifact[]
     curriculum_context: string[]
     grounding: GroundingReference[]
     safety_notes: string[]
@@ -627,6 +628,61 @@ export interface RemediationWorkflowAdvanceResponse {
   content: GeneratedContent
   executed_phase: string
 }
+
+export interface ArtifactAccessibility {
+  alt_text?: string | null
+  text_equivalent?: string | null
+  supports_screen_reader: boolean
+}
+
+export interface ArtifactProvenance {
+  modality: string
+  plugin_id: string
+  source_block_kind?: string | null
+  generated_by: string
+}
+
+export interface GeneratedTextArtifact {
+  artifact_id: string
+  artifact_type: 'text'
+  sequence_index: number
+  role: string
+  title: string
+  mime_type: string
+  text: string
+  accessibility: ArtifactAccessibility
+  provenance: ArtifactProvenance
+}
+
+export interface GeneratedNarrativeArtifact {
+  artifact_id: string
+  artifact_type: 'narrative'
+  sequence_index: number
+  role: string
+  title: string
+  mime_type: string
+  text: string
+  narrator_style: string
+  accessibility: ArtifactAccessibility
+  provenance: ArtifactProvenance
+}
+
+export interface GeneratedDiagramArtifact {
+  artifact_id: string
+  artifact_type: 'diagram'
+  sequence_index: number
+  title: string
+  mime_type: string
+  svg?: string | null
+  caption?: string | null
+  accessibility: ArtifactAccessibility
+  provenance: ArtifactProvenance
+}
+
+export type GeneratedArtifact =
+  | GeneratedTextArtifact
+  | GeneratedNarrativeArtifact
+  | GeneratedDiagramArtifact
 
 export interface GenerationStreamEvent {
   event: string
@@ -838,6 +894,7 @@ export interface AuthIdentity {
   role: string
   auth_scheme: string
   learner_id?: string | null
+  household_id?: string | null
   display_name?: string | null
 }
 
@@ -977,6 +1034,121 @@ export interface SetupModelCatalogRequest {
 
 export interface SetupModelCatalogResponse {
   models: string[]
+}
+
+export interface ParentPreference {
+  session_cadence: string
+  auto_session_suggestions: boolean
+  weekly_summary_day: string
+  soft_escalation_enabled: boolean
+  approval_mode: string
+}
+
+export interface ParentProfile {
+  parent_user_id: string
+  display_name?: string | null
+  relationship_label: string
+  preferences: ParentPreference
+}
+
+export interface Household {
+  household_id: string
+  household_name: string
+  parent_profiles: ParentProfile[]
+  learner_ids: string[]
+  created_at: string
+  updated_at: string
+}
+
+export interface ParentNotification {
+  notification_id: string
+  household_id: string
+  learner_id?: string | null
+  dedupe_key: string
+  category: string
+  severity: string
+  title: string
+  message: string
+  status: string
+  snoozed_until?: string | null
+  created_at: string
+  updated_at: string
+  metadata: Record<string, unknown>
+}
+
+export interface AutonomousTeacherSessionSuggestion {
+  learner_id: string
+  cadence_decision: string
+  status: string
+  snoozed_until?: string | null
+  suggested_for?: string | null
+  focus_label?: string | null
+  rationale?: string | null
+  learning_session_id?: string | null
+  continue_action_endpoint?: string | null
+  target_kc_ids: string[]
+  modality: string
+}
+
+export interface AutonomousTeacherWeeklySummary {
+  learner_id: string
+  headline: string
+  celebration: string
+  support_need?: string | null
+  next_focus?: string | null
+  generated_at: string
+}
+
+export interface HouseholdLearnerOverview {
+  learner_id: string
+  learner_label: string
+  grade_level: string
+  goal_title?: string | null
+  mastery_ratio: number
+  engagement: string
+  frustration: string
+  current_stage: string
+  next_session_focus?: string | null
+  suggested_modality: string
+  cadence_decision: string
+  soft_escalation_active: boolean
+  summary_headline?: string | null
+}
+
+export interface HouseholdOverview {
+  household?: Household | null
+  learners: HouseholdLearnerOverview[]
+  session_suggestions: AutonomousTeacherSessionSuggestion[]
+  weekly_summaries: AutonomousTeacherWeeklySummary[]
+  notifications: ParentNotification[]
+  available_learners: Array<{
+    learner_id?: string | null
+    display_name?: string | null
+  }>
+}
+
+export interface HouseholdSetupRequest {
+  household_name: string
+  learner_ids: string[]
+  relationship_label: string
+  preferences: ParentPreference
+}
+
+export interface HouseholdSetupResponse {
+  household: Household
+}
+
+export interface HouseholdPreferenceUpdateRequest {
+  relationship_label?: string | null
+  preferences: ParentPreference
+}
+
+export interface HouseholdNotificationSnoozeRequest {
+  hours: number
+}
+
+export interface HouseholdSessionSuggestionSnoozeRequest {
+  hours: number
 }
 
 export interface SetupConfigureResponse {
@@ -1126,6 +1298,7 @@ export interface UserSummary {
   display_name: string | null
   role: string
   learner_id: string | null
+  household_id?: string | null
   section_ids: string[]
   created_at: string
   updated_at: string

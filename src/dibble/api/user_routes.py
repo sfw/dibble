@@ -74,6 +74,7 @@ def build_user_router(context: ApiContext) -> APIRouter:
             display_name=user.display_name,
             role=user.role,
             learner_id=user.learner_id,
+            household_id=user.household_id,
             section_ids=_effective_section_ids(user),
             created_at=user.created_at,
             updated_at=user.updated_at,

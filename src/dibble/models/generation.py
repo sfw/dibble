@@ -361,19 +361,131 @@ class GeneratedTextArtifact(BaseModel):
     title: str
     mime_type: str = "text/plain"
     text: str
-
-
-def build_text_artifacts(blocks: list["GeneratedBlock"]) -> list[GeneratedTextArtifact]:
-    return [
-        GeneratedTextArtifact(
-            artifact_id=f"text-{index}",
-            sequence_index=index,
-            role=block.kind,
-            title=block.title,
-            text=block.body or (block.interaction.prompt if block.interaction else ""),
+    accessibility: "ArtifactAccessibility" = Field(
+        default_factory=lambda: ArtifactAccessibility()
+    )
+    provenance: "ArtifactProvenance" = Field(
+        default_factory=lambda: ArtifactProvenance(
+            modality="text",
+            plugin_id="text",
         )
-        for index, block in enumerate(blocks)
-    ]
+    )
+
+
+class ArtifactAccessibility(BaseModel):
+    alt_text: str | None = None
+    text_equivalent: str | None = None
+    supports_screen_reader: bool = True
+
+
+class ArtifactProvenance(BaseModel):
+    modality: str
+    plugin_id: str
+    source_block_kind: str | None = None
+    generated_by: str = "modality_plugin"
+
+
+class GeneratedNarrativeArtifact(BaseModel):
+    artifact_id: str
+    artifact_type: Literal["narrative"] = "narrative"
+    sequence_index: int = Field(default=0, ge=0)
+    role: str
+    title: str
+    mime_type: str = "text/plain"
+    text: str
+    narrator_style: str = "guided_story"
+    accessibility: ArtifactAccessibility = Field(default_factory=ArtifactAccessibility)
+    provenance: ArtifactProvenance = Field(
+        default_factory=lambda: ArtifactProvenance(
+            modality="narrative",
+            plugin_id="narrative",
+        )
+    )
+
+
+class GeneratedDiagramArtifact(BaseModel):
+    artifact_id: str
+    artifact_type: Literal["diagram"] = "diagram"
+    sequence_index: int = Field(default=0, ge=0)
+    title: str
+    mime_type: str = "image/svg+xml"
+    svg: str | None = None
+    caption: str | None = None
+    accessibility: ArtifactAccessibility = Field(default_factory=ArtifactAccessibility)
+    provenance: ArtifactProvenance = Field(
+        default_factory=lambda: ArtifactProvenance(
+            modality="diagram",
+            plugin_id="diagram",
+        )
+    )
+
+
+GeneratedArtifact = (
+    GeneratedTextArtifact | GeneratedNarrativeArtifact | GeneratedDiagramArtifact
+)
+
+
+def build_generated_artifacts(blocks: list["GeneratedBlock"]) -> list[GeneratedArtifact]:
+    artifacts: list[GeneratedArtifact] = []
+    for index, block in enumerate(blocks):
+        body = block.body or (block.interaction.prompt if block.interaction else "")
+        accessibility = ArtifactAccessibility(
+            alt_text=block.title or None,
+            text_equivalent=body or block.title or None,
+        )
+        if block.kind in {"narrative", "story_scene"}:
+            artifacts.append(
+                GeneratedNarrativeArtifact(
+                    artifact_id=f"narrative-{index}",
+                    sequence_index=index,
+                    role=block.kind,
+                    title=block.title,
+                    text=body,
+                    accessibility=accessibility,
+                    provenance=ArtifactProvenance(
+                        modality="narrative",
+                        plugin_id="narrative",
+                        source_block_kind=block.kind,
+                    ),
+                )
+            )
+            continue
+        if block.kind in {"diagram", "visual_representation"}:
+            svg = body if body.strip().startswith("<svg") else None
+            artifacts.append(
+                GeneratedDiagramArtifact(
+                    artifact_id=f"diagram-{index}",
+                    sequence_index=index,
+                    title=block.title,
+                    svg=svg,
+                    caption=None if svg else body,
+                    accessibility=accessibility.model_copy(
+                        update={"alt_text": block.title or body}
+                    ),
+                    provenance=ArtifactProvenance(
+                        modality="diagram",
+                        plugin_id="diagram",
+                        source_block_kind=block.kind,
+                    ),
+                )
+            )
+            continue
+        artifacts.append(
+            GeneratedTextArtifact(
+                artifact_id=f"text-{index}",
+                sequence_index=index,
+                role=block.kind,
+                title=block.title,
+                text=body,
+                accessibility=accessibility,
+                provenance=ArtifactProvenance(
+                    modality="text",
+                    plugin_id="text",
+                    source_block_kind=block.kind,
+                ),
+            )
+        )
+    return artifacts
 
 
 class MisconceptionSignal(BaseModel):
@@ -476,7 +588,7 @@ class GenerationResponse(BaseModel):
     generated_at: datetime = Field(default_factory=utc_now)
     route: AdaptiveRouteDecision
     blocks: list[GeneratedBlock]
-    artifacts: list[GeneratedTextArtifact] = Field(default_factory=list)
+    artifacts: list[GeneratedArtifact] = Field(default_factory=list)
     curriculum_context: list[str]
     grounding: list[GroundingReference] = Field(default_factory=list)
     safety_notes: list[str]
@@ -487,7 +599,7 @@ class GenerationResponse(BaseModel):
     @model_validator(mode="after")
     def populate_artifacts_from_blocks(self) -> "GenerationResponse":
         if not self.artifacts:
-            self.artifacts = build_text_artifacts(self.blocks)
+            self.artifacts = build_generated_artifacts(self.blocks)
         return self
 
 
@@ -507,6 +619,7 @@ class CurriculumLibraryEntry(BaseModel):
     content_key: CurriculumContentKey
     content: GeneratedContent
     cache_key: str | None = None
+    provenance: "CurriculumLibraryProvenance | None" = None
     storage_scope: CurriculumLibraryStorageScope = (
         CurriculumLibraryStorageScope.local_only
     )
@@ -518,7 +631,36 @@ class CurriculumLibraryEntry(BaseModel):
             self.cache_key = self.content_key.cache_key()
         if self.source_generation_id is None:
             self.source_generation_id = self.content.generation_id
+        if self.provenance is None:
+            self.provenance = CurriculumLibraryProvenance(
+                source_generation_id=self.content.generation_id,
+                provider_name=self.content.quality.provider_name,
+                validator_passed=self.content.quality.validation_passed,
+                validation_issues=list(self.content.response.validation_issues),
+                moderation_status=self.content.quality.moderation.status,
+                quality_score=self.content.quality.quality_score,
+                modalities=[
+                    artifact.provenance.modality
+                    for artifact in self.content.response.artifacts
+                ],
+            )
         return self
+
+
+class CurriculumLibraryProvenance(BaseModel):
+    source_generation_id: str
+    provider_name: str | None = None
+    validator_passed: bool = True
+    validation_issues: list[str] = Field(default_factory=list)
+    moderation_status: str = "clear"
+    quality_score: float = Field(default=1.0, ge=0.0, le=1.0)
+    modalities: list[str] = Field(default_factory=list)
+    stored_via: str = "cloud_library_client"
+    lookup_status: str = "local_only"
+    publish_status: str = "local_only"
+    degraded_mode: bool = False
+    degraded_reason: str | None = None
+    remote_endpoint: str | None = None
 
 
 class GenerationStreamEvent(BaseModel):

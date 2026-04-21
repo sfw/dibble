@@ -32,6 +32,12 @@ import type {
   KnowledgeComponent,
   SectionMasteryTrendsResponse,
   FrontendConfig,
+  HouseholdOverview,
+  HouseholdPreferenceUpdateRequest,
+  HouseholdSessionSuggestionSnoozeRequest,
+  HouseholdNotificationSnoozeRequest,
+  HouseholdSetupRequest,
+  HouseholdSetupResponse,
   GeneratedContent,
   GenerationRequestPayload,
   GenerationStreamEvent,
@@ -210,6 +216,111 @@ export function getRemediationHistory(config: FrontendConfig, studentId: string,
     `/api/learners/${studentId}/history/remediation-sessions?limit=${limit}&offset=${offset}`,
     {
       headers: buildHeaders(config, false),
+    },
+  )
+}
+
+export function getHouseholdOverview(config: FrontendConfig) {
+  return requestJson<HouseholdOverview>(config, '/api/households/me/overview', {
+    headers: buildHeaders(config, false),
+  })
+}
+
+export function setupHousehold(config: FrontendConfig, payload: HouseholdSetupRequest) {
+  return requestJson<HouseholdSetupResponse>(config, '/api/households/me/setup', {
+    method: 'PUT',
+    headers: buildHeaders(config),
+    body: JSON.stringify(payload),
+  })
+}
+
+export function markHouseholdNotificationRead(config: FrontendConfig, notificationId: string) {
+  return requestJson<HouseholdOverview>(
+    config,
+    `/api/households/me/notifications/${notificationId}/read`,
+    {
+      method: 'POST',
+      headers: buildHeaders(config),
+      body: JSON.stringify({}),
+    },
+  )
+}
+
+export function dismissHouseholdNotification(config: FrontendConfig, notificationId: string) {
+  return requestJson<HouseholdOverview>(
+    config,
+    `/api/households/me/notifications/${notificationId}/dismiss`,
+    {
+      method: 'POST',
+      headers: buildHeaders(config),
+      body: JSON.stringify({}),
+    },
+  )
+}
+
+export function snoozeHouseholdNotification(
+  config: FrontendConfig,
+  notificationId: string,
+  payload: HouseholdNotificationSnoozeRequest,
+) {
+  return requestJson<HouseholdOverview>(
+    config,
+    `/api/households/me/notifications/${notificationId}/snooze`,
+    {
+      method: 'POST',
+      headers: buildHeaders(config),
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function updateHouseholdPreferences(
+  config: FrontendConfig,
+  payload: HouseholdPreferenceUpdateRequest,
+) {
+  return requestJson<HouseholdOverview>(config, '/api/households/me/preferences', {
+    method: 'PATCH',
+    headers: buildHeaders(config),
+    body: JSON.stringify(payload),
+  })
+}
+
+export function acceptHouseholdSessionSuggestion(config: FrontendConfig, learnerId: string) {
+  return requestJson<HouseholdOverview>(
+    config,
+    `/api/households/me/session-suggestions/${learnerId}/accept`,
+    {
+      method: 'POST',
+      headers: buildHeaders(config),
+      body: JSON.stringify({}),
+    },
+  )
+}
+
+export function deferHouseholdSessionSuggestion(config: FrontendConfig, learnerId: string) {
+  return requestJson<HouseholdOverview>(
+    config,
+    `/api/households/me/session-suggestions/${learnerId}/defer`,
+    {
+      method: 'POST',
+      headers: buildHeaders(config),
+      body: JSON.stringify({}),
+    },
+  )
+}
+
+export function snoozeHouseholdSessionSuggestion(
+  config: FrontendConfig,
+  learnerId: string,
+  payload: HouseholdSessionSuggestionSnoozeRequest,
+) {
+  return requestJson<HouseholdOverview>(
+    config,
+    `/api/households/me/session-suggestions/${learnerId}/snooze`,
+    {
+      method: 'POST',
+      headers: buildHeaders(config),
+      body: JSON.stringify(payload),
     },
   )
 }

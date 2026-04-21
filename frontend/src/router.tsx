@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router'
 import { RoleSwitcher } from './shells/RoleSwitcher'
 import { LearnerShell } from './shells/LearnerShell'
+import { ParentShell } from './shells/ParentShell'
 import { TeacherShell } from './shells/TeacherShell'
 import { StaffShell } from './shells/StaffShell'
 import { AuthGuard } from './components/shell/AuthGuard'
@@ -18,6 +19,7 @@ import { History } from './views/learner/History'
 import { Assignments as LearnerAssignments } from './views/learner/Assignments'
 
 // Teacher views
+import { Dashboard as ParentDashboard } from './views/parent/Dashboard'
 import { Dashboard } from './views/teacher/Dashboard'
 import { ClassroomDetail } from './views/teacher/ClassroomDetail'
 import { LearnerDetail } from './views/teacher/LearnerDetail'
@@ -79,6 +81,19 @@ export const router = createBrowserRouter([
       { path: 'progress', element: <Progress /> },
       { path: 'history', element: <History /> },
     ],
+  },
+
+  // Teacher shell — requires teacher or higher role
+  {
+    path: '/parent',
+    element: (
+      <SetupGuard mode="configured">
+        <AuthGuard allowedRoles={['parent', 'household_admin', 'admin']}>
+          <ParentShell />
+        </AuthGuard>
+      </SetupGuard>
+    ),
+    children: [{ index: true, element: <ParentDashboard /> }],
   },
 
   // Teacher shell — requires teacher or higher role

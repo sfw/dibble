@@ -18,9 +18,10 @@ class SQLiteUserStore:
             api_key_hash=row[3],
             passphrase_hash=row[4],
             learner_id=row[5],
-            section_ids=json.loads(row[6]),
-            created_at=row[7],
-            updated_at=row[8],
+            household_id=row[6],
+            section_ids=json.loads(row[7]),
+            created_at=row[8],
+            updated_at=row[9],
         )
 
     def create(self, user: User) -> User:
@@ -28,8 +29,8 @@ class SQLiteUserStore:
             """
             INSERT INTO users(
                 user_id, display_name, role, api_key_hash, passphrase_hash,
-                learner_id, section_ids, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                learner_id, household_id, section_ids, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user.user_id,
@@ -38,6 +39,7 @@ class SQLiteUserStore:
                 user.api_key_hash,
                 user.passphrase_hash,
                 user.learner_id,
+                user.household_id,
                 json.dumps(user.section_ids),
                 user.created_at,
                 user.updated_at,
@@ -49,7 +51,7 @@ class SQLiteUserStore:
     def get(self, user_id: str) -> User | None:
         row = self._conn.execute(
             "SELECT user_id, display_name, role, api_key_hash, passphrase_hash,"
-            " learner_id, section_ids, created_at, updated_at"
+            " learner_id, household_id, section_ids, created_at, updated_at"
             " FROM users WHERE user_id = ?",
             (user_id,),
         ).fetchone()
@@ -60,7 +62,7 @@ class SQLiteUserStore:
     def get_by_api_key_hash(self, api_key_hash: str) -> User | None:
         row = self._conn.execute(
             "SELECT user_id, display_name, role, api_key_hash, passphrase_hash,"
-            " learner_id, section_ids, created_at, updated_at"
+            " learner_id, household_id, section_ids, created_at, updated_at"
             " FROM users WHERE api_key_hash = ?",
             (api_key_hash,),
         ).fetchone()
@@ -71,7 +73,7 @@ class SQLiteUserStore:
     def get_by_passphrase_hash(self, passphrase_hash: str) -> User | None:
         row = self._conn.execute(
             "SELECT user_id, display_name, role, api_key_hash, passphrase_hash,"
-            " learner_id, section_ids, created_at, updated_at"
+            " learner_id, household_id, section_ids, created_at, updated_at"
             " FROM users WHERE passphrase_hash = ?",
             (passphrase_hash,),
         ).fetchone()
@@ -82,7 +84,7 @@ class SQLiteUserStore:
     def list(self) -> list[User]:
         rows = self._conn.execute(
             "SELECT user_id, display_name, role, api_key_hash, passphrase_hash,"
-            " learner_id, section_ids, created_at, updated_at"
+            " learner_id, household_id, section_ids, created_at, updated_at"
             " FROM users ORDER BY created_at DESC"
         ).fetchall()
         return [self._row_to_user(row) for row in rows]
@@ -96,6 +98,7 @@ class SQLiteUserStore:
                 api_key_hash = ?,
                 passphrase_hash = ?,
                 learner_id = ?,
+                household_id = ?,
                 section_ids = ?,
                 updated_at = ?
             WHERE user_id = ?
@@ -106,6 +109,7 @@ class SQLiteUserStore:
                 user.api_key_hash,
                 user.passphrase_hash,
                 user.learner_id,
+                user.household_id,
                 json.dumps(user.section_ids),
                 user.updated_at,
                 user.user_id,

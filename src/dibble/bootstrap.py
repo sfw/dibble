@@ -12,7 +12,7 @@ from dibble.services.admin_section_membership_service import (
 )
 from dibble.services.setup_config import SetupConfigService
 from dibble.services.setup_model_catalog import SetupModelCatalogService
-from dibble.plugins.loader import build_generation_plugins
+from dibble.plugins.loader import build_generation_plugins, build_modality_plugins
 from dibble.services.assignment_store import SQLiteAssignmentStore
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.auth import AuthService
@@ -32,9 +32,14 @@ from dibble.services.cognitive_trait_inference import CognitiveTraitInferenceSer
 from dibble.services.outcome_store import SQLiteOutcomeStore
 from dibble.services.strand_store import SQLiteStrandStore
 from dibble.services.generation_engine import GenerationEngine
+from dibble.services.autonomous_teacher_harness import AutonomousTeacherHarness
 from dibble.services.harness.assessment_evidence import AssessmentEvidenceHarness
 from dibble.services.harness.content_generation import ContentGenerationHarness
-from dibble.services.harness.content_library import LocalCurriculumContentLibrary
+from dibble.services.harness.content_library import (
+    LibraryFirstCurriculumContentLibrary,
+    LocalStubCloudLibraryClient,
+    RemoteReadyCloudLibraryClient,
+)
 from dibble.services.harness.curriculum_planning import CurriculumPlanningHarness
 from dibble.services.harness.learner_profile import LearnerProfileHarness
 from dibble.services.harness.modality_routing import ModalityRoutingHarness
@@ -69,9 +74,14 @@ from dibble.services.mastery_snapshot_store import SQLiteMasterySnapshotStore
 from dibble.services.learner_flow_service import LearnerFlowService
 from dibble.services.learner_goal_store import SQLiteLearnerGoalStore
 from dibble.services.learner_history_service import LearnerHistoryService
+from dibble.services.household_service import HouseholdService
+from dibble.services.household_store import SQLiteHouseholdStore
 from dibble.services.learner_progression_service import LearnerProgressionService
 from dibble.services.learner_summary_service import LearnerSummaryService
 from dibble.services.learner_workspace_service import LearnerWorkspaceService
+from dibble.services.learner_relationship_state_store import (
+    SQLiteLearnerRelationshipStateStore,
+)
 from dibble.services.misconception_detector import MisconceptionDetector
 from dibble.services.misconception_remediation_outcome_signals import (
     MisconceptionRemediationOutcomeSignalService,
@@ -84,6 +94,7 @@ from dibble.services.misconception_profiles import (
     LearningMisconceptionProfileResolver,
 )
 from dibble.services.observation_store import SQLiteObservationStore
+from dibble.services.parent_notification_store import SQLiteParentNotificationStore
 from dibble.services.observation_profile_update import ObservationProfileUpdater
 from dibble.services.ordinary_mastery_profiles import (
     OrdinaryMasteryProfileRecorder,
@@ -105,8 +116,11 @@ from dibble.services.protocols import (
     ClassroomStore,
     ClassroomMembershipStore,
     CourseStore,
+    HouseholdStore,
     LearnerGoalStore,
+    LearnerRelationshipStateStore,
     OutcomeStore,
+    ParentNotificationStore,
     SessionControlStore,
     StrandStore,
     GeneratedContentStore,
@@ -168,6 +182,7 @@ class ApplicationServices:
     learner_goal_store: LearnerGoalStore
     trajectory_store: TrajectoryStore
     session_control_store: SessionControlStore
+    household_store: HouseholdStore
     auth_service: AuthService
     telemetry_service: TelemetryService
     generation_engine: GenerationEngine
@@ -179,6 +194,7 @@ class ApplicationServices:
     content_generation_harness: ContentGenerationHarness
     curriculum_planning_harness: CurriculumPlanningHarness
     within_session_control_harness: WithinSessionControlHarness
+    autonomous_teacher_harness: AutonomousTeacherHarness
     remediation_planner: RemediationPlanner
     socratic_assessment_service: SocraticAssessmentService
     socratic_profile_updater: SocraticProfileUpdater
@@ -201,6 +217,7 @@ class ApplicationServices:
     learner_workspace_service: LearnerWorkspaceService
     teacher_section_service: TeacherSectionService
     teacher_intervention_action_service: TeacherInterventionActionService
+    household_service: HouseholdService
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_invalidator: PredictiveContentInvalidator
     predictive_warm_scheduler: PredictiveWarmScheduler
@@ -214,6 +231,8 @@ class ApplicationServices:
     within_session_adaptation_service: WithinSessionAdaptationService
     router_plugin: RouterPlugin
     user_store: UserStore
+    learner_relationship_state_store: LearnerRelationshipStateStore
+    parent_notification_store: ParentNotificationStore
     admin_config_service: AdminConfigService
     admin_academic_catalog_service: AdminAcademicCatalogService
     admin_section_membership_service: AdminSectionMembershipService
@@ -249,6 +268,9 @@ def build_application_services(
     session_control_store = SQLiteSessionControlStore(conn)
     provider_health_store = SQLiteProviderHealthStore(conn)
     user_store = SQLiteUserStore(conn)
+    household_store = SQLiteHouseholdStore(conn)
+    learner_relationship_state_store = SQLiteLearnerRelationshipStateStore(conn)
+    parent_notification_store = SQLiteParentNotificationStore(conn)
     auth_service = AuthService.from_settings(
         settings,
         session_store=SQLiteAuthSessionStore(conn),
@@ -257,6 +279,7 @@ def build_application_services(
     plugins = build_generation_plugins(
         settings, outcome_store=outcome_store, connection=conn
     )
+    modality_plugins = build_modality_plugins()
     learner_strategy_signal_service = LearnerStrategySignalService(
         audit_store=audit_store
     )
@@ -292,8 +315,11 @@ def build_application_services(
         generated_content_store=generated_content_store,
         cache_ttl_seconds=settings.generation_cache_ttl_seconds,
     )
-    local_curriculum_content_library = LocalCurriculumContentLibrary(
-        SQLiteCurriculumContentLibraryStore(conn)
+    local_curriculum_content_library = LibraryFirstCurriculumContentLibrary(
+        local_client=LocalStubCloudLibraryClient(
+            SQLiteCurriculumContentLibraryStore(conn)
+        ),
+        remote_client=RemoteReadyCloudLibraryClient(),
     )
     generation_engine = GenerationEngine(
         retriever=plugins.retriever,
@@ -305,10 +331,14 @@ def build_application_services(
         surplus_practice_cache=surplus_practice_cache,
         cache_ttl_seconds=settings.generation_cache_ttl_seconds,
     )
-    modality_routing_harness = ModalityRoutingHarness(router=router_plugin)
+    modality_routing_harness = ModalityRoutingHarness(
+        router=router_plugin,
+        modality_plugins=modality_plugins,
+    )
     content_generation_harness = ContentGenerationHarness(
         generation_engine=generation_engine,
         modality_routing_harness=modality_routing_harness,
+        modality_plugins=modality_plugins,
     )
     misconception_remediation_outcome_signal_service = (
         MisconceptionRemediationOutcomeSignalService(audit_store=audit_store)
@@ -462,6 +492,14 @@ def build_application_services(
         learner_flow_service=learner_flow_service,
         learner_progression_service=learner_progression_service,
     )
+    autonomous_teacher_harness = AutonomousTeacherHarness(
+        learner_summary_service=learner_summary_service,
+        curriculum_planning_harness=curriculum_planning_harness,
+        within_session_control_harness=within_session_control_harness,
+        learner_relationship_state_store=learner_relationship_state_store,
+        parent_notification_store=parent_notification_store,
+        user_store=user_store,
+    )
     teacher_intervention_action_service = TeacherInterventionActionService(
         audit_store=audit_store,
         learner_flow_service=learner_flow_service,
@@ -536,6 +574,13 @@ def build_application_services(
         socratic_assessment_service=socratic_assessment_service,
         curriculum_planning_harness=curriculum_planning_harness,
         within_session_control_harness=within_session_control_harness,
+        autonomous_teacher_harness=autonomous_teacher_harness,
+    )
+    household_service = HouseholdService(
+        household_store=household_store,
+        user_store=user_store,
+        autonomous_teacher_harness=autonomous_teacher_harness,
+        parent_notification_store=parent_notification_store,
     )
 
     return ApplicationServices(
@@ -553,6 +598,7 @@ def build_application_services(
         learner_goal_store=learner_goal_store,
         trajectory_store=trajectory_store,
         session_control_store=session_control_store,
+        household_store=household_store,
         auth_service=auth_service,
         telemetry_service=TelemetryService(
             audit_store,
@@ -569,6 +615,7 @@ def build_application_services(
         content_generation_harness=content_generation_harness,
         curriculum_planning_harness=curriculum_planning_harness,
         within_session_control_harness=within_session_control_harness,
+        autonomous_teacher_harness=autonomous_teacher_harness,
         remediation_planner=remediation_planner,
         socratic_assessment_service=socratic_assessment_service,
         socratic_profile_updater=socratic_profile_updater,
@@ -591,6 +638,7 @@ def build_application_services(
         learner_workspace_service=learner_workspace_service,
         teacher_section_service=teacher_section_service,
         teacher_intervention_action_service=teacher_intervention_action_service,
+        household_service=household_service,
         generation_mode_calibrator=generation_mode_calibrator,
         predictive_content_invalidator=predictive_content_invalidator,
         predictive_warm_scheduler=predictive_warm_scheduler,
@@ -604,6 +652,8 @@ def build_application_services(
         within_session_adaptation_service=within_session_adaptation_service,
         router_plugin=router_plugin,
         user_store=user_store,
+        learner_relationship_state_store=learner_relationship_state_store,
+        parent_notification_store=parent_notification_store,
         admin_config_service=AdminConfigService(
             settings,
             settings_loader=settings_loader,

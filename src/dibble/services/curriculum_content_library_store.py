@@ -25,7 +25,15 @@ class SQLiteCurriculumContentLibraryStore:
     ) -> CurriculumLibraryEntry | None:
         row = self._conn.execute(
             """
-            SELECT cache_key, content_key_payload, content_payload, storage_scope, source_generation_id, created_at, expires_at
+            SELECT
+                cache_key,
+                content_key_payload,
+                content_payload,
+                provenance_payload,
+                storage_scope,
+                source_generation_id,
+                created_at,
+                expires_at
             FROM curriculum_content_library
             WHERE cache_key = ?
             """,
@@ -51,15 +59,17 @@ class SQLiteCurriculumContentLibraryStore:
                 cache_key,
                 content_key_payload,
                 content_payload,
+                provenance_payload,
                 storage_scope,
                 source_generation_id,
                 created_at,
                 expires_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(cache_key) DO UPDATE SET
                 content_key_payload = excluded.content_key_payload,
                 content_payload = excluded.content_payload,
+                provenance_payload = excluded.provenance_payload,
                 storage_scope = excluded.storage_scope,
                 source_generation_id = excluded.source_generation_id,
                 created_at = excluded.created_at,
@@ -69,6 +79,9 @@ class SQLiteCurriculumContentLibraryStore:
                 entry.cache_key,
                 entry.content_key.model_dump_json(),
                 entry.content.model_dump_json(),
+                entry.provenance.model_dump_json()
+                if entry.provenance is not None
+                else None,
                 entry.storage_scope.value,
                 entry.source_generation_id,
                 entry.content.created_at.isoformat(),
@@ -85,6 +98,7 @@ class SQLiteCurriculumContentLibraryStore:
             cache_key,
             content_key_payload,
             content_payload,
+            provenance_payload,
             storage_scope,
             source_generation_id,
             _created_at,
@@ -95,6 +109,11 @@ class SQLiteCurriculumContentLibraryStore:
                 "cache_key": cache_key,
                 "content_key": json.loads(str(content_key_payload)),
                 "content": json.loads(str(content_payload)),
+                "provenance": (
+                    json.loads(str(provenance_payload))
+                    if provenance_payload is not None
+                    else None
+                ),
                 "storage_scope": storage_scope,
                 "source_generation_id": source_generation_id,
             }
