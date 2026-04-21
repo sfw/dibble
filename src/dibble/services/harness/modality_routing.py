@@ -12,6 +12,7 @@ class ModalityDirective:
     modality: str
     plugin_id: str
     composition_mode: str
+    plugin_ids: tuple[str, ...] = ("text",)
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,6 +20,7 @@ class TextModalityDirective(ModalityDirective):
     modality: str = "text"
     plugin_id: str = "text"
     composition_mode: str = "single"
+    plugin_ids: tuple[str, ...] = ("text",)
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,4 +101,5 @@ class ModalityRoutingHarness:
             modality=plugin.modality,
             plugin_id=plugin.plugin_id,
             composition_mode=plugin.composition_mode,
+            plugin_ids=tuple(item.plugin_id for item in self.modality_plugins.chain_for(plugin.plugin_id)),
         )

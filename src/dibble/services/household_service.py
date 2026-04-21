@@ -10,6 +10,8 @@ from dibble.models.household import (
     HouseholdLearnerOverview,
     HouseholdNotificationSnoozeRequest,
     HouseholdOverview,
+    ParentApprovalStatus,
+    ParentApprovalType,
     HouseholdPreferenceUpdateRequest,
     HouseholdSessionSuggestionSnoozeRequest,
     HouseholdSetupRequest,
@@ -125,6 +127,13 @@ class HouseholdService:
                 cadence_decision=plan.cadence_decision,
                 soft_escalation_active=plan.relationship_state.soft_escalation_active,
                 summary_headline=plan.relationship_state.summary_headline,
+                pending_approval_count=len(
+                    [
+                        approval
+                        for approval in plan.relationship_state.approval_requests
+                        if approval.status == ParentApprovalStatus.pending
+                    ]
+                ),
             )
             for plan in orchestration.learner_plans
         ]
@@ -140,6 +149,12 @@ class HouseholdService:
                 plan.weekly_summary
                 for plan in orchestration.learner_plans
                 if plan.weekly_summary is not None
+            ],
+            pending_approvals=[
+                approval
+                for plan in orchestration.learner_plans
+                for approval in plan.relationship_state.approval_requests
+                if approval.status == ParentApprovalStatus.pending
             ],
             notifications=self._active_notifications(
                 household_id=household.household_id,
@@ -303,6 +318,34 @@ class HouseholdService:
             now=now,
         )
 
+    def approve_parent_approval(
+        self,
+        *,
+        parent_user_id: str,
+        learner_id: str,
+        approval_id: str,
+    ) -> HouseholdOverview:
+        return self._update_parent_approval(
+            parent_user_id=parent_user_id,
+            learner_id=learner_id,
+            approval_id=approval_id,
+            status=ParentApprovalStatus.approved,
+        )
+
+    def reject_parent_approval(
+        self,
+        *,
+        parent_user_id: str,
+        learner_id: str,
+        approval_id: str,
+    ) -> HouseholdOverview:
+        return self._update_parent_approval(
+            parent_user_id=parent_user_id,
+            learner_id=learner_id,
+            approval_id=approval_id,
+            status=ParentApprovalStatus.rejected,
+        )
+
     def _household_for_user(self, user: User) -> Household | None:
         if user.household_id:
             household = self.household_store.get(user.household_id)
@@ -458,3 +501,55 @@ class HouseholdService:
                     }
                 )
             )
+
+    def _update_parent_approval(
+        self,
+        *,
+        parent_user_id: str,
+        learner_id: str,
+        approval_id: str,
+        status: ParentApprovalStatus,
+    ) -> HouseholdOverview:
+        user = self.user_store.get(parent_user_id)
+        if user is None:
+            raise RuntimeError("Parent user not found.")
+        household = self._household_for_user(user)
+        if household is None:
+            return HouseholdOverview()
+        relationship_state = self.autonomous_teacher_harness.learner_relationship_state_store.get(
+            household_id=household.household_id,
+            learner_id=learner_id,
+        )
+        if relationship_state is None:
+            return self.get_household_overview(parent_user_id=parent_user_id)
+        decided_at = datetime.now(timezone.utc)
+        approved_modalities = list(relationship_state.approved_modalities)
+        updated_approvals = []
+        for approval in relationship_state.approval_requests:
+            if approval.approval_id != approval_id:
+                updated_approvals.append(approval)
+                continue
+            resolved = approval.model_copy(
+                update={
+                    "status": status,
+                    "decided_at": decided_at,
+                }
+            )
+            updated_approvals.append(resolved)
+            if (
+                status == ParentApprovalStatus.approved
+                and resolved.approval_type == ParentApprovalType.modality_introduction
+                and resolved.proposed_value is not None
+                and resolved.proposed_value not in approved_modalities
+            ):
+                approved_modalities.append(resolved.proposed_value)
+        self.autonomous_teacher_harness.learner_relationship_state_store.upsert(
+            relationship_state.model_copy(
+                update={
+                    "approved_modalities": approved_modalities,
+                    "approval_requests": updated_approvals,
+                    "updated_at": decided_at,
+                }
+            )
+        )
+        return self.get_household_overview(parent_user_id=parent_user_id)

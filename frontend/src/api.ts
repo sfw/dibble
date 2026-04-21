@@ -325,6 +325,38 @@ export function snoozeHouseholdSessionSuggestion(
   )
 }
 
+export function approveHouseholdParentApproval(
+  config: FrontendConfig,
+  learnerId: string,
+  approvalId: string,
+) {
+  return requestJson<HouseholdOverview>(
+    config,
+    `/api/households/me/approvals/${learnerId}/${approvalId}/approve`,
+    {
+      method: 'POST',
+      headers: buildHeaders(config),
+      body: JSON.stringify({}),
+    },
+  )
+}
+
+export function rejectHouseholdParentApproval(
+  config: FrontendConfig,
+  learnerId: string,
+  approvalId: string,
+) {
+  return requestJson<HouseholdOverview>(
+    config,
+    `/api/households/me/approvals/${learnerId}/${approvalId}/reject`,
+    {
+      method: 'POST',
+      headers: buildHeaders(config),
+      body: JSON.stringify({}),
+    },
+  )
+}
+
 export function getTeacherInterventionAction(config: FrontendConfig, studentId: string) {
   return requestJson<TeacherInterventionActionContract>(
     config,

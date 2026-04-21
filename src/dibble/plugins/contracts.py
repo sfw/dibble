@@ -14,10 +14,20 @@ from dibble.models.generation import (
 from dibble.models.profile import LearnerProfile
 
 
+@dataclass(frozen=True, slots=True)
+class ModalityCapabilityProfile:
+    primary_block_kinds: tuple[str, ...] = ()
+    required_artifact_types: tuple[str, ...] = ()
+    accessibility_metadata: tuple[str, ...] = ()
+    composed_with: tuple[str, ...] = ()
+    verifier_tags: tuple[str, ...] = ()
+
+
 class ModalityPlugin(Protocol):
     plugin_id: str
     modality: str
     composition_mode: str
+    capabilities: ModalityCapabilityProfile
 
     def apply(
         self,
@@ -79,3 +89,17 @@ class ModalityPlugins:
 
     def get(self, plugin_id: str) -> ModalityPlugin:
         return self.plugins[plugin_id]
+
+    def chain_for(self, plugin_id: str) -> tuple[ModalityPlugin, ...]:
+        plugin = self.get(plugin_id)
+        chain = [plugin]
+        for supporting_plugin_id in plugin.capabilities.composed_with:
+            chain.append(self.get(supporting_plugin_id))
+        deduped: list[ModalityPlugin] = []
+        seen: set[str] = set()
+        for item in chain:
+            if item.plugin_id in seen:
+                continue
+            seen.add(item.plugin_id)
+            deduped.append(item)
+        return tuple(deduped)

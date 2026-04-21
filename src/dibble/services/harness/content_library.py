@@ -1,7 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Protocol
+import json
+from dataclasses import dataclass, field
+from typing import Any, Protocol
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
+from uuid import UUID
 
 from dibble.models.generation import (
     CurriculumContentKey,
@@ -13,6 +17,19 @@ from dibble.models.generation import (
 from dibble.services.protocols import (
     CurriculumContentLibraryStore,
     GeneratedContentStore,
+)
+
+_CURRICULUM_LIBRARY_STUDENT_ID = UUID("00000000-0000-0000-0000-000000000000")
+_SAFE_LIBRARY_REQUEST_CONTEXT_KEYS = frozenset(
+    {
+        "selected_content_type",
+        "curriculum_cache_key",
+        "library_storage_scope",
+        "selected_modality",
+        "modality_plugin_id",
+        "modality_composition_mode",
+        "selected_modalities",
+    }
 )
 
 
@@ -45,6 +62,63 @@ class CloudLibraryClient(Protocol):
         *,
         key: CurriculumContentKey,
     ) -> CurriculumLibraryEntry | None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class CloudLibraryTransportResponse:
+    status_code: int
+    payload: dict[str, Any] | None = None
+    text: str = ""
+
+
+class CloudLibraryTransport(Protocol):
+    def request(
+        self,
+        *,
+        method: str,
+        url: str,
+        headers: dict[str, str],
+        payload: dict[str, Any] | None,
+        timeout_seconds: float,
+    ) -> CloudLibraryTransportResponse: ...
+
+
+@dataclass(slots=True)
+class UrllibCloudLibraryTransport:
+    def request(
+        self,
+        *,
+        method: str,
+        url: str,
+        headers: dict[str, str],
+        payload: dict[str, Any] | None,
+        timeout_seconds: float,
+    ) -> CloudLibraryTransportResponse:
+        body = (
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            if payload is not None
+            else None
+        )
+        request = Request(url=url, data=body, method=method.upper())
+        for key, value in headers.items():
+            request.add_header(key, value)
+        try:
+            with urlopen(request, timeout=timeout_seconds) as response:
+                raw_body = response.read().decode("utf-8")
+                return CloudLibraryTransportResponse(
+                    status_code=int(getattr(response, "status", 200)),
+                    payload=_parse_json_payload(raw_body),
+                    text=raw_body,
+                )
+        except HTTPError as exc:
+            raw_body = exc.read().decode("utf-8") if exc.fp is not None else ""
+            return CloudLibraryTransportResponse(
+                status_code=exc.code,
+                payload=_parse_json_payload(raw_body),
+                text=raw_body,
+            )
+        except URLError as exc:  # pragma: no cover - exercised through callers
+            raise RuntimeError(str(exc.reason)) from exc
 
     def publish(
         self,
@@ -157,20 +231,131 @@ class LocalStubCloudLibraryClient:
 class RemoteReadyCloudLibraryClient:
     endpoint: str | None = None
     enabled: bool = False
+    api_key: str | None = None
+    timeout_seconds: float = 5.0
+    retry_attempts: int = 2
+    transport: CloudLibraryTransport = field(
+        default_factory=UrllibCloudLibraryTransport
+    )
 
     def lookup(
         self,
         *,
         key: CurriculumContentKey,
     ) -> CurriculumLibraryEntry | None:
-        return None
+        if not self.enabled or not self.endpoint:
+            return None
+        payload = {
+            "cache_key": key.cache_key(),
+            "content_key": key.model_dump(mode="json"),
+        }
+        response = self._request_with_retry(
+            method="POST",
+            path="/lookup",
+            payload=payload,
+            miss_status_codes={204, 404},
+        )
+        if response is None:
+            return None
+        entry_payload = (
+            response.payload.get("entry", response.payload)
+            if response.payload is not None
+            else None
+        )
+        if not isinstance(entry_payload, dict):
+            return None
+        return self._sanitize_remote_entry(
+            CurriculumLibraryEntry.model_validate(entry_payload)
+        )
 
     def publish(
         self,
         *,
         entry: CurriculumLibraryEntry,
     ) -> CurriculumLibraryEntry | None:
+        if not self.enabled or not self.endpoint:
+            return None
+        sanitized_entry = self._sanitize_remote_entry(entry)
+        response = self._request_with_retry(
+            method="POST",
+            path="/publish",
+            payload={
+                "entry": sanitized_entry.model_dump(mode="json"),
+            },
+            miss_status_codes=set(),
+        )
+        entry_payload = (
+            response.payload.get("entry", response.payload)
+            if response is not None and response.payload is not None
+            else None
+        )
+        if not isinstance(entry_payload, dict):
+            return sanitized_entry
+        return self._sanitize_remote_entry(
+            CurriculumLibraryEntry.model_validate(entry_payload)
+        )
+
+    def _request_with_retry(
+        self,
+        *,
+        method: str,
+        path: str,
+        payload: dict[str, Any],
+        miss_status_codes: set[int],
+    ) -> CloudLibraryTransportResponse | None:
+        last_error: Exception | None = None
+        max_attempts = max(1, self.retry_attempts)
+        for attempt in range(max_attempts):
+            try:
+                response = self.transport.request(
+                    method=method,
+                    url=f"{self.endpoint.rstrip('/')}{path}",
+                    headers=self._headers(),
+                    payload=payload,
+                    timeout_seconds=self.timeout_seconds,
+                )
+            except Exception as exc:
+                last_error = exc
+                if attempt + 1 >= max_attempts:
+                    raise RuntimeError(f"cloud library {path} failed: {exc}") from exc
+                continue
+            if response.status_code in miss_status_codes:
+                return None
+            if 200 <= response.status_code < 300:
+                return response
+            if _should_retry_status(response.status_code) and attempt + 1 < max_attempts:
+                continue
+            detail = response.text.strip() or f"HTTP {response.status_code}"
+            raise RuntimeError(f"cloud library {path} failed: {detail}")
+        if last_error is not None:
+            raise RuntimeError(f"cloud library {path} failed: {last_error}") from last_error
         return None
+
+    def _headers(self) -> dict[str, str]:
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        return headers
+
+    def _sanitize_remote_entry(self, entry: CurriculumLibraryEntry) -> CurriculumLibraryEntry:
+        sanitized_response = entry.content.response.model_copy(
+            update={"student_id": _CURRICULUM_LIBRARY_STUDENT_ID}
+        )
+        sanitized_content = entry.content.model_copy(
+            update={
+                "student_id": _CURRICULUM_LIBRARY_STUDENT_ID,
+                "request_context": {
+                    key: value
+                    for key, value in entry.content.request_context.items()
+                    if key in _SAFE_LIBRARY_REQUEST_CONTEXT_KEYS
+                },
+                "response": sanitized_response,
+            }
+        )
+        return entry.model_copy(update={"content": sanitized_content})
 
 
 @dataclass(slots=True)
@@ -333,6 +518,11 @@ class LibraryFirstCurriculumContentLibrary:
             update={
                 "provenance": provenance.model_copy(
                     update={
+                        "stored_via": (
+                            "remote_cloud_library"
+                            if self.remote_client is not None
+                            else provenance.stored_via
+                        ),
                         "lookup_status": lookup_status,
                         "publish_status": publish_status or provenance.publish_status,
                         "degraded_mode": degraded_mode or provenance.degraded_mode,
@@ -352,3 +542,17 @@ class LibraryFirstCurriculumContentLibrary:
 
     def _persist_local_entry(self, entry: CurriculumLibraryEntry) -> CurriculumLibraryEntry:
         return self.local_client.publish(entry=entry) or entry
+
+
+def _parse_json_payload(raw_body: str) -> dict[str, Any] | None:
+    if not raw_body.strip():
+        return None
+    try:
+        payload = json.loads(raw_body)
+    except json.JSONDecodeError:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _should_retry_status(status_code: int) -> bool:
+    return status_code == 429 or 500 <= status_code < 600

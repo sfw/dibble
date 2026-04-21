@@ -319,7 +319,13 @@ def build_application_services(
         local_client=LocalStubCloudLibraryClient(
             SQLiteCurriculumContentLibraryStore(conn)
         ),
-        remote_client=RemoteReadyCloudLibraryClient(),
+        remote_client=RemoteReadyCloudLibraryClient(
+            endpoint=settings.cloud_library_endpoint,
+            enabled=settings.cloud_library_enabled,
+            api_key=settings.cloud_library_api_key,
+            timeout_seconds=settings.cloud_library_timeout_seconds,
+            retry_attempts=settings.cloud_library_retry_attempts,
+        ),
     )
     generation_engine = GenerationEngine(
         retriever=plugins.retriever,

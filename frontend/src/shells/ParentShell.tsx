@@ -3,10 +3,12 @@ import { NavLink, Outlet } from 'react-router'
 import { Home, LogOut, Users } from 'lucide-react'
 import {
   acceptHouseholdSessionSuggestion,
+  approveHouseholdParentApproval,
   deferHouseholdSessionSuggestion,
   dismissHouseholdNotification,
   getHouseholdOverview,
   markHouseholdNotificationRead,
+  rejectHouseholdParentApproval,
   setupHousehold,
   snoozeHouseholdNotification,
   snoozeHouseholdSessionSuggestion,
@@ -37,6 +39,8 @@ export interface ParentContext {
   acceptSuggestion: (learnerId: string) => Promise<void>
   deferSuggestion: (learnerId: string) => Promise<void>
   snoozeSuggestion: (learnerId: string, payload: HouseholdSessionSuggestionSnoozeRequest) => Promise<void>
+  approveParentApproval: (learnerId: string, approvalId: string) => Promise<void>
+  rejectParentApproval: (learnerId: string, approvalId: string) => Promise<void>
 }
 
 const emptyOverview: HouseholdOverview = {
@@ -44,6 +48,7 @@ const emptyOverview: HouseholdOverview = {
   learners: [],
   session_suggestions: [],
   weekly_summaries: [],
+  pending_approvals: [],
   notifications: [],
   available_learners: [],
 }
@@ -148,6 +153,22 @@ export function ParentShell() {
     }
   }, [config])
 
+  const approveParentApproval = useCallback(async (learnerId: string, approvalId: string) => {
+    try {
+      setOverview(await approveHouseholdParentApproval(config, learnerId, approvalId))
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : 'Unable to approve the teaching change.')
+    }
+  }, [config])
+
+  const rejectParentApproval = useCallback(async (learnerId: string, approvalId: string) => {
+    try {
+      setOverview(await rejectHouseholdParentApproval(config, learnerId, approvalId))
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : 'Unable to hold the teaching change.')
+    }
+  }, [config])
+
   useEffect(() => {
     void loadOverview()
   }, [loadOverview])
@@ -166,6 +187,8 @@ export function ParentShell() {
     acceptSuggestion,
     deferSuggestion,
     snoozeSuggestion,
+    approveParentApproval,
+    rejectParentApproval,
   }
 
   return (

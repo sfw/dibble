@@ -176,7 +176,17 @@ def test_autonomous_teacher_harness_emits_session_suggestion_and_soft_escalation
     household = Household(
         household_id="household-1",
         household_name="Home",
-        parent_profiles=[ParentProfile(parent_user_id="parent-1", display_name="Pat")],
+        parent_profiles=[
+            ParentProfile(
+                parent_user_id="parent-1",
+                display_name="Pat",
+                preferences={
+                    "modality_introduction_requires_approval": False,
+                    "trajectory_revision_requires_approval": False,
+                    "high_autonomy_session_requires_approval": False,
+                },
+            )
+        ],
         learner_ids=[learner_id],
     )
 
@@ -190,6 +200,75 @@ def test_autonomous_teacher_harness_emits_session_suggestion_and_soft_escalation
     assert plan.relationship_state.soft_escalation_active is False
     assert plan.weekly_summary is not None
     assert result.notifications
+
+
+def test_autonomous_teacher_harness_blocks_session_until_parent_approval():
+    learner_id = str(uuid4())
+    now = datetime.now(timezone.utc)
+    summary = ProfileSummary.model_validate(
+        {
+            "student_id": learner_id,
+            "grade_level": "5",
+            "profile_version": "v1",
+            "kc_count": 1,
+            "lo_count": 1,
+            "engagement": "medium",
+            "frustration": "high",
+            "total_load": 0.5,
+            "confidence_calibration": 0.4,
+            "help_seeking": "medium",
+            "recent_activity": {"last_event_at": (now - timedelta(days=6)).isoformat()},
+            "current_flow": {
+                "session_stuck_loop_risk": "high",
+                "next_step": {
+                    "action": "stay_on_requested_target",
+                    "content_type": "worked_example",
+                    "target_stage": "target",
+                    "target_kc_ids": ["KC-1"],
+                },
+                "continue_action": {
+                    "kind": "generate_follow_up",
+                    "target_stage": "target",
+                    "target_kc_ids": ["KC-1"],
+                    "request_payload": {},
+                },
+            },
+            "curriculum_progression": {
+                "mastered_outcome_ratio": 0.25,
+                "mastered_outcome_count": 1,
+                "outcome_count": 4,
+            },
+            "updated_at": now.isoformat(),
+        }
+    )
+    harness = AutonomousTeacherHarness(
+        learner_summary_service=_LearnerSummaryService(summary),
+        curriculum_planning_harness=_CurriculumPlanningHarness(learner_id),
+        within_session_control_harness=_WithinSessionControlHarness(),
+        learner_relationship_state_store=_LearnerRelationshipStore(),
+        parent_notification_store=_ParentNotificationStore(),
+        user_store=_UserStore(),
+    )
+    household = Household(
+        household_id="household-1",
+        household_name="Home",
+        parent_profiles=[ParentProfile(parent_user_id="parent-1", display_name="Pat")],
+        learner_ids=[learner_id],
+    )
+
+    result = harness.orchestrate_household(household=household, now=now)
+
+    plan = result.learner_plans[0]
+    assert plan.next_session is None
+    assert {
+        approval.approval_type
+        for approval in plan.relationship_state.approval_requests
+        if approval.status == "pending"
+    } == {"modality_introduction", "high_autonomy_session"}
+    assert any(
+        notification.category == "approval_request"
+        for notification in result.notifications
+    )
 
 
 def test_autonomous_teacher_harness_respects_parent_preferences_and_persists_latest_summary():
@@ -274,6 +353,9 @@ def test_autonomous_teacher_harness_respects_parent_preferences_and_persists_lat
                     "auto_session_suggestions": False,
                     "soft_escalation_enabled": False,
                     "weekly_summary_day": "sunday",
+                    "modality_introduction_requires_approval": False,
+                    "trajectory_revision_requires_approval": False,
+                    "high_autonomy_session_requires_approval": False,
                 },
             )
         ],
@@ -359,7 +441,17 @@ def test_autonomous_teacher_harness_resets_session_suggestion_status_after_new_a
     household = Household(
         household_id="household-1",
         household_name="Home",
-        parent_profiles=[ParentProfile(parent_user_id="parent-1", display_name="Pat")],
+        parent_profiles=[
+            ParentProfile(
+                parent_user_id="parent-1",
+                display_name="Pat",
+                preferences={
+                    "modality_introduction_requires_approval": False,
+                    "trajectory_revision_requires_approval": False,
+                    "high_autonomy_session_requires_approval": False,
+                },
+            )
+        ],
         learner_ids=[learner_id],
     )
 
@@ -440,7 +532,17 @@ def test_autonomous_teacher_harness_emits_follow_up_for_stale_accepted_suggestio
     household = Household(
         household_id="household-1",
         household_name="Home",
-        parent_profiles=[ParentProfile(parent_user_id="parent-1", display_name="Pat")],
+        parent_profiles=[
+            ParentProfile(
+                parent_user_id="parent-1",
+                display_name="Pat",
+                preferences={
+                    "modality_introduction_requires_approval": False,
+                    "trajectory_revision_requires_approval": False,
+                    "high_autonomy_session_requires_approval": False,
+                },
+            )
+        ],
         learner_ids=[learner_id],
     )
 
@@ -524,7 +626,17 @@ def test_autonomous_teacher_harness_emits_follow_up_for_stale_deferred_suggestio
     household = Household(
         household_id="household-1",
         household_name="Home",
-        parent_profiles=[ParentProfile(parent_user_id="parent-1", display_name="Pat")],
+        parent_profiles=[
+            ParentProfile(
+                parent_user_id="parent-1",
+                display_name="Pat",
+                preferences={
+                    "modality_introduction_requires_approval": False,
+                    "trajectory_revision_requires_approval": False,
+                    "high_autonomy_session_requires_approval": False,
+                },
+            )
+        ],
         learner_ids=[learner_id],
     )
 

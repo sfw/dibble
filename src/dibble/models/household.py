@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from enum import Enum
 
 from pydantic import BaseModel, Field
 
@@ -15,6 +16,9 @@ class ParentPreference(BaseModel):
     weekly_summary_day: str = "sunday"
     soft_escalation_enabled: bool = True
     approval_mode: str = "guided"
+    modality_introduction_requires_approval: bool = True
+    trajectory_revision_requires_approval: bool = True
+    high_autonomy_session_requires_approval: bool = True
 
 
 class ParentProfile(BaseModel):
@@ -31,6 +35,33 @@ class Household(BaseModel):
     learner_ids: list[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
+
+
+class ParentApprovalType(str, Enum):
+    modality_introduction = "modality_introduction"
+    trajectory_revision = "trajectory_revision"
+    high_autonomy_session = "high_autonomy_session"
+
+
+class ParentApprovalStatus(str, Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+    expired = "expired"
+
+
+class ParentApprovalRequest(BaseModel):
+    approval_id: str
+    learner_id: str
+    approval_type: ParentApprovalType
+    status: ParentApprovalStatus = ParentApprovalStatus.pending
+    title: str
+    message: str
+    proposed_value: str | None = None
+    metadata: dict[str, object] = Field(default_factory=dict)
+    requested_at: datetime = Field(default_factory=utc_now)
+    expires_at: datetime | None = None
+    decided_at: datetime | None = None
 
 
 class LearnerRelationshipState(BaseModel):
@@ -51,6 +82,9 @@ class LearnerRelationshipState(BaseModel):
     session_suggestion_status: str = "pending"
     session_suggestion_snoozed_until: datetime | None = None
     session_suggestion_updated_at: datetime | None = None
+    approved_modalities: list[str] = Field(default_factory=lambda: ["text"])
+    active_trajectory_signature: str | None = None
+    approval_requests: list[ParentApprovalRequest] = Field(default_factory=list)
     updated_at: datetime = Field(default_factory=utc_now)
 
 
@@ -144,6 +178,7 @@ class HouseholdLearnerOverview(BaseModel):
     cadence_decision: str = "watch"
     soft_escalation_active: bool = False
     summary_headline: str | None = None
+    pending_approval_count: int = 0
 
 
 class HouseholdOverview(BaseModel):
@@ -152,6 +187,7 @@ class HouseholdOverview(BaseModel):
     session_suggestions: list[AutonomousTeacherSessionSuggestion] = Field(
         default_factory=list
     )
+    pending_approvals: list[ParentApprovalRequest] = Field(default_factory=list)
     weekly_summaries: list[AutonomousTeacherWeeklySummary] = Field(default_factory=list)
     notifications: list[ParentNotification] = Field(default_factory=list)
     available_learners: list[dict[str, str | None]] = Field(default_factory=list)

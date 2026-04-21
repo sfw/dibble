@@ -78,3 +78,19 @@ def test_mock_provider_emits_narrative_and_diagram_blocks_for_new_modalities():
 
     assert any(block.kind == "narrative" for block in narrative_blocks)
     assert any(block.kind == "visual_representation" for block in diagram_blocks)
+
+
+def test_modality_plugins_advertise_capabilities_and_composition_chain():
+    plugins = build_modality_plugins()
+
+    diagram = plugins.get("diagram")
+    narrative = plugins.get("narrative")
+    chain = plugins.chain_for("diagram")
+
+    assert diagram.capabilities.required_artifact_types == ("diagram", "text")
+    assert diagram.capabilities.composed_with == ("text",)
+    assert narrative.capabilities.verifier_tags == (
+        "narrative_coherence",
+        "composition",
+    )
+    assert [plugin.plugin_id for plugin in chain] == ["diagram", "text"]

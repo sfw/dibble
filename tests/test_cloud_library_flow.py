@@ -20,8 +20,10 @@ from dibble.services.curriculum_content_library_store import (
     SQLiteCurriculumContentLibraryStore,
 )
 from dibble.services.harness.content_library import (
+    CloudLibraryTransportResponse,
     LibraryFirstCurriculumContentLibrary,
     LocalStubCloudLibraryClient,
+    RemoteReadyCloudLibraryClient,
 )
 from dibble.storage import CURRICULUM_CONTENT_LIBRARY_TABLE_SQL
 
@@ -187,3 +189,182 @@ def test_library_first_content_library_marks_remote_lookup_failure_on_local_fall
     assert entry.provenance.degraded_mode is True
     assert entry.provenance.degraded_reason == "remote lookup unavailable"
     assert entry.provenance.remote_endpoint == "https://library.example.test"
+
+
+def test_library_first_content_library_prefers_remote_hit_with_real_remote_adapter():
+    request = CurriculumContentRequest(
+        grade_level="5",
+        intent=ContentIntent.explanation,
+        content_type="micro_explanation",
+        target_kc_ids=["KC-1"],
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.reteach,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="medium",
+        reasons=["test"],
+    )
+    key = CurriculumContentKey(request=request, route=route, grounding=[])
+
+    class _Transport:
+        def request(self, *, method, url, headers, payload, timeout_seconds):
+            assert method == "POST"
+            assert url.endswith("/lookup")
+            assert payload["cache_key"] == key.cache_key()
+            return CloudLibraryTransportResponse(
+                status_code=200,
+                payload={
+                    "entry": CurriculumLibraryEntry(
+                        content_key=key,
+                        content=GeneratedContent(
+                            generation_id="gen-remote",
+                            student_id=uuid4(),
+                            content_type="micro_explanation",
+                            request_context={"selected_content_type": "micro_explanation"},
+                            response=GenerationResponse(
+                                student_id=uuid4(),
+                                route=route,
+                                blocks=[GeneratedBlock(kind="summary", title="Focus", body="Fractions")],
+                                curriculum_context=["Fractions"],
+                                safety_notes=[],
+                            ),
+                            quality=GenerationMetadata(validation_passed=True),
+                        ),
+                        storage_scope="shared_ready",
+                    ).model_dump(mode="json")
+                },
+            )
+
+    library = LibraryFirstCurriculumContentLibrary(
+        local_client=LocalStubCloudLibraryClient(
+            SQLiteCurriculumContentLibraryStore(sqlite3.connect(":memory:"))
+        ),
+        remote_client=RemoteReadyCloudLibraryClient(
+            endpoint="https://library.example.test",
+            enabled=True,
+            transport=_Transport(),
+        ),
+    )
+
+    entry = library.get_fresh_entry(key=key)
+
+    assert entry is not None
+    assert entry.provenance is not None
+    assert entry.provenance.lookup_status == "remote_hit"
+    assert entry.provenance.publish_status == "remote_available"
+    assert entry.provenance.remote_endpoint == "https://library.example.test"
+
+
+def test_real_remote_client_keeps_lookup_miss_local_fallback_path():
+    conn = sqlite3.connect(":memory:")
+    conn.executescript(CURRICULUM_CONTENT_LIBRARY_TABLE_SQL)
+    request = CurriculumContentRequest(
+        grade_level="5",
+        intent=ContentIntent.explanation,
+        content_type="micro_explanation",
+        target_kc_ids=["KC-1"],
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.reteach,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="medium",
+        reasons=["test"],
+    )
+    key = CurriculumContentKey(request=request, route=route, grounding=[])
+    content = GeneratedContent(
+        generation_id="gen-local",
+        student_id=uuid4(),
+        content_type="micro_explanation",
+        request_context={},
+        response=GenerationResponse(
+            student_id=uuid4(),
+            route=route,
+            blocks=[GeneratedBlock(kind="summary", title="Focus", body="Fractions")],
+            curriculum_context=["Fractions"],
+            safety_notes=[],
+        ),
+        quality=GenerationMetadata(validation_passed=True),
+    )
+
+    class _Transport:
+        def request(self, *, method, url, headers, payload, timeout_seconds):
+            return CloudLibraryTransportResponse(status_code=404, payload={})
+
+    library = LibraryFirstCurriculumContentLibrary(
+        local_client=LocalStubCloudLibraryClient(SQLiteCurriculumContentLibraryStore(conn)),
+        remote_client=RemoteReadyCloudLibraryClient(
+            endpoint="https://library.example.test",
+            enabled=True,
+            transport=_Transport(),
+        ),
+    )
+    library.local_client.publish(
+        entry=CurriculumLibraryEntry(content_key=key, content=content)
+    )
+
+    entry = library.get_fresh_entry(key=key)
+
+    assert entry is not None
+    assert entry.provenance is not None
+    assert entry.provenance.lookup_status == "remote_miss_local_fallback"
+    assert entry.provenance.degraded_mode is False
+
+
+def test_real_remote_client_strips_learner_fields_from_publish_payload():
+    request = CurriculumContentRequest(
+        grade_level="5",
+        intent=ContentIntent.explanation,
+        content_type="micro_explanation",
+        target_kc_ids=["KC-1"],
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.reteach,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="medium",
+        reasons=["test"],
+    )
+    key = CurriculumContentKey(request=request, route=route, grounding=[])
+    learner_id = uuid4()
+    response_student_id = uuid4()
+    captured_payload = {}
+
+    class _Transport:
+        def request(self, *, method, url, headers, payload, timeout_seconds):
+            captured_payload.update(payload)
+            return CloudLibraryTransportResponse(status_code=201, payload=payload)
+
+    client = RemoteReadyCloudLibraryClient(
+        endpoint="https://library.example.test",
+        enabled=True,
+        transport=_Transport(),
+    )
+    entry = CurriculumLibraryEntry(
+        content_key=key,
+        content=GeneratedContent(
+            generation_id="gen-privacy",
+            student_id=learner_id,
+            content_type="micro_explanation",
+            request_context={
+                "selected_content_type": "micro_explanation",
+                "curriculum_cache_key": key.cache_key(),
+                "student_id": str(learner_id),
+                "learner_name": "Avery",
+            },
+            response=GenerationResponse(
+                student_id=response_student_id,
+                route=route,
+                blocks=[GeneratedBlock(kind="summary", title="Focus", body="Fractions")],
+                curriculum_context=["Fractions"],
+                safety_notes=[],
+            ),
+            quality=GenerationMetadata(validation_passed=True),
+        ),
+    )
+
+    client.publish(entry=entry)
+
+    outbound = captured_payload["entry"]["content"]
+    assert outbound["student_id"] == "00000000-0000-0000-0000-000000000000"
+    assert outbound["response"]["student_id"] == "00000000-0000-0000-0000-000000000000"
+    assert "learner_name" not in outbound["request_context"]
+    assert "student_id" not in outbound["request_context"]

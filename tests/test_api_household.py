@@ -66,6 +66,9 @@ def test_household_setup_and_parent_overview_route(tmp_path):
                     "weekly_summary_day": "sunday",
                     "soft_escalation_enabled": True,
                     "approval_mode": "guided",
+                    "modality_introduction_requires_approval": False,
+                    "trajectory_revision_requires_approval": False,
+                    "high_autonomy_session_requires_approval": False,
                 },
             },
         )
@@ -112,6 +115,9 @@ def test_household_notification_read_state_persists_across_overview_refresh(tmp_
                     "weekly_summary_day": "sunday",
                     "soft_escalation_enabled": True,
                     "approval_mode": "guided",
+                    "modality_introduction_requires_approval": False,
+                    "trajectory_revision_requires_approval": False,
+                    "high_autonomy_session_requires_approval": False,
                 },
             },
         )
@@ -171,6 +177,9 @@ def test_household_setup_rejects_learner_already_assigned_to_another_household(t
                     "weekly_summary_day": "sunday",
                     "soft_escalation_enabled": True,
                     "approval_mode": "guided",
+                    "modality_introduction_requires_approval": False,
+                    "trajectory_revision_requires_approval": False,
+                    "high_autonomy_session_requires_approval": False,
                 },
             },
         )
@@ -187,6 +196,9 @@ def test_household_setup_rejects_learner_already_assigned_to_another_household(t
                     "weekly_summary_day": "sunday",
                     "soft_escalation_enabled": True,
                     "approval_mode": "guided",
+                    "modality_introduction_requires_approval": False,
+                    "trajectory_revision_requires_approval": False,
+                    "high_autonomy_session_requires_approval": False,
                 },
             },
         )
@@ -225,6 +237,9 @@ def test_household_preferences_update_can_disable_session_suggestions(tmp_path):
                     "weekly_summary_day": "sunday",
                     "soft_escalation_enabled": True,
                     "approval_mode": "guided",
+                    "modality_introduction_requires_approval": False,
+                    "trajectory_revision_requires_approval": False,
+                    "high_autonomy_session_requires_approval": False,
                 },
             },
         )
@@ -239,6 +254,9 @@ def test_household_preferences_update_can_disable_session_suggestions(tmp_path):
                     "weekly_summary_day": "monday",
                     "soft_escalation_enabled": False,
                     "approval_mode": "guided",
+                    "modality_introduction_requires_approval": False,
+                    "trajectory_revision_requires_approval": False,
+                    "high_autonomy_session_requires_approval": False,
                 },
             },
         )
@@ -279,6 +297,9 @@ def test_household_session_suggestion_actions_persist_and_snooze_hides(tmp_path)
                     "weekly_summary_day": "sunday",
                     "soft_escalation_enabled": True,
                     "approval_mode": "guided",
+                    "modality_introduction_requires_approval": False,
+                    "trajectory_revision_requires_approval": False,
+                    "high_autonomy_session_requires_approval": False,
                 },
             },
         )
@@ -302,6 +323,63 @@ def test_household_session_suggestion_actions_persist_and_snooze_hides(tmp_path)
     assert defer_response.json()["session_suggestions"][0]["status"] == "deferred"
     assert snooze_response.status_code == 200
     assert snooze_response.json()["session_suggestions"] == []
+
+
+def test_household_parent_approval_endpoints_unlock_gated_session(tmp_path):
+    db_path = str(tmp_path / "dibble.db")
+    ensure_database(db_path)
+    student_id = uuid4()
+    settings = Settings(database_path=db_path, auth_enabled=True)
+    app = create_app(settings)
+
+    _seed_user(db_path, api_key="parent-key", role="household_admin", user_id="parent-1", display_name="Morgan")
+    _seed_user(db_path, api_key="learner-key", role="learner", user_id="learner-user-1", learner_id=str(student_id), display_name="Avery")
+
+    conn = create_connection(db_path)
+    SQLiteProfileStore(conn).upsert(LearnerProfile.model_validate(build_profile(student_id, frustration="high", total_load=0.6)))
+    SQLiteOutcomeStore(conn).upsert(OutcomeUpsert.model_validate(build_outcome("CURR-1", knowledge_component_ids=["KC-1"])))
+    SQLiteKnowledgeComponentStore(conn).upsert(KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1")))
+
+    with TestClient(app) as client:
+        client.put(
+            "/api/households/me/setup",
+            headers={"X-API-Key": "parent-key"},
+            json={
+                "household_name": "Avery Family",
+                "learner_ids": [str(student_id)],
+                "relationship_label": "parent",
+                "preferences": {
+                    "session_cadence": "daily",
+                    "auto_session_suggestions": True,
+                    "weekly_summary_day": "sunday",
+                    "soft_escalation_enabled": True,
+                    "approval_mode": "guided",
+                    "modality_introduction_requires_approval": True,
+                    "trajectory_revision_requires_approval": True,
+                    "high_autonomy_session_requires_approval": True,
+                },
+            },
+        )
+        overview_response = client.get(
+            "/api/households/me/overview",
+            headers={"X-API-Key": "parent-key"},
+        )
+        latest_response = overview_response
+        for _ in range(5):
+            pending = latest_response.json()["pending_approvals"]
+            if not pending:
+                break
+            latest_response = client.post(
+                f"/api/households/me/approvals/{student_id}/{pending[0]['approval_id']}/approve",
+                headers={"X-API-Key": "parent-key"},
+            )
+
+    assert overview_response.status_code == 200
+    assert overview_response.json()["pending_approvals"]
+    assert overview_response.json()["session_suggestions"] == []
+    assert latest_response.status_code == 200
+    assert latest_response.json()["pending_approvals"] == []
+    assert latest_response.json()["session_suggestions"]
 
 
 def test_household_notification_snooze_hides_notification_from_immediate_overview(tmp_path):
@@ -333,6 +411,9 @@ def test_household_notification_snooze_hides_notification_from_immediate_overvie
                     "weekly_summary_day": "sunday",
                     "soft_escalation_enabled": True,
                     "approval_mode": "guided",
+                    "modality_introduction_requires_approval": False,
+                    "trajectory_revision_requires_approval": False,
+                    "high_autonomy_session_requires_approval": False,
                 },
             },
         )
@@ -383,6 +464,9 @@ def test_household_notification_dismiss_hides_notification_from_immediate_overvi
                     "weekly_summary_day": "sunday",
                     "soft_escalation_enabled": True,
                     "approval_mode": "guided",
+                    "modality_introduction_requires_approval": False,
+                    "trajectory_revision_requires_approval": False,
+                    "high_autonomy_session_requires_approval": False,
                 },
             },
         )

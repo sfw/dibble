@@ -49,13 +49,14 @@ class ContentGenerationHarness:
             request=request,
             route=resolved_plan.route,
         )
-        modality_plugin = self.modality_plugins.get(resolved_plan.directive.plugin_id)
+        modality_chain = self.modality_plugins.chain_for(resolved_plan.directive.plugin_id)
         request_context = dict(authoring.policy.request_context)
         request_context["selected_modality"] = resolved_plan.directive.modality
         request_context["modality_plugin_id"] = resolved_plan.directive.plugin_id
         request_context["modality_composition_mode"] = (
             resolved_plan.directive.composition_mode
         )
+        request_context["selected_modalities"] = list(resolved_plan.directive.plugin_ids)
         generation_constraints = dict(authoring.policy.generation_constraints)
         if resolved_plan.directive.plugin_id != "text":
             generation_constraints["modality_plugin_id"] = (
@@ -64,6 +65,15 @@ class ContentGenerationHarness:
             generation_constraints["selected_modality"] = (
                 resolved_plan.directive.modality
             )
+            generation_constraints["selected_modalities"] = list(
+                resolved_plan.directive.plugin_ids
+            )
+        curriculum_request = authoring.curriculum_request
+        for modality_plugin in modality_chain:
+            curriculum_request = modality_plugin.apply(
+                request=curriculum_request,
+                accessibility_requirements=resolved_plan.accessibility_requirements,
+            )
         authoring = PreparedAuthoringRequest(
             policy=HarnessAuthoringPolicy(
                 content_type=authoring.policy.content_type,
@@ -71,10 +81,7 @@ class ContentGenerationHarness:
                 request_context=request_context,
                 generation_constraints=generation_constraints,
             ),
-            curriculum_request=modality_plugin.apply(
-                request=authoring.curriculum_request,
-                accessibility_requirements=resolved_plan.accessibility_requirements,
-            ),
+            curriculum_request=curriculum_request,
         )
         return PreparedContentGeneration(
             profile=profile,

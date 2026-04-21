@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from hashlib import sha256
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
@@ -10,6 +12,9 @@ from dibble.models.household import (
     AutonomousTeacherWeeklySummary,
     Household,
     LearnerRelationshipState,
+    ParentApprovalRequest,
+    ParentApprovalStatus,
+    ParentApprovalType,
     ParentPreference,
     ParentNotification,
 )
@@ -27,6 +32,19 @@ from dibble.services.protocols import (
     ParentNotificationStore,
     UserStore,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class ParentApprovalCandidate:
+    approval_type: ParentApprovalType
+    title: str
+    message: str
+    proposed_value: str | None
+    metadata: dict[str, object]
+    expires_at: datetime | None = None
+
+    def decision_signature(self) -> str:
+        return str(self.metadata.get("decision_signature", ""))
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +137,38 @@ class AutonomousTeacherHarness:
                 else summary.current_flow.next_step.content_type
             )
         )
+        trajectory_signature = self._trajectory_signature(
+            planning=planning,
+            next_focus=next_focus,
+        )
+        approved_modalities = (
+            list(existing_state.approved_modalities)
+            if existing_state is not None and existing_state.approved_modalities
+            else ["text"]
+        )
+        approval_requests = self._active_approval_requests(
+            existing_state=existing_state,
+            now=now,
+        )
+        approval_requests, blocking_approvals = self._resolve_approval_requests(
+            household=household,
+            learner_id=learner_id,
+            preferences=preferences,
+            existing_state=existing_state,
+            approval_requests=approval_requests,
+            approved_modalities=approved_modalities,
+            trajectory_signature=trajectory_signature,
+            cadence_decision=cadence_decision,
+            next_focus=next_focus,
+            suggested_modality=suggested_modality,
+            session=session,
+            now=now,
+        )
+        summary_headline = self._summary_headline(
+            cadence_decision=cadence_decision,
+            current_goal_title=planning.goal.title if planning.goal is not None else None,
+            blocking_approvals=blocking_approvals,
+        )
         relationship_state = LearnerRelationshipState(
             household_id=household.household_id,
             learner_id=learner_id,
@@ -136,10 +186,7 @@ class AutonomousTeacherHarness:
             current_goal_title=planning.goal.title if planning.goal is not None else None,
             next_session_focus=next_focus,
             suggested_modality=suggested_modality,
-            summary_headline=self._summary_headline(
-                cadence_decision=cadence_decision,
-                current_goal_title=planning.goal.title if planning.goal is not None else None,
-            ),
+            summary_headline=summary_headline,
             latest_weekly_summary=(
                 existing_state.latest_weekly_summary if existing_state is not None else None
             ),
@@ -150,6 +197,9 @@ class AutonomousTeacherHarness:
                 if existing_state is not None
                 else None
             ),
+            approved_modalities=approved_modalities,
+            active_trajectory_signature=trajectory_signature,
+            approval_requests=approval_requests,
             updated_at=now,
         )
         relationship_state = self._session_suggestion_state_for(
@@ -197,6 +247,7 @@ class AutonomousTeacherHarness:
             relationship_state=relationship_state,
             session=session,
             auto_session_suggestions=preferences.auto_session_suggestions,
+            blocking_approvals=blocking_approvals,
             now=now,
         )
         return AutonomousTeacherLearnerPlan(
@@ -263,8 +314,19 @@ class AutonomousTeacherHarness:
         return baseline + 1
 
     def _summary_headline(
-        self, *, cadence_decision: str, current_goal_title: str | None
+        self,
+        *,
+        cadence_decision: str,
+        current_goal_title: str | None,
+        blocking_approvals: list[ParentApprovalRequest],
     ) -> str:
+        if any(
+            approval.status == ParentApprovalStatus.rejected
+            for approval in blocking_approvals
+        ):
+            return "A parent-held approval gate is pausing the next teaching change."
+        if blocking_approvals:
+            return "Waiting for parent approval before the next teaching change."
         if cadence_decision == "reengage_now":
             return "Needs a gentle restart this week."
         if cadence_decision == "check_in":
@@ -363,6 +425,31 @@ class AutonomousTeacherHarness:
                     },
                 )
             )
+        for approval in relationship_state.approval_requests:
+            if approval.status != ParentApprovalStatus.pending:
+                continue
+            notifications.append(
+                ParentNotification(
+                    notification_id=str(uuid4()),
+                    household_id=household.household_id,
+                    learner_id=relationship_state.learner_id,
+                    dedupe_key=(
+                        f"approval:{household.household_id}:{relationship_state.learner_id}:"
+                        f"{approval.approval_id}"
+                    ),
+                    category="approval_request",
+                    severity="attention",
+                    title=approval.title,
+                    message=approval.message,
+                    created_at=now,
+                    updated_at=now,
+                    metadata={
+                        "approval_id": approval.approval_id,
+                        "approval_type": approval.approval_type.value,
+                        "proposed_value": approval.proposed_value,
+                    },
+                )
+            )
         follow_up_notification = self._session_suggestion_follow_up_notification(
             household=household,
             relationship_state=relationship_state,
@@ -380,9 +467,12 @@ class AutonomousTeacherHarness:
         relationship_state: LearnerRelationshipState,
         session,
         auto_session_suggestions: bool,
+        blocking_approvals: list[ParentApprovalRequest],
         now: datetime,
     ) -> AutonomousTeacherSessionSuggestion | None:
         if not auto_session_suggestions:
+            return None
+        if blocking_approvals:
             return None
         if (
             relationship_state.session_suggestion_status == "snoozed"
@@ -511,3 +601,261 @@ class AutonomousTeacherHarness:
                 "suggested_modality": relationship_state.suggested_modality,
             },
         )
+
+    def _trajectory_signature(self, *, planning, next_focus: str | None) -> str | None:
+        if planning.goal is None and planning.trajectory is None:
+            return None
+        payload = {
+            "goal_title": planning.goal.title if planning.goal is not None else None,
+            "next_focus": next_focus,
+            "node_titles": (
+                [node.title for node in planning.trajectory.nodes[:3]]
+                if planning.trajectory is not None
+                else []
+            ),
+            "target_kc_ids": (
+                sorted(
+                    {
+                        kc_id
+                        for node in planning.trajectory.nodes[:3]
+                        for kc_id in node.target_kc_ids
+                    }
+                )
+                if planning.trajectory is not None
+                else []
+            ),
+        }
+        return sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+
+    def _active_approval_requests(
+        self,
+        *,
+        existing_state: LearnerRelationshipState | None,
+        now: datetime,
+    ) -> list[ParentApprovalRequest]:
+        if existing_state is None:
+            return []
+        requests: list[ParentApprovalRequest] = []
+        for approval in existing_state.approval_requests:
+            if (
+                approval.status == ParentApprovalStatus.pending
+                and approval.expires_at is not None
+                and approval.expires_at <= now
+            ):
+                requests.append(
+                    approval.model_copy(
+                        update={
+                            "status": ParentApprovalStatus.expired,
+                            "decided_at": now,
+                        }
+                    )
+                )
+                continue
+            requests.append(approval)
+        return requests
+
+    def _resolve_approval_requests(
+        self,
+        *,
+        household: Household,
+        learner_id: str,
+        preferences: ParentPreference,
+        existing_state: LearnerRelationshipState | None,
+        approval_requests: list[ParentApprovalRequest],
+        approved_modalities: list[str],
+        trajectory_signature: str | None,
+        cadence_decision: str,
+        next_focus: str | None,
+        suggested_modality: str | None,
+        session,
+        now: datetime,
+    ) -> tuple[list[ParentApprovalRequest], list[ParentApprovalRequest]]:
+        resolved_requests = list(approval_requests)
+        blocking: list[ParentApprovalRequest] = []
+        for candidate in self._approval_candidates(
+            household=household,
+            learner_id=learner_id,
+            preferences=preferences,
+            existing_state=existing_state,
+            approval_requests=approval_requests,
+            approved_modalities=approved_modalities,
+            trajectory_signature=trajectory_signature,
+            cadence_decision=cadence_decision,
+            next_focus=next_focus,
+            suggested_modality=suggested_modality,
+            session=session,
+            now=now,
+        ):
+            existing_request = next(
+                (
+                    approval
+                    for approval in reversed(resolved_requests)
+                    if approval.metadata.get("decision_signature")
+                    == candidate.decision_signature()
+                ),
+                None,
+            )
+            if existing_request is None:
+                created = ParentApprovalRequest(
+                    approval_id=str(uuid4()),
+                    learner_id=learner_id,
+                    approval_type=candidate.approval_type,
+                    title=candidate.title,
+                    message=candidate.message,
+                    proposed_value=candidate.proposed_value,
+                    metadata=candidate.metadata,
+                    requested_at=now,
+                    expires_at=candidate.expires_at,
+                )
+                resolved_requests.append(created)
+                blocking.append(created)
+                continue
+            if existing_request.status in {
+                ParentApprovalStatus.pending,
+                ParentApprovalStatus.rejected,
+            }:
+                blocking.append(existing_request)
+        return resolved_requests, blocking
+
+    def _approval_candidates(
+        self,
+        *,
+        household: Household,
+        learner_id: str,
+        preferences: ParentPreference,
+        existing_state: LearnerRelationshipState | None,
+        approval_requests: list[ParentApprovalRequest],
+        approved_modalities: list[str],
+        trajectory_signature: str | None,
+        cadence_decision: str,
+        next_focus: str | None,
+        suggested_modality: str | None,
+        session,
+        now: datetime,
+    ) -> list[ParentApprovalCandidate]:
+        candidates: list[ParentApprovalCandidate] = []
+        existing_trajectory_request = (
+            next(
+                (
+                    approval
+                    for approval in reversed(approval_requests)
+                    if approval.approval_type == ParentApprovalType.trajectory_revision
+                    and approval.metadata.get("trajectory_signature") == trajectory_signature
+                ),
+                None,
+            )
+            if trajectory_signature is not None
+            else None
+        )
+        if (
+            preferences.modality_introduction_requires_approval
+            and suggested_modality is not None
+            and suggested_modality not in approved_modalities
+        ):
+            decision_signature = self._approval_signature(
+                learner_id=learner_id,
+                approval_type=ParentApprovalType.modality_introduction,
+                proposed_value=suggested_modality,
+                extra={"household_id": household.household_id},
+            )
+            candidates.append(
+                ParentApprovalCandidate(
+                    approval_type=ParentApprovalType.modality_introduction,
+                    title=f"Approve {suggested_modality} lessons",
+                    message=(
+                        "Dibble wants to introduce a new teaching modality for this learner "
+                        f"before the next session: {suggested_modality}."
+                    ),
+                    proposed_value=suggested_modality,
+                    metadata={
+                        "decision_signature": decision_signature,
+                        "suggested_modality": suggested_modality,
+                    },
+                    expires_at=now + timedelta(days=14),
+                )
+            )
+        if (
+            preferences.trajectory_revision_requires_approval
+            and existing_state is not None
+            and trajectory_signature is not None
+            and (
+                trajectory_signature != existing_state.active_trajectory_signature
+                or existing_trajectory_request is not None
+            )
+        ):
+            decision_signature = self._approval_signature(
+                learner_id=learner_id,
+                approval_type=ParentApprovalType.trajectory_revision,
+                proposed_value=trajectory_signature,
+                extra={"next_focus": next_focus},
+            )
+            candidates.append(
+                ParentApprovalCandidate(
+                    approval_type=ParentApprovalType.trajectory_revision,
+                    title="Approve trajectory revision",
+                    message=(
+                        "Dibble wants to revise the learner's longer-horizon plan before "
+                        f"continuing. Proposed next focus: {next_focus or 'the updated trajectory'}."
+                    ),
+                    proposed_value=next_focus,
+                    metadata={
+                        "decision_signature": decision_signature,
+                        "trajectory_signature": trajectory_signature,
+                        "next_focus": next_focus,
+                    },
+                    expires_at=now + timedelta(days=14),
+                )
+            )
+        if (
+            preferences.high_autonomy_session_requires_approval
+            and session is not None
+            and cadence_decision in {"check_in", "reengage_now"}
+        ):
+            decision_signature = self._approval_signature(
+                learner_id=learner_id,
+                approval_type=ParentApprovalType.high_autonomy_session,
+                proposed_value=session.learning_session_id,
+                extra={
+                    "cadence_decision": cadence_decision,
+                    "next_focus": next_focus,
+                },
+            )
+            candidates.append(
+                ParentApprovalCandidate(
+                    approval_type=ParentApprovalType.high_autonomy_session,
+                    title="Approve autonomous re-engagement",
+                    message=(
+                        "Dibble is ready to initiate a higher-autonomy session to re-engage "
+                        "this learner, but it is waiting for parent approval first."
+                    ),
+                    proposed_value=session.learning_session_id,
+                    metadata={
+                        "decision_signature": decision_signature,
+                        "learning_session_id": session.learning_session_id,
+                        "cadence_decision": cadence_decision,
+                        "next_focus": next_focus,
+                    },
+                    expires_at=now + timedelta(days=7),
+                )
+            )
+        return candidates
+
+    def _approval_signature(
+        self,
+        *,
+        learner_id: str,
+        approval_type: ParentApprovalType,
+        proposed_value: str | None,
+        extra: dict[str, object],
+    ) -> str:
+        payload = {
+            "learner_id": learner_id,
+            "approval_type": approval_type.value,
+            "proposed_value": proposed_value,
+            "extra": extra,
+        }
+        return sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()

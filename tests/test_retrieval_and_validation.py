@@ -359,6 +359,61 @@ def test_validator_reports_instruction_grounding_gap_when_only_summary_is_ground
     ]
 
 
+def test_validator_requires_accessible_diagram_with_text_companion():
+    issues = ContentValidator().validate(
+        blocks=[
+            GeneratedBlock(
+                kind="visual_representation",
+                title="Fraction model",
+                body="<svg viewBox='0 0 10 10'></svg>",
+            )
+        ],
+        grounding=[
+            GroundingReference(
+                outcome_id="CURR-1",
+                title="Equivalent Fractions Foundations",
+                grade_level="5",
+                score=2.0,
+                matched_terms=["equivalent fractions"],
+            )
+        ],
+    )
+
+    assert "Diagram modality content should include an instructional companion block." in issues
+    assert "Diagram modality content is missing accessible SVG labeling." in issues
+
+
+def test_validator_flags_weak_narrative_without_teacher_and_reflection():
+    issues = ContentValidator().validate(
+        blocks=[
+            GeneratedBlock(
+                kind="narrative",
+                title="A quick story",
+                body="A friend notices fractions in a drawing and keeps going.",
+            ),
+            GeneratedBlock(
+                kind="instruction",
+                title="Try it",
+                body="Explain the key idea.",
+            ),
+        ],
+        grounding=[
+            GroundingReference(
+                outcome_id="CURR-1",
+                title="Equivalent Fractions Foundations",
+                grade_level="5",
+                score=2.0,
+                matched_terms=["equivalent fractions"],
+            )
+        ],
+    )
+
+    assert (
+        "Narrative modality content should include both learner and teacher perspectives."
+        in issues
+    )
+
+
 def test_validator_reports_reading_level_accessibility_safety_and_math_issues():
     issues = ContentValidator().validate(
         blocks=[

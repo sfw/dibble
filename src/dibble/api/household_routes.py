@@ -202,4 +202,48 @@ def build_household_router(context: ApiContext) -> APIRouter:
             request=payload,
         )
 
+    @router.post(
+        "/me/approvals/{learner_id}/{approval_id}/approve",
+        response_model=HouseholdOverview,
+    )
+    def approve_household_parent_approval(
+        learner_id: str,
+        approval_id: str,
+        request: Request,
+    ) -> HouseholdOverview:
+        identity = getattr(request.state, "auth_identity", None)
+        if identity is None:
+            raise api_error(
+                status_code=401,
+                detail="Authentication is required.",
+                code="auth_invalid_credentials",
+            )
+        return context.services.household_service.approve_parent_approval(
+            parent_user_id=identity.principal_id,
+            learner_id=learner_id,
+            approval_id=approval_id,
+        )
+
+    @router.post(
+        "/me/approvals/{learner_id}/{approval_id}/reject",
+        response_model=HouseholdOverview,
+    )
+    def reject_household_parent_approval(
+        learner_id: str,
+        approval_id: str,
+        request: Request,
+    ) -> HouseholdOverview:
+        identity = getattr(request.state, "auth_identity", None)
+        if identity is None:
+            raise api_error(
+                status_code=401,
+                detail="Authentication is required.",
+                code="auth_invalid_credentials",
+            )
+        return context.services.household_service.reject_parent_approval(
+            parent_user_id=identity.principal_id,
+            learner_id=learner_id,
+            approval_id=approval_id,
+        )
+
     return router

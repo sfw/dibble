@@ -31,6 +31,7 @@ describe('Parent Dashboard', () => {
       household: null,
       learners: [],
       session_suggestions: [],
+      pending_approvals: [],
       weekly_summaries: [],
       notifications: [],
       available_learners: [{ learner_id: 'student-1', display_name: 'Avery' }],
@@ -46,6 +47,8 @@ describe('Parent Dashboard', () => {
     acceptSuggestion: vi.fn().mockResolvedValue(undefined),
     deferSuggestion: vi.fn().mockResolvedValue(undefined),
     snoozeSuggestion: vi.fn().mockResolvedValue(undefined),
+    approveParentApproval: vi.fn().mockResolvedValue(undefined),
+    rejectParentApproval: vi.fn().mockResolvedValue(undefined),
   }
 
   it('renders setup state when the household is not configured', () => {
@@ -73,6 +76,9 @@ describe('Parent Dashboard', () => {
                 weekly_summary_day: 'sunday',
                 soft_escalation_enabled: true,
                 approval_mode: 'guided',
+                modality_introduction_requires_approval: true,
+                trajectory_revision_requires_approval: true,
+                high_autonomy_session_requires_approval: true,
               },
             },
           ],
@@ -95,6 +101,7 @@ describe('Parent Dashboard', () => {
             cadence_decision: 'session_due',
             soft_escalation_active: false,
             summary_headline: 'Still moving toward Equivalent Fractions.',
+            pending_approval_count: 1,
           },
         ],
         session_suggestions: [
@@ -106,6 +113,19 @@ describe('Parent Dashboard', () => {
             focus_label: 'Model equivalent fractions visually',
             target_kc_ids: ['KC-1'],
             modality: 'diagram',
+          },
+        ],
+        pending_approvals: [
+          {
+            approval_id: 'approval-1',
+            learner_id: 'student-1',
+            approval_type: 'modality_introduction',
+            status: 'pending',
+            title: 'Approve diagram lessons',
+            message: 'Dibble wants to introduce a new teaching modality.',
+            proposed_value: 'diagram',
+            metadata: {},
+            requested_at: '2026-04-20T00:00:00Z',
           },
         ],
         weekly_summaries: [
@@ -141,6 +161,8 @@ describe('Parent Dashboard', () => {
     expect(screen.getByText('Avery')).toBeInTheDocument()
     expect(screen.getByText('Weekly summary ready')).toBeInTheDocument()
     expect(screen.getByText('Session initiation suggestions')).toBeInTheDocument()
+    expect(screen.getByText('Approval gates')).toBeInTheDocument()
+    expect(screen.getByText('Approve diagram lessons')).toBeInTheDocument()
     expect(screen.getAllByText('Snooze 1 day').length).toBeGreaterThan(0)
     expect(screen.getByText(/Status: pending/)).toBeInTheDocument()
     expect(screen.getByText('Save preferences')).toBeInTheDocument()

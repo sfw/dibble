@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from hashlib import sha256
 import json
+import re
 from typing import Literal
 from uuid import UUID
 
@@ -304,6 +305,13 @@ def _cache_safe_generation_constraints(
     return safe_items
 
 
+def _svg_aria_label(svg: str | None) -> str | None:
+    if not svg:
+        return None
+    match = re.search(r"aria-label=['\"]([^'\"]+)['\"]", svg)
+    return match.group(1) if match is not None else None
+
+
 class GeneratedBlock(BaseModel):
     block_id: str | None = None
     kind: str
@@ -452,6 +460,7 @@ def build_generated_artifacts(blocks: list["GeneratedBlock"]) -> list[GeneratedA
             continue
         if block.kind in {"diagram", "visual_representation"}:
             svg = body if body.strip().startswith("<svg") else None
+            aria_label = _svg_aria_label(svg)
             artifacts.append(
                 GeneratedDiagramArtifact(
                     artifact_id=f"diagram-{index}",
@@ -460,7 +469,10 @@ def build_generated_artifacts(blocks: list["GeneratedBlock"]) -> list[GeneratedA
                     svg=svg,
                     caption=None if svg else body,
                     accessibility=accessibility.model_copy(
-                        update={"alt_text": block.title or body}
+                        update={
+                            "alt_text": aria_label or block.title or body,
+                            "text_equivalent": aria_label or block.title or body,
+                        }
                     ),
                     provenance=ArtifactProvenance(
                         modality="diagram",

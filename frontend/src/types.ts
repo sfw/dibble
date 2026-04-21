@@ -1042,6 +1042,23 @@ export interface ParentPreference {
   weekly_summary_day: string
   soft_escalation_enabled: boolean
   approval_mode: string
+  modality_introduction_requires_approval: boolean
+  trajectory_revision_requires_approval: boolean
+  high_autonomy_session_requires_approval: boolean
+}
+
+export interface ParentApprovalRequest {
+  approval_id: string
+  learner_id: string
+  approval_type: string
+  status: string
+  title: string
+  message: string
+  proposed_value?: string | null
+  metadata: Record<string, unknown>
+  requested_at: string
+  expires_at?: string | null
+  decided_at?: string | null
 }
 
 export interface ParentProfile {
@@ -1113,12 +1130,14 @@ export interface HouseholdLearnerOverview {
   cadence_decision: string
   soft_escalation_active: boolean
   summary_headline?: string | null
+  pending_approval_count: number
 }
 
 export interface HouseholdOverview {
   household?: Household | null
   learners: HouseholdLearnerOverview[]
   session_suggestions: AutonomousTeacherSessionSuggestion[]
+  pending_approvals: ParentApprovalRequest[]
   weekly_summaries: AutonomousTeacherWeeklySummary[]
   notifications: ParentNotification[]
   available_learners: Array<{

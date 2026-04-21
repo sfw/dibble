@@ -173,6 +173,70 @@ class AccessibilityRule:
 
 
 @dataclass(slots=True)
+class NarrativeCoherenceRule:
+    def validate(
+        self, blocks: list[GeneratedBlock], grounding: list[GroundingReference]
+    ) -> list[str]:
+        narrative_blocks = [block for block in blocks if block.kind == "narrative"]
+        if not narrative_blocks:
+            return []
+        combined_text = " ".join(_block_text(block).lower() for block in narrative_blocks)
+        if "learner" not in combined_text or "teacher" not in combined_text:
+            return [
+                "Narrative modality content should include both learner and teacher perspectives."
+            ]
+        if not any(token in combined_text for token in {"ask", "question", "what stays the same"}):
+            return [
+                "Narrative modality content should end in a reflective teaching move."
+            ]
+        return []
+
+
+@dataclass(slots=True)
+class DiagramAccessibilityRule:
+    def validate(
+        self, blocks: list[GeneratedBlock], grounding: list[GroundingReference]
+    ) -> list[str]:
+        diagram_blocks = [
+            block for block in blocks if block.kind in {"diagram", "visual_representation"}
+        ]
+        if not diagram_blocks:
+            return []
+        issues: list[str] = []
+        if not any(block.kind == "instruction" for block in blocks):
+            issues.append(
+                "Diagram modality content should include an instructional companion block."
+            )
+        for block in diagram_blocks:
+            body = block.body.strip()
+            if body.startswith("<svg") and "aria-label=" not in body:
+                issues.append(
+                    "Diagram modality content is missing accessible SVG labeling."
+                )
+                break
+        return issues
+
+
+@dataclass(slots=True)
+class ModalityCompositionRule:
+    def validate(
+        self, blocks: list[GeneratedBlock], grounding: list[GroundingReference]
+    ) -> list[str]:
+        block_kinds = {block.kind for block in blocks}
+        if "narrative" in block_kinds and "instruction" not in block_kinds:
+            return [
+                "Narrative composition should include a follow-through instructional block."
+            ]
+        if block_kinds.intersection({"diagram", "visual_representation"}) and not block_kinds.intersection(
+            {"summary", "instruction", "worked_example"}
+        ):
+            return [
+                "Diagram composition should include text guidance alongside the visual."
+            ]
+        return []
+
+
+@dataclass(slots=True)
 class SafetyLanguageRule:
     flagged_terms: tuple[str, ...] = (
         "ignore safety",

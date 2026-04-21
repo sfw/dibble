@@ -43,6 +43,11 @@ class Settings:
     prompt_experiment_enabled: bool = False
     prompt_adaptive_selection_enabled: bool = False
     prompt_variant_override: str | None = None
+    cloud_library_enabled: bool = False
+    cloud_library_endpoint: str | None = None
+    cloud_library_api_key: str | None = None
+    cloud_library_timeout_seconds: float = 5.0
+    cloud_library_retry_attempts: int = 2
     embedding_api_base: str = "https://api.openai.com/v1"
     embedding_api_key: str | None = None
     embedding_model: str | None = None

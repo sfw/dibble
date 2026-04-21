@@ -4,12 +4,15 @@ from dibble.models.generation import GeneratedBlock, GroundingReference
 from dibble.services.validation.rules import (
     AccessibilityRule,
     CurriculumAlignmentRule,
+    DiagramAccessibilityRule,
     GradeLevelReadabilityRule,
     GroundingRule,
     InstructionGroundingCoverageRule,
     InstructionBlockRule,
     LengthGuardrailRule,
     MathSanityRule,
+    ModalityCompositionRule,
+    NarrativeCoherenceRule,
     SafetyLanguageRule,
     ValidationRule,
 )
@@ -25,6 +28,9 @@ class ContentValidator:
             InstructionGroundingCoverageRule(),
             GradeLevelReadabilityRule(),
             AccessibilityRule(),
+            NarrativeCoherenceRule(),
+            DiagramAccessibilityRule(),
+            ModalityCompositionRule(),
             SafetyLanguageRule(),
             MathSanityRule(),
         ]

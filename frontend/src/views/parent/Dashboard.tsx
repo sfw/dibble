@@ -22,6 +22,8 @@ export function Dashboard() {
     acceptSuggestion,
     deferSuggestion,
     snoozeSuggestion,
+    approveParentApproval,
+    rejectParentApproval,
   } = useOutletContext<ParentContext>()
   const [householdNameDraft, setHouseholdNameDraft] = useState<string | null>(null)
   const [relationshipLabelDraft, setRelationshipLabelDraft] = useState<string | null>(null)
@@ -30,6 +32,9 @@ export function Dashboard() {
   const [autoSuggestionsDraft, setAutoSuggestionsDraft] = useState<boolean | null>(null)
   const [softEscalationDraft, setSoftEscalationDraft] = useState<boolean | null>(null)
   const [weeklySummaryDayDraft, setWeeklySummaryDayDraft] = useState<string | null>(null)
+  const [modalityApprovalDraft, setModalityApprovalDraft] = useState<boolean | null>(null)
+  const [trajectoryApprovalDraft, setTrajectoryApprovalDraft] = useState<boolean | null>(null)
+  const [highAutonomyApprovalDraft, setHighAutonomyApprovalDraft] = useState<boolean | null>(null)
 
   const parentProfile = overview.household?.parent_profiles[0]
   const householdName = householdNameDraft ?? overview.household?.household_name ?? 'Our household'
@@ -38,6 +43,9 @@ export function Dashboard() {
   const autoSuggestions = autoSuggestionsDraft ?? parentProfile?.preferences.auto_session_suggestions ?? true
   const softEscalation = softEscalationDraft ?? parentProfile?.preferences.soft_escalation_enabled ?? true
   const weeklySummaryDay = weeklySummaryDayDraft ?? parentProfile?.preferences.weekly_summary_day ?? 'sunday'
+  const modalityApproval = modalityApprovalDraft ?? parentProfile?.preferences.modality_introduction_requires_approval ?? true
+  const trajectoryApproval = trajectoryApprovalDraft ?? parentProfile?.preferences.trajectory_revision_requires_approval ?? true
+  const highAutonomyApproval = highAutonomyApprovalDraft ?? parentProfile?.preferences.high_autonomy_session_requires_approval ?? true
 
   const learnerOptions = useMemo(
     () =>
@@ -63,7 +71,7 @@ export function Dashboard() {
         <Card className="border-amber-100 bg-white/95">
           <CardHeader>
             <CardTitle>Household setup</CardTitle>
-            <CardDescription>One household, one parent role, and a conservative approval model for the POC.</CardDescription>
+            <CardDescription>One household, one parent role, and explicit approval gates for new teaching changes.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-6 md:grid-cols-2">
             <div className="space-y-2">
@@ -139,6 +147,27 @@ export function Dashboard() {
                 </div>
                 <Switch checked={softEscalation} onCheckedChange={setSoftEscalationDraft} />
               </div>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-slate-900">Approve new modalities</p>
+                  <p className="text-xs text-slate-600">Pause before Dibble introduces diagram or narrative teaching for a learner.</p>
+                </div>
+                <Switch checked={modalityApproval} onCheckedChange={setModalityApprovalDraft} />
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-slate-900">Approve trajectory revisions</p>
+                  <p className="text-xs text-slate-600">Hold longer-horizon plan changes for parent review.</p>
+                </div>
+                <Switch checked={trajectoryApproval} onCheckedChange={setTrajectoryApprovalDraft} />
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-slate-900">Approve high-autonomy restarts</p>
+                  <p className="text-xs text-slate-600">Ask before Dibble re-engages a learner on its own after a stall.</p>
+                </div>
+                <Switch checked={highAutonomyApproval} onCheckedChange={setHighAutonomyApprovalDraft} />
+              </div>
             </div>
             <div className="md:col-span-2">
               <Button
@@ -153,6 +182,9 @@ export function Dashboard() {
                       weekly_summary_day: 'sunday',
                       soft_escalation_enabled: softEscalation,
                       approval_mode: 'guided',
+                      modality_introduction_requires_approval: modalityApproval,
+                      trajectory_revision_requires_approval: trajectoryApproval,
+                      high_autonomy_session_requires_approval: highAutonomyApproval,
                     },
                   })
                 }
@@ -218,6 +250,11 @@ export function Dashboard() {
                     <InfoStat label="Suggested modality" value={learner.suggested_modality} />
                     <InfoStat label="Current stage" value={learner.current_stage} />
                   </div>
+                  {learner.pending_approval_count > 0 ? (
+                    <p className="mt-3 text-xs font-medium uppercase tracking-[0.18em] text-amber-700">
+                      {learner.pending_approval_count} parent approval gate{learner.pending_approval_count === 1 ? '' : 's'} active
+                    </p>
+                  ) : null}
                   <p className="mt-4 text-sm text-slate-700">{learner.summary_headline ?? learner.next_session_focus ?? 'No summary yet.'}</p>
                 </article>
               ))}
@@ -244,7 +281,7 @@ export function Dashboard() {
           <Card className="border-amber-100 bg-white/95">
             <CardHeader>
               <CardTitle>Parent preferences</CardTitle>
-              <CardDescription>These settings shape cadence suggestions, summaries, and escalation visibility.</CardDescription>
+              <CardDescription>These settings shape cadence suggestions, approval gates, summaries, and escalation visibility.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-6 md:grid-cols-2">
               <div className="space-y-2">
@@ -301,6 +338,27 @@ export function Dashboard() {
                   </div>
                   <Switch checked={softEscalation} onCheckedChange={setSoftEscalationDraft} />
                 </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">Approve new modalities</p>
+                    <p className="text-xs text-slate-600">Require review before Dibble introduces diagram or narrative teaching.</p>
+                  </div>
+                  <Switch checked={modalityApproval} onCheckedChange={setModalityApprovalDraft} />
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">Approve trajectory revisions</p>
+                    <p className="text-xs text-slate-600">Gate long-horizon plan changes so the household stays aligned.</p>
+                  </div>
+                  <Switch checked={trajectoryApproval} onCheckedChange={setTrajectoryApprovalDraft} />
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">Approve high-autonomy restarts</p>
+                    <p className="text-xs text-slate-600">Review re-engagement sessions before Dibble initiates them.</p>
+                  </div>
+                  <Switch checked={highAutonomyApproval} onCheckedChange={setHighAutonomyApprovalDraft} />
+                </div>
               </div>
               <div className="md:col-span-2">
                 <Button
@@ -313,6 +371,9 @@ export function Dashboard() {
                         weekly_summary_day: weeklySummaryDay,
                         soft_escalation_enabled: softEscalation,
                         approval_mode: 'guided',
+                        modality_introduction_requires_approval: modalityApproval,
+                        trajectory_revision_requires_approval: trajectoryApproval,
+                        high_autonomy_session_requires_approval: highAutonomyApproval,
                       },
                     })
                   }
@@ -326,6 +387,37 @@ export function Dashboard() {
         </div>
 
         <div className="grid gap-6">
+          <Card className="border-amber-200 bg-white/95">
+            <CardHeader>
+              <CardTitle>Approval gates</CardTitle>
+              <CardDescription>Parent review requests the autonomous teacher is respecting before it changes modality, trajectory, or autonomy level.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3">
+              {overview.pending_approvals.length === 0 ? (
+                <p className="text-sm text-slate-600">No approvals are waiting right now.</p>
+              ) : (
+                overview.pending_approvals.map((approval) => (
+                  <article key={approval.approval_id} className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4">
+                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-amber-700">{approval.approval_type.replaceAll('_', ' ')}</p>
+                    <h3 className="mt-2 text-sm font-semibold text-slate-900">{approval.title}</h3>
+                    <p className="mt-2 text-sm text-slate-700">{approval.message}</p>
+                    {approval.proposed_value ? (
+                      <p className="mt-2 text-xs text-slate-500">Proposed value: {approval.proposed_value}</p>
+                    ) : null}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" onClick={() => void approveParentApproval(approval.learner_id, approval.approval_id)}>
+                        Approve
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => void rejectParentApproval(approval.learner_id, approval.approval_id)}>
+                        Not now
+                      </Button>
+                    </div>
+                  </article>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
           <Card className="border-slate-200 bg-white/95">
             <CardHeader>
               <CardTitle>Session initiation suggestions</CardTitle>
