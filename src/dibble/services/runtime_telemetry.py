@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from time import monotonic
 from typing import Any
+from uuid import uuid4
 
 from fastapi import Request
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -16,6 +17,7 @@ from dibble.config import Settings, ensure_dibble_logs_dir
 
 DEFAULT_SESSION_ID = "system"
 _SESSION_ID = ContextVar("dibble_runtime_session_id", default=DEFAULT_SESSION_ID)
+_REQUEST_ID = ContextVar("dibble_runtime_request_id", default="system")
 _TELEMETRY_LEVEL = ContextVar("dibble_runtime_telemetry_level", default="off")
 _LOG_LEVELS = {
     "off": logging.CRITICAL + 1,
@@ -69,20 +71,30 @@ def current_session_id() -> str:
     return _SESSION_ID.get()
 
 
+def current_request_id() -> str:
+    return _REQUEST_ID.get()
+
+
 def bind_runtime_telemetry(
-    *, session_id: str | None = None, telemetry_level: str = "off"
-) -> tuple[Token[str], Token[str]]:
+    *,
+    session_id: str | None = None,
+    request_id: str | None = None,
+    telemetry_level: str = "off",
+) -> tuple[Token[str], Token[str], Token[str]]:
     normalized_level = telemetry_level.strip().lower()
     normalized_session = _normalize_session_id(session_id)
+    normalized_request = _normalize_request_id(request_id)
     return (
         _SESSION_ID.set(normalized_session),
+        _REQUEST_ID.set(normalized_request),
         _TELEMETRY_LEVEL.set(normalized_level),
     )
 
 
-def reset_runtime_telemetry(tokens: tuple[Token[str], Token[str]]) -> None:
-    session_token, level_token = tokens
+def reset_runtime_telemetry(tokens: tuple[Token[str], Token[str], Token[str]]) -> None:
+    session_token, request_token, level_token = tokens
     _SESSION_ID.reset(session_token)
+    _REQUEST_ID.reset(request_token)
     _TELEMETRY_LEVEL.reset(level_token)
 
 
@@ -147,8 +159,10 @@ class RuntimeTelemetryMiddleware:
 
         captured = await capture_request(scope, receive)
         session_id = resolve_request_session_id(captured.request, captured.payload)
+        request_id = resolve_request_id(captured.request)
         tokens = bind_runtime_telemetry(
             session_id=session_id,
+            request_id=request_id,
             telemetry_level=self.settings.telemetry_level,
         )
         started_at = monotonic()
@@ -158,12 +172,15 @@ class RuntimeTelemetryMiddleware:
         async def send_with_capture(message: Message) -> None:
             nonlocal status_code, content_type
             if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                headers.append((b"x-request-id", request_id.encode("utf-8")))
+                message["headers"] = headers
                 status_code = int(message["status"])
-                headers = {
+                header_map = {
                     key.decode("latin-1"): value.decode("latin-1")
-                    for key, value in message.get("headers", [])
+                    for key, value in headers
                 }
-                content_type = headers.get("content-type")
+                content_type = header_map.get("content-type")
             await send(message)
 
         try:
@@ -298,6 +315,10 @@ def resolve_request_session_id(request: Request, payload: object | None) -> str:
     return DEFAULT_SESSION_ID
 
 
+def resolve_request_id(request: Request) -> str:
+    return _normalize_request_id(request.headers.get("X-Request-ID") or str(uuid4()))
+
+
 def scrub_payload(payload: object | None) -> object | None:
     if payload is None:
         return None
@@ -356,6 +377,7 @@ def duration_ms(started_at: float) -> int:
 class SessionContextFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         record.session_id = current_session_id()
+        record.request_id = current_request_id()
         return True
 
 
@@ -394,6 +416,14 @@ def _normalize_session_id(session_id: str | None) -> str:
     normalized = re.sub(r"[^A-Za-z0-9._-]+", "-", session_id.strip())
     normalized = normalized.strip(".-")
     return normalized or DEFAULT_SESSION_ID
+
+
+def _normalize_request_id(request_id: str | None) -> str:
+    if request_id is None:
+        return "system"
+    normalized = re.sub(r"[^A-Za-z0-9._:-]+", "-", request_id.strip())
+    normalized = normalized.strip(".-:")
+    return normalized or "system"
 
 
 def _encode_log_fields(fields: dict[str, object]) -> str:

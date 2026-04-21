@@ -29,11 +29,14 @@ from dibble.models.curriculum_intake import (
     CurriculumImportRequest,
     CurriculumMigrationApprovalRequest,
     CurriculumMigrationExecutionRequest,
+    CurriculumMigrationPlan,
     CurriculumMigrationPlanRequest,
     CurriculumSnapshotDiffRequest,
     FrameworkImportMode,
+    MigrationAction,
     MigrationActionStatus,
     MigrationActionType,
+    MigrationPlanStatus,
     MigrationRiskLevel,
     RuntimeEntityKind,
 )
@@ -693,3 +696,40 @@ def test_admin_curriculum_evolution_api_flow(tmp_path, monkeypatch):
     assert migrated_goal is not None
     assert migrated_goal.curriculum_provenance is not None
     assert migrated_goal.curriculum_provenance.published_snapshot_id == target_snapshot["snapshot_id"]
+
+
+def test_migration_execution_marks_partial_failure_when_runtime_entity_is_missing(tmp_path):
+    adapter_v1 = _base_curriculum("curriculum_v1", "v1")
+    intake, evolution = _build_harnesses(tmp_path, adapter_v1)
+    snapshot = _publish(intake, "curriculum_v1")
+    plan = CurriculumMigrationPlan(
+        plan_id="plan-missing-goal",
+        diff_id="diff-missing-goal",
+        source_snapshot_id=snapshot.snapshot_id,
+        target_snapshot_id=snapshot.snapshot_id,
+        status=MigrationPlanStatus.ready,
+        actions=[
+            MigrationAction(
+                action_id="action-missing-goal",
+                action_type=MigrationActionType.swap_provenance_only,
+                entity_kind=RuntimeEntityKind.learner_goal,
+                entity_id="goal-does-not-exist",
+                source_snapshot_id=snapshot.snapshot_id,
+                target_snapshot_id=snapshot.snapshot_id,
+                risk_level=MigrationRiskLevel.low,
+                confidence=0.9,
+                status=MigrationActionStatus.approved,
+                rationale="Exercise missing-entity recovery.",
+            )
+        ],
+    )
+    evolution.curriculum_migration_plan_store.upsert(plan)
+
+    executed = evolution.execute_migration_plan(
+        plan.plan_id,
+        CurriculumMigrationExecutionRequest(action_ids=["action-missing-goal"]),
+    )
+
+    assert executed.status == MigrationPlanStatus.partial_failure
+    assert executed.actions[0].status == MigrationActionStatus.execution_failed
+    assert "goal missing" in str(executed.actions[0].execution_summary)

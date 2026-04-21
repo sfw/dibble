@@ -12,6 +12,11 @@ from dibble.models.generation import (
     ModalityRoutingInspection,
 )
 from dibble.models.household import LearnerRelationshipState
+from dibble.models.observability import (
+    HarnessBoundary,
+    OperationalTrace,
+    ReleaseReadinessSnapshot,
+)
 from dibble.models.planning import ActivePlanningState
 from dibble.models.telemetry import AuditEvent, TelemetrySnapshot
 
@@ -30,12 +35,41 @@ def build_observability_router(context: ApiContext) -> APIRouter:
         return services.audit_store.list(limit=safe_limit)
 
     @router.get(
+        "/observability/traces",
+        response_model=list[OperationalTrace],
+        dependencies=context.deps("admin"),
+    )
+    def list_operational_traces(
+        limit: int = 100,
+        harness: HarnessBoundary | None = None,
+        degraded_only: bool = False,
+        request_id: str | None = None,
+        session_id: str | None = None,
+    ) -> list[OperationalTrace]:
+        safe_limit = max(1, min(limit, 200))
+        return services.operational_observability_service.list_traces(
+            limit=safe_limit,
+            harness=harness,
+            degraded_only=degraded_only,
+            request_id=request_id,
+            session_id=session_id,
+        )
+
+    @router.get(
         "/observability/metrics",
         response_model=TelemetrySnapshot,
         dependencies=context.deps("admin"),
     )
     def get_observability_metrics() -> TelemetrySnapshot:
         return services.telemetry_service.snapshot()
+
+    @router.get(
+        "/observability/readiness",
+        response_model=ReleaseReadinessSnapshot,
+        dependencies=context.deps("admin"),
+    )
+    def get_release_readiness() -> ReleaseReadinessSnapshot:
+        return services.operational_observability_service.release_readiness_snapshot()
 
     @router.post(
         "/observability/adaptation/modality-routing/inspect",

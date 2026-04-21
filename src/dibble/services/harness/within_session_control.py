@@ -11,6 +11,7 @@ from dibble.models.generation import (
     GenerationWorkflowSummary,
     RequestedContentType,
 )
+from dibble.models.observability import HarnessBoundary, OperationalTraceStatus
 from dibble.models.profile import LearnerContinueAction, LearnerFlowNextStep
 from dibble.models.session_control import SessionControlState
 from dibble.services.harness.curriculum_planning import (
@@ -18,6 +19,7 @@ from dibble.services.harness.curriculum_planning import (
     EnsureActiveTrajectoryCommand,
 )
 from dibble.services.predictive_next_step_planner import PredictiveNextStepPlanner
+from dibble.services.operational_observability import OperationalObservabilityService
 from dibble.services.protocols import SessionControlStore
 from dibble.services.workflow_rationale import decision_grade_rationale
 
@@ -70,6 +72,7 @@ class WithinSessionControlHarness:
     next_step_planner: PredictiveNextStepPlanner = field(
         default_factory=PredictiveNextStepPlanner
     )
+    operational_observability_service: OperationalObservabilityService | None = None
 
     def bind_generation_request(
         self, command: BindGenerationRequestCommand
@@ -110,12 +113,36 @@ class WithinSessionControlHarness:
         self, command: EnsureSessionControlCommand
     ) -> SessionControlState | None:
         student_id = command.student_id
-        existing = self.session_control_store.get_active_for_student(student_id=student_id)
-        if existing is not None:
-            return existing
         planning = self.curriculum_planning_harness.ensure_active_trajectory(
             EnsureActiveTrajectoryCommand(student_id=student_id)
         )
+        existing = self.session_control_store.get_active_for_student(student_id=student_id)
+        if existing is not None:
+            if self._session_requires_recovery(existing=existing, planning=planning):
+                recovered = self._create_session_from_plan(
+                    student_id=student_id,
+                    learning_session_id=existing.learning_session_id,
+                    planning=planning,
+                    explicit_target_kc_ids=list(existing.active_target_kc_ids),
+                    explicit_target_lo_ids=list(existing.target_lo_ids),
+                )
+                self._record_trace(
+                    student_id=student_id,
+                    session_id=recovered.learning_session_id,
+                    status=OperationalTraceStatus.recovered,
+                    summary="Recovered stale within-session control state from the current planning state.",
+                    degraded_mode=True,
+                    degraded_reason="Session control state drifted from the active planning state.",
+                    reason_code="session_state_recovered_from_planning",
+                    payload={
+                        "previous_goal_id": existing.goal_id,
+                        "previous_trajectory_id": existing.trajectory_id,
+                        "recovered_goal_id": recovered.goal_id,
+                        "recovered_trajectory_id": recovered.trajectory_id,
+                    },
+                )
+                return recovered
+            return existing
         if planning.goal is None and planning.trajectory is None:
             return None
         return self._create_session_from_plan(
@@ -183,6 +210,31 @@ class WithinSessionControlHarness:
             else self.session_control_store.get_active_for_student(student_id=request.student_id)
         )
         if existing is not None:
+            if self._session_requires_recovery(existing=existing, planning=planning):
+                existing = self._create_session_from_plan(
+                    student_id=request.student_id,
+                    learning_session_id=existing.learning_session_id,
+                    planning=planning,
+                    explicit_target_kc_ids=list(
+                        request.target_kc_ids or existing.active_target_kc_ids
+                    ),
+                    explicit_target_lo_ids=list(
+                        request.target_lo_ids or existing.target_lo_ids
+                    ),
+                )
+                self._record_trace(
+                    student_id=request.student_id,
+                    session_id=existing.learning_session_id,
+                    status=OperationalTraceStatus.recovered,
+                    summary="Recovered stale within-session control state from the current planning state.",
+                    degraded_mode=True,
+                    degraded_reason="Session control state drifted from the active planning state.",
+                    reason_code="session_state_recovered_from_planning",
+                    payload={
+                        "goal_id": existing.goal_id,
+                        "trajectory_id": existing.trajectory_id,
+                    },
+                )
             if request.target_kc_ids or request.target_lo_ids:
                 existing = existing.model_copy(
                     update={
@@ -299,7 +351,62 @@ class WithinSessionControlHarness:
             rationale=next_step.rationale,
         )
         self.session_control_store.upsert(session)
+        self._record_trace(
+            student_id=student_id,
+            session_id=session.learning_session_id,
+            status=OperationalTraceStatus.success,
+            summary="Created within-session control state from the active planning state.",
+            reason_code="session_created_from_planning",
+            payload={
+                "goal_id": session.goal_id,
+                "trajectory_id": session.trajectory_id,
+                "target_kc_ids": list(session.active_target_kc_ids),
+            },
+        )
         return session
+
+    def _session_requires_recovery(self, *, existing: SessionControlState, planning) -> bool:
+        active_goal_id = planning.goal.goal_id if planning.goal is not None else None
+        active_trajectory_id = (
+            planning.trajectory.trajectory_id if planning.trajectory is not None else None
+        )
+        if planning.trajectory_revised:
+            return True
+        if active_goal_id is not None and existing.goal_id not in {None, active_goal_id}:
+            return True
+        if (
+            active_trajectory_id is not None
+            and existing.trajectory_id not in {None, active_trajectory_id}
+        ):
+            return True
+        return False
+
+    def _record_trace(
+        self,
+        *,
+        student_id,
+        session_id: str,
+        status: OperationalTraceStatus,
+        summary: str,
+        degraded_mode: bool = False,
+        degraded_reason: str | None = None,
+        reason_code: str | None = None,
+        payload: dict[str, object] | None = None,
+    ) -> None:
+        if self.operational_observability_service is None:
+            return
+        self.operational_observability_service.record_trace(
+            harness=HarnessBoundary.within_session_control,
+            operation="session_control",
+            status=status,
+            summary=summary,
+            session_id=session_id,
+            student_id=str(student_id),
+            degraded_mode=degraded_mode,
+            degraded_reason=degraded_reason,
+            reason_code=reason_code,
+            payload=payload,
+        )
 
     def _active_node(self, trajectory) -> object | None:
         if trajectory is None:

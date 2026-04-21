@@ -19,13 +19,15 @@ from dibble.models.generation import (
 from dibble.services.curriculum_content_library_store import (
     SQLiteCurriculumContentLibraryStore,
 )
+from dibble.services.operational_observability import OperationalObservabilityService
+from dibble.services.operational_trace_store import SQLiteOperationalTraceStore
 from dibble.services.harness.content_library import (
     CloudLibraryTransportResponse,
     LibraryFirstCurriculumContentLibrary,
     LocalStubCloudLibraryClient,
     RemoteReadyCloudLibraryClient,
 )
-from dibble.storage import CURRICULUM_CONTENT_LIBRARY_TABLE_SQL
+from dibble.storage import CURRICULUM_CONTENT_LIBRARY_TABLE_SQL, OPERATIONAL_TRACE_TABLE_SQL
 
 
 def test_library_first_content_library_writes_only_verified_entries():
@@ -189,6 +191,63 @@ def test_library_first_content_library_marks_remote_lookup_failure_on_local_fall
     assert entry.provenance.degraded_mode is True
     assert entry.provenance.degraded_reason == "remote lookup unavailable"
     assert entry.provenance.remote_endpoint == "https://library.example.test"
+
+
+def test_library_first_content_library_records_operational_trace_for_remote_publish_failure():
+    class _FailingRemoteClient:
+        endpoint = "https://library.example.test"
+
+        def lookup(self, *, key):
+            return None
+
+        def publish(self, *, entry):
+            raise RuntimeError("remote publish unavailable")
+
+    conn = sqlite3.connect(":memory:")
+    conn.executescript(CURRICULUM_CONTENT_LIBRARY_TABLE_SQL)
+    conn.executescript(OPERATIONAL_TRACE_TABLE_SQL)
+    observability = OperationalObservabilityService(
+        trace_store=SQLiteOperationalTraceStore(conn)
+    )
+    library = LibraryFirstCurriculumContentLibrary(
+        local_client=LocalStubCloudLibraryClient(SQLiteCurriculumContentLibraryStore(conn)),
+        remote_client=_FailingRemoteClient(),
+        observability_service=observability,
+    )
+    request = CurriculumContentRequest(
+        grade_level="5",
+        intent=ContentIntent.explanation,
+        content_type="micro_explanation",
+        target_kc_ids=["KC-1"],
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.reteach,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="medium",
+        reasons=["test"],
+    )
+    key = CurriculumContentKey(request=request, route=route, grounding=[])
+    content = GeneratedContent(
+        generation_id="gen-verified",
+        student_id=uuid4(),
+        content_type="micro_explanation",
+        request_context={},
+        response=GenerationResponse(
+            student_id=uuid4(),
+            route=route,
+            blocks=[GeneratedBlock(kind="summary", title="Focus", body="Fractions")],
+            curriculum_context=["Fractions"],
+            safety_notes=[],
+        ),
+        quality=GenerationMetadata(validation_passed=True),
+    )
+
+    library.upsert(key=key, content=content)
+
+    traces = observability.list_traces(limit=5)
+    assert traces[0].harness == "content_library"
+    assert traces[0].status == "degraded"
+    assert traces[0].reason_code == "remote_publish_failed_local_only"
 
 
 def test_library_first_content_library_prefers_remote_hit_with_real_remote_adapter():

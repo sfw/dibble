@@ -18,8 +18,11 @@ from dibble.models.household import (
     HouseholdSetupResponse,
     ParentProfile,
 )
+from dibble.models.observability import HarnessBoundary, OperationalTraceStatus
+from dibble.services.operational_observability import OperationalObservabilityService
 from dibble.services.autonomous_teacher_harness import AutonomousTeacherHarness
 from dibble.services.protocols import (
+    AuditStore,
     HouseholdStore,
     ParentNotificationStore,
     UserStore,
@@ -32,6 +35,8 @@ class HouseholdService:
     user_store: UserStore
     autonomous_teacher_harness: AutonomousTeacherHarness
     parent_notification_store: ParentNotificationStore
+    audit_store: AuditStore | None = None
+    operational_observability_service: OperationalObservabilityService | None = None
 
     def setup_household(
         self,
@@ -454,6 +459,30 @@ class HouseholdService:
                 }
             )
         )
+        payload = {
+            "learner_id": learner_id,
+            "status": status,
+            "snoozed_until": snoozed_until.isoformat() if snoozed_until else None,
+            "approval_request_count": len(relationship_state.approval_requests),
+        }
+        if self.audit_store is not None:
+            self.audit_store.append(
+                event_type="autonomous_teacher.session_suggestion",
+                status=status,
+                student_id=learner_id,
+                payload=payload,
+            )
+        if self.operational_observability_service is not None:
+            self.operational_observability_service.record_trace(
+                harness=HarnessBoundary.autonomous_teacher,
+                operation="session_suggestion_update",
+                status=OperationalTraceStatus.success,
+                summary="Parent updated an autonomous session suggestion.",
+                student_id=learner_id,
+                household_id=household.household_id,
+                reason_code=f"session_suggestion_{status}",
+                payload=payload,
+            )
         return self.get_household_overview(parent_user_id=parent_user_id)
 
     def _validated_learner_ids(
@@ -589,4 +618,40 @@ class HouseholdService:
                 }
             )
         )
+        resolved_approval = next(
+            (approval for approval in updated_approvals if approval.approval_id == approval_id),
+            None,
+        )
+        payload = {
+            "approval_id": approval_id,
+            "learner_id": learner_id,
+            "approval_status": status.value,
+            "approval_type": (
+                resolved_approval.approval_type.value if resolved_approval is not None else None
+            ),
+            "proposed_value": (
+                resolved_approval.proposed_value if resolved_approval is not None else None
+            ),
+            "approved_modalities": list(approved_modalities),
+        }
+        if self.audit_store is not None:
+            self.audit_store.append(
+                event_type="autonomous_teacher.parent_approval",
+                status=status.value,
+                student_id=learner_id,
+                payload=payload,
+            )
+        if self.operational_observability_service is not None:
+            self.operational_observability_service.record_trace(
+                harness=HarnessBoundary.autonomous_teacher,
+                operation="parent_approval_update",
+                status=OperationalTraceStatus.success,
+                summary="Parent approval updated autonomous teaching state.",
+                student_id=learner_id,
+                household_id=household.household_id,
+                entity_kind="parent_approval",
+                entity_id=approval_id,
+                reason_code=f"parent_approval_{status.value}",
+                payload=payload,
+            )
         return self.get_household_overview(parent_user_id=parent_user_id)

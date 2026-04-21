@@ -35,7 +35,9 @@ from dibble.models.curriculum_intake import (
     RuntimeEntityKind,
 )
 from dibble.models.generation import CurriculumLibraryEntry
+from dibble.models.observability import HarnessBoundary, OperationalTraceStatus
 from dibble.models.planning import TrajectoryRevision
+from dibble.services.operational_observability import OperationalObservabilityService
 from dibble.services.protocols import (
     AlignmentEdgeStore,
     AssignmentStore,
@@ -109,6 +111,10 @@ _TRACKED_FIELDS: dict[CurriculumArtifactKind, tuple[str, ...]] = {
 }
 
 
+class MigrationExecutionError(RuntimeError):
+    pass
+
+
 @dataclass(slots=True)
 class CurriculumEvolutionHarness:
     published_snapshot_store: PublishedCurriculumSnapshotStore
@@ -124,6 +130,7 @@ class CurriculumEvolutionHarness:
     classroom_store: ClassroomStore
     course_store: CourseStore
     curriculum_content_library_store: CurriculumContentLibraryStore
+    operational_observability_service: OperationalObservabilityService | None = None
 
     def list_snapshot_diffs(self) -> list[CurriculumSnapshotDiff]:
         return self.curriculum_snapshot_diff_store.list()
@@ -174,7 +181,20 @@ class CurriculumEvolutionHarness:
             created_at=existing.created_at if existing is not None else now,
             updated_at=now,
         )
-        return self.curriculum_snapshot_diff_store.upsert(diff)
+        persisted = self.curriculum_snapshot_diff_store.upsert(diff)
+        self._record_trace(
+            operation="create_snapshot_diff",
+            status=OperationalTraceStatus.success,
+            summary="Created curriculum snapshot diff for release review.",
+            entity_id=persisted.diff_id,
+            reason_code="snapshot_diff_created",
+            payload={
+                "source_snapshot_id": persisted.source_snapshot_id,
+                "target_snapshot_id": persisted.target_snapshot_id,
+                "delta_count": len(persisted.entity_deltas),
+            },
+        )
+        return persisted
 
     def analyze_impact(
         self, request: CurriculumImpactAnalysisRequest
@@ -442,7 +462,19 @@ class CurriculumEvolutionHarness:
             created_at=existing.created_at if existing is not None else now,
             updated_at=now,
         )
-        return self.curriculum_impact_analysis_store.upsert(analysis)
+        persisted = self.curriculum_impact_analysis_store.upsert(analysis)
+        self._record_trace(
+            operation="analyze_impact",
+            status=OperationalTraceStatus.success,
+            summary="Analyzed runtime impact of curriculum changes.",
+            entity_id=persisted.analysis_id,
+            reason_code="impact_analysis_created",
+            payload={
+                "diff_id": persisted.diff_id,
+                "impact_count": len(persisted.impacts),
+            },
+        )
+        return persisted
 
     def create_migration_plan(
         self, request: CurriculumMigrationPlanRequest
@@ -524,7 +556,20 @@ class CurriculumEvolutionHarness:
             created_at=now,
             updated_at=now,
         )
-        return self.curriculum_migration_plan_store.upsert(plan)
+        persisted = self.curriculum_migration_plan_store.upsert(plan)
+        self._record_trace(
+            operation="create_migration_plan",
+            status=OperationalTraceStatus.success,
+            summary="Created a curriculum migration plan from the latest impact analysis.",
+            entity_id=persisted.plan_id,
+            reason_code="migration_plan_created",
+            payload={
+                "diff_id": persisted.diff_id,
+                "action_count": len(persisted.actions),
+                "review_item_count": len(persisted.review_items),
+            },
+        )
+        return persisted
 
     def approve_migration_plan(
         self, plan_id: str, request: CurriculumMigrationApprovalRequest
@@ -567,7 +612,25 @@ class CurriculumEvolutionHarness:
                 "updated_at": now,
             }
         )
-        return self.curriculum_migration_plan_store.upsert(updated_plan)
+        persisted = self.curriculum_migration_plan_store.upsert(updated_plan)
+        self._record_trace(
+            operation="approve_migration_plan",
+            status=OperationalTraceStatus.success,
+            summary="Approved low-risk curriculum migration actions for execution.",
+            entity_id=persisted.plan_id,
+            reason_code="migration_plan_approved",
+            payload={
+                "approved_action_count": sum(
+                    1 for action in persisted.actions if action.status == MigrationActionStatus.approved
+                ),
+                "plan_status": (
+                    persisted.status.value
+                    if hasattr(persisted.status, "value")
+                    else str(persisted.status)
+                ),
+            },
+        )
+        return persisted
 
     def execute_migration_plan(
         self, plan_id: str, request: CurriculumMigrationExecutionRequest
@@ -578,6 +641,7 @@ class CurriculumEvolutionHarness:
         target_provenance = self._snapshot_provenance(target_snapshot)
         updated_actions: list[MigrationAction] = []
         now = datetime.now(timezone.utc)
+        failed_action_count = 0
         for action in plan.actions:
             is_selected = not selected_action_ids or action.action_id in selected_action_ids
             if (
@@ -587,10 +651,23 @@ class CurriculumEvolutionHarness:
             ):
                 updated_actions.append(action)
                 continue
-            summary = self._execute_action(
-                action=action,
-                target_provenance=target_provenance,
-            )
+            try:
+                summary = self._execute_action(
+                    action=action,
+                    target_provenance=target_provenance,
+                )
+            except MigrationExecutionError as exc:
+                failed_action_count += 1
+                updated_actions.append(
+                    action.model_copy(
+                        update={
+                            "status": MigrationActionStatus.execution_failed,
+                            "executed_at": now,
+                            "execution_summary": str(exc),
+                        }
+                    )
+                )
+                continue
             updated_actions.append(
                 action.model_copy(
                     update={
@@ -600,11 +677,13 @@ class CurriculumEvolutionHarness:
                     }
                 )
             )
-        next_status = (
-            MigrationPlanStatus.executed
-            if not any(action.status == MigrationActionStatus.approved for action in updated_actions)
-            else plan.status
-        )
+        next_status = plan.status
+        if failed_action_count > 0:
+            next_status = MigrationPlanStatus.partial_failure
+        elif not any(
+            action.status == MigrationActionStatus.approved for action in updated_actions
+        ):
+            next_status = MigrationPlanStatus.executed
         updated_plan = plan.model_copy(
             update={
                 "status": next_status,
@@ -612,7 +691,44 @@ class CurriculumEvolutionHarness:
                 "updated_at": now,
             }
         )
-        return self.curriculum_migration_plan_store.upsert(updated_plan)
+        persisted = self.curriculum_migration_plan_store.upsert(updated_plan)
+        self._record_trace(
+            operation="execute_migration_plan",
+            status=(
+                OperationalTraceStatus.degraded
+                if failed_action_count > 0
+                else OperationalTraceStatus.success
+            ),
+            summary=(
+                "Executed curriculum migration plan with partial failures."
+                if failed_action_count > 0
+                else "Executed curriculum migration plan."
+            ),
+            entity_id=persisted.plan_id,
+            degraded_mode=failed_action_count > 0,
+            degraded_reason=(
+                f"{failed_action_count} action(s) failed during execution."
+                if failed_action_count > 0
+                else None
+            ),
+            reason_code=(
+                "migration_plan_partial_failure"
+                if failed_action_count > 0
+                else "migration_plan_executed"
+            ),
+            payload={
+                "plan_status": (
+                    persisted.status.value
+                    if hasattr(persisted.status, "value")
+                    else str(persisted.status)
+                ),
+                "executed_action_count": sum(
+                    1 for action in persisted.actions if action.status == MigrationActionStatus.executed
+                ),
+                "failed_action_count": failed_action_count,
+            },
+        )
+        return persisted
 
     def _execute_action(
         self,
@@ -644,7 +760,7 @@ class CurriculumEvolutionHarness:
     ) -> str:
         goal = self.learner_goal_store.get(action.entity_id)
         if goal is None:
-            return "goal missing; no mutation applied"
+            raise MigrationExecutionError("goal missing; no mutation applied")
         now = datetime.now(timezone.utc)
         outcome_map = dict(zip(action.source_outcome_ids, action.target_outcome_ids))
         kc_map = dict(zip(action.source_kc_ids, action.target_kc_ids))
@@ -684,7 +800,7 @@ class CurriculumEvolutionHarness:
     ) -> str:
         trajectory = self.trajectory_store.get(action.entity_id)
         if trajectory is None:
-            return "trajectory missing; no mutation applied"
+            raise MigrationExecutionError("trajectory missing; no mutation applied")
         now = datetime.now(timezone.utc)
         outcome_map = dict(zip(action.source_outcome_ids, action.target_outcome_ids))
         kc_map = dict(zip(action.source_kc_ids, action.target_kc_ids))
@@ -761,7 +877,7 @@ class CurriculumEvolutionHarness:
     def _execute_assignment_action(self, *, action: MigrationAction) -> str:
         assignment = self.assignment_store.get(action.entity_id)
         if assignment is None:
-            return "assignment missing; no mutation applied"
+            raise MigrationExecutionError("assignment missing; no mutation applied")
         outcome_map = dict(zip(action.source_outcome_ids, action.target_outcome_ids))
         kc_map = dict(zip(action.source_kc_ids, action.target_kc_ids))
         updated = assignment.model_copy(
@@ -793,7 +909,7 @@ class CurriculumEvolutionHarness:
         }
         entry = entries.get(action.entity_id)
         if entry is None:
-            return "library artifact missing; no mutation applied"
+            raise MigrationExecutionError("library artifact missing; no mutation applied")
         now = datetime.now(timezone.utc)
         if action.action_type == MigrationActionType.invalidate_library_artifact:
             expired = entry.model_copy(
@@ -850,6 +966,33 @@ class CurriculumEvolutionHarness:
         )
         self.curriculum_content_library_store.upsert_entry(entry=expired)
         return f"migrated library artifact {action.entity_id}"
+
+    def _record_trace(
+        self,
+        *,
+        operation: str,
+        status: OperationalTraceStatus,
+        summary: str,
+        entity_id: str | None = None,
+        degraded_mode: bool = False,
+        degraded_reason: str | None = None,
+        reason_code: str | None = None,
+        payload: dict[str, object] | None = None,
+    ) -> None:
+        if self.operational_observability_service is None:
+            return
+        self.operational_observability_service.record_trace(
+            harness=HarnessBoundary.curriculum_evolution,
+            operation=operation,
+            status=status,
+            summary=summary,
+            entity_kind="curriculum_migration_plan",
+            entity_id=entity_id,
+            degraded_mode=degraded_mode,
+            degraded_reason=degraded_reason,
+            reason_code=reason_code,
+            payload=payload,
+        )
 
     def _matched_delta_ids(
         self,

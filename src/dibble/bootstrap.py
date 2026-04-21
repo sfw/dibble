@@ -120,6 +120,8 @@ from dibble.services.misconception_profiles import (
     LearningMisconceptionProfileResolver,
 )
 from dibble.services.observation_store import SQLiteObservationStore
+from dibble.services.operational_observability import OperationalObservabilityService
+from dibble.services.operational_trace_store import SQLiteOperationalTraceStore
 from dibble.services.parent_notification_store import SQLiteParentNotificationStore
 from dibble.services.observation_profile_update import ObservationProfileUpdater
 from dibble.services.ordinary_mastery_profiles import (
@@ -217,6 +219,7 @@ class ApplicationServices:
     household_store: HouseholdStore
     auth_service: AuthService
     telemetry_service: TelemetryService
+    operational_observability_service: OperationalObservabilityService
     generation_engine: GenerationEngine
     content_warmer: ContentWarmer
     content_workflow_service: ContentWorkflowService
@@ -273,6 +276,8 @@ class ApplicationServices:
     admin_section_membership_service: AdminSectionMembershipService
     setup_config_service: SetupConfigService
     setup_model_catalog_service: SetupModelCatalogService
+    provider_health_store: SQLiteProviderHealthStore
+    operational_trace_store: SQLiteOperationalTraceStore
 
 
 def build_application_services(
@@ -312,6 +317,7 @@ def build_application_services(
     trajectory_store = SQLiteTrajectoryStore(conn)
     session_control_store = SQLiteSessionControlStore(conn)
     provider_health_store = SQLiteProviderHealthStore(conn)
+    operational_trace_store = SQLiteOperationalTraceStore(conn)
     user_store = SQLiteUserStore(conn)
     household_store = SQLiteHouseholdStore(conn)
     learner_relationship_state_store = SQLiteLearnerRelationshipStateStore(conn)
@@ -387,10 +393,22 @@ def build_application_services(
         prior_store=modality_routing_prior_store,
         audit_store=audit_store,
     )
+    operational_observability_service = OperationalObservabilityService(
+        trace_store=operational_trace_store,
+        provider_health_store=provider_health_store,
+        curriculum_migration_plan_store=curriculum_migration_plan_store,
+        learner_relationship_state_store=learner_relationship_state_store,
+        user_store=user_store,
+        content_library=local_curriculum_content_library,
+    )
+    local_curriculum_content_library.observability_service = (
+        operational_observability_service
+    )
     content_generation_harness = ContentGenerationHarness(
         generation_engine=generation_engine,
         modality_routing_harness=modality_routing_harness,
         modality_plugins=modality_plugins,
+        operational_observability_service=operational_observability_service,
     )
     misconception_remediation_outcome_signal_service = (
         MisconceptionRemediationOutcomeSignalService(audit_store=audit_store)
@@ -529,6 +547,7 @@ def build_application_services(
         outcome_store=outcome_store,
         knowledge_component_store=knowledge_component_store,
         adapters=tuple(default_curriculum_import_adapters()),
+        operational_observability_service=operational_observability_service,
     )
     curriculum_planning_harness = CurriculumPlanningHarness(
         profile_store=profile_store,
@@ -561,10 +580,12 @@ def build_application_services(
         classroom_store=classroom_store,
         course_store=course_store,
         curriculum_content_library_store=curriculum_content_library_store,
+        operational_observability_service=operational_observability_service,
     )
     within_session_control_harness = WithinSessionControlHarness(
         curriculum_planning_harness=curriculum_planning_harness,
         session_control_store=session_control_store,
+        operational_observability_service=operational_observability_service,
     )
     cross_signal_consistency_service = CrossSignalConsistencyService()
     learner_summary_service = LearnerSummaryService(
@@ -587,6 +608,7 @@ def build_application_services(
         user_store=user_store,
         audit_store=audit_store,
         modality_routing_prior_store=modality_routing_prior_store,
+        operational_observability_service=operational_observability_service,
     )
     outcome_driven_adaptation_service = OutcomeDrivenAdaptationService(
         audit_store=audit_store,
@@ -674,6 +696,8 @@ def build_application_services(
         user_store=user_store,
         autonomous_teacher_harness=autonomous_teacher_harness,
         parent_notification_store=parent_notification_store,
+        audit_store=audit_store,
+        operational_observability_service=operational_observability_service,
     )
 
     return ApplicationServices(
@@ -701,6 +725,7 @@ def build_application_services(
             provider_health_store,
             predictive_warm_queue_store=predictive_warm_queue_store,
         ),
+        operational_observability_service=operational_observability_service,
         generation_engine=generation_engine,
         content_warmer=content_warmer,
         content_workflow_service=content_workflow_service,
@@ -772,4 +797,6 @@ def build_application_services(
             settings_loader=settings_loader,
         ),
         setup_model_catalog_service=SetupModelCatalogService(),
+        provider_health_store=provider_health_store,
+        operational_trace_store=operational_trace_store,
     )

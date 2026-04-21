@@ -18,6 +18,8 @@ from dibble.models.generation import (
     GeneratedContent,
     AdaptiveScoreComponent,
 )
+from dibble.models.observability import HarnessBoundary, OperationalTraceStatus
+from dibble.services.operational_observability import OperationalObservabilityService
 from dibble.services.protocols import (
     CurriculumContentLibraryStore,
     GeneratedContentStore,
@@ -435,6 +437,7 @@ class RemoteReadyCloudLibraryClient:
 class LibraryFirstCurriculumContentLibrary:
     local_client: CloudLibraryClient
     remote_client: CloudLibraryClient | None = None
+    observability_service: OperationalObservabilityService | None = None
 
     def get_fresh_entry(
         self,
@@ -459,10 +462,41 @@ class LibraryFirstCurriculumContentLibrary:
             key=key,
             candidates=candidates,
         ).selected_cache_key
-        return next(
+        entry = next(
             (entry for entry in candidates if entry.cache_key == selected),
             candidates[0],
         )
+        provenance = entry.provenance
+        degraded_mode = bool(provenance.degraded_mode) if provenance is not None else False
+        reason_code = provenance.lookup_status if provenance is not None else None
+        self._record_trace(
+            operation="lookup",
+            status=(
+                OperationalTraceStatus.degraded
+                if degraded_mode
+                else OperationalTraceStatus.success
+            ),
+            summary=(
+                "Selected local curriculum library fallback after remote lookup degraded."
+                if degraded_mode
+                else "Selected curriculum library artifact."
+            ),
+            degraded_mode=degraded_mode,
+            degraded_reason=provenance.degraded_reason if provenance is not None else None,
+            fallback_kind=(
+                "local_library_fallback"
+                if degraded_mode or reason_code == "remote_miss_local_fallback"
+                else None
+            ),
+            fallback_provenance=reason_code,
+            reason_code=reason_code,
+            payload={
+                "cache_key": entry.cache_key,
+                "selection_key": key.selection_key(),
+                "remote_enabled": self.remote_client is not None,
+            },
+        )
+        return entry
 
     def upsert_entry(
         self,
@@ -470,16 +504,32 @@ class LibraryFirstCurriculumContentLibrary:
         entry: CurriculumLibraryEntry,
     ) -> CurriculumLibraryEntry:
         if not self._is_verified(entry):
-            return self._persist_local_entry(
+            persisted = self._persist_local_entry(
                 self._with_library_provenance(
                     entry.model_copy(
                         update={"storage_scope": CurriculumLibraryStorageScope.local_only}
                     ),
                     lookup_status="local_only",
                     publish_status="verification_blocked_local_only",
-                    degraded_mode=False,
+                    degraded_mode=True,
+                    degraded_reason="Content verification blocked remote publication.",
                 )
             )
+            self._record_trace(
+                operation="publish",
+                status=OperationalTraceStatus.degraded,
+                summary="Skipped shared publication because generated content failed verification.",
+                degraded_mode=True,
+                degraded_reason="Content verification blocked remote publication.",
+                fallback_kind="local_only_hold",
+                fallback_provenance="verification_blocked_local_only",
+                reason_code="verification_blocked_local_only",
+                payload={
+                    "cache_key": persisted.cache_key,
+                    "selection_key": persisted.content_key.selection_key(),
+                },
+            )
+            return persisted
         stored = self.local_client.publish(entry=entry) or entry
         if self.remote_client is not None:
             try:
@@ -489,7 +539,7 @@ class LibraryFirstCurriculumContentLibrary:
                     )
                 )
             except Exception as exc:  # pragma: no cover - defensive contract handling
-                return self._persist_local_entry(
+                persisted = self._persist_local_entry(
                     self._with_library_provenance(
                         stored.model_copy(
                             update={"storage_scope": CurriculumLibraryStorageScope.local_only}
@@ -500,14 +550,42 @@ class LibraryFirstCurriculumContentLibrary:
                         degraded_reason=str(exc),
                     )
                 )
+                self._record_trace(
+                    operation="publish",
+                    status=OperationalTraceStatus.degraded,
+                    summary="Remote cloud library publish failed and the artifact was retained locally.",
+                    degraded_mode=True,
+                    degraded_reason=str(exc),
+                    fallback_kind="local_only_hold",
+                    fallback_provenance="remote_publish_failed_local_only",
+                    reason_code="remote_publish_failed_local_only",
+                    payload={
+                        "cache_key": persisted.cache_key,
+                        "selection_key": persisted.content_key.selection_key(),
+                        "remote_enabled": True,
+                    },
+                )
+                return persisted
             if remote_entry is not None:
-                return self._with_library_provenance(
+                persisted = self._with_library_provenance(
                     remote_entry,
                     lookup_status="remote_hit",
                     publish_status="remote_published",
                     degraded_mode=False,
                 )
-            return self._persist_local_entry(
+                self._record_trace(
+                    operation="publish",
+                    status=OperationalTraceStatus.success,
+                    summary="Published curriculum artifact to the remote cloud library.",
+                    reason_code="remote_published",
+                    payload={
+                        "cache_key": persisted.cache_key,
+                        "selection_key": persisted.content_key.selection_key(),
+                        "remote_enabled": True,
+                    },
+                )
+                return persisted
+            persisted = self._persist_local_entry(
                 self._with_library_provenance(
                     stored.model_copy(
                         update={"storage_scope": CurriculumLibraryStorageScope.local_only}
@@ -517,7 +595,21 @@ class LibraryFirstCurriculumContentLibrary:
                     degraded_mode=False,
                 )
             )
-        return self._persist_local_entry(
+            self._record_trace(
+                operation="publish",
+                status=OperationalTraceStatus.success,
+                summary="Remote cloud library skipped publication; local verified copy was retained.",
+                fallback_kind="local_only_hold",
+                fallback_provenance="remote_skipped_local_only",
+                reason_code="remote_skipped_local_only",
+                payload={
+                    "cache_key": persisted.cache_key,
+                    "selection_key": persisted.content_key.selection_key(),
+                    "remote_enabled": True,
+                },
+            )
+            return persisted
+        persisted = self._persist_local_entry(
             self._with_library_provenance(
                 stored,
                 lookup_status="local_only",
@@ -525,6 +617,18 @@ class LibraryFirstCurriculumContentLibrary:
                 degraded_mode=False,
             )
         )
+        self._record_trace(
+            operation="publish",
+            status=OperationalTraceStatus.success,
+            summary="Stored verified curriculum artifact in the local library.",
+            reason_code="local_only",
+            payload={
+                "cache_key": persisted.cache_key,
+                "selection_key": persisted.content_key.selection_key(),
+                "remote_enabled": False,
+            },
+        )
+        return persisted
 
     def get_fresh(self, *, key: CurriculumContentKey) -> GeneratedContent | None:
         entry = self.get_fresh_entry(key=key)
@@ -645,6 +749,34 @@ class LibraryFirstCurriculumContentLibrary:
 
     def _persist_local_entry(self, entry: CurriculumLibraryEntry) -> CurriculumLibraryEntry:
         return self.local_client.publish(entry=entry) or entry
+
+    def _record_trace(
+        self,
+        *,
+        operation: str,
+        status: OperationalTraceStatus,
+        summary: str,
+        degraded_mode: bool = False,
+        degraded_reason: str | None = None,
+        fallback_kind: str | None = None,
+        fallback_provenance: str | None = None,
+        reason_code: str | None = None,
+        payload: dict[str, object] | None = None,
+    ) -> None:
+        if self.observability_service is None:
+            return
+        self.observability_service.record_trace(
+            harness=HarnessBoundary.content_library,
+            operation=operation,
+            status=status,
+            summary=summary,
+            degraded_mode=degraded_mode,
+            degraded_reason=degraded_reason,
+            fallback_kind=fallback_kind,
+            fallback_provenance=fallback_provenance,
+            reason_code=reason_code,
+            payload=payload,
+        )
 
     def _candidate_entries_for(
         self,

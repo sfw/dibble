@@ -140,3 +140,91 @@ def test_adaptation_observability_routes_expose_modality_and_autonomous_teacher_
     assert "recent_signals" in planning_payload["trajectory"]["adaptation_state"]
     assert "adaptation_state" in relationship_payload
     assert "latest_decision_trace" in relationship_payload
+
+
+def test_observability_readiness_and_traces_surface_parent_approval_audit(tmp_path):
+    db_path = str(tmp_path / "dibble-readiness.db")
+    ensure_database(db_path)
+    settings = Settings(database_path=db_path, auth_enabled=True)
+    app = create_app(settings)
+    student_id = uuid4()
+
+    _seed_user(db_path, api_key="admin-key", role="admin", user_id="admin-1")
+    _seed_user(
+        db_path,
+        api_key="parent-key",
+        role="parent",
+        user_id="parent-1",
+        display_name="Morgan",
+    )
+    _seed_user(
+        db_path,
+        api_key="learner-key",
+        role="learner",
+        user_id="learner-user-1",
+        learner_id=str(student_id),
+        display_name="Avery",
+    )
+
+    conn = create_connection(db_path)
+    SQLiteProfileStore(conn).upsert(LearnerProfile.model_validate(build_profile(student_id)))
+    SQLiteOutcomeStore(conn).upsert(
+        OutcomeUpsert.model_validate(build_outcome("CURR-1", knowledge_component_ids=["KC-1"]))
+    )
+    SQLiteKnowledgeComponentStore(conn).upsert(
+        KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1"))
+    )
+
+    with TestClient(app) as client:
+        client.put(
+            "/api/households/me/setup",
+            headers={"X-API-Key": "parent-key"},
+            json={
+                "household_name": "Avery Family",
+                "learner_ids": [str(student_id)],
+                "relationship_label": "parent",
+                "preferences": {
+                    "session_cadence": "daily",
+                    "auto_session_suggestions": True,
+                    "weekly_summary_day": "sunday",
+                    "soft_escalation_enabled": True,
+                    "approval_mode": "guided",
+                    "modality_introduction_requires_approval": True,
+                    "trajectory_revision_requires_approval": True,
+                    "high_autonomy_session_requires_approval": True,
+                },
+            },
+        )
+        overview_response = client.get(
+            "/api/households/me/overview",
+            headers={"X-API-Key": "parent-key"},
+        )
+        readiness_response = client.get(
+            "/api/observability/readiness",
+            headers={"X-API-Key": "admin-key"},
+        )
+        approval_id = overview_response.json()["pending_approvals"][0]["approval_id"]
+        approve_response = client.post(
+            f"/api/households/me/approvals/{student_id}/{approval_id}/approve",
+            headers={"X-API-Key": "parent-key"},
+        )
+        trace_response = client.get(
+            "/api/observability/traces?harness=autonomous_teacher",
+            headers={"X-API-Key": "admin-key"},
+        )
+
+    assert overview_response.status_code == 200
+    assert readiness_response.status_code == 200
+    assert approve_response.status_code == 200
+    assert trace_response.status_code == 200
+    readiness_payload = readiness_response.json()
+    traces_payload = trace_response.json()
+    assert any(
+        queue["queue_key"] == "parent_approvals" and queue["count"] >= 1
+        for queue in readiness_payload["pending_review_queues"]
+    )
+    assert any(
+        trace["operation"] == "parent_approval_update"
+        and trace["reason_code"] == "parent_approval_approved"
+        for trace in traces_payload
+    )

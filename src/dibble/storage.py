@@ -172,6 +172,29 @@ CREATE TABLE IF NOT EXISTS provider_health_events (
 );
 """
 
+OPERATIONAL_TRACE_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS operational_traces (
+    trace_id TEXT PRIMARY KEY,
+    harness TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    status TEXT NOT NULL,
+    request_id TEXT,
+    session_id TEXT,
+    student_id TEXT,
+    household_id TEXT,
+    entity_kind TEXT,
+    entity_id TEXT,
+    degraded_mode INTEGER NOT NULL DEFAULT 0,
+    degraded_reason TEXT,
+    fallback_kind TEXT,
+    fallback_provenance TEXT,
+    reason_code TEXT,
+    summary TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+"""
+
 AUTH_SESSION_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS auth_sessions (
     session_id TEXT PRIMARY KEY,
@@ -434,6 +457,7 @@ def ensure_database(database_path: str) -> None:
         connection.execute(AUDIT_TABLE_SQL)
         connection.execute(EMBEDDING_TABLE_SQL)
         connection.execute(PROVIDER_HEALTH_TABLE_SQL)
+        connection.execute(OPERATIONAL_TRACE_TABLE_SQL)
         connection.execute(AUTH_SESSION_TABLE_SQL)
         connection.execute(GENERATED_CONTENT_TABLE_SQL)
         connection.execute(CURRICULUM_CONTENT_LIBRARY_TABLE_SQL)

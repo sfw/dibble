@@ -31,10 +31,12 @@ from dibble.models.curriculum_intake import (
     ImportIssueSeverity,
     PublishedCurriculumSnapshot,
 )
+from dibble.models.observability import HarnessBoundary, OperationalTraceStatus
 from dibble.services.curriculum_import_adapters import (
     CurriculumImportAdapter,
     ImportedCurriculumBundle,
 )
+from dibble.services.operational_observability import OperationalObservabilityService
 from dibble.services.protocols import (
     AlignmentEdgeStore,
     AlignmentReviewDecisionStore,
@@ -62,6 +64,7 @@ class CurriculumIntakeHarness:
     outcome_store: OutcomeStore
     knowledge_component_store: KnowledgeComponentStore
     adapters: tuple[CurriculumImportAdapter, ...]
+    operational_observability_service: OperationalObservabilityService | None = None
 
     def list_frameworks(self) -> list[CurriculumFramework]:
         return self.framework_store.list()
@@ -131,6 +134,18 @@ class CurriculumIntakeHarness:
         self.framework_import_store.upsert(framework_import)
         for artifact in self._artifact_rows(import_id=import_id, bundle=bundle):
             self.framework_import_artifact_store.upsert(artifact)
+        self._record_trace(
+            operation="import_framework",
+            status=OperationalTraceStatus.success,
+            summary="Imported curriculum framework artifacts for review.",
+            entity_id=framework_import.import_id,
+            reason_code="framework_imported",
+            payload={
+                "framework_id": framework_import.framework_id,
+                "status": framework_import.status.value,
+                "artifact_count": verification_report.artifact_count,
+            },
+        )
         return framework_import
 
     def publish_import(
@@ -226,6 +241,19 @@ class CurriculumIntakeHarness:
                 }
             )
         )
+        self._record_trace(
+            operation="publish_import",
+            status=OperationalTraceStatus.success,
+            summary="Published curriculum import into the runtime snapshot.",
+            entity_id=snapshot.snapshot_id,
+            reason_code="curriculum_snapshot_published",
+            payload={
+                "framework_import_id": framework_import.import_id,
+                "framework_id": framework_import.framework_id,
+                "runtime_outcome_count": len(snapshot.runtime_outcome_ids),
+                "runtime_kc_count": len(snapshot.runtime_knowledge_component_ids),
+            },
+        )
         return snapshot
 
     def propose_alignment(self, request: AlignmentEdgeCreate) -> AlignmentEdge:
@@ -280,6 +308,29 @@ class CurriculumIntakeHarness:
             if adapter.adapter_key == adapter_key:
                 return adapter
         raise LookupError(adapter_key)
+
+    def _record_trace(
+        self,
+        *,
+        operation: str,
+        status: OperationalTraceStatus,
+        summary: str,
+        entity_id: str | None = None,
+        reason_code: str | None = None,
+        payload: dict[str, object] | None = None,
+    ) -> None:
+        if self.operational_observability_service is None:
+            return
+        self.operational_observability_service.record_trace(
+            harness=HarnessBoundary.curriculum_evolution,
+            operation=operation,
+            status=status,
+            summary=summary,
+            entity_kind="curriculum_snapshot",
+            entity_id=entity_id,
+            reason_code=reason_code,
+            payload=payload,
+        )
 
     def _artifact_rows(
         self, *, import_id: str, bundle: ImportedCurriculumBundle

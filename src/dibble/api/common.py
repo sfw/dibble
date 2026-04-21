@@ -23,6 +23,7 @@ from dibble.services.content_warmer import ContentWarmer
 from dibble.services.autonomous_teacher_harness import AutonomousTeacherHarness
 from dibble.services.content_workflow import ContentWorkflowService
 from dibble.services.household_service import HouseholdService
+from dibble.services.operational_observability import OperationalObservabilityService
 from dibble.services.outcome_driven_adaptation import OutcomeDrivenAdaptationService
 from dibble.services.protocols import ClassroomStore, CourseStore, UserStore
 from dibble.services.protocols import ClassroomMembershipStore
@@ -128,6 +129,7 @@ class ApiServices(Protocol):
     observation_store: ObservationStore
     auth_service: AuthService
     telemetry_service: TelemetryService
+    operational_observability_service: OperationalObservabilityService
     router_plugin: RouterPlugin
     generation_engine: GenerationEngine
     content_warmer: ContentWarmer

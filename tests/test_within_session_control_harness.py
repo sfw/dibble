@@ -19,9 +19,11 @@ from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
 from dibble.services.harness.curriculum_planning import (
     CurriculumPlanningHarness,
+    EnsureActiveTrajectoryCommand,
 )
 from dibble.services.harness.within_session_control import (
     BindGenerationRequestCommand,
+    EnsureSessionControlCommand,
     SummarizeGeneratedContentCommand,
     WithinSessionControlHarness,
 )
@@ -159,3 +161,41 @@ def test_within_session_control_harness_owns_next_step_and_continue_action(tmp_p
         result.content.workflow_summary.continue_action.kind.value
         == "generate_follow_up"
     )
+
+
+def test_within_session_control_harness_recovers_stale_session_from_planning(tmp_path):
+    student_id = uuid4()
+    harness = _control_harness(tmp_path, student_id=student_id)
+
+    initial = harness.bind_generation_request(
+        BindGenerationRequestCommand(
+            request=GenerationRequest(
+                student_id=student_id,
+                learning_session_id="session-recover",
+                target_kc_ids=["KC-1"],
+                requested_content_type=RequestedContentType.worked_example,
+            )
+        )
+    )
+    assert initial.session is not None
+
+    harness.session_control_store.upsert(
+        initial.session.model_copy(
+            update={
+                "goal_id": "goal-stale",
+                "trajectory_id": "trajectory-stale",
+            }
+        )
+    )
+
+    recovered = harness.ensure_session(
+        EnsureSessionControlCommand(student_id=student_id)
+    )
+    planning = harness.curriculum_planning_harness.ensure_active_trajectory(
+        EnsureActiveTrajectoryCommand(student_id=student_id)
+    )
+
+    assert recovered is not None
+    assert recovered.learning_session_id == "session-recover"
+    assert recovered.goal_id == planning.goal.goal_id
+    assert recovered.trajectory_id == planning.trajectory.trajectory_id

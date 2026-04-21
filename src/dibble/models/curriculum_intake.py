@@ -233,6 +233,7 @@ class MigrationActionStatus(str, Enum):
     draft = "draft"
     approved = "approved"
     executed = "executed"
+    execution_failed = "execution_failed"
     review_required = "review_required"
 
 
@@ -240,6 +241,7 @@ class MigrationPlanStatus(str, Enum):
     draft = "draft"
     ready = "ready"
     executed = "executed"
+    partial_failure = "partial_failure"
 
 
 class CurriculumEntityRef(BaseModel):

@@ -22,6 +22,8 @@ from dibble.models.household import (
     ParentPreference,
     ParentNotification,
 )
+from dibble.models.observability import HarnessBoundary, OperationalTraceStatus
+from dibble.services.operational_observability import OperationalObservabilityService
 from dibble.services.harness.curriculum_planning import (
     CurriculumPlanningHarness,
     EnsureActiveTrajectoryCommand,
@@ -69,6 +71,7 @@ class AutonomousTeacherHarness:
     user_store: UserStore
     audit_store: AuditStore | None = None
     modality_routing_prior_store: ModalityRoutingPriorStore | None = None
+    operational_observability_service: OperationalObservabilityService | None = None
 
     def orchestrate_household(
         self,
@@ -286,6 +289,15 @@ class AutonomousTeacherHarness:
             blocking_approvals=blocking_approvals,
             now=now,
         )
+        self._record_plan_trace(
+            household_id=household.household_id,
+            learner_id=learner_id,
+            cadence_decision=cadence_decision,
+            relationship_state=relationship_state,
+            blocking_approvals=blocking_approvals,
+            notifications=learner_notifications,
+            session_suggestion=session_suggestion,
+        )
         return AutonomousTeacherLearnerPlan(
             learner_id=learner_id,
             learner_label=(
@@ -301,6 +313,54 @@ class AutonomousTeacherHarness:
             weekly_summary=relationship_state.latest_weekly_summary,
             relationship_state=relationship_state,
             notifications=learner_notifications,
+        )
+
+    def _record_plan_trace(
+        self,
+        *,
+        household_id: str,
+        learner_id: str,
+        cadence_decision: str,
+        relationship_state: LearnerRelationshipState,
+        blocking_approvals: list[ParentApprovalRequest],
+        notifications: list[ParentNotification],
+        session_suggestion: AutonomousTeacherSessionSuggestion | None,
+    ) -> None:
+        payload = {
+            "cadence_decision": cadence_decision,
+            "suggested_modality": relationship_state.suggested_modality,
+            "blocking_approval_types": [
+                approval.approval_type.value for approval in blocking_approvals
+            ],
+            "notification_categories": [notification.category for notification in notifications],
+            "session_suggestion_status": (
+                session_suggestion.status if session_suggestion is not None else None
+            ),
+            "approval_request_count": len(relationship_state.approval_requests),
+            "summary_headline": relationship_state.summary_headline,
+        }
+        if self.audit_store is not None:
+            self.audit_store.append(
+                event_type="autonomous_teacher.plan",
+                status="blocked" if blocking_approvals else "applied",
+                student_id=learner_id,
+                payload=payload,
+            )
+        if self.operational_observability_service is None:
+            return
+        self.operational_observability_service.record_trace(
+            harness=HarnessBoundary.autonomous_teacher,
+            operation="orchestrate_learner",
+            status=OperationalTraceStatus.success,
+            summary=(
+                "Autonomous teacher produced a learner plan behind approval gates."
+                if blocking_approvals
+                else "Autonomous teacher produced a learner plan."
+            ),
+            student_id=learner_id,
+            household_id=household_id,
+            reason_code="approval_blocked" if blocking_approvals else "plan_generated",
+            payload=payload,
         )
 
     def _primary_preferences(self, *, household: Household) -> ParentPreference:
@@ -778,7 +838,10 @@ class AutonomousTeacherHarness:
             and relationship_state.session_suggestion_snoozed_until > now
         ):
             return None
-        if cadence_decision not in {"session_due", "reengage_now", "check_in"}:
+        if (
+            relationship_state.session_suggestion_status not in {"accepted", "deferred"}
+            and cadence_decision not in {"session_due", "reengage_now", "check_in"}
+        ):
             return None
         return AutonomousTeacherSessionSuggestion(
             learner_id=learner_id,
@@ -864,7 +927,7 @@ class AutonomousTeacherHarness:
         if (
             updated_at is not None
             and relationship_state.last_session_at is not None
-            and relationship_state.last_session_at > updated_at
+            and relationship_state.last_session_at > (updated_at + timedelta(minutes=1))
         ):
             if status == "accepted":
                 adaptation_state = adaptation_state.model_copy(
