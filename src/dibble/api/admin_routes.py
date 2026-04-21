@@ -20,6 +20,14 @@ from dibble.models.curriculum_intake import (
     AlignmentEdgeCreate,
     AlignmentReviewDecision,
     AlignmentReviewRequest,
+    CurriculumImpactAnalysis,
+    CurriculumImpactAnalysisRequest,
+    CurriculumMigrationApprovalRequest,
+    CurriculumMigrationExecutionRequest,
+    CurriculumMigrationPlan,
+    CurriculumMigrationPlanRequest,
+    CurriculumSnapshotDiff,
+    CurriculumSnapshotDiffRequest,
     CurriculumFramework,
     CurriculumImportRequest,
     CurriculumPublishRequest,
@@ -157,6 +165,119 @@ def build_admin_router(context: ApiContext) -> APIRouter:
     )
     def list_curriculum_snapshots() -> list[PublishedCurriculumSnapshot]:
         return context.services.curriculum_intake_harness.list_snapshots()
+
+    @router.get(
+        "/curriculum/diffs",
+        response_model=list[CurriculumSnapshotDiff],
+    )
+    def list_curriculum_snapshot_diffs() -> list[CurriculumSnapshotDiff]:
+        return context.services.curriculum_evolution_harness.list_snapshot_diffs()
+
+    @router.post(
+        "/curriculum/diffs",
+        response_model=CurriculumSnapshotDiff,
+    )
+    def create_curriculum_snapshot_diff(
+        payload: CurriculumSnapshotDiffRequest,
+    ) -> CurriculumSnapshotDiff:
+        try:
+            return context.services.curriculum_evolution_harness.create_snapshot_diff(
+                payload
+            )
+        except LookupError as exc:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Curriculum snapshot not found.",
+                code="curriculum_snapshot_not_found",
+            ) from exc
+
+    @router.get(
+        "/curriculum/impacts",
+        response_model=list[CurriculumImpactAnalysis],
+    )
+    def list_curriculum_impact_analyses() -> list[CurriculumImpactAnalysis]:
+        return context.services.curriculum_evolution_harness.list_impact_analyses()
+
+    @router.post(
+        "/curriculum/impacts",
+        response_model=CurriculumImpactAnalysis,
+    )
+    def create_curriculum_impact_analysis(
+        payload: CurriculumImpactAnalysisRequest,
+    ) -> CurriculumImpactAnalysis:
+        try:
+            return context.services.curriculum_evolution_harness.analyze_impact(payload)
+        except LookupError as exc:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Curriculum diff not found.",
+                code="curriculum_diff_not_found",
+            ) from exc
+
+    @router.get(
+        "/curriculum/migration-plans",
+        response_model=list[CurriculumMigrationPlan],
+    )
+    def list_curriculum_migration_plans() -> list[CurriculumMigrationPlan]:
+        return context.services.curriculum_evolution_harness.list_migration_plans()
+
+    @router.post(
+        "/curriculum/migration-plans",
+        response_model=CurriculumMigrationPlan,
+    )
+    def create_curriculum_migration_plan(
+        payload: CurriculumMigrationPlanRequest,
+    ) -> CurriculumMigrationPlan:
+        try:
+            return context.services.curriculum_evolution_harness.create_migration_plan(
+                payload
+            )
+        except LookupError as exc:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Curriculum diff not found.",
+                code="curriculum_diff_not_found",
+            ) from exc
+
+    @router.post(
+        "/curriculum/migration-plans/{plan_id}/approve",
+        response_model=CurriculumMigrationPlan,
+    )
+    def approve_curriculum_migration_plan(
+        plan_id: str,
+        payload: CurriculumMigrationApprovalRequest,
+    ) -> CurriculumMigrationPlan:
+        try:
+            return context.services.curriculum_evolution_harness.approve_migration_plan(
+                plan_id,
+                payload,
+            )
+        except LookupError as exc:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Curriculum migration plan not found.",
+                code="curriculum_migration_plan_not_found",
+            ) from exc
+
+    @router.post(
+        "/curriculum/migration-plans/{plan_id}/execute",
+        response_model=CurriculumMigrationPlan,
+    )
+    def execute_curriculum_migration_plan(
+        plan_id: str,
+        payload: CurriculumMigrationExecutionRequest,
+    ) -> CurriculumMigrationPlan:
+        try:
+            return context.services.curriculum_evolution_harness.execute_migration_plan(
+                plan_id,
+                payload,
+            )
+        except LookupError as exc:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Curriculum migration plan not found.",
+                code="curriculum_migration_plan_not_found",
+            ) from exc
 
     @router.get("/curriculum/alignments", response_model=list[AlignmentEdge])
     def list_curriculum_alignments() -> list[AlignmentEdge]:

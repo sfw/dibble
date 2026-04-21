@@ -29,9 +29,18 @@ from dibble.services.content_workflow import ContentWorkflowService
 from dibble.services.curriculum_content_library_store import (
     SQLiteCurriculumContentLibraryStore,
 )
+from dibble.services.curriculum_impact_analysis_store import (
+    SQLiteCurriculumImpactAnalysisStore,
+)
 from dibble.services.curriculum_framework_store import SQLiteCurriculumFrameworkStore
 from dibble.services.curriculum_import_adapters import (
     default_curriculum_import_adapters,
+)
+from dibble.services.curriculum_migration_plan_store import (
+    SQLiteCurriculumMigrationPlanStore,
+)
+from dibble.services.curriculum_snapshot_diff_store import (
+    SQLiteCurriculumSnapshotDiffStore,
 )
 from dibble.services.classroom_store import SQLiteClassroomStore
 from dibble.services.classroom_membership_store import SQLiteClassroomMembershipStore
@@ -51,6 +60,7 @@ from dibble.services.harness.content_library import (
     LocalStubCloudLibraryClient,
     RemoteReadyCloudLibraryClient,
 )
+from dibble.services.harness.curriculum_evolution import CurriculumEvolutionHarness
 from dibble.services.harness.curriculum_intake_harness import CurriculumIntakeHarness
 from dibble.services.harness.curriculum_planning import CurriculumPlanningHarness
 from dibble.services.harness.learner_profile import LearnerProfileHarness
@@ -216,6 +226,7 @@ class ApplicationServices:
     modality_routing_harness: ModalityRoutingHarness
     content_generation_harness: ContentGenerationHarness
     curriculum_intake_harness: CurriculumIntakeHarness
+    curriculum_evolution_harness: CurriculumEvolutionHarness
     curriculum_planning_harness: CurriculumPlanningHarness
     within_session_control_harness: WithinSessionControlHarness
     autonomous_teacher_harness: AutonomousTeacherHarness
@@ -284,6 +295,9 @@ def build_application_services(
     framework_import_store = SQLiteFrameworkImportStore(conn)
     framework_import_artifact_store = SQLiteFrameworkImportArtifactStore(conn)
     published_curriculum_snapshot_store = SQLitePublishedCurriculumSnapshotStore(conn)
+    curriculum_snapshot_diff_store = SQLiteCurriculumSnapshotDiffStore(conn)
+    curriculum_impact_analysis_store = SQLiteCurriculumImpactAnalysisStore(conn)
+    curriculum_migration_plan_store = SQLiteCurriculumMigrationPlanStore(conn)
     alignment_edge_store = SQLiteAlignmentEdgeStore(conn)
     alignment_review_decision_store = SQLiteAlignmentReviewDecisionStore(conn)
     audit_store = SQLiteAuditStore(conn)
@@ -533,6 +547,21 @@ def build_application_services(
             state_signal_service=learner_state_signal_service,
         ),
     )
+    curriculum_evolution_harness = CurriculumEvolutionHarness(
+        published_snapshot_store=published_curriculum_snapshot_store,
+        framework_import_artifact_store=framework_import_artifact_store,
+        alignment_edge_store=alignment_edge_store,
+        curriculum_snapshot_diff_store=curriculum_snapshot_diff_store,
+        curriculum_impact_analysis_store=curriculum_impact_analysis_store,
+        curriculum_migration_plan_store=curriculum_migration_plan_store,
+        profile_store=profile_store,
+        learner_goal_store=learner_goal_store,
+        trajectory_store=trajectory_store,
+        assignment_store=assignment_store,
+        classroom_store=classroom_store,
+        course_store=course_store,
+        curriculum_content_library_store=curriculum_content_library_store,
+    )
     within_session_control_harness = WithinSessionControlHarness(
         curriculum_planning_harness=curriculum_planning_harness,
         session_control_store=session_control_store,
@@ -681,6 +710,7 @@ def build_application_services(
         modality_routing_harness=modality_routing_harness,
         content_generation_harness=content_generation_harness,
         curriculum_intake_harness=curriculum_intake_harness,
+        curriculum_evolution_harness=curriculum_evolution_harness,
         curriculum_planning_harness=curriculum_planning_harness,
         within_session_control_harness=within_session_control_harness,
         autonomous_teacher_harness=autonomous_teacher_harness,

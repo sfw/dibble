@@ -115,6 +115,36 @@ CREATE TABLE IF NOT EXISTS published_curriculum_snapshots (
 );
 """
 
+CURRICULUM_SNAPSHOT_DIFF_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS curriculum_snapshot_diffs (
+    diff_id TEXT PRIMARY KEY,
+    source_snapshot_id TEXT NOT NULL,
+    target_snapshot_id TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(source_snapshot_id, target_snapshot_id)
+);
+"""
+
+CURRICULUM_IMPACT_ANALYSIS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS curriculum_impact_analyses (
+    analysis_id TEXT PRIMARY KEY,
+    diff_id TEXT NOT NULL UNIQUE,
+    payload TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+"""
+
+CURRICULUM_MIGRATION_PLAN_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS curriculum_migration_plans (
+    plan_id TEXT PRIMARY KEY,
+    diff_id TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+"""
+
 ALIGNMENT_EDGE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS alignment_edges (
     edge_id TEXT PRIMARY KEY,
@@ -432,6 +462,9 @@ def ensure_database(database_path: str) -> None:
         connection.execute(FRAMEWORK_IMPORT_TABLE_SQL)
         connection.execute(FRAMEWORK_IMPORT_ARTIFACT_TABLE_SQL)
         connection.execute(PUBLISHED_CURRICULUM_SNAPSHOT_TABLE_SQL)
+        connection.execute(CURRICULUM_SNAPSHOT_DIFF_TABLE_SQL)
+        connection.execute(CURRICULUM_IMPACT_ANALYSIS_TABLE_SQL)
+        connection.execute(CURRICULUM_MIGRATION_PLAN_TABLE_SQL)
         connection.execute(ALIGNMENT_EDGE_TABLE_SQL)
         connection.execute(ALIGNMENT_REVIEW_DECISION_TABLE_SQL)
         _ensure_sqlite_columns(

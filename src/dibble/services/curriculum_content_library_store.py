@@ -22,6 +22,34 @@ class SQLiteCurriculumContentLibraryStore:
     def __init__(self, connection: sqlite3.Connection) -> None:
         self._conn = connection
 
+    def list_entries(self, *, include_expired: bool = False) -> list[CurriculumLibraryEntry]:
+        rows = self._conn.execute(
+            """
+            SELECT
+                cache_key,
+                selection_key,
+                content_key_payload,
+                content_payload,
+                provenance_payload,
+                storage_scope,
+                source_generation_id,
+                created_at,
+                expires_at
+            FROM curriculum_content_library
+            ORDER BY created_at DESC, cache_key DESC
+            """
+        ).fetchall()
+        comparison_time = datetime.now(timezone.utc)
+        entries: list[CurriculumLibraryEntry] = []
+        for row in rows:
+            entry = self._entry_from_row(row)
+            if not include_expired:
+                expires_at = entry.content.expires_at
+                if expires_at is not None and expires_at <= comparison_time:
+                    continue
+            entries.append(entry)
+        return entries
+
     def get_fresh_entry(
         self,
         *,

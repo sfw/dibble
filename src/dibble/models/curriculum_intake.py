@@ -195,3 +195,183 @@ class AlignmentReviewRequest(BaseModel):
     decision: AlignmentDecision
     reviewer_id: str | None = None
     notes: str | None = None
+
+
+class CurriculumChangeKind(str, Enum):
+    added = "added"
+    removed = "removed"
+    changed = "changed"
+    remapped = "remapped"
+    prerequisite_changed = "prerequisite_changed"
+    alignment_changed = "alignment_changed"
+
+
+class MigrationRiskLevel(str, Enum):
+    low = "low"
+    medium = "medium"
+    high = "high"
+
+
+class RuntimeEntityKind(str, Enum):
+    learner_goal = "learner_goal"
+    trajectory = "trajectory"
+    assignment = "assignment"
+    library_artifact = "library_artifact"
+    section = "section"
+    course = "course"
+
+
+class MigrationActionType(str, Enum):
+    keep_pinned = "keep_pinned"
+    remap_via_alignment = "remap_via_alignment"
+    swap_provenance_only = "swap_provenance_only"
+    mark_trajectory_for_replanning = "mark_trajectory_for_replanning"
+    invalidate_library_artifact = "invalidate_library_artifact"
+
+
+class MigrationActionStatus(str, Enum):
+    draft = "draft"
+    approved = "approved"
+    executed = "executed"
+    review_required = "review_required"
+
+
+class MigrationPlanStatus(str, Enum):
+    draft = "draft"
+    ready = "ready"
+    executed = "executed"
+
+
+class CurriculumEntityRef(BaseModel):
+    snapshot_id: str
+    framework_id: str
+    framework_version: str | None = None
+    artifact_kind: CurriculumArtifactKind
+    artifact_id: str
+    title: str | None = None
+
+
+class CurriculumFieldChange(BaseModel):
+    field_name: str
+    before_value: object | None = None
+    after_value: object | None = None
+
+
+class CurriculumEntityDelta(BaseModel):
+    delta_id: str
+    artifact_kind: CurriculumArtifactKind
+    artifact_id: str
+    change_kind: CurriculumChangeKind
+    risk_level: MigrationRiskLevel = MigrationRiskLevel.medium
+    before: CurriculumEntityRef | None = None
+    after: CurriculumEntityRef | None = None
+    field_changes: list[CurriculumFieldChange] = Field(default_factory=list)
+    approved_alignment_edge_id: str | None = None
+    suggested_action: MigrationActionType | None = None
+    rationale: str
+
+
+class CurriculumSnapshotDiff(BaseModel):
+    diff_id: str
+    source_snapshot_id: str
+    target_snapshot_id: str
+    framework_id: str | None = None
+    source_framework_version: str | None = None
+    target_framework_version: str | None = None
+    entity_deltas: list[CurriculumEntityDelta] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
+
+
+class CurriculumImpactRecord(BaseModel):
+    impact_id: str
+    entity_kind: RuntimeEntityKind
+    entity_id: str
+    student_id: str | None = None
+    current_snapshot_id: str | None = None
+    referenced_course_ids: list[str] = Field(default_factory=list)
+    referenced_outcome_ids: list[str] = Field(default_factory=list)
+    referenced_kc_ids: list[str] = Field(default_factory=list)
+    matched_delta_ids: list[str] = Field(default_factory=list)
+    suggested_action: MigrationActionType
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    risk_level: MigrationRiskLevel = MigrationRiskLevel.medium
+    rationale: str
+
+
+class CurriculumImpactAnalysis(BaseModel):
+    analysis_id: str
+    diff_id: str
+    source_snapshot_id: str
+    target_snapshot_id: str
+    impacts: list[CurriculumImpactRecord] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
+
+
+class MigrationAction(BaseModel):
+    action_id: str
+    action_type: MigrationActionType
+    entity_kind: RuntimeEntityKind
+    entity_id: str
+    source_snapshot_id: str
+    target_snapshot_id: str
+    source_outcome_ids: list[str] = Field(default_factory=list)
+    target_outcome_ids: list[str] = Field(default_factory=list)
+    source_kc_ids: list[str] = Field(default_factory=list)
+    target_kc_ids: list[str] = Field(default_factory=list)
+    approved_alignment_edge_ids: list[str] = Field(default_factory=list)
+    risk_level: MigrationRiskLevel = MigrationRiskLevel.medium
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    status: MigrationActionStatus = MigrationActionStatus.draft
+    rationale: str
+    reviewer_id: str | None = None
+    approved_at: datetime | None = None
+    executed_at: datetime | None = None
+    execution_summary: str | None = None
+
+
+class MigrationReviewItem(BaseModel):
+    review_item_id: str
+    entity_kind: RuntimeEntityKind
+    entity_id: str
+    risk_level: MigrationRiskLevel = MigrationRiskLevel.medium
+    blocking_delta_ids: list[str] = Field(default_factory=list)
+    recommended_action: MigrationActionType
+    rationale: str
+
+
+class CurriculumMigrationPlan(BaseModel):
+    plan_id: str
+    diff_id: str
+    source_snapshot_id: str
+    target_snapshot_id: str
+    status: MigrationPlanStatus = MigrationPlanStatus.draft
+    actions: list[MigrationAction] = Field(default_factory=list)
+    review_items: list[MigrationReviewItem] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
+
+
+class CurriculumSnapshotDiffRequest(BaseModel):
+    source_snapshot_id: str
+    target_snapshot_id: str
+
+
+class CurriculumImpactAnalysisRequest(BaseModel):
+    diff_id: str
+
+
+class CurriculumMigrationPlanRequest(BaseModel):
+    diff_id: str
+
+
+class CurriculumMigrationApprovalRequest(BaseModel):
+    reviewer_id: str | None = None
+    action_ids: list[str] = Field(default_factory=list)
+    approve_all_low_risk: bool = True
+
+
+class CurriculumMigrationExecutionRequest(BaseModel):
+    executor_id: str | None = None
+    action_ids: list[str] = Field(default_factory=list)

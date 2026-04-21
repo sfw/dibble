@@ -44,6 +44,16 @@ class SQLiteAssignmentStore:
             return None
         return Assignment.model_validate_json(row[0])
 
+    def list(self) -> list[Assignment]:
+        rows = self._conn.execute(
+            """
+            SELECT payload
+            FROM assignments
+            ORDER BY updated_at DESC, assignment_id DESC
+            """
+        ).fetchall()
+        return [Assignment.model_validate_json(row[0]) for row in rows]
+
     def list_for_student(
         self, *, student_id: str, limit: int = 20, offset: int = 0
     ) -> list[Assignment]:
