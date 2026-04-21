@@ -22,8 +22,10 @@ from dibble.models.curriculum import (
 )
 from dibble.models.assessment import SocraticAssessmentSession
 from dibble.models.generation import (
+    CurriculumContentKey,
     GeneratedContent,
     GenerationRequest,
+    CurriculumLibraryEntry,
     PredictiveWarmSweepResult,
     PredictiveWarmTask,
 )
@@ -172,6 +174,20 @@ class GeneratedContentStore(Protocol):
         learning_session_id: str | None = None,
     ) -> int: ...
     def stats(self) -> dict[str, int]: ...
+
+
+class CurriculumContentLibraryStore(Protocol):
+    def get_fresh_entry(
+        self,
+        *,
+        key: CurriculumContentKey,
+    ) -> CurriculumLibraryEntry | None: ...
+
+    def upsert_entry(
+        self,
+        *,
+        entry: CurriculumLibraryEntry,
+    ) -> CurriculumLibraryEntry: ...
 
 
 class PredictiveWarmTaskStore(Protocol):

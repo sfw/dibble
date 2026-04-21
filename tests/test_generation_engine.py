@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+import sqlite3
 from uuid import uuid4
 
 from dibble.models.generation import (
     AdaptiveRouteDecision,
+    CurriculumContentRequest,
     DeliveryMode,
     DeferredTextReveal,
     GeneratedBlock,
@@ -16,12 +18,21 @@ from dibble.models.generation import (
     MultipleChoiceOption,
 )
 from dibble.models.profile import LearnerProfile
+from dibble.services.curriculum_content_library_store import (
+    SQLiteCurriculumContentLibraryStore,
+)
+from dibble.services.generated_content_store import SQLiteGeneratedContentStore
 from dibble.services.generation_engine import GenerationEngine
+from dibble.services.harness.content_library import LocalCurriculumContentLibrary
+from dibble.storage import (
+    CURRICULUM_CONTENT_LIBRARY_TABLE_SQL,
+    GENERATED_CONTENT_TABLE_SQL,
+)
 from tests.support import build_profile
 
 
 class StubRetriever:
-    def retrieve(self, profile, request, limit: int = 3):
+    def retrieve(self, request, limit: int = 3):
         return [
             GroundingReference(
                 outcome_id="CURR-1",
@@ -49,15 +60,16 @@ class CountingProvider:
         self.blocks = blocks
         self.generate_calls = 0
         self.last_grounding: list[GroundingReference] = []
+        self.last_request: CurriculumContentRequest | None = None
 
-    def generate(self, profile, request, route, grounding):
+    def generate(self, request, route, grounding):
         self.generate_calls += 1
+        self.last_request = request
         self.last_grounding = grounding
         return self.blocks
 
-    def stream_generate(
-        self, profile, request, route, grounding
-    ) -> Iterator[GeneratedBlockChunk]:
+    def stream_generate(self, request, route, grounding) -> Iterator[GeneratedBlockChunk]:
+        self.last_request = request
         self.last_grounding = grounding
         for index, block in enumerate(self.blocks):
             yield GeneratedBlockChunk(
@@ -162,6 +174,9 @@ def test_generation_engine_replaces_flagged_response_with_moderation_fallback():
     )
 
     assert provider.generate_calls == 1
+    assert provider.last_request is not None
+    assert provider.last_request.grade_level == profile.grade_level
+    assert not hasattr(provider.last_request, "student_id")
     assert provider.last_grounding[0].excerpt is not None
     assert response.route.delivery_mode == DeliveryMode.static_fallback
     assert response.generation_metadata is not None
@@ -276,9 +291,7 @@ def test_generation_engine_stream_accepts_full_interactive_block_chunks():
         ]
     )
 
-    def interactive_stream_generate(
-        profile, request, route, grounding
-    ) -> Iterator[GeneratedBlockChunk]:
+    def interactive_stream_generate(request, route, grounding) -> Iterator[GeneratedBlockChunk]:
         yield GeneratedBlockChunk(
             block_index=0,
             block=provider.blocks[0],
@@ -406,3 +419,67 @@ def test_generation_engine_stream_starts_in_static_fallback_mode_for_blocked_req
     assert moderation_event.moderation is not None
     assert moderation_event.moderation.request_blocked is True
     assert moderation_event.moderation.provider_invoked is False
+
+
+def test_generation_engine_cache_hit_rebinds_history_to_current_learner():
+    first_profile = _profile()
+    second_profile = LearnerProfile.model_validate(
+        build_profile(uuid4(), frustration="low", total_load=0.2)
+    )
+    provider = CountingProvider(
+        [
+            GeneratedBlock(
+                kind="summary",
+                title="Learning focus",
+                body="Equivalent fractions name the same amount.",
+            ),
+            GeneratedBlock(
+                kind="instruction",
+                title="Try it",
+                body="Explain why 1/2 equals 2/4.",
+            ),
+        ]
+    )
+    conn = sqlite3.connect(":memory:")
+    conn.executescript(GENERATED_CONTENT_TABLE_SQL)
+    conn.executescript(CURRICULUM_CONTENT_LIBRARY_TABLE_SQL)
+    generated_store = SQLiteGeneratedContentStore(conn)
+    content_library = LocalCurriculumContentLibrary(
+        SQLiteCurriculumContentLibraryStore(conn)
+    )
+    engine = GenerationEngine(
+        retriever=StubRetriever(),
+        router=StubRouter(),
+        provider=provider,
+        validator=PassValidator(),
+        generated_content_store=generated_store,
+        content_library=content_library,
+    )
+    request = GenerationRequest(
+        student_id=first_profile.student_id,
+        target_kc_ids=["KC-1"],
+        curriculum_context=["Equivalent fractions"],
+    )
+
+    first_response = engine.generate(first_profile, request)
+    second_response = engine.generate(
+        second_profile,
+        request.model_copy(update={"student_id": second_profile.student_id}),
+    )
+
+    assert provider.generate_calls == 1
+    assert first_response.student_id == first_profile.student_id
+    assert second_response.student_id == second_profile.student_id
+    assert second_response.generation_id != first_response.generation_id
+    second_history = generated_store.list_recent_for_student(
+        student_id=str(second_profile.student_id),
+        limit=5,
+        include_predictive_warm=True,
+    )
+    assert len(second_history) == 1
+    assert second_history[0].response.student_id == second_profile.student_id
+    library_row = conn.execute(
+        "SELECT content_payload FROM curriculum_content_library"
+    ).fetchone()
+    assert library_row is not None
+    assert str(second_profile.student_id) not in str(library_row[0])

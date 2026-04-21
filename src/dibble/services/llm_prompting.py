@@ -4,13 +4,11 @@ from dataclasses import dataclass
 
 from dibble.models.generation import (
     AdaptiveRouteDecision,
-    GenerationRequest,
+    CurriculumContentRequest,
     GroundingReference,
     RequestedContentType,
 )
 from dibble.services.grounding_context import render_grounding_context
-from dibble.models.profile import LearnerProfile
-from dibble.services.generation_modes import build_generation_mode_plan
 from dibble.services.prompt_manager import PromptManager
 
 
@@ -24,43 +22,26 @@ class GenerationPrompts:
 
 
 def build_generation_prompts(
-    profile: LearnerProfile,
-    request: GenerationRequest,
+    request: CurriculumContentRequest,
     route: AdaptiveRouteDecision,
     grounding: list[GroundingReference],
     prompt_manager: PromptManager | None = None,
 ) -> GenerationPrompts:
     manager = prompt_manager or PromptManager()
-    plan = build_generation_mode_plan(profile, request, route)
     selection = manager.select(
-        student_id=profile.student_id,
-        content_type=plan.content_type,
-        mode_calibration=request.mode_calibration,
+        selection_key=request.prompt_selection_key(),
+        content_type=request.content_type,
+        adaptive_variant_hint=request.adaptive_variant_hint,
     )
     focus = request.target_kc_ids or request.target_lo_ids or ["current lesson"]
-    preferred_modalities = sorted(
-        profile.learning_preferences.modality_affinity.items(),
-        key=lambda item: item[1],
-        reverse=True,
-    )
-    modality_names = [name for name, score in preferred_modalities[:2] if score >= 0.5]
     grounding_text = render_grounding_context(grounding)
-    learner_prompt = (
-        request.learner_prompt or "Keep the tone calm, specific, and encouraging."
+    practice_distractor_plan = _practice_distractor_plan_text(
+        request.generation_constraints
     )
-    accommodations = (
-        ", ".join(profile.accommodations) if profile.accommodations else "None declared"
+    worked_example_fade_plan = _worked_example_fade_plan_text(
+        request.generation_constraints
     )
-    example_domains = (
-        ", ".join(profile.learning_preferences.example_domain_preferences)
-        if profile.learning_preferences.example_domain_preferences
-        else "general classroom examples"
-    )
-    socratic_follow_up = _socratic_follow_up_text(request.mode_calibration)
-    practice_distractor_plan = _practice_distractor_plan_text(plan.request_context)
-    worked_example_fade_plan = _worked_example_fade_plan_text(plan.request_context)
-    reliability_plan = _reliability_plan_text(request.mode_calibration)
-    block_schema = _block_schema_contract(plan.content_type)
+    block_schema = _block_schema_contract(request.content_type)
 
     system_prompt = (
         "You generate curriculum-aligned adaptive learning content for Dibble. "
@@ -72,28 +53,18 @@ def build_generation_prompts(
         f"{selection.system_directives}"
     )
     user_prompt = (
-        f"Student grade level: {profile.grade_level}\n"
+        f"Curriculum grade level: {request.grade_level}\n"
         f"Intent: {request.intent.value}\n"
         f"Focus concepts: {', '.join(focus)}\n"
         f"Route: {route.intervention_type.value} with {route.scaffolding_level} scaffolding\n"
         f"Delivery mode: {route.delivery_mode.value}\n"
-        f"Router rationale: {'; '.join(route.reasons)}\n"
-        f"Frustration signal: {profile.affective_state.frustration.value}\n"
-        f"Engagement signal: {profile.affective_state.engagement.value}\n"
-        f"Total cognitive load: {profile.cognitive_load.total_load:.2f}\n"
-        f"Pace preference: {profile.learning_preferences.pace_preference.value}\n"
-        f"Preferred modalities: {', '.join(modality_names) or 'textual'}\n"
-        f"Preferred example domains: {example_domains}\n"
-        f"Accommodations: {accommodations}\n"
         f"Grounding context: {grounding_text}\n"
-        f"Learner prompt: {learner_prompt}\n"
-        f"Requested content type: {plan.content_type.value}\n"
+        f"Delivery tone: {request.delivery_tone}\n"
+        f"Requested content type: {request.content_type.value}\n"
         f"Prompt variant: {selection.template_variant}\n"
-        f"Recent Socratic steering: {socratic_follow_up}\n"
         f"Practice distractor plan: {practice_distractor_plan}\n"
         f"Worked example fade plan: {worked_example_fade_plan}\n"
-        f"Reliability plan: {reliability_plan}\n"
-        f"Generation guidance: {plan.prompt_guidance}\n"
+        f"Generation guidance: {request.prompt_guidance}\n"
         f"Template guidance: {selection.user_directives}\n"
         "Generate 2 or 3 blocks that are specific, age-appropriate, and grounded in the listed curriculum context."
     )
@@ -107,16 +78,15 @@ def build_generation_prompts(
 
 
 def build_stream_generation_prompts(
-    profile: LearnerProfile,
-    request: GenerationRequest,
+    request: CurriculumContentRequest,
     route: AdaptiveRouteDecision,
     grounding: list[GroundingReference],
     prompt_manager: PromptManager | None = None,
 ) -> GenerationPrompts:
     prompts = build_generation_prompts(
-        profile, request, route, grounding, prompt_manager=prompt_manager
+        request, route, grounding, prompt_manager=prompt_manager
     )
-    streaming_schema = _stream_schema_contract(request.requested_content_type or build_generation_mode_plan(profile, request, route).content_type)
+    streaming_schema = _stream_schema_contract(request.content_type)
     return GenerationPrompts(
         system_prompt=(
             "You are streaming adaptive learning content for Dibble. "
@@ -128,23 +98,6 @@ def build_stream_generation_prompts(
         template_name=prompts.template_name,
         template_version=prompts.template_version,
         template_variant=prompts.template_variant,
-    )
-
-
-def _socratic_follow_up_text(mode_calibration) -> str:
-    if (
-        mode_calibration is None
-        or mode_calibration.session_assessment_count <= 0
-        or mode_calibration.session_source == "insufficient"
-    ):
-        return "none"
-    style = mode_calibration.session_latest_prompt_style or "unspecified"
-    return (
-        f"{mode_calibration.socratic_steering_action} "
-        f"(arc_action={mode_calibration.session_arc_action}, "
-        f"loop_risk={mode_calibration.session_stuck_loop_risk}, "
-        f"last_style={style}, next_action={mode_calibration.session_latest_next_action}, "
-        f"evidence={mode_calibration.session_latest_evidence_strength})"
     )
 
 
@@ -161,7 +114,6 @@ def _practice_distractor_plan_text(request_context: dict[str, object]) -> str:
         request_context.get("practice_distractor_misconception_ids") or []
     )
     remediation_hint = request_context.get("practice_distractor_remediation_hint")
-    rationale = request_context.get("practice_distractor_rationale")
     fragments = [focus]
     if isinstance(distractor_family, str) and distractor_family:
         fragments.append(f"distractor_family={distractor_family}")
@@ -192,8 +144,6 @@ def _practice_distractor_plan_text(request_context: dict[str, object]) -> str:
         )
     if isinstance(remediation_hint, str) and remediation_hint:
         fragments.append(f"remediation_hint={remediation_hint}")
-    if isinstance(rationale, str) and rationale:
-        fragments.append(f"rationale={rationale}")
     return "; ".join(fragments)
 
 
@@ -207,7 +157,6 @@ def _worked_example_fade_plan_text(request_context: dict[str, object]) -> str:
     transfer_plan = request_context.get("worked_example_transfer_plan") or {}
     step_outline = request_context.get("worked_example_step_outline") or []
     learner_release = request_context.get("worked_example_learner_release")
-    release_rationale = request_context.get("worked_example_release_rationale")
     if not isinstance(visible_roles, list) or not isinstance(hidden_step_role, str):
         return "none"
     roles = ", ".join(str(role) for role in visible_roles)
@@ -233,41 +182,7 @@ def _worked_example_fade_plan_text(request_context: dict[str, object]) -> str:
             f"learner_owned_move={transfer_plan.get('learner_owned_move')}"
         )
         fragments.append(f"check_prompt={transfer_plan.get('check_prompt')}")
-    if isinstance(release_rationale, str) and release_rationale:
-        fragments.append(f"release_rationale={release_rationale}")
     return "; ".join(fragments)
-
-
-def _reliability_plan_text(mode_calibration) -> str:
-    if mode_calibration is None:
-        return "none"
-    fragments: list[str] = []
-    if mode_calibration.state_profile_source != "insufficient":
-        fragments.append(
-            "state="
-            f"{mode_calibration.state_profile_signal}"
-            f"(overload={mode_calibration.state_profile_overload_risk:.2f},"
-            f" load_rel={mode_calibration.state_profile_load_reliability:.2f},"
-            f" metacog_rel={mode_calibration.state_profile_metacognitive_reliability:.2f})"
-        )
-    if mode_calibration.trait_profile_source != "insufficient":
-        fragments.append(
-            "traits="
-            f"{mode_calibration.trait_profile_signal}"
-            f"(stability={mode_calibration.trait_profile_trait_stability:.2f},"
-            f" tolerance={mode_calibration.trait_profile_challenge_tolerance:.2f},"
-            f" challenge_evidence={mode_calibration.trait_profile_challenge_evidence_strength:.2f})"
-        )
-    if (
-        mode_calibration.current_evidence_signal != "steady"
-        and mode_calibration.current_evidence_confidence > 0.0
-    ):
-        fragments.append(
-            "current="
-            f"{mode_calibration.current_evidence_signal}"
-            f"(confidence={mode_calibration.current_evidence_confidence:.2f})"
-        )
-    return "; ".join(fragments) if fragments else "none"
 
 
 def _block_schema_contract(content_type: RequestedContentType) -> str:

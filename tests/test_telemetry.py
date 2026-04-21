@@ -9,6 +9,8 @@ from dibble.models.generation import (
 )
 from dibble.models.profile import LearnerProfile
 from dibble.services.audit_store import SQLiteAuditStore
+from dibble.services.harness.policy import HarnessAuthoringPolicyBuilder
+from dibble.services.harness.request_adapter import CurriculumContentRequestAdapter
 from dibble.services.llm_client import LLMClientError
 from dibble.services.llm_provider import LLMOrchestrationProvider
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
@@ -79,10 +81,19 @@ def test_telemetry_snapshot_includes_provider_health(tmp_path):
         scaffolding_level="high",
         reasons=["test"],
     )
+    policy = HarnessAuthoringPolicyBuilder().build(
+        profile=profile,
+        request=request,
+        route=route,
+    )
+    curriculum_request = CurriculumContentRequestAdapter().adapt(
+        grade_level=profile.grade_level,
+        request=request,
+        policy=policy,
+    )
 
     provider.generate(
-        profile,
-        request,
+        curriculum_request,
         route,
         [
             GroundingReference(

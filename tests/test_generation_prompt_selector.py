@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dibble.models.generation import GenerationModeCalibration, RequestedContentType
+from dibble.models.generation import RequestedContentType
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.generation_prompt_selector import GenerationPromptSelector
 from dibble.services.sqlite_connection import create_connection
@@ -332,14 +332,7 @@ def test_generation_prompt_selector_uses_session_arc_to_break_support_loop(tmp_p
         selector.select_variant(
             content_type=RequestedContentType.practice_problem,
             fallback_variant="guided_reflection",
-            mode_calibration=GenerationModeCalibration(
-                session_source="session_controller",
-                session_confidence=0.78,
-                session_assessment_count=2,
-                session_stuck_loop_risk="high",
-                session_arc_action="reprobe_new_angle",
-                socratic_steering_action="clarify_then_check",
-            ),
+            adaptive_variant_hint="baseline",
         )
         == "baseline"
     )
@@ -358,12 +351,7 @@ def test_generation_prompt_selector_steers_guided_reflection_for_reliable_overlo
     variant = selector.select_variant(
         content_type=RequestedContentType.practice_problem,
         fallback_variant="baseline",
-        mode_calibration=GenerationModeCalibration(
-            state_profile_signal="support_needed",
-            state_profile_source="state_profile",
-            state_profile_load_reliability=0.82,
-            state_profile_overload_risk=0.84,
-        ),
+        adaptive_variant_hint="guided_reflection",
     )
 
     assert variant == "guided_reflection"
@@ -380,13 +368,7 @@ def test_generation_prompt_selector_steers_baseline_for_stable_trait_release(tmp
     variant = selector.select_variant(
         content_type=RequestedContentType.worked_example,
         fallback_variant="guided_reflection",
-        mode_calibration=GenerationModeCalibration(
-            trait_profile_signal="stable",
-            trait_profile_source="trait_profile",
-            trait_profile_trait_stability=0.8,
-            trait_profile_challenge_tolerance=0.72,
-            trait_profile_challenge_evidence_strength=0.76,
-        ),
+        adaptive_variant_hint="baseline",
     )
 
     assert variant == "baseline"
@@ -606,11 +588,7 @@ def test_generation_prompt_selector_can_use_durable_socratic_profile_signal(tmp_
     variant = selector.select_variant(
         content_type=RequestedContentType.practice_problem,
         fallback_variant="baseline",
-        mode_calibration=GenerationModeCalibration(
-            socratic_profile_source="socratic_assessment_history",
-            socratic_profile_confidence=0.72,
-            socratic_profile_signal="model_then_release",
-        ),
+        adaptive_variant_hint="guided_reflection",
     )
 
     assert variant == "guided_reflection"

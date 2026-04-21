@@ -5,6 +5,7 @@ from typing import Iterator, Protocol
 
 from dibble.models.generation import (
     AdaptiveRouteDecision,
+    CurriculumContentRequest,
     GeneratedBlock,
     GeneratedBlockChunk,
     GenerationRequest,
@@ -22,8 +23,7 @@ class RouterPlugin(Protocol):
 class RetrieverPlugin(Protocol):
     def retrieve(
         self,
-        profile: LearnerProfile,
-        request: GenerationRequest,
+        request: CurriculumContentRequest,
         limit: int = 3,
     ) -> list[GroundingReference]: ...
 
@@ -31,16 +31,14 @@ class RetrieverPlugin(Protocol):
 class ProviderPlugin(Protocol):
     def generate(
         self,
-        profile: LearnerProfile,
-        request: GenerationRequest,
+        request: CurriculumContentRequest,
         route: AdaptiveRouteDecision,
         grounding: list[GroundingReference],
     ) -> list[GeneratedBlock]: ...
 
     def stream_generate(
         self,
-        profile: LearnerProfile,
-        request: GenerationRequest,
+        request: CurriculumContentRequest,
         route: AdaptiveRouteDecision,
         grounding: list[GroundingReference],
     ) -> Iterator[GeneratedBlockChunk]: ...

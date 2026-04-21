@@ -78,7 +78,7 @@ def test_misconception_profile_resolver_emits_persistent_profile_signal(tmp_path
             "recommended_kc_ids": ["KC-1"],
             "evidence_terms": ["numerator", "denominator"],
             "remediation_hint": "Use a visual model first.",
-            "last_seen_at": "2026-03-15T12:00:00+00:00",
+            "last_seen_at": datetime.now(timezone.utc).isoformat(),
         },
     )
 

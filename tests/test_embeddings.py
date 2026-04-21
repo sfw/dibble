@@ -2,7 +2,12 @@ from uuid import uuid4
 
 from dibble.config import Settings
 from dibble.models.curriculum import OutcomeUpsert
-from dibble.models.generation import GenerationRequest
+from dibble.models.generation import (
+    ContentIntent,
+    CurriculumContentRequest,
+    GenerationRequest,
+    RequestedContentType,
+)
 from dibble.models.profile import LearnerProfile
 from dibble.services.outcome_store import SQLiteOutcomeStore
 from dibble.services.rag_retriever import RAGRetriever
@@ -25,6 +30,20 @@ class CountingEmbedder:
     def embed(self, text: str) -> list[float]:
         self.calls.append(text)
         return self.local.embed(text)
+
+
+def _curriculum_request(
+    profile: LearnerProfile, request: GenerationRequest
+) -> CurriculumContentRequest:
+    return CurriculumContentRequest(
+        grade_level=profile.grade_level,
+        intent=ContentIntent(request.intent),
+        content_type=request.requested_content_type
+        or RequestedContentType.micro_explanation,
+        target_kc_ids=list(request.target_kc_ids),
+        target_lo_ids=list(request.target_lo_ids),
+        curriculum_context=list(request.curriculum_context),
+    )
 
 
 def test_build_embedder_uses_local_fallback_by_default():
@@ -61,10 +80,12 @@ def test_retriever_reuses_persisted_resource_embeddings(tmp_path):
     embedding_store = SQLiteEmbeddingStore(conn)
     retriever = RAGRetriever(store, embedding_store=embedding_store, embedder=embedder)
 
-    retriever.retrieve(profile, request)
+    curriculum_request = _curriculum_request(profile, request)
+
+    retriever.retrieve(curriculum_request)
     first_cached = embedding_store.get(resource.outcome_id)
 
-    retriever.retrieve(profile, request)
+    retriever.retrieve(curriculum_request)
 
     assert first_cached is not None
     assert len(embedder.calls) == 3
@@ -87,7 +108,9 @@ def test_retriever_refreshes_embeddings_after_resource_update(tmp_path):
     embedding_store = SQLiteEmbeddingStore(conn)
     retriever = RAGRetriever(store, embedding_store=embedding_store, embedder=embedder)
 
-    retriever.retrieve(profile, request)
+    curriculum_request = _curriculum_request(profile, request)
+
+    retriever.retrieve(curriculum_request)
     first_cached = embedding_store.get(resource.outcome_id)
 
     store.upsert(
@@ -99,7 +122,7 @@ def test_retriever_refreshes_embeddings_after_resource_update(tmp_path):
         )
     )
 
-    retriever.retrieve(profile, request)
+    retriever.retrieve(curriculum_request)
     second_cached = embedding_store.get("CURR-1")
 
     assert first_cached is not None

@@ -28,11 +28,16 @@ from dibble.models.remediation import (
     RemediationWorkflowStep,
 )
 from dibble.plugins.contracts import RouterPlugin
+from dibble.services.errors import LearnerProfileNotFoundError
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.generation_engine import GenerationEngine
 from dibble.services.generation_mode_calibration import GenerationModeCalibrator
 from dibble.services.generation_request_hydrator import hydrate_target_kc_hints
-from dibble.services.generation_modes import build_generation_mode_plan
+from dibble.services.harness.content_generation import (
+    ContentGenerationHarness,
+    PreparedContentGeneration,
+)
+from dibble.services.harness.modality_routing import ModalityRoutingHarness
 from dibble.services.learner_strategy_signal import LearnerStrategySignalService
 from dibble.services.misconception_profiles import LearningMisconceptionProfileRecorder
 from dibble.services.observation_profile_update import (
@@ -80,17 +85,12 @@ def _intent_for_content_type(content_type: str | None) -> str:
     return _CONTENT_TYPE_TO_INTENT.get(content_type, "explanation")
 
 
-class LearnerProfileNotFoundError(LookupError):
-    def __init__(self, student_id: UUID) -> None:
-        super().__init__(f"Learner profile not found for student_id {student_id}.")
-        self.student_id = student_id
-
-
 @dataclass(frozen=True, slots=True)
 class PreparedGenerationRequest:
     profile: LearnerProfile
     request: GenerationRequest
     progression_decision: ProgressionOwnershipDecision
+    prepared_generation: PreparedContentGeneration
 
 
 @dataclass(slots=True)
@@ -101,6 +101,8 @@ class ContentWorkflowService:
     generated_content_store: GeneratedContentStore
     router: RouterPlugin
     generation_engine: GenerationEngine
+    modality_routing_harness: ModalityRoutingHarness
+    content_generation_harness: ContentGenerationHarness
     content_warmer: ContentWarmer
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_warmer: PredictiveContentWarmer
@@ -116,7 +118,10 @@ class ContentWorkflowService:
 
     def decide_route(self, request: GenerationRequest) -> AdaptiveRouteDecision:
         profile = self._load_profile(request.student_id)
-        decision = self.router.route(profile, request)
+        decision = self.modality_routing_harness.plan(
+            profile=profile,
+            request=request,
+        ).route
         strategy = self.strategy_signal_service.strategy_for(
             student_id=request.student_id, request=request
         )
@@ -185,9 +190,13 @@ class ContentWorkflowService:
             predictive_warm=request.predictive_warm,
         )
         prepared = self.prepare_generation_request(request)
-        response = self.generation_engine.generate(prepared.profile, prepared.request)
-        plan = build_generation_mode_plan(
-            prepared.profile, prepared.request, response.route
+        response = self.content_generation_harness.generate_prepared(
+            prepared.prepared_generation
+        )
+        authoring_policy = self.generation_engine.harness.authoring.authoring_policy_for(
+            profile=prepared.profile,
+            request=prepared.request,
+            route=response.route,
         )
         metadata = response.generation_metadata
         if metadata is None or response.generation_id is None:
@@ -199,7 +208,7 @@ class ContentWorkflowService:
             payload={
                 "intent": request.intent.value,
                 "learning_session_id": request.learning_session_id,
-                "content_type": plan.content_type.value,
+                "content_type": authoring_policy.content_type.value,
                 "generation_id": response.generation_id,
                 "intervention_type": response.route.intervention_type.value,
                 "delivery_mode": response.route.delivery_mode.value,
@@ -316,7 +325,9 @@ class ContentWorkflowService:
                     else None
                 ),
                 "mode_calibration_applied": bool(
-                    plan.request_context.get("mode_calibration_applied", False)
+                    authoring_policy.request_context.get(
+                        "mode_calibration_applied", False
+                    )
                 ),
                 "route_calibration_signal": (
                     response.route.calibration.signal
@@ -422,6 +433,10 @@ class ContentWorkflowService:
             profile=profile,
             request=calibrated_request,
             progression_decision=progression_decision,
+            prepared_generation=self.content_generation_harness.prepare_generation(
+                profile=profile,
+                request=calibrated_request,
+            ),
         )
 
     def finalize_generated_content(
@@ -433,7 +448,11 @@ class ContentWorkflowService:
         progression_decision: ProgressionOwnershipDecision,
         record_moderation_event: bool = True,
     ) -> GeneratedContent:
-        plan = build_generation_mode_plan(profile, request, response.route)
+        authoring_policy = self.generation_engine.harness.authoring.authoring_policy_for(
+            profile=profile,
+            request=request,
+            route=response.route,
+        )
         metadata = response.generation_metadata
         if metadata is None or response.generation_id is None:
             raise RuntimeError("Generated content metadata was not available.")
@@ -441,8 +460,8 @@ class ContentWorkflowService:
         generated_content = GeneratedContent(
             generation_id=response.generation_id,
             student_id=response.student_id,
-            content_type=plan.content_type.value,
-            request_context=plan.request_context,
+            content_type=authoring_policy.content_type.value,
+            request_context=authoring_policy.request_context,
             response=response,
             quality=metadata,
             created_at=response.generated_at,

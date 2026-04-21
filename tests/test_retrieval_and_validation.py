@@ -2,9 +2,12 @@ from uuid import uuid4
 
 from dibble.models.curriculum import OutcomeUpsert
 from dibble.models.generation import (
+    ContentIntent,
+    CurriculumContentRequest,
     GeneratedBlock,
     GenerationRequest,
     GroundingReference,
+    RequestedContentType,
 )
 from dibble.models.profile import LearnerProfile
 from dibble.services.content_validator import ContentValidator
@@ -17,6 +20,20 @@ from dibble.services.validation.text import (
 )
 from dibble.storage import ensure_database
 from tests.support import build_outcome, build_profile
+
+
+def _curriculum_request(
+    profile: LearnerProfile, request: GenerationRequest
+) -> CurriculumContentRequest:
+    return CurriculumContentRequest(
+        grade_level=profile.grade_level,
+        intent=ContentIntent(request.intent),
+        content_type=request.requested_content_type
+        or RequestedContentType.micro_explanation,
+        target_kc_ids=list(request.target_kc_ids),
+        target_lo_ids=list(request.target_lo_ids),
+        curriculum_context=list(request.curriculum_context),
+    )
 
 
 def test_retriever_returns_best_grade_level_match(tmp_path):
@@ -44,7 +61,7 @@ def test_retriever_returns_best_grade_level_match(tmp_path):
         curriculum_context=["Equivalent fractions"],
     )
 
-    results = retriever.retrieve(profile, request)
+    results = retriever.retrieve(_curriculum_request(profile, request))
 
     assert results[0].outcome_id == "CURR-5"
     assert results[0].score > results[1].score
@@ -78,7 +95,7 @@ def test_retriever_matches_free_text_curriculum_context_without_exact_phrase(tmp
         ],
     )
 
-    results = retriever.retrieve(profile, request)
+    results = retriever.retrieve(_curriculum_request(profile, request))
 
     assert results[0].outcome_id == "CURR-5"
     assert "fraction" in results[0].matched_terms
@@ -113,7 +130,7 @@ def test_retriever_adds_deterministic_excerpt_from_matching_sentence(tmp_path):
         ],
     )
 
-    results = retriever.retrieve(profile, request)
+    results = retriever.retrieve(_curriculum_request(profile, request))
 
     assert results[0].excerpt is not None
     assert "visual fraction models" in results[0].excerpt.lower()
@@ -149,7 +166,7 @@ def test_retriever_prefers_semantically_relevant_passage_over_leading_noise(tmp_
         ],
     )
 
-    results = retriever.retrieve(profile, request)
+    results = retriever.retrieve(_curriculum_request(profile, request))
 
     assert results[0].excerpt is not None
     assert (
@@ -199,7 +216,7 @@ def test_retriever_uses_passage_signal_to_prefer_more_grounded_resource(tmp_path
         ],
     )
 
-    results = retriever.retrieve(profile, request)
+    results = retriever.retrieve(_curriculum_request(profile, request))
 
     assert results[0].outcome_id == "CURR-NOISY"
     assert results[0].excerpt is not None

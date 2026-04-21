@@ -22,6 +22,9 @@ from dibble.services.calibrated_router import CalibratedRouter
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.cross_signal_consistency import CrossSignalConsistencyService
 from dibble.services.content_workflow import ContentWorkflowService
+from dibble.services.curriculum_content_library_store import (
+    SQLiteCurriculumContentLibraryStore,
+)
 from dibble.services.classroom_store import SQLiteClassroomStore
 from dibble.services.classroom_membership_store import SQLiteClassroomMembershipStore
 from dibble.services.course_store import SQLiteCourseStore
@@ -29,6 +32,11 @@ from dibble.services.cognitive_trait_inference import CognitiveTraitInferenceSer
 from dibble.services.outcome_store import SQLiteOutcomeStore
 from dibble.services.strand_store import SQLiteStrandStore
 from dibble.services.generation_engine import GenerationEngine
+from dibble.services.harness.assessment_evidence import AssessmentEvidenceHarness
+from dibble.services.harness.content_generation import ContentGenerationHarness
+from dibble.services.harness.content_library import LocalCurriculumContentLibrary
+from dibble.services.harness.learner_profile import LearnerProfileHarness
+from dibble.services.harness.modality_routing import ModalityRoutingHarness
 from dibble.services.surplus_practice_cache import SurplusPracticeCache
 from dibble.services.generation_mode_calibration import GenerationModeCalibrator
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
@@ -153,6 +161,10 @@ class ApplicationServices:
     generation_engine: GenerationEngine
     content_warmer: ContentWarmer
     content_workflow_service: ContentWorkflowService
+    learner_profile_harness: LearnerProfileHarness
+    assessment_evidence_harness: AssessmentEvidenceHarness
+    modality_routing_harness: ModalityRoutingHarness
+    content_generation_harness: ContentGenerationHarness
     remediation_planner: RemediationPlanner
     socratic_assessment_service: SocraticAssessmentService
     socratic_profile_updater: SocraticProfileUpdater
@@ -263,14 +275,23 @@ def build_application_services(
         generated_content_store=generated_content_store,
         cache_ttl_seconds=settings.generation_cache_ttl_seconds,
     )
+    local_curriculum_content_library = LocalCurriculumContentLibrary(
+        SQLiteCurriculumContentLibraryStore(conn)
+    )
     generation_engine = GenerationEngine(
         retriever=plugins.retriever,
         router=router_plugin,
         provider=plugins.provider,
         validator=plugins.validator,
         generated_content_store=generated_content_store,
+        content_library=local_curriculum_content_library,
         surplus_practice_cache=surplus_practice_cache,
         cache_ttl_seconds=settings.generation_cache_ttl_seconds,
+    )
+    modality_routing_harness = ModalityRoutingHarness(router=router_plugin)
+    content_generation_harness = ContentGenerationHarness(
+        generation_engine=generation_engine,
+        modality_routing_harness=modality_routing_harness,
     )
     misconception_remediation_outcome_signal_service = (
         MisconceptionRemediationOutcomeSignalService(audit_store=audit_store)
@@ -289,7 +310,7 @@ def build_application_services(
         session_store=remediation_session_store,
     )
     socratic_assessment_service = SocraticAssessmentService(
-        generation_engine=generation_engine,
+        content_generation_harness=content_generation_harness,
         session_store=socratic_session_store,
         evidence_scorer=SocraticEvidenceScorer(outcome_store),
         turn_policy=SocraticTurnPolicy(),
@@ -304,6 +325,11 @@ def build_application_services(
             knowledge_component_store=knowledge_component_store
         ),
         ordinary_mastery_signal_service=ordinary_mastery_signal_service,
+    )
+    learner_profile_harness = LearnerProfileHarness(
+        profile_store=profile_store,
+        observation_profile_updater=observation_profile_updater,
+        socratic_profile_updater=socratic_profile_updater,
     )
     progression_ownership_service = ProgressionOwnershipService(
         knowledge_component_store=knowledge_component_store,
@@ -326,6 +352,14 @@ def build_application_services(
             audit_store=audit_store
         ),
         state_signal_service=learner_state_signal_service,
+    )
+    assessment_evidence_harness = AssessmentEvidenceHarness(
+        profile_store=profile_store,
+        observation_store=observation_store,
+        state_inference_service=state_inference_service,
+        learner_state_calibrator=learner_state_calibrator,
+        cognitive_trait_inference_service=cognitive_trait_inference_service,
+        socratic_assessment_service=socratic_assessment_service,
     )
     socratic_conversation_signal_service = SocraticConversationSignalService(
         audit_store=audit_store
@@ -447,6 +481,8 @@ def build_application_services(
         generated_content_store=generated_content_store,
         router=router_plugin,
         generation_engine=generation_engine,
+        modality_routing_harness=modality_routing_harness,
+        content_generation_harness=content_generation_harness,
         content_warmer=content_warmer,
         generation_mode_calibrator=generation_mode_calibrator,
         predictive_content_warmer=predictive_content_warmer,
@@ -488,6 +524,10 @@ def build_application_services(
         generation_engine=generation_engine,
         content_warmer=content_warmer,
         content_workflow_service=content_workflow_service,
+        learner_profile_harness=learner_profile_harness,
+        assessment_evidence_harness=assessment_evidence_harness,
+        modality_routing_harness=modality_routing_harness,
+        content_generation_harness=content_generation_harness,
         remediation_planner=remediation_planner,
         socratic_assessment_service=socratic_assessment_service,
         socratic_profile_updater=socratic_profile_updater,

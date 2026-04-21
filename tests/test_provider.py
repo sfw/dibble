@@ -16,6 +16,8 @@ from dibble.models.generation import (
 from dibble.models.profile import LearnerProfile
 from dibble.plugins.loader import build_generation_plugins
 from dibble.services.content_provider import MockLLMProvider
+from dibble.services.harness.policy import HarnessAuthoringPolicyBuilder
+from dibble.services.harness.request_adapter import CurriculumContentRequestAdapter
 from dibble.services.outcome_store import SQLiteOutcomeStore
 from dibble.services.llm_client import LLMClientError, OpenAICompatibleChatClient
 from dibble.services.llm_prompting import build_generation_prompts
@@ -47,6 +49,16 @@ def sample_request(sample_profile):
 
 
 @pytest.fixture
+def request_adapter():
+    return CurriculumContentRequestAdapter()
+
+
+@pytest.fixture
+def policy_builder():
+    return HarnessAuthoringPolicyBuilder()
+
+
+@pytest.fixture
 def sample_route():
     return AdaptiveRouteDecision(
         intervention_type=InterventionType.step_back,
@@ -69,6 +81,22 @@ def sample_grounding():
             excerpt="Use visual fraction models to explain why equivalent fractions name the same amount.",
         )
     ]
+
+
+@pytest.fixture
+def sample_curriculum_request(
+    sample_profile, sample_request, sample_route, request_adapter, policy_builder
+):
+    policy = policy_builder.build(
+        profile=sample_profile,
+        request=sample_request,
+        route=sample_route,
+    )
+    return request_adapter.adapt(
+        grade_level=sample_profile.grade_level,
+        request=sample_request,
+        policy=policy,
+    )
 
 
 class FakeClient:
@@ -116,46 +144,149 @@ class FakeClient:
             yield part
 
 
-def test_prompt_builder_mentions_grounding_and_preferences(
-    sample_profile,
-    sample_request,
-    sample_route,
-    sample_grounding,
+def test_prompt_builder_mentions_grounding_and_curriculum_request(
+    sample_curriculum_request, sample_route, sample_grounding
 ):
     prompts = build_generation_prompts(
-        sample_profile,
-        sample_request,
+        sample_curriculum_request,
         sample_route,
         sample_grounding,
     )
 
     assert "Equivalent Fractions Foundations" in prompts.user_prompt
     assert "excerpt=Use visual fraction models" in prompts.user_prompt
-    assert "slower_than_average" in prompts.user_prompt
+    assert "Curriculum grade level:" in prompts.user_prompt
+    assert "Frustration signal:" not in prompts.user_prompt
+    assert "Accommodations:" not in prompts.user_prompt
+    assert "Router rationale:" not in prompts.user_prompt
     assert '"blocks"' in prompts.system_prompt
     assert prompts.template_name.startswith("remedial_micro_module.")
     assert prompts.template_version == "1.0"
     assert prompts.template_variant == "baseline"
 
 
+def test_prompt_builder_omits_private_router_and_learner_prompt_text(
+    sample_profile, sample_grounding, request_adapter, policy_builder
+):
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.step_back,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="high",
+        reasons=["frustration=high total_load=0.87 confidence=0.21"],
+    )
+    request = GenerationRequest(
+        student_id=sample_profile.student_id,
+        target_kc_ids=["KC-1"],
+        intent="remediation",
+        learner_prompt="learner said they were confused after missing the last step",
+        curriculum_context=["Equivalent fractions"],
+    )
+    prompts = build_generation_prompts(
+        request_adapter.adapt(
+            grade_level=sample_profile.grade_level,
+            request=request,
+            policy=policy_builder.build(
+                profile=sample_profile,
+                request=request,
+                route=route,
+            ),
+        ),
+        route,
+        sample_grounding,
+    )
+
+    assert "frustration=high" not in prompts.user_prompt
+    assert "learner said they were confused" not in prompts.user_prompt
+
+
+def test_prompt_builder_omits_learner_state_explanations_from_guidance(
+    sample_profile, sample_grounding, request_adapter, policy_builder
+):
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.step_back,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="high",
+        reasons=["support need remains high after recent Socratic turn"],
+    )
+    request = GenerationRequest(
+        student_id=sample_profile.student_id,
+        target_kc_ids=["KC-1"],
+        intent="practice",
+        curriculum_context=["Equivalent fractions"],
+        mode_calibration=GenerationModeCalibration(
+            signal="negative",
+            source="session_controller",
+            confidence=0.8,
+            support_bias=-1,
+            session_signal="negative",
+            session_source="session_controller",
+            session_confidence=0.8,
+            session_assessment_count=1,
+            session_phase="repair",
+            session_arc_action="reprobe_new_angle",
+            socratic_steering_action="clarify_then_check",
+            rationale="test",
+        ),
+    )
+
+    prompts = build_generation_prompts(
+        request_adapter.adapt(
+            grade_level=sample_profile.grade_level,
+            request=request,
+            policy=policy_builder.build(
+                profile=sample_profile,
+                request=request,
+                route=route,
+            ),
+        ),
+        route,
+        sample_grounding,
+    )
+
+    lowered = prompts.user_prompt.lower()
+    assert "support need" not in lowered
+    assert "recent socratic turn" not in lowered
+    assert "recent socratic follow-up" not in lowered
+
+
 def test_prompt_builder_includes_distractor_and_fade_plans(
-    sample_profile, sample_route, sample_grounding
+    sample_profile, sample_route, sample_grounding, request_adapter, policy_builder
 ):
     prompts = build_generation_prompts(
-        sample_profile,
-        GenerationRequest(
-            student_id=sample_profile.student_id,
-            target_kc_ids=["KC-1"],
-            requested_content_type=RequestedContentType.practice_problem,
-            target_kc_hints=[
-                TargetKcGenerationHint(
-                    kc_id="KC-1",
-                    kc_name="Generate equivalent fractions",
-                    misconception_ids=["fraction-whole-number-bias"],
-                    misconception_labels=["Whole-number bias"],
-                    remediation_hints=["Compare the whole amount first."],
-                )
-            ],
+        request_adapter.adapt(
+            request=GenerationRequest(
+                student_id=sample_profile.student_id,
+                target_kc_ids=["KC-1"],
+                requested_content_type=RequestedContentType.practice_problem,
+                target_kc_hints=[
+                    TargetKcGenerationHint(
+                        kc_id="KC-1",
+                        kc_name="Generate equivalent fractions",
+                        misconception_ids=["fraction-whole-number-bias"],
+                        misconception_labels=["Whole-number bias"],
+                        remediation_hints=["Compare the whole amount first."],
+                    )
+                ],
+            ),
+            grade_level=sample_profile.grade_level,
+            policy=policy_builder.build(
+                profile=sample_profile,
+                request=GenerationRequest(
+                    student_id=sample_profile.student_id,
+                    target_kc_ids=["KC-1"],
+                    requested_content_type=RequestedContentType.practice_problem,
+                    target_kc_hints=[
+                        TargetKcGenerationHint(
+                            kc_id="KC-1",
+                            kc_name="Generate equivalent fractions",
+                            misconception_ids=["fraction-whole-number-bias"],
+                            misconception_labels=["Whole-number bias"],
+                            remediation_hints=["Compare the whole amount first."],
+                        )
+                    ],
+                ),
+                route=sample_route,
+            ),
         ),
         sample_route,
         sample_grounding,
@@ -173,21 +304,39 @@ def test_prompt_builder_includes_distractor_and_fade_plans(
 
 
 def test_prompt_builder_includes_worked_example_transfer_plan(
-    sample_profile, sample_route, sample_grounding
+    sample_profile, sample_route, sample_grounding, request_adapter, policy_builder
 ):
     prompts = build_generation_prompts(
-        sample_profile,
-        GenerationRequest(
-            student_id=sample_profile.student_id,
-            target_kc_ids=["KC-1"],
-            requested_content_type=RequestedContentType.worked_example,
-            target_kc_hints=[
-                TargetKcGenerationHint(
-                    kc_id="KC-1",
-                    kc_name="Generate equivalent fractions",
-                    nearby_kc_names=["Compare equivalent fractions"],
-                )
-            ],
+        request_adapter.adapt(
+            request=GenerationRequest(
+                student_id=sample_profile.student_id,
+                target_kc_ids=["KC-1"],
+                requested_content_type=RequestedContentType.worked_example,
+                target_kc_hints=[
+                    TargetKcGenerationHint(
+                        kc_id="KC-1",
+                        kc_name="Generate equivalent fractions",
+                        nearby_kc_names=["Compare equivalent fractions"],
+                    )
+                ],
+            ),
+            grade_level=sample_profile.grade_level,
+            policy=policy_builder.build(
+                profile=sample_profile,
+                request=GenerationRequest(
+                    student_id=sample_profile.student_id,
+                    target_kc_ids=["KC-1"],
+                    requested_content_type=RequestedContentType.worked_example,
+                    target_kc_hints=[
+                        TargetKcGenerationHint(
+                            kc_id="KC-1",
+                            kc_name="Generate equivalent fractions",
+                            nearby_kc_names=["Compare equivalent fractions"],
+                        )
+                    ],
+                ),
+                route=sample_route,
+            ),
         ),
         sample_route,
         sample_grounding,
@@ -197,47 +346,75 @@ def test_prompt_builder_includes_worked_example_transfer_plan(
     assert "learner_owned_move=" in prompts.user_prompt
 
 
-def test_prompt_builder_includes_reliability_plan(
-    sample_profile, sample_route, sample_grounding
+def test_prompt_builder_omits_private_reliability_details(
+    sample_profile, sample_route, sample_grounding, request_adapter, policy_builder
 ):
     prompts = build_generation_prompts(
-        sample_profile,
-        GenerationRequest(
-            student_id=sample_profile.student_id,
-            target_kc_ids=["KC-1"],
-            requested_content_type=RequestedContentType.worked_example,
-            mode_calibration=GenerationModeCalibration(
-                signal="positive",
-                source="state_profile",
-                confidence=0.72,
-                support_bias=1,
-                state_profile_signal="independence_ready",
-                state_profile_source="state_profile",
-                state_profile_overload_risk=0.24,
-                state_profile_load_reliability=0.74,
-                state_profile_metacognitive_reliability=0.78,
-                trait_profile_signal="stable",
-                trait_profile_source="trait_profile",
-                trait_profile_trait_stability=0.82,
-                trait_profile_challenge_tolerance=0.74,
-                trait_profile_challenge_evidence_strength=0.78,
-                current_evidence_signal="productive_struggle",
-                current_evidence_confidence=0.7,
+        request_adapter.adapt(
+            request=GenerationRequest(
+                student_id=sample_profile.student_id,
+                target_kc_ids=["KC-1"],
+                requested_content_type=RequestedContentType.worked_example,
+                mode_calibration=GenerationModeCalibration(
+                    signal="positive",
+                    source="state_profile",
+                    confidence=0.72,
+                    support_bias=1,
+                    state_profile_signal="independence_ready",
+                    state_profile_source="state_profile",
+                    state_profile_overload_risk=0.24,
+                    state_profile_load_reliability=0.74,
+                    state_profile_metacognitive_reliability=0.78,
+                    trait_profile_signal="stable",
+                    trait_profile_source="trait_profile",
+                    trait_profile_trait_stability=0.82,
+                    trait_profile_challenge_tolerance=0.74,
+                    trait_profile_challenge_evidence_strength=0.78,
+                    current_evidence_signal="productive_struggle",
+                    current_evidence_confidence=0.7,
+                ),
+            ),
+            grade_level=sample_profile.grade_level,
+            policy=policy_builder.build(
+                profile=sample_profile,
+                request=GenerationRequest(
+                    student_id=sample_profile.student_id,
+                    target_kc_ids=["KC-1"],
+                    requested_content_type=RequestedContentType.worked_example,
+                    mode_calibration=GenerationModeCalibration(
+                        signal="positive",
+                        source="state_profile",
+                        confidence=0.72,
+                        support_bias=1,
+                        state_profile_signal="independence_ready",
+                        state_profile_source="state_profile",
+                        state_profile_overload_risk=0.24,
+                        state_profile_load_reliability=0.74,
+                        state_profile_metacognitive_reliability=0.78,
+                        trait_profile_signal="stable",
+                        trait_profile_source="trait_profile",
+                        trait_profile_trait_stability=0.82,
+                        trait_profile_challenge_tolerance=0.74,
+                        trait_profile_challenge_evidence_strength=0.78,
+                        current_evidence_signal="productive_struggle",
+                        current_evidence_confidence=0.7,
+                    ),
+                ),
+                route=sample_route,
             ),
         ),
         sample_route,
         sample_grounding,
     )
 
-    assert "Reliability plan:" in prompts.user_prompt
-    assert "state=independence_ready" in prompts.user_prompt
-    assert "traits=stable" in prompts.user_prompt
-    assert "current=productive_struggle" in prompts.user_prompt
+    assert "Reliability plan:" not in prompts.user_prompt
+    assert "state=independence_ready" not in prompts.user_prompt
+    assert "traits=stable" not in prompts.user_prompt
+    assert "current=productive_struggle" not in prompts.user_prompt
 
 
 def test_provider_uses_llm_output_when_response_is_valid(
-    sample_profile,
-    sample_request,
+    sample_curriculum_request,
     sample_route,
     sample_grounding,
 ):
@@ -261,8 +438,7 @@ def test_provider_uses_llm_output_when_response_is_valid(
     )
 
     blocks = provider.generate(
-        sample_profile,
-        sample_request,
+        sample_curriculum_request,
         sample_route,
         sample_grounding,
     )
@@ -276,8 +452,7 @@ def test_provider_uses_llm_output_when_response_is_valid(
 
 
 def test_provider_falls_back_to_mock_when_llm_call_fails(
-    sample_profile,
-    sample_request,
+    sample_curriculum_request,
     sample_route,
     sample_grounding,
 ):
@@ -287,8 +462,7 @@ def test_provider_falls_back_to_mock_when_llm_call_fails(
     )
 
     blocks = provider.generate(
-        sample_profile,
-        sample_request,
+        sample_curriculum_request,
         sample_route,
         sample_grounding,
     )
@@ -299,8 +473,8 @@ def test_provider_falls_back_to_mock_when_llm_call_fails(
 
 
 def test_provider_logs_generate_failure_details_in_debug_telemetry(
-    sample_profile,
     sample_request,
+    sample_curriculum_request,
     sample_route,
     sample_grounding,
     caplog: pytest.LogCaptureFixture,
@@ -317,8 +491,7 @@ def test_provider_logs_generate_failure_details_in_debug_telemetry(
     try:
         with caplog.at_level("DEBUG", logger="dibble.services.llm_provider"):
             provider.generate(
-                sample_profile,
-                sample_request,
+                sample_curriculum_request,
                 sample_route,
                 sample_grounding,
             )
@@ -443,8 +616,7 @@ def test_chat_client_stream_retries_with_temperature_one_when_provider_requires_
 
 
 def test_provider_streams_upstream_ndjson_chunks(
-    sample_profile,
-    sample_request,
+    sample_curriculum_request,
     sample_route,
     sample_grounding,
 ):
@@ -466,8 +638,7 @@ def test_provider_streams_upstream_ndjson_chunks(
 
     chunks = list(
         provider.stream_generate(
-            sample_profile,
-            sample_request,
+            sample_curriculum_request,
             sample_route,
             sample_grounding,
         )
@@ -478,8 +649,8 @@ def test_provider_streams_upstream_ndjson_chunks(
 
 
 def test_provider_logs_stream_failure_details_in_debug_telemetry(
-    sample_profile,
     sample_request,
+    sample_curriculum_request,
     sample_route,
     sample_grounding,
     caplog: pytest.LogCaptureFixture,
@@ -497,8 +668,7 @@ def test_provider_logs_stream_failure_details_in_debug_telemetry(
         with caplog.at_level("DEBUG", logger="dibble.services.llm_provider"):
             list(
                 provider.stream_generate(
-                    sample_profile,
-                    sample_request,
+                    sample_curriculum_request,
                     sample_route,
                     sample_grounding,
                 )
@@ -532,7 +702,7 @@ def test_plugin_loader_passes_settings_to_provider_factory(tmp_path):
 
 
 def test_provider_fails_over_to_secondary_client(
-    sample_profile, sample_request, sample_route, sample_grounding
+    sample_curriculum_request, sample_route, sample_grounding
 ):
     provider = LLMOrchestrationProvider(
         clients=[
@@ -555,8 +725,7 @@ def test_provider_fails_over_to_secondary_client(
     )
 
     blocks = provider.generate(
-        sample_profile,
-        sample_request,
+        sample_curriculum_request,
         sample_route,
         sample_grounding,
     )
@@ -565,8 +734,7 @@ def test_provider_fails_over_to_secondary_client(
 
 
 def test_provider_stream_fails_over_to_secondary_client(
-    sample_profile,
-    sample_request,
+    sample_curriculum_request,
     sample_route,
     sample_grounding,
 ):
@@ -588,8 +756,7 @@ def test_provider_stream_fails_over_to_secondary_client(
 
     chunks = list(
         provider.stream_generate(
-            sample_profile,
-            sample_request,
+            sample_curriculum_request,
             sample_route,
             sample_grounding,
         )
@@ -600,8 +767,7 @@ def test_provider_stream_fails_over_to_secondary_client(
 
 
 def test_provider_opens_circuit_after_repeated_primary_failures(
-    sample_profile,
-    sample_request,
+    sample_curriculum_request,
     sample_route,
     sample_grounding,
 ):
@@ -625,17 +791,16 @@ def test_provider_opens_circuit_after_repeated_primary_failures(
         time_provider=lambda: current_time["value"],
     )
 
-    provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
-    provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
-    provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
+    provider.generate(sample_curriculum_request, sample_route, sample_grounding)
+    provider.generate(sample_curriculum_request, sample_route, sample_grounding)
+    provider.generate(sample_curriculum_request, sample_route, sample_grounding)
 
     assert primary.complete_calls == 2
     assert secondary.complete_calls == 3
 
 
 def test_provider_retries_primary_after_circuit_cooldown(
-    sample_profile,
-    sample_request,
+    sample_curriculum_request,
     sample_route,
     sample_grounding,
 ):
@@ -659,18 +824,17 @@ def test_provider_retries_primary_after_circuit_cooldown(
         time_provider=lambda: current_time["value"],
     )
 
-    provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
+    provider.generate(sample_curriculum_request, sample_route, sample_grounding)
     current_time["value"] = 110.0
-    provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
+    provider.generate(sample_curriculum_request, sample_route, sample_grounding)
     current_time["value"] = 131.0
-    provider.generate(sample_profile, sample_request, sample_route, sample_grounding)
+    provider.generate(sample_curriculum_request, sample_route, sample_grounding)
 
     assert primary.complete_calls == 2
 
 
 def test_provider_round_robin_balances_healthy_clients(
-    sample_profile,
-    sample_request,
+    sample_curriculum_request,
     sample_route,
     sample_grounding,
 ):
@@ -701,10 +865,10 @@ def test_provider_round_robin_balances_healthy_clients(
     )
 
     first = provider.generate(
-        sample_profile, sample_request, sample_route, sample_grounding
+        sample_curriculum_request, sample_route, sample_grounding
     )
     second = provider.generate(
-        sample_profile, sample_request, sample_route, sample_grounding
+        sample_curriculum_request, sample_route, sample_grounding
     )
 
     assert first[0].title == "Primary"
@@ -714,8 +878,7 @@ def test_provider_round_robin_balances_healthy_clients(
 
 
 def test_provider_latency_aware_prefers_faster_healthy_client(
-    sample_profile,
-    sample_request,
+    sample_curriculum_request,
     sample_route,
     sample_grounding,
 ):
@@ -752,13 +915,13 @@ def test_provider_latency_aware_prefers_faster_healthy_client(
     )
 
     first = provider.generate(
-        sample_profile, sample_request, sample_route, sample_grounding
+        sample_curriculum_request, sample_route, sample_grounding
     )
     second = provider.generate(
-        sample_profile, sample_request, sample_route, sample_grounding
+        sample_curriculum_request, sample_route, sample_grounding
     )
     third = provider.generate(
-        sample_profile, sample_request, sample_route, sample_grounding
+        sample_curriculum_request, sample_route, sample_grounding
     )
 
     assert first[0].title == "Primary"
@@ -770,8 +933,7 @@ def test_provider_latency_aware_prefers_faster_healthy_client(
 
 def test_provider_hydrates_latency_history_from_health_store(
     tmp_path,
-    sample_profile,
-    sample_request,
+    sample_curriculum_request,
     sample_route,
     sample_grounding,
 ):
@@ -814,7 +976,7 @@ def test_provider_hydrates_latency_history_from_health_store(
     )
 
     warm_provider.generate(
-        sample_profile, sample_request, sample_route, sample_grounding
+        sample_curriculum_request, sample_route, sample_grounding
     )
 
     fresh_primary = FakeClient(
@@ -850,7 +1012,7 @@ def test_provider_hydrates_latency_history_from_health_store(
     )
 
     blocks = hydrated_provider.generate(
-        sample_profile, sample_request, sample_route, sample_grounding
+        sample_curriculum_request, sample_route, sample_grounding
     )
 
     assert blocks[0].title == "Secondary"
@@ -860,8 +1022,7 @@ def test_provider_hydrates_latency_history_from_health_store(
 
 def test_provider_hydrates_open_circuit_from_health_store(
     tmp_path,
-    sample_profile,
-    sample_request,
+    sample_curriculum_request,
     sample_route,
     sample_grounding,
 ):
@@ -895,7 +1056,7 @@ def test_provider_hydrates_open_circuit_from_health_store(
     )
 
     warm_provider.generate(
-        sample_profile, sample_request, sample_route, sample_grounding
+        sample_curriculum_request, sample_route, sample_grounding
     )
 
     fresh_primary = FakeClient(error=LLMClientError("primary still down"))
@@ -919,7 +1080,7 @@ def test_provider_hydrates_open_circuit_from_health_store(
     )
 
     blocks = hydrated_provider.generate(
-        sample_profile, sample_request, sample_route, sample_grounding
+        sample_curriculum_request, sample_route, sample_grounding
     )
 
     assert blocks[0].title == "Secondary"

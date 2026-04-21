@@ -3,12 +3,15 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
-from hashlib import sha256
-import json
 from time import monotonic
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from dibble.models.generation import (
+    AdaptiveRouteDecision,
+    CurriculumContentKey,
+    CurriculumLibraryEntry,
+    CurriculumLibraryStorageScope,
+    CurriculumContentRequest,
     DeliveryMode,
     GeneratedContent,
     GeneratedBlock,
@@ -28,12 +31,29 @@ from dibble.plugins.contracts import (
 )
 from dibble.services.content_moderation import ContentModerationService
 from dibble.services.generated_block_normalizer import normalize_generated_blocks
-from dibble.services.generation_modes import build_generation_mode_plan
+from dibble.services.harness.content_library import (
+    GeneratedContentBackedCurriculumLibraryStore,
+    LocalCurriculumContentLibrary,
+)
+from dibble.services.harness.facades import (
+    AuthoringHarnessFacade,
+    ContentLibraryHarnessFacade,
+    GenerationHarnessFacades,
+    PreparedAuthoringRequest,
+    RoutingHarnessFacade,
+)
+from dibble.services.harness.policy import (
+    HarnessAuthoringPolicy,
+    HarnessAuthoringPolicyBuilder,
+)
+from dibble.services.harness.request_adapter import CurriculumContentRequestAdapter
+from dibble.services.harness.content_library import CurriculumContentLibrary
 from dibble.services.protocols import GeneratedContentStore
 from dibble.services.runtime_telemetry import log_runtime_event
 from dibble.services.surplus_practice_cache import SurplusPracticeCache
 
 logger = logging.getLogger(__name__)
+_CURRICULUM_LIBRARY_STUDENT_ID = UUID("00000000-0000-0000-0000-000000000000")
 
 
 class GenerationEngine:
@@ -45,6 +65,8 @@ class GenerationEngine:
         validator: ValidatorPlugin,
         moderation_service: ContentModerationService | None = None,
         generated_content_store: GeneratedContentStore | None = None,
+        content_library: CurriculumContentLibrary | None = None,
+        harness: GenerationHarnessFacades | None = None,
         surplus_practice_cache: SurplusPracticeCache | None = None,
         cache_ttl_seconds: int = 3600,
         time_provider=monotonic,
@@ -55,20 +77,32 @@ class GenerationEngine:
         self.validator = validator
         self.moderation_service = moderation_service or ContentModerationService()
         self.generated_content_store = generated_content_store
+        resolved_library = content_library
+        if resolved_library is None and generated_content_store is not None:
+            resolved_library = LocalCurriculumContentLibrary(
+                GeneratedContentBackedCurriculumLibraryStore(generated_content_store)
+            )
+        self.harness = harness or GenerationHarnessFacades(
+            routing=RoutingHarnessFacade(router=router),
+            authoring=AuthoringHarnessFacade(
+                policy_builder=HarnessAuthoringPolicyBuilder(),
+                request_adapter=CurriculumContentRequestAdapter()
+            ),
+            content_library=ContentLibraryHarnessFacade(library=resolved_library),
+        )
         self.surplus_practice_cache = surplus_practice_cache
         self.cache_ttl_seconds = max(0, cache_ttl_seconds)
         self.time_provider = time_provider
 
     def _safe_retrieve(
-        self, profile: LearnerProfile, request: GenerationRequest
+        self, request: CurriculumContentRequest
     ) -> list[GroundingReference]:
         """Retrieve grounding references, falling back to empty on error."""
         try:
-            return self.retriever.retrieve(profile, request)
+            return self.retriever.retrieve(request)
         except Exception:
             logger.warning(
-                "Retriever failed for student %s; proceeding without grounding",
-                profile.student_id,
+                "Retriever failed for curriculum request; proceeding without grounding",
                 exc_info=True,
             )
             return []
@@ -76,8 +110,31 @@ class GenerationEngine:
     def generate(
         self, profile: LearnerProfile, request: GenerationRequest
     ) -> GenerationResponse:
-        grounding = self._safe_retrieve(profile, request)
-        route = self.router.route(profile, request)
+        route = self.harness.routing.decide_route(profile=profile, request=request)
+        prepared_authoring = self.harness.authoring.prepare_request_for(
+            profile=profile,
+            request=request,
+            route=route,
+        )
+        return self.generate_prepared(
+            profile=profile,
+            request=request,
+            route=route,
+            prepared_authoring=prepared_authoring,
+        )
+
+    def generate_prepared(
+        self,
+        *,
+        profile: LearnerProfile,
+        request: GenerationRequest,
+        route: AdaptiveRouteDecision,
+        prepared_authoring: PreparedAuthoringRequest,
+    ) -> GenerationResponse:
+        route = route.model_copy(deep=True)
+        authoring_policy = prepared_authoring.policy
+        curriculum_request = prepared_authoring.curriculum_request
+        grounding = self._safe_retrieve(curriculum_request)
         log_runtime_event(
             logger,
             logging.DEBUG,
@@ -89,6 +146,7 @@ class GenerationEngine:
             scaffolding_level=route.scaffolding_level,
             grounding_count=len(grounding),
             request=request.model_dump(mode="json"),
+            curriculum_request=curriculum_request.model_dump(mode="json"),
             route=route.model_dump(mode="json"),
             grounding=[item.model_dump(mode="json") for item in grounding],
         )
@@ -96,9 +154,19 @@ class GenerationEngine:
         if surplus is not None:
             return surplus.response
 
-        cache_key = self._cache_key(profile, request, route, grounding)
-        cached = self._get_cached_content(cache_key=cache_key)
+        content_key = self._content_library_key(
+            request=curriculum_request,
+            route=route,
+            grounding=grounding,
+        )
+        cached, cached_history_needs_store = self._get_cached_content(
+            profile=profile,
+            authoring_policy=authoring_policy,
+            content_key=content_key,
+        )
         if cached is not None:
+            if cached_history_needs_store:
+                self._store_generated_history(content=cached)
             log_runtime_event(
                 logger,
                 logging.DEBUG,
@@ -131,7 +199,7 @@ class GenerationEngine:
             )
             route.delivery_mode = DeliveryMode.static_fallback
         else:
-            blocks = self.provider.generate(profile, request, route, grounding)
+            blocks = self.provider.generate(curriculum_request, route, grounding)
             blocks = normalize_generated_blocks(blocks)
             blocks, surplus_blocks = self._split_surplus(blocks)
             moderation = self.moderation_service.moderate_blocks(blocks)
@@ -158,15 +226,15 @@ class GenerationEngine:
         )
         content = self._build_generated_content(
             profile=profile,
-            request=request,
             response=response,
+            authoring_policy=authoring_policy,
             moderation=moderation,
             cache_hit=False,
             generation_latency_ms=int(
                 round((self.time_provider() - started_at) * 1000)
             ),
         )
-        self._store_generated_content(cache_key=cache_key, content=content)
+        self._store_generated_content(content_key=content_key, content=content)
         self._cache_surplus(surplus_blocks, blocks, content, profile, request)
         log_runtime_event(
             logger,
@@ -186,8 +254,31 @@ class GenerationEngine:
     def stream_generate(
         self, profile: LearnerProfile, request: GenerationRequest
     ) -> Iterator[GenerationStreamEvent]:
-        grounding = self._safe_retrieve(profile, request)
-        route = self.router.route(profile, request)
+        route = self.harness.routing.decide_route(profile=profile, request=request)
+        prepared_authoring = self.harness.authoring.prepare_request_for(
+            profile=profile,
+            request=request,
+            route=route,
+        )
+        return self.stream_generate_prepared(
+            profile=profile,
+            request=request,
+            route=route,
+            prepared_authoring=prepared_authoring,
+        )
+
+    def stream_generate_prepared(
+        self,
+        *,
+        profile: LearnerProfile,
+        request: GenerationRequest,
+        route: AdaptiveRouteDecision,
+        prepared_authoring: PreparedAuthoringRequest,
+    ) -> Iterator[GenerationStreamEvent]:
+        route = route.model_copy(deep=True)
+        authoring_policy = prepared_authoring.policy
+        curriculum_request = prepared_authoring.curriculum_request
+        grounding = self._safe_retrieve(curriculum_request)
 
         surplus = self._pop_surplus(profile, request)
         if surplus is not None:
@@ -213,9 +304,19 @@ class GenerationEngine:
             )
             return
 
-        cache_key = self._cache_key(profile, request, route, grounding)
-        cached = self._get_cached_content(cache_key=cache_key)
+        content_key = self._content_library_key(
+            request=curriculum_request,
+            route=route,
+            grounding=grounding,
+        )
+        cached, cached_history_needs_store = self._get_cached_content(
+            profile=profile,
+            authoring_policy=authoring_policy,
+            content_key=content_key,
+        )
         if cached is not None:
+            if cached_history_needs_store:
+                self._store_generated_history(content=cached)
             log_runtime_event(
                 logger,
                 logging.DEBUG,
@@ -285,7 +386,7 @@ class GenerationEngine:
             )
             block_buffers: dict[int, GeneratedBlock] = {}
             for chunk in self.provider.stream_generate(
-                profile, request, route, grounding
+                curriculum_request, route, grounding
             ):
                 if chunk.block is not None:
                     block_buffers[chunk.block_index] = chunk.block
@@ -336,15 +437,15 @@ class GenerationEngine:
         )
         content = self._build_generated_content(
             profile=profile,
-            request=request,
             response=response,
+            authoring_policy=authoring_policy,
             moderation=moderation,
             cache_hit=False,
             generation_latency_ms=int(
                 round((self.time_provider() - started_at) * 1000)
             ),
         )
-        self._store_generated_content(cache_key=cache_key, content=content)
+        self._store_generated_content(content_key=content_key, content=content)
         self._cache_surplus(surplus_blocks, blocks, content, profile, request)
         log_runtime_event(
             logger,
@@ -433,13 +534,12 @@ class GenerationEngine:
         self,
         *,
         profile: LearnerProfile,
-        request: GenerationRequest,
         response: GenerationResponse,
+        authoring_policy: HarnessAuthoringPolicy,
         moderation: ModerationResult,
         cache_hit: bool,
         generation_latency_ms: int,
     ) -> GeneratedContent:
-        plan = build_generation_mode_plan(profile, request, response.route)
         provider_descriptor = self._provider_descriptor()
         metadata = GenerationMetadata(
             quality_score=self._quality_score(response, moderation=moderation),
@@ -471,56 +571,162 @@ class GenerationEngine:
         return GeneratedContent(
             generation_id=generation_id,
             student_id=profile.student_id,
-            content_type=plan.content_type.value,
-            request_context=plan.request_context,
+            content_type=authoring_policy.content_type.value,
+            request_context=authoring_policy.request_context,
             response=updated_response,
             quality=metadata,
             created_at=created_at,
             expires_at=expires_at,
         )
 
-    def _get_cached_content(self, *, cache_key: str) -> GeneratedContent | None:
-        if self.generated_content_store is None or self.cache_ttl_seconds <= 0:
-            return None
-        cached = self.generated_content_store.get_fresh(cache_key=cache_key)
-        if cached is None:
-            return None
-        cached_quality = cached.quality.model_copy(update={"cache_hit": True})
-        cached_response = cached.response.model_copy(
-            update={"generation_metadata": cached_quality}
+    def _get_cached_content(
+        self,
+        *,
+        profile: LearnerProfile,
+        authoring_policy: HarnessAuthoringPolicy,
+        content_key: CurriculumContentKey,
+    ) -> tuple[GeneratedContent | None, bool]:
+        if self.cache_ttl_seconds <= 0:
+            return None, False
+        cached_entry = self.harness.content_library.get_fresh_entry(key=content_key)
+        if cached_entry is None:
+            return None, False
+        if (
+            self.generated_content_store is not None
+            and cached_entry.source_generation_id is not None
+        ):
+            source_content = self.generated_content_store.get(
+                generation_id=cached_entry.source_generation_id
+            )
+            if (
+                source_content is not None
+                and source_content.student_id == profile.student_id
+            ):
+                cached_quality = source_content.quality.model_copy(
+                    update={"cache_hit": True, "generation_latency_ms": 0}
+                )
+                cached_response = source_content.response.model_copy(
+                    update={"generation_metadata": cached_quality}
+                )
+                return (
+                    source_content.model_copy(
+                        update={
+                            "quality": cached_quality,
+                            "response": cached_response,
+                        }
+                    ),
+                    False,
+                )
+        cached = self._materialize_cached_content(
+            profile=profile,
+            authoring_policy=authoring_policy,
+            template=cached_entry.content,
         )
-        return cached.model_copy(
-            update={"quality": cached_quality, "response": cached_response}
+        return cached, True
+
+    def _materialize_cached_content(
+        self,
+        *,
+        profile: LearnerProfile,
+        authoring_policy: HarnessAuthoringPolicy,
+        template: GeneratedContent,
+    ) -> GeneratedContent:
+        generation_id = str(uuid4())
+        created_at = datetime.now(timezone.utc)
+        expires_at = (
+            created_at + timedelta(seconds=self.cache_ttl_seconds)
+            if self.cache_ttl_seconds > 0
+            else None
+        )
+        cached_quality = template.quality.model_copy(
+            update={"cache_hit": True, "generation_latency_ms": 0}
+        )
+        cached_response = template.response.model_copy(
+            update={
+                "student_id": profile.student_id,
+                "generation_id": generation_id,
+                "generation_metadata": cached_quality,
+            }
+        )
+        return GeneratedContent(
+            generation_id=generation_id,
+            student_id=profile.student_id,
+            content_type=authoring_policy.content_type.value,
+            request_context=authoring_policy.request_context,
+            response=cached_response,
+            quality=cached_quality,
+            created_at=created_at,
+            expires_at=expires_at,
+        )
+
+    def _store_generated_history(self, *, content: GeneratedContent) -> None:
+        if self.generated_content_store is None:
+            return
+        self.generated_content_store.upsert(
+            cache_key=self._history_cache_key(content=content),
+            content=content,
+        )
+
+    def _library_template_content(
+        self,
+        *,
+        content: GeneratedContent,
+        content_key: CurriculumContentKey,
+    ) -> GeneratedContent:
+        sanitized_quality = content.quality.model_copy(update={"cache_hit": False})
+        sanitized_response = content.response.model_copy(
+            update={
+                "student_id": _CURRICULUM_LIBRARY_STUDENT_ID,
+                "generation_metadata": sanitized_quality,
+            }
+        )
+        return GeneratedContent(
+            generation_id=content.generation_id,
+            student_id=_CURRICULUM_LIBRARY_STUDENT_ID,
+            content_type=content.content_type,
+            request_context={
+                "selected_content_type": content.content_type,
+                "curriculum_cache_key": content_key.cache_key(),
+                "library_storage_scope": CurriculumLibraryStorageScope.local_only.value,
+            },
+            response=sanitized_response,
+            quality=sanitized_quality,
+            created_at=content.created_at,
+            expires_at=content.expires_at,
         )
 
     def _store_generated_content(
-        self, *, cache_key: str, content: GeneratedContent
+        self,
+        *,
+        content_key: CurriculumContentKey,
+        content: GeneratedContent,
     ) -> None:
-        if self.generated_content_store is None or self.cache_ttl_seconds <= 0:
+        self._store_generated_history(content=content)
+        if self.cache_ttl_seconds <= 0:
             return
-        self.generated_content_store.upsert(cache_key=cache_key, content=content)
+        self.harness.content_library.upsert_entry(
+            entry=CurriculumLibraryEntry(
+                content_key=content_key,
+                content=self._library_template_content(
+                    content=content,
+                    content_key=content_key,
+                ),
+                storage_scope=CurriculumLibraryStorageScope.local_only,
+            )
+        )
 
-    def _cache_key(
-        self, profile: LearnerProfile, request: GenerationRequest, route, grounding
-    ) -> str:
-        ignored_request_keys = {
-            "learning_session_id",
-            "predictive_warm",
-            "warm_reason",
-            "source_generation_id",
-        }
-        payload = {
-            "profile": profile.model_dump(mode="json"),
-            "request": {
-                key: value
-                for key, value in request.model_dump(mode="json").items()
-                if key not in ignored_request_keys
-            },
-            "route": route.model_dump(mode="json"),
-            "grounding": [item.model_dump(mode="json") for item in grounding],
-        }
-        serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-        return sha256(serialized.encode("utf-8")).hexdigest()
+    @staticmethod
+    def _history_cache_key(*, content: GeneratedContent) -> str:
+        return f"generated:{content.generation_id}"
+
+    def _content_library_key(
+        self,
+        *,
+        request: CurriculumContentRequest,
+        route,
+        grounding,
+    ) -> CurriculumContentKey:
+        return CurriculumContentKey(request=request, route=route, grounding=grounding)
 
     def _quality_score(
         self, response: GenerationResponse, *, moderation: ModerationResult

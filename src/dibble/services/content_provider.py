@@ -4,16 +4,14 @@ from collections.abc import Iterator
 
 from dibble.models.generation import (
     AdaptiveRouteDecision,
+    CurriculumContentRequest,
     DeferredTextReveal,
     GeneratedBlock,
     GeneratedBlockChunk,
-    GenerationRequest,
     GroundingReference,
     MultipleChoiceInteraction,
     MultipleChoiceOption,
 )
-from dibble.models.profile import LearnerProfile
-from dibble.services.generation_modes import build_generation_mode_plan
 from dibble.services.grounding_context import (
     summarize_grounding_excerpts,
     summarize_grounding_titles,
@@ -30,12 +28,10 @@ class MockLLMProvider:
 
     def generate(
         self,
-        profile: LearnerProfile,
-        request: GenerationRequest,
+        request: CurriculumContentRequest,
         route: AdaptiveRouteDecision,
         grounding: list[GroundingReference],
     ) -> list[GeneratedBlock]:
-        plan = build_generation_mode_plan(profile, request, route)
         focus = ", ".join(
             request.target_kc_ids or request.target_lo_ids or ["current lesson"]
         )
@@ -43,10 +39,8 @@ class MockLLMProvider:
         grounding_excerpt = summarize_grounding_excerpts(
             grounding, max_items=1, max_chars=72
         )
-        prompt_fragment = request.learner_prompt or "Use a supportive, concise tone."
         instruction_close = self._instruction_close(
-            pace_preference=profile.learning_preferences.pace_preference.value,
-            prompt_fragment=prompt_fragment,
+            prompt_fragment=request.delivery_tone
         )
 
         return [
@@ -54,14 +48,13 @@ class MockLLMProvider:
                 kind="summary",
                 title="Learning focus",
                 body=(
-                    f"Grade {profile.grade_level} focus: {focus}. "
+                    f"Grade {request.grade_level} focus: {focus}. "
                     f"Use {grounding_summary}. Cue: {grounding_excerpt}."
                 ),
             ),
             *self._intent_blocks(
                 request=request,
                 route=route,
-                plan=plan,
                 focus=focus,
                 grounding_excerpt=grounding_excerpt,
                 grounding_summary=grounding_summary,
@@ -71,42 +64,40 @@ class MockLLMProvider:
 
     def stream_generate(
         self,
-        profile: LearnerProfile,
-        request: GenerationRequest,
+        request: CurriculumContentRequest,
         route: AdaptiveRouteDecision,
         grounding: list[GroundingReference],
     ) -> Iterator[GeneratedBlockChunk]:
-        return iter_block_chunks(self.generate(profile, request, route, grounding))
+        return iter_block_chunks(self.generate(request, route, grounding))
 
     def _intent_blocks(
         self,
         *,
-        request: GenerationRequest,
+        request: CurriculumContentRequest,
         route: AdaptiveRouteDecision,
-        plan,
         focus: str,
         grounding_excerpt: str,
         grounding_summary: str,
         instruction_close: str,
     ) -> list[GeneratedBlock]:
-        if plan.content_type.value == "practice_problem":
+        if request.content_type.value == "practice_problem":
             distractor_focus = str(
-                plan.request_context.get(
+                request.generation_constraints.get(
                     "practice_distractor_focus", "a clear structural contrast"
                 )
             )
             distractor_family = str(
-                plan.request_context.get(
+                request.generation_constraints.get(
                     "practice_distractor_family", "single_structural_contrast"
                 )
             )
             support_intensity = str(
-                plan.request_context.get(
+                request.generation_constraints.get(
                     "practice_distractor_support_intensity", "moderate"
                 )
             )
             distractor_blueprint = (
-                plan.request_context.get("practice_distractor_blueprint") or []
+                request.generation_constraints.get("practice_distractor_blueprint") or []
             )
             blueprint_entry = (
                 distractor_blueprint[0]
@@ -123,7 +114,7 @@ class MockLLMProvider:
                     kind="practice_problem",
                     title="Choose the next step",
                     body=(
-                        f"Try one {plan.request_context['difficulty_band']}-difficulty {focus} problem from {grounding_summary}. "
+                        f"Try one {request.generation_constraints.get('difficulty_band', 'on_grade')}-difficulty {focus} problem from {grounding_summary}. "
                         f"Watch for {distractor_focus}. Use the transfer move named in the cue."
                     ),
                     interaction=MultipleChoiceInteraction(
@@ -160,33 +151,33 @@ class MockLLMProvider:
                 ),
             ]
 
-        if plan.content_type.value == "worked_example":
-            fading = str(plan.request_context["fading_strategy"])
+        if request.content_type.value == "worked_example":
+            fading = str(request.generation_constraints.get("fading_strategy", "full"))
             release_stage = str(
-                plan.request_context.get(
+                request.generation_constraints.get(
                     "worked_example_release_stage", "completion_then_justify"
                 )
             )
             release_transition = str(
-                plan.request_context.get(
+                request.generation_constraints.get(
                     "worked_example_release_transition", "worked step -> learner step"
                 )
             )
             visible_roles = ", ".join(
-                plan.request_context.get("worked_example_visible_step_roles", [])
+                request.generation_constraints.get("worked_example_visible_step_roles", [])
             )
             hidden_step_role = str(
-                plan.request_context.get(
+                request.generation_constraints.get(
                     "worked_example_hidden_step_role", "the next step"
                 )
             )
             transfer_move = str(
-                plan.request_context.get(
+                request.generation_constraints.get(
                     "worked_example_transfer_move", "a nearby application"
                 )
             )
             transfer_plan = (
-                plan.request_context.get("worked_example_transfer_plan") or {}
+                request.generation_constraints.get("worked_example_transfer_plan") or {}
             )
             preserve = str(transfer_plan.get("preserve", "the same structure"))
             change = str(transfer_plan.get("change", transfer_move))
@@ -214,7 +205,7 @@ class MockLLMProvider:
                 ),
             ]
 
-        if plan.content_type.value == "assessment_probe":
+        if request.content_type.value == "assessment_probe":
             return [
                 GeneratedBlock(
                     kind="instruction",
@@ -239,9 +230,11 @@ class MockLLMProvider:
             ),
         ]
 
-    def _instruction_close(self, *, pace_preference: str, prompt_fragment: str) -> str:
-        prompt_clause = prompt_fragment.strip().rstrip(".!?")
+    def _instruction_close(self, *, prompt_fragment: str | None) -> str:
+        prompt_clause = (prompt_fragment or "use a supportive, concise tone").strip().rstrip(
+            ".!?"
+        )
         if not prompt_clause:
-            return f"Honor the learner's pace preference of {pace_preference}."
+            return "Keep the instructional tone supportive and concise."
         prompt_clause = prompt_clause[0].lower() + prompt_clause[1:]
-        return f"Honor the learner's pace preference of {pace_preference} and {prompt_clause}."
+        return f"Keep the instructional tone supportive and concise, and {prompt_clause}."

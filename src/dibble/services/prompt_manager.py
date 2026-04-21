@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from uuid import UUID
 
 from dibble.config import Settings
-from dibble.models.generation import GenerationModeCalibration, RequestedContentType
+from dibble.models.generation import RequestedContentType
 from dibble.services.generation_prompt_selector import GenerationPromptSelector
 from dibble.services.socratic_prompt_selector import SocraticPromptSelector
 
@@ -48,12 +47,12 @@ class PromptManager:
     def select(
         self,
         *,
-        student_id: UUID,
+        selection_key: str,
         content_type: RequestedContentType,
-        mode_calibration: GenerationModeCalibration | None = None,
+        adaptive_variant_hint: str | None = None,
     ) -> PromptSelection:
         variant = self.variant_override or self._variant_for(
-            student_id=student_id, content_type=content_type
+            selection_key=selection_key, content_type=content_type
         )
         if (
             self.adaptive_selection_enabled
@@ -68,7 +67,7 @@ class PromptManager:
             variant = self.generation_prompt_selector.select_variant(
                 content_type=content_type,
                 fallback_variant=variant,
-                mode_calibration=mode_calibration,
+                adaptive_variant_hint=adaptive_variant_hint,
             )
         if (
             self.adaptive_selection_enabled
@@ -92,14 +91,14 @@ class PromptManager:
         )
 
     def _variant_for(
-        self, *, student_id: UUID, content_type: RequestedContentType
+        self, *, selection_key: str, content_type: RequestedContentType
     ) -> str:
         if not self.experiment_enabled:
             return "baseline"
         variants = self._variants_for(content_type)
         if len(variants) == 1:
             return "baseline"
-        key = f"{student_id}:{content_type.value}:{self.library_version}"
+        key = f"{selection_key}:{content_type.value}:{self.library_version}"
         bucket = int(hashlib.sha256(key.encode("utf-8")).hexdigest()[:8], 16) % len(
             variants
         )

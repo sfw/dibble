@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from dibble.models.curriculum import Outcome
-from dibble.models.generation import GenerationRequest, GroundingReference
+from dibble.models.generation import CurriculumContentRequest, GroundingReference
 from dibble.services.grounding_context import extract_grounding_excerpt
-from dibble.models.profile import LearnerProfile
 from dibble.services.protocols import EmbeddingStore, OutcomeStore
 from dibble.services.retrieval.grounding_passages import GroundingPassageSelector
 from dibble.services.retrieval.embedding_store import InMemoryEmbeddingStore
@@ -33,17 +32,16 @@ class RAGRetriever:
 
     def retrieve(
         self,
-        profile: LearnerProfile,
-        request: GenerationRequest,
+        request: CurriculumContentRequest,
         limit: int = 3,
     ) -> list[GroundingReference]:
         outcomes = self.outcome_store.list()
-        query_text = self.scorer.build_query_text(profile, request)
+        query_text = self.scorer.build_query_text(request)
         query_embedding = self.embedder.embed(query_text)
         scored: list[tuple[float, Outcome, list[str], str | None]] = []
 
         for outcome in outcomes:
-            retrieval_score = self.scorer.score(profile, request, outcome)
+            retrieval_score = self.scorer.score(request, outcome)
             outcome_embedding = self._outcome_embedding(outcome)
             embedding_similarity = cosine_similarity(query_embedding, outcome_embedding)
 

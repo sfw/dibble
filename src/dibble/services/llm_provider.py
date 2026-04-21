@@ -10,12 +10,11 @@ from typing import Callable
 from dibble.config import Settings
 from dibble.models.generation import (
     AdaptiveRouteDecision,
+    CurriculumContentRequest,
     GeneratedBlock,
     GeneratedBlockChunk,
-    GenerationRequest,
     GroundingReference,
 )
-from dibble.models.profile import LearnerProfile
 from dibble.services.content_provider import MockLLMProvider
 from dibble.services.llm_client import LLMClientError, OpenAICompatibleChatClient
 from dibble.services.llm_prompting import (
@@ -202,13 +201,11 @@ class LLMOrchestrationProvider:
 
     def generate(
         self,
-        profile: LearnerProfile,
-        request: GenerationRequest,
+        request: CurriculumContentRequest,
         route: AdaptiveRouteDecision,
         grounding: list[GroundingReference],
     ) -> list[GeneratedBlock]:
         prompts = build_generation_prompts(
-            profile,
             request,
             route,
             grounding,
@@ -219,8 +216,7 @@ class LLMOrchestrationProvider:
             logger,
             logging.DEBUG,
             "llm.generate.start",
-            student_id=str(profile.student_id),
-            learning_session_id=request.learning_session_id,
+            curriculum_selection_key=request.prompt_selection_key(),
             template_name=prompts.template_name,
             template_variant=prompts.template_variant,
             client_names=[name for name, _ in self.clients],
@@ -236,7 +232,6 @@ class LLMOrchestrationProvider:
             )
         if not self.clients:
             return self._fallback(
-                profile,
                 request,
                 route,
                 grounding,
@@ -312,19 +307,15 @@ class LLMOrchestrationProvider:
                 continue
 
         logger.warning("All LLM clients exhausted; falling back to mock provider")
-        return self._fallback(
-            profile, request, route, grounding, prompts, "LLM call failed."
-        )
+        return self._fallback(request, route, grounding, prompts, "LLM call failed.")
 
     def stream_generate(
         self,
-        profile: LearnerProfile,
-        request: GenerationRequest,
+        request: CurriculumContentRequest,
         route: AdaptiveRouteDecision,
         grounding: list[GroundingReference],
     ) -> Iterator[GeneratedBlockChunk]:
         prompts = build_stream_generation_prompts(
-            profile,
             request,
             route,
             grounding,
@@ -335,8 +326,7 @@ class LLMOrchestrationProvider:
             logger,
             logging.DEBUG,
             "llm.stream.start",
-            student_id=str(profile.student_id),
-            learning_session_id=request.learning_session_id,
+            curriculum_selection_key=request.prompt_selection_key(),
             template_name=prompts.template_name,
             template_variant=prompts.template_variant,
             client_names=[name for name, _ in self.clients],
@@ -353,7 +343,6 @@ class LLMOrchestrationProvider:
         if not self.clients:
             yield from iter_block_chunks(
                 self._fallback(
-                    profile,
                     request,
                     route,
                     grounding,
@@ -424,9 +413,7 @@ class LLMOrchestrationProvider:
 
         logger.warning("All LLM stream clients exhausted; falling back to mock provider")
         yield from iter_block_chunks(
-            self._fallback(
-                profile, request, route, grounding, prompts, "LLM stream failed."
-            )
+            self._fallback(request, route, grounding, prompts, "LLM stream failed.")
         )
 
     def _is_available(self, name: str) -> bool:
@@ -592,8 +579,7 @@ class LLMOrchestrationProvider:
 
     def _fallback(
         self,
-        profile: LearnerProfile,
-        request: GenerationRequest,
+        request: CurriculumContentRequest,
         route: AdaptiveRouteDecision,
         grounding: list[GroundingReference],
         prompts,
@@ -602,7 +588,7 @@ class LLMOrchestrationProvider:
         if self.fallback_provider is None:
             raise LLMProviderError(reason)
 
-        blocks = self.fallback_provider.generate(profile, request, route, grounding)
+        blocks = self.fallback_provider.generate(request, route, grounding)
         fallback_descriptor = getattr(
             self.fallback_provider,
             "last_used_descriptor",

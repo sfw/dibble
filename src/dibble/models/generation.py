@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
+from hashlib import sha256
+import json
 from typing import Literal
 from uuid import UUID
 
@@ -68,6 +70,58 @@ class GenerationRequest(BaseModel):
     source_generation_id: str | None = None
     target_kc_hints: list["TargetKcGenerationHint"] = Field(default_factory=list)
     mode_calibration: "GenerationModeCalibration | None" = None
+
+
+class CurriculumContentRequest(BaseModel):
+    grade_level: str
+    intent: ContentIntent = ContentIntent.explanation
+    content_type: RequestedContentType
+    target_kc_ids: list[str] = Field(default_factory=list)
+    target_lo_ids: list[str] = Field(default_factory=list)
+    curriculum_context: list[str] = Field(default_factory=list)
+    target_kc_hints: list["TargetKcGenerationHint"] = Field(default_factory=list)
+    delivery_tone: str = "Keep the tone calm, specific, and encouraging."
+    prompt_guidance: str = ""
+    generation_constraints: dict[str, object] = Field(default_factory=dict)
+    adaptive_variant_hint: str | None = None
+
+    def prompt_selection_key(self) -> str:
+        payload = {
+            "grade_level": self.grade_level,
+            "intent": self.intent.value,
+            "content_type": self.content_type.value,
+            "target_kc_ids": sorted(self.target_kc_ids),
+            "target_lo_ids": sorted(self.target_lo_ids),
+            "curriculum_context": sorted(self.curriculum_context),
+            "target_kc_hints": sorted(
+                hint.model_dump_json()
+                for hint in self.target_kc_hints
+            ),
+            "adaptive_variant_hint": self.adaptive_variant_hint,
+        }
+        serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        return sha256(serialized.encode("utf-8")).hexdigest()
+
+    def cache_identity_payload(self) -> dict[str, object]:
+        return {
+            "grade_level": self.grade_level,
+            "intent": self.intent.value,
+            "content_type": self.content_type.value,
+            "target_kc_ids": sorted(self.target_kc_ids),
+            "target_lo_ids": sorted(self.target_lo_ids),
+            "curriculum_context": sorted(self.curriculum_context),
+            "target_kc_hints": sorted(
+                hint.model_dump_json()
+                for hint in self.target_kc_hints
+            ),
+            "provider_safe_guidance": {
+                "delivery_tone": self.delivery_tone,
+                "adaptive_variant_hint": self.adaptive_variant_hint,
+                "generation_constraints": _cache_safe_generation_constraints(
+                    self.generation_constraints
+                ),
+            },
+        }
 
 
 class GenerationModeCalibration(BaseModel):
@@ -186,6 +240,68 @@ class GroundingReference(BaseModel):
     score: float = Field(ge=0.0)
     matched_terms: list[str] = Field(default_factory=list)
     excerpt: str | None = None
+
+    def cache_identity_payload(self) -> dict[str, object]:
+        return {
+            "outcome_id": self.outcome_id,
+            "grade_level": self.grade_level,
+            "subject": self.subject,
+        }
+
+
+class CurriculumContentKey(BaseModel):
+    request: CurriculumContentRequest
+    route: "AdaptiveRouteDecision"
+    grounding: list[GroundingReference] = Field(default_factory=list)
+
+    def cache_key(self) -> str:
+        payload = {
+            "request": self.request.cache_identity_payload(),
+            "route": {
+                "intervention_type": self.route.intervention_type.value,
+                "delivery_mode": self.route.delivery_mode.value,
+                "scaffolding_level": self.route.scaffolding_level,
+            },
+            "grounding": sorted(
+                [
+                    (
+                        item.cache_identity_payload()
+                        if isinstance(item, GroundingReference)
+                        else GroundingReference.model_validate(
+                            item
+                        ).cache_identity_payload()
+                    )
+                    for item in self.grounding
+                ],
+                key=lambda item: (
+                    str(item.get("outcome_id", "")),
+                    str(item.get("grade_level", "")),
+                    str(item.get("subject", "")),
+                ),
+            ),
+        }
+        serialized = json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return sha256(serialized.encode("utf-8")).hexdigest()
+
+
+class CurriculumLibraryStorageScope(str, Enum):
+    local_only = "local_only"
+    shared_ready = "shared_ready"
+
+
+def _cache_safe_generation_constraints(
+    generation_constraints: dict[str, object],
+) -> dict[str, object]:
+    safe_items: dict[str, object] = {}
+    for key, value in generation_constraints.items():
+        if key.endswith("_rationale") or key == "mode_calibration_applied":
+            continue
+        safe_items[key] = value
+    return safe_items
 
 
 class GeneratedBlock(BaseModel):
@@ -381,6 +497,24 @@ class GeneratedContent(BaseModel):
     quality: GenerationMetadata
     created_at: datetime = Field(default_factory=utc_now)
     expires_at: datetime | None = None
+
+
+class CurriculumLibraryEntry(BaseModel):
+    content_key: CurriculumContentKey
+    content: GeneratedContent
+    cache_key: str | None = None
+    storage_scope: CurriculumLibraryStorageScope = (
+        CurriculumLibraryStorageScope.local_only
+    )
+    source_generation_id: str | None = None
+
+    @model_validator(mode="after")
+    def populate_library_metadata(self) -> "CurriculumLibraryEntry":
+        if self.cache_key is None:
+            self.cache_key = self.content_key.cache_key()
+        if self.source_generation_id is None:
+            self.source_generation_id = self.content.generation_id
+        return self
 
 
 class GenerationStreamEvent(BaseModel):

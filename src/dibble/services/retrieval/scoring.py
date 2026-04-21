@@ -3,8 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from dibble.models.curriculum import Outcome
-from dibble.models.generation import GenerationRequest
-from dibble.models.profile import LearnerProfile
+from dibble.models.generation import CurriculumContentRequest
 from dibble.services.retrieval.text import salient_tokens
 from dibble.services.retrieval.vectorizer import HashedTextVectorizer
 
@@ -16,13 +15,13 @@ class RetrievalScore:
     semantic_similarity: float = 0.0
 
 
-def build_query_text(profile: LearnerProfile, request: GenerationRequest) -> str:
+def build_query_text(request: CurriculumContentRequest) -> str:
     parts = [
+        request.grade_level,
         request.intent.value,
         *request.target_kc_ids,
         *request.target_lo_ids,
         *request.curriculum_context,
-        *profile.learning_preferences.example_domain_preferences,
     ]
     return " ".join(part for part in parts if part)
 
@@ -50,11 +49,10 @@ class HybridRetrievalScorer:
 
     def score(
         self,
-        profile: LearnerProfile,
-        request: GenerationRequest,
+        request: CurriculumContentRequest,
         outcome: Outcome,
     ) -> RetrievalScore | None:
-        query_text = self.build_query_text(profile, request)
+        query_text = self.build_query_text(request)
         outcome_text = self.build_outcome_text(outcome)
 
         query_tokens = set(salient_tokens(query_text))
@@ -66,7 +64,7 @@ class HybridRetrievalScorer:
             self.vectorizer.vectorize(outcome_text),
         )
         lexical_overlap = self._lexical_overlap(query_tokens, outcome_tokens)
-        metadata_bonus = self._metadata_bonus(profile, request, outcome)
+        metadata_bonus = self._metadata_bonus(request, outcome)
         score = (semantic_similarity * 6.0) + (lexical_overlap * 3.0) + metadata_bonus
 
         if (
@@ -82,10 +80,8 @@ class HybridRetrievalScorer:
             semantic_similarity=semantic_similarity,
         )
 
-    def build_query_text(
-        self, profile: LearnerProfile, request: GenerationRequest
-    ) -> str:
-        return build_query_text(profile, request)
+    def build_query_text(self, request: CurriculumContentRequest) -> str:
+        return build_query_text(request)
 
     def build_outcome_text(self, outcome: Outcome) -> str:
         return build_outcome_text(outcome)
@@ -100,13 +96,12 @@ class HybridRetrievalScorer:
 
     def _metadata_bonus(
         self,
-        profile: LearnerProfile,
-        request: GenerationRequest,
+        request: CurriculumContentRequest,
         outcome: Outcome,
     ) -> float:
         bonus = 0.0
 
-        if outcome.grade_level == profile.grade_level:
+        if outcome.grade_level == request.grade_level:
             bonus += 2.0
         elif outcome.grade_level in {"K-2", "3-5", "6-8", "9-12"}:
             bonus += 0.5

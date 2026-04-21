@@ -113,6 +113,18 @@ CREATE TABLE IF NOT EXISTS generated_content (
 );
 """
 
+CURRICULUM_CONTENT_LIBRARY_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS curriculum_content_library (
+    cache_key TEXT PRIMARY KEY,
+    content_key_payload TEXT NOT NULL,
+    content_payload TEXT NOT NULL,
+    storage_scope TEXT NOT NULL,
+    source_generation_id TEXT,
+    created_at TEXT NOT NULL,
+    expires_at TEXT
+);
+"""
+
 OBSERVATION_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS learner_observations (
     observation_id TEXT PRIMARY KEY,
@@ -256,6 +268,7 @@ def ensure_database(database_path: str) -> None:
         connection.execute(PROVIDER_HEALTH_TABLE_SQL)
         connection.execute(AUTH_SESSION_TABLE_SQL)
         connection.execute(GENERATED_CONTENT_TABLE_SQL)
+        connection.execute(CURRICULUM_CONTENT_LIBRARY_TABLE_SQL)
         connection.execute(OBSERVATION_TABLE_SQL)
         connection.execute(SOCRATIC_SESSION_TABLE_SQL)
         connection.execute(REMEDIATION_SESSION_TABLE_SQL)
