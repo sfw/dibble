@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
+from dibble.models.curriculum import CurriculumVersionReference
+
 from dibble.contract_labels import continue_action_display_label, stage_display_label
 
 
@@ -467,6 +469,7 @@ class OutcomeProgressSummary(BaseModel):
     mastery_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
     current_flow_aligned: bool = False
     target_stage: str = "target"
+    curriculum_provenance: CurriculumVersionReference | None = None
     mastery_quality: str | None = None
     rationale: str | None = None
 
@@ -477,6 +480,7 @@ class LearnerCurriculumProgressionSummary(BaseModel):
     flow_type: str = "idle"
     current_stage: str = "idle"
     stage_display_label: str | None = None
+    curriculum_provenance: CurriculumVersionReference | None = None
     goal_id: str | None = None
     trajectory_id: str | None = None
     trajectory_node_id: str | None = None

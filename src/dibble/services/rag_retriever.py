@@ -80,6 +80,7 @@ class RAGRetriever:
                 title=outcome.title,
                 grade_level=outcome.grade_level,
                 subject=outcome.subject,
+                curriculum_provenance=outcome.curriculum_provenance,
                 score=score,
                 matched_terms=matched_terms,
                 excerpt=excerpt

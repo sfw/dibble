@@ -25,6 +25,7 @@ class CurriculumContentRequestAdapter:
             content_type=policy.content_type,
             target_kc_ids=list(request.target_kc_ids),
             target_lo_ids=list(request.target_lo_ids),
+            curriculum_provenance=request.curriculum_provenance,
             curriculum_context=list(request.curriculum_context),
             target_kc_hints=list(request.target_kc_hints),
             prompt_guidance=policy.prompt_guidance,

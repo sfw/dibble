@@ -7,6 +7,10 @@ from dibble.config import Settings
 from dibble.plugins.contracts import RouterPlugin
 from dibble.services.admin_config import AdminConfigService
 from dibble.services.admin_academic_catalog import AdminAcademicCatalogService
+from dibble.services.alignment_edge_store import (
+    SQLiteAlignmentEdgeStore,
+    SQLiteAlignmentReviewDecisionStore,
+)
 from dibble.services.admin_section_membership_service import (
     AdminSectionMembershipService,
 )
@@ -24,6 +28,10 @@ from dibble.services.cross_signal_consistency import CrossSignalConsistencyServi
 from dibble.services.content_workflow import ContentWorkflowService
 from dibble.services.curriculum_content_library_store import (
     SQLiteCurriculumContentLibraryStore,
+)
+from dibble.services.curriculum_framework_store import SQLiteCurriculumFrameworkStore
+from dibble.services.curriculum_import_adapters import (
+    default_curriculum_import_adapters,
 )
 from dibble.services.classroom_store import SQLiteClassroomStore
 from dibble.services.classroom_membership_store import SQLiteClassroomMembershipStore
@@ -43,6 +51,7 @@ from dibble.services.harness.content_library import (
     LocalStubCloudLibraryClient,
     RemoteReadyCloudLibraryClient,
 )
+from dibble.services.harness.curriculum_intake_harness import CurriculumIntakeHarness
 from dibble.services.harness.curriculum_planning import CurriculumPlanningHarness
 from dibble.services.harness.learner_profile import LearnerProfileHarness
 from dibble.services.harness.modality_routing import ModalityRoutingHarness
@@ -50,6 +59,10 @@ from dibble.services.harness.within_session_control import WithinSessionControlH
 from dibble.services.surplus_practice_cache import SurplusPracticeCache
 from dibble.services.generation_mode_calibration import GenerationModeCalibrator
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
+from dibble.services.framework_import_artifact_store import (
+    SQLiteFrameworkImportArtifactStore,
+)
+from dibble.services.framework_import_store import SQLiteFrameworkImportStore
 from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
 from dibble.services.knowledge_state_migration import KnowledgeStateMigrator
 from dibble.services.learning_calibration_profiles import (
@@ -112,6 +125,9 @@ from dibble.services.progression_outcome_tracker import ProgressionOutcomeTracke
 from dibble.services.resource_state_transitions import OutcomeStateTransitionTracker
 from dibble.services.progression_ownership import ProgressionOwnershipService
 from dibble.services.provider_health import SQLiteProviderHealthStore
+from dibble.services.published_curriculum_snapshot_store import (
+    SQLitePublishedCurriculumSnapshotStore,
+)
 from dibble.services.profile_store import SQLiteProfileStore
 from dibble.services.protocols import (
     AssignmentStore,
@@ -199,6 +215,7 @@ class ApplicationServices:
     assessment_evidence_harness: AssessmentEvidenceHarness
     modality_routing_harness: ModalityRoutingHarness
     content_generation_harness: ContentGenerationHarness
+    curriculum_intake_harness: CurriculumIntakeHarness
     curriculum_planning_harness: CurriculumPlanningHarness
     within_session_control_harness: WithinSessionControlHarness
     autonomous_teacher_harness: AutonomousTeacherHarness
@@ -263,6 +280,12 @@ def build_application_services(
     outcome_store = SQLiteOutcomeStore(conn)
     strand_store = SQLiteStrandStore(conn)
     knowledge_component_store = SQLiteKnowledgeComponentStore(conn)
+    curriculum_framework_store = SQLiteCurriculumFrameworkStore(conn)
+    framework_import_store = SQLiteFrameworkImportStore(conn)
+    framework_import_artifact_store = SQLiteFrameworkImportArtifactStore(conn)
+    published_curriculum_snapshot_store = SQLitePublishedCurriculumSnapshotStore(conn)
+    alignment_edge_store = SQLiteAlignmentEdgeStore(conn)
+    alignment_review_decision_store = SQLiteAlignmentReviewDecisionStore(conn)
     audit_store = SQLiteAuditStore(conn)
     generated_content_store = SQLiteGeneratedContentStore(conn)
     curriculum_content_library_store = SQLiteCurriculumContentLibraryStore(conn)
@@ -325,9 +348,7 @@ def build_application_services(
         cache_ttl_seconds=settings.generation_cache_ttl_seconds,
     )
     local_curriculum_content_library = LibraryFirstCurriculumContentLibrary(
-        local_client=LocalStubCloudLibraryClient(
-            curriculum_content_library_store
-        ),
+        local_client=LocalStubCloudLibraryClient(curriculum_content_library_store),
         remote_client=RemoteReadyCloudLibraryClient(
             endpoint=settings.cloud_library_endpoint,
             enabled=settings.cloud_library_enabled,
@@ -481,6 +502,19 @@ def build_application_services(
         learner_flow_service=learner_flow_service,
         ordinary_mastery_signal_service=ordinary_mastery_signal_service,
         quality_gate_signal_service=mastery_quality_gate_signal_service,
+    )
+    curriculum_intake_harness = CurriculumIntakeHarness(
+        framework_store=curriculum_framework_store,
+        framework_import_store=framework_import_store,
+        framework_import_artifact_store=framework_import_artifact_store,
+        published_snapshot_store=published_curriculum_snapshot_store,
+        alignment_edge_store=alignment_edge_store,
+        alignment_review_decision_store=alignment_review_decision_store,
+        course_store=course_store,
+        strand_store=strand_store,
+        outcome_store=outcome_store,
+        knowledge_component_store=knowledge_component_store,
+        adapters=tuple(default_curriculum_import_adapters()),
     )
     curriculum_planning_harness = CurriculumPlanningHarness(
         profile_store=profile_store,
@@ -646,6 +680,7 @@ def build_application_services(
         assessment_evidence_harness=assessment_evidence_harness,
         modality_routing_harness=modality_routing_harness,
         content_generation_harness=content_generation_harness,
+        curriculum_intake_harness=curriculum_intake_harness,
         curriculum_planning_harness=curriculum_planning_harness,
         within_session_control_harness=within_session_control_harness,
         autonomous_teacher_harness=autonomous_teacher_harness,

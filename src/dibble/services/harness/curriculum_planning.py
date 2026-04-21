@@ -55,7 +55,9 @@ class CurriculumPlanningHarness:
     trajectory_planner: TrajectoryPlanner
     planning_adaptation_service: PlanningAdaptationService | None = None
 
-    def create_goal(self, command: CreateLearnerGoalCommand) -> CurriculumPlanningResult:
+    def create_goal(
+        self, command: CreateLearnerGoalCommand
+    ) -> CurriculumPlanningResult:
         profile = self.profile_store.get(command.student_id)
         if profile is None:
             raise LearnerProfileNotFoundError(command.student_id)
@@ -64,7 +66,9 @@ class CurriculumPlanningHarness:
         )
         goal = self._goal_from_command(command=command, progression=progression)
         if goal is None:
-            return CurriculumPlanningResult(goal=None, trajectory=None, progression=progression)
+            return CurriculumPlanningResult(
+                goal=None, trajectory=None, progression=progression
+            )
 
         trajectory = self.trajectory_planner.build_plan(
             student_id=command.student_id,
@@ -99,7 +103,9 @@ class CurriculumPlanningHarness:
         progression = self.learner_progression_service.build_for_student(
             student_id=command.student_id
         )
-        goal = self.learner_goal_store.get_active_for_student(student_id=command.student_id)
+        goal = self.learner_goal_store.get_active_for_student(
+            student_id=command.student_id
+        )
         goal_created = False
         if goal is None:
             seed_goal = self._goal_from_command(
@@ -120,7 +126,9 @@ class CurriculumPlanningHarness:
                 )
             goal = seed_goal
             goal_created = True
-        elif command.requested_outcome_id is not None or command.requested_target_kc_ids:
+        elif (
+            command.requested_outcome_id is not None or command.requested_target_kc_ids
+        ):
             goal = goal.model_copy(
                 update={
                     "target_outcome_id": command.requested_outcome_id
@@ -135,7 +143,9 @@ class CurriculumPlanningHarness:
         existing = (
             self.trajectory_store.get(goal.active_trajectory_id)
             if goal.active_trajectory_id is not None
-            else self.trajectory_store.get_active_for_student(student_id=command.student_id)
+            else self.trajectory_store.get_active_for_student(
+                student_id=command.student_id
+            )
         )
         baseline_progression = progression or LearnerCurriculumProgressionSummary()
 
@@ -144,7 +154,9 @@ class CurriculumPlanningHarness:
                 student_id=command.student_id,
                 goal=goal,
                 progression=baseline_progression,
-                adaptation_state=self._adaptation_state_for(student_id=command.student_id),
+                adaptation_state=self._adaptation_state_for(
+                    student_id=command.student_id
+                ),
             )
             trajectory = self._bind_checkpoint_trajectory_ids(trajectory=trajectory)
             goal = goal.model_copy(
@@ -175,14 +187,12 @@ class CurriculumPlanningHarness:
             adaptation_state=adaptation_state,
         )
         planned = self._bind_checkpoint_trajectory_ids(trajectory=planned)
-        trajectory_changed = (
-            self.trajectory_planner.semantic_signature(existing)
-            != self.trajectory_planner.semantic_signature(planned)
-        )
-        adaptation_changed = (
-            self.trajectory_planner.adaptation_signature(existing)
-            != self.trajectory_planner.adaptation_signature(planned)
-        )
+        trajectory_changed = self.trajectory_planner.semantic_signature(
+            existing
+        ) != self.trajectory_planner.semantic_signature(planned)
+        adaptation_changed = self.trajectory_planner.adaptation_signature(
+            existing
+        ) != self.trajectory_planner.adaptation_signature(planned)
         if trajectory_changed:
             revised = self.trajectory_planner.append_revision(
                 existing=existing,
@@ -221,7 +231,9 @@ class CurriculumPlanningHarness:
             )
             self.trajectory_store.upsert(refreshed)
             if goal_created:
-                goal = goal.model_copy(update={"updated_at": datetime.now(timezone.utc)})
+                goal = goal.model_copy(
+                    update={"updated_at": datetime.now(timezone.utc)}
+                )
             self.learner_goal_store.upsert(goal)
             return CurriculumPlanningResult(
                 goal=goal,
@@ -302,9 +314,25 @@ class CurriculumPlanningHarness:
             title=title,
             source=command.source,
             status="active",
-            target_outcome_id=command.target_outcome_id or (outcome.outcome_id if outcome is not None else None),
+            target_outcome_id=command.target_outcome_id
+            or (outcome.outcome_id if outcome is not None else None),
             target_outcome_ids=candidate_outcome_ids,
             target_kc_ids=target_kc_ids,
+            curriculum_provenance=(
+                outcome.curriculum_provenance
+                if outcome is not None
+                else (
+                    progression.current_outcome.curriculum_provenance
+                    if progression is not None
+                    and progression.current_outcome is not None
+                    else (
+                        progression.next_outcome.curriculum_provenance
+                        if progression is not None
+                        and progression.next_outcome is not None
+                        else None
+                    )
+                )
+            ),
             rationale=command.rationale
             or (
                 progression.rationale
@@ -315,7 +343,9 @@ class CurriculumPlanningHarness:
             updated_at=now,
         )
 
-    def _bind_checkpoint_trajectory_ids(self, *, trajectory: TrajectoryPlan) -> TrajectoryPlan:
+    def _bind_checkpoint_trajectory_ids(
+        self, *, trajectory: TrajectoryPlan
+    ) -> TrajectoryPlan:
         checkpoints = [
             checkpoint.model_copy(update={"trajectory_id": trajectory.trajectory_id})
             for checkpoint in trajectory.checkpoints
@@ -329,7 +359,9 @@ class CurriculumPlanningHarness:
             if goal is not None and goal.active_trajectory_id is not None
             else self.trajectory_store.get_active_for_student(student_id=student_id)
         )
-        progression = self.learner_progression_service.build_for_student(student_id=student_id)
+        progression = self.learner_progression_service.build_for_student(
+            student_id=student_id
+        )
         return CurriculumPlanningResult(
             goal=goal,
             trajectory=trajectory,

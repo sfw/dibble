@@ -72,7 +72,9 @@ class TrajectoryPlanner:
             node_count=len(nodes),
             reasons=self._revision_reasons(adaptation_state=adaptation_state),
             adjustments=list(
-                adaptation_state.active_adjustments if adaptation_state is not None else []
+                adaptation_state.active_adjustments
+                if adaptation_state is not None
+                else []
             ),
             observed_signals=list(
                 adaptation_state.recent_signals if adaptation_state is not None else []
@@ -85,6 +87,8 @@ class TrajectoryPlanner:
             status="active" if nodes else "idle",
             active_node_id=active_node_id,
             active_checkpoint_id=active_checkpoint_id,
+            curriculum_provenance=goal.curriculum_provenance
+            or progression.curriculum_provenance,
             nodes=nodes,
             checkpoints=checkpoints,
             revisions=[revision],
@@ -418,7 +422,9 @@ class TrajectoryPlanner:
             adjustment += 0
         return max(1, min(5, baseline + adjustment))
 
-    def _checkpoint_label(self, *, summary: OutcomeProgressSummary, target_stage: str) -> str:
+    def _checkpoint_label(
+        self, *, summary: OutcomeProgressSummary, target_stage: str
+    ) -> str:
         if target_stage == "repair":
             return f"Stabilize the foundations for {summary.title}."
         if target_stage == "bridge":
@@ -435,7 +441,10 @@ class TrajectoryPlanner:
         if adaptation_state is None or not nodes:
             return nodes, checkpoints
         first_node = nodes[0]
-        if first_node.adaptation is None or first_node.adaptation.risk_level != TrajectoryRiskLevel.high:
+        if (
+            first_node.adaptation is None
+            or first_node.adaptation.risk_level != TrajectoryRiskLevel.high
+        ):
             return nodes, checkpoints
         if not first_node.target_kc_ids:
             return nodes, checkpoints
@@ -502,7 +511,9 @@ class TrajectoryPlanner:
         if revisit_density >= 2 and len(nodes) >= 3 and nodes[1].target_kc_ids:
             insert_after_indices.append(min(4, len(nodes)))
         for insert_index in insert_after_indices[: max(1, revisit_density)]:
-            anchor = updated_nodes[min(max(insert_index - 2, 0), len(updated_nodes) - 1)]
+            anchor = updated_nodes[
+                min(max(insert_index - 2, 0), len(updated_nodes) - 1)
+            ]
             if not anchor.target_kc_ids:
                 continue
             review_node_id = str(uuid4())
@@ -567,16 +578,23 @@ class TrajectoryPlanner:
                 and signal.evidence_strength != PlanningEvidenceStrength.weak
             )
         ]
-        if marker is None and not signal_ids and adaptation_state.preferred_scaffolding_pattern is None:
+        if (
+            marker is None
+            and not signal_ids
+            and adaptation_state.preferred_scaffolding_pattern is None
+        ):
             return None
         return TrajectoryNodeAdaptation(
-            risk_level=marker.risk_level if marker is not None else TrajectoryRiskLevel.low,
+            risk_level=marker.risk_level
+            if marker is not None
+            else TrajectoryRiskLevel.low,
             pacing_adjustment=adaptation_state.active_pacing_adjustment,
             revisit_priority=(
                 "high"
                 if marker is not None and marker.risk_level == TrajectoryRiskLevel.high
                 else "elevated"
-                if marker is not None and marker.risk_level == TrajectoryRiskLevel.moderate
+                if marker is not None
+                and marker.risk_level == TrajectoryRiskLevel.moderate
                 else "normal"
             ),
             recommended_scaffolding_pattern=(
@@ -606,15 +624,13 @@ class TrajectoryPlanner:
         if node_adaptation is None:
             return None
         if node_adaptation.risk_level == TrajectoryRiskLevel.high:
-            return (
-                "Recent outcome history suggests this cluster needs slower pacing and stronger scaffolding."
-            )
+            return "Recent outcome history suggests this cluster needs slower pacing and stronger scaffolding."
         if node_adaptation.risk_level == TrajectoryRiskLevel.moderate:
-            return "Recent outcomes suggest adding bounded support and explicit revisits."
-        if node_adaptation.recommended_scaffolding_pattern is not None:
             return (
-                f"Keep {node_adaptation.recommended_scaffolding_pattern} available because it has helped similar recent sessions recover."
+                "Recent outcomes suggest adding bounded support and explicit revisits."
             )
+        if node_adaptation.recommended_scaffolding_pattern is not None:
+            return f"Keep {node_adaptation.recommended_scaffolding_pattern} available because it has helped similar recent sessions recover."
         return None
 
     def _revision_reasons(

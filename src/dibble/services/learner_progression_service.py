@@ -189,6 +189,15 @@ class LearnerProgressionService:
             status=status,
             flow_type=flow.flow_type,
             current_stage=flow.current_phase,
+            curriculum_provenance=(
+                current_outcome.curriculum_provenance
+                if current_outcome is not None
+                else (
+                    next_outcome.curriculum_provenance
+                    if next_outcome is not None
+                    else None
+                )
+            ),
             goal_id=flow.goal_id,
             trajectory_id=flow.trajectory_id,
             trajectory_node_id=flow.trajectory_node_id,
@@ -383,6 +392,7 @@ class LearnerProgressionService:
                 mastery_ratio=mastery_ratio,
                 current_flow_aligned=current_flow_aligned,
                 target_stage=current_stage if current_flow_aligned else "target",
+                curriculum_provenance=outcome.curriculum_provenance,
                 mastery_quality=mastery_quality,
                 rationale=rationale,
             ),

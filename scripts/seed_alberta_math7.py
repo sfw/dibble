@@ -17,8 +17,6 @@ import argparse
 import sys
 from dataclasses import dataclass, field
 
-import httpx
-
 # ---------------------------------------------------------------------------
 # Alberta Math 7 curriculum data
 #
@@ -837,80 +835,66 @@ STRAND_LABELS = {
 
 
 def seed(base_url: str, api_key: str | None) -> None:
+    import httpx
+
     headers: dict[str, str] = {}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
     with httpx.Client(base_url=base_url, headers=headers, timeout=30) as client:
-        # 1. Upsert course
-        print(f"  Course: {COURSE['title']}")
-        resp = client.put(f"/api/admin/courses/{COURSE['course_id']}", json=COURSE)
-        resp.raise_for_status()
-
-        # 2. Upsert strands (one per organizing idea)
-        for strand in STRANDS:
-            resp = client.put(
-                f"/api/curriculum/strands/{strand['strand_id']}", json=strand
-            )
-            resp.raise_for_status()
-            print(f"  Strand: {strand['title']}")
-
-        kc_count = 0
-        outcome_count = 0
-
-        for outcome in ALL_OUTCOMES:
-            strand_label = STRAND_LABELS[outcome.strand_id]
-
-            # 3. Upsert each outcome (the unit of progression)
-            kc_ids = [kc.kc_id for kc in outcome.kcs]
-            outcome_payload = {
-                "outcome_id": outcome.outcome_id,
-                "title": outcome.title,
-                "strand_id": outcome.strand_id,
-                "grade_level": "7",
+        print(f"  Importing framework: {COURSE['title']}")
+        resp = client.post(
+            "/api/admin/curriculum/imports",
+            json={
+                "adapter_key": "alberta_math_7_seed",
+                "framework_id": "alberta-math-7",
+                "title": "Alberta Mathematics Grade 7",
+                "jurisdiction": "Alberta",
                 "subject": "mathematics",
-                "knowledge_component_ids": kc_ids,
-                "tags": ["alberta"],
-                "description": outcome.description,
-            }
-            resp = client.put(
-                f"/api/curriculum/outcomes/{outcome.outcome_id}",
-                json=outcome_payload,
-            )
-            resp.raise_for_status()
-            outcome_count += 1
-            print(f"  [{strand_label}] Outcome: {outcome.title} ({len(kc_ids)} KCs)")
+                "grade_band": "7",
+                "framework_version": "2022",
+                "source_label": "Alberta Mathematics Grade 7 seed",
+                "source_uri": "https://curriculum.learnalberta.ca/curriculum/en/pos/MAT_79/MATH7",
+                "tags": ["alberta", "grade-7", "mathematics"],
+            },
+        )
+        resp.raise_for_status()
+        imported = resp.json()
+        verification = imported["verification_report"]
+        print(
+            "  Imported artifacts:"
+            f" {verification['course_count']} course,"
+            f" {verification['strand_count']} strands,"
+            f" {verification['outcome_count']} outcomes,"
+            f" {verification['knowledge_component_count']} knowledge components"
+        )
 
-            # 4. Upsert KCs
-            for kc in outcome.kcs:
-                kc_payload = {
-                    "kc_id": kc.kc_id,
-                    "name": kc.name,
-                    "outcome_id": kc.outcome_id,
-                    "grade_level": "7",
-                    "subject": "mathematics",
-                    "taxonomy_cluster_id": kc.taxonomy_cluster_id,
-                    "concept_family": kc.concept_family,
-                    "prerequisite_kc_ids": kc.prerequisite_kc_ids,
-                    "nearby_kc_ids": kc.nearby_kc_ids,
-                    "difficulty": kc.difficulty,
-                    "estimated_time_minutes": kc.estimated_time_minutes,
-                    "tags": kc.tags,
-                    "common_misconceptions": kc.misconceptions,
-                }
-                resp = client.put(
-                    f"/api/knowledge-components/{kc.kc_id}", json=kc_payload
-                )
-                resp.raise_for_status()
-                kc_count += 1
+        if verification["issue_count"]:
+            print(
+                "  Verification:"
+                f" {verification['error_count']} errors,"
+                f" {verification['warning_count']} warnings"
+            )
+
+        resp = client.post(
+            f"/api/admin/curriculum/imports/{imported['import_id']}/publish",
+            json={"force": False},
+        )
+        resp.raise_for_status()
+        snapshot = resp.json()
 
         print(
-            f"\nSeeded Alberta Math 7: {len(STRANDS)} strands, "
-            f"{outcome_count} outcomes, {kc_count} knowledge components"
+            "\nPublished Alberta Math 7 snapshot:"
+            f" {snapshot['snapshot_id']} with"
+            f" {len(snapshot['runtime_strand_ids'])} strands,"
+            f" {len(snapshot['runtime_outcome_ids'])} outcomes,"
+            f" {len(snapshot['runtime_knowledge_component_ids'])} knowledge components"
         )
 
 
 def main() -> None:
+    import httpx
+
     parser = argparse.ArgumentParser(
         description="Seed Alberta Math 7 curriculum into Dibble"
     )

@@ -75,6 +75,63 @@ CREATE TABLE IF NOT EXISTS outcome_embeddings (
 );
 """
 
+CURRICULUM_FRAMEWORK_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS curriculum_frameworks (
+    framework_id TEXT PRIMARY KEY,
+    payload TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+"""
+
+FRAMEWORK_IMPORT_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS framework_imports (
+    import_id TEXT PRIMARY KEY,
+    framework_id TEXT NOT NULL,
+    source_fingerprint TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+"""
+
+FRAMEWORK_IMPORT_ARTIFACT_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS framework_import_artifacts (
+    artifact_id TEXT PRIMARY KEY,
+    import_id TEXT NOT NULL,
+    artifact_kind TEXT NOT NULL,
+    artifact_key TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(import_id, artifact_kind, artifact_key)
+);
+"""
+
+PUBLISHED_CURRICULUM_SNAPSHOT_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS published_curriculum_snapshots (
+    snapshot_id TEXT PRIMARY KEY,
+    framework_id TEXT NOT NULL,
+    framework_import_id TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+"""
+
+ALIGNMENT_EDGE_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS alignment_edges (
+    edge_id TEXT PRIMARY KEY,
+    payload TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+"""
+
+ALIGNMENT_REVIEW_DECISION_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS alignment_review_decisions (
+    decision_id TEXT PRIMARY KEY,
+    edge_id TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    decided_at TEXT NOT NULL
+);
+"""
+
 PROVIDER_HEALTH_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS provider_health_events (
     event_id TEXT PRIMARY KEY,
@@ -371,6 +428,12 @@ def ensure_database(database_path: str) -> None:
         connection.execute(STRAND_TABLE_SQL)
         connection.execute(OUTCOME_TABLE_SQL)
         connection.execute(OUTCOME_EMBEDDING_TABLE_SQL)
+        connection.execute(CURRICULUM_FRAMEWORK_TABLE_SQL)
+        connection.execute(FRAMEWORK_IMPORT_TABLE_SQL)
+        connection.execute(FRAMEWORK_IMPORT_ARTIFACT_TABLE_SQL)
+        connection.execute(PUBLISHED_CURRICULUM_SNAPSHOT_TABLE_SQL)
+        connection.execute(ALIGNMENT_EDGE_TABLE_SQL)
+        connection.execute(ALIGNMENT_REVIEW_DECISION_TABLE_SQL)
         _ensure_sqlite_columns(
             connection,
             table_name="generated_content",

@@ -16,6 +16,7 @@ class StrandUpsert(BaseModel):
     title: str
     description: str = ""
     sort_order: int = 0
+    curriculum_provenance: "CurriculumVersionReference | None" = None
     tags: list[str] = Field(default_factory=list)
 
 
@@ -31,6 +32,7 @@ class OutcomeUpsert(BaseModel):
     subject: str
     description: str
     knowledge_component_ids: list[str] = Field(default_factory=list)
+    curriculum_provenance: "CurriculumVersionReference | None" = None
     tags: list[str] = Field(default_factory=list)
     sort_order: int = 0
 
@@ -60,6 +62,7 @@ class KnowledgeComponentUpsert(BaseModel):
     nearby_kc_ids: list[str] = Field(default_factory=list)
     difficulty: float = Field(default=0.5, ge=0.0, le=1.0)
     estimated_time_minutes: int = Field(default=10, ge=1)
+    curriculum_provenance: "CurriculumVersionReference | None" = None
     tags: list[str] = Field(default_factory=list)
     common_misconceptions: list[KnowledgeComponentMisconception] = Field(
         default_factory=list
@@ -68,3 +71,11 @@ class KnowledgeComponentUpsert(BaseModel):
 
 class KnowledgeComponent(KnowledgeComponentUpsert):
     updated_at: datetime = Field(default_factory=utc_now)
+
+
+class CurriculumVersionReference(BaseModel):
+    framework_id: str
+    framework_version: str | None = None
+    framework_import_id: str | None = None
+    published_snapshot_id: str | None = None
+    source_label: str | None = None

@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from dibble.models.curriculum import KnowledgeComponentUpsert, OutcomeUpsert
+from dibble.models.curriculum import (
+    CurriculumVersionReference,
+    KnowledgeComponentUpsert,
+    OutcomeUpsert,
+)
 from dibble.models.profile import LearnerProfile
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
@@ -44,7 +48,9 @@ def _planning_stack(tmp_path, *, student_id, kc_mastery):
 
     profile_store.upsert(
         LearnerProfile.model_validate(
-            build_profile(student_id, frustration="low", total_load=0.2, kc_mastery=kc_mastery)
+            build_profile(
+                student_id, frustration="low", total_load=0.2, kc_mastery=kc_mastery
+            )
         )
     )
     outcome_store.upsert(
@@ -341,3 +347,42 @@ def test_curriculum_planning_harness_keeps_weak_outcome_evidence_conservative(tm
     assert refreshed.trajectory.nodes[0].node_kind != "recovery_scaffold"
     assert refreshed.trajectory.adaptation_state is not None
     assert refreshed.trajectory.adaptation_state.active_revisit_density == 1
+
+
+def test_curriculum_planning_harness_carries_curriculum_snapshot_provenance(tmp_path):
+    student_id = uuid4()
+    _, _, _, _, harness = _planning_stack(
+        tmp_path,
+        student_id=student_id,
+        kc_mastery={"KC-1": 0.86, "KC-2": 0.42, "KC-3": 0.15},
+    )
+    provenance = CurriculumVersionReference(
+        framework_id="alberta-math-7",
+        framework_version="2022",
+        framework_import_id="import-123",
+        published_snapshot_id="snapshot-123",
+        source_label="Alberta Mathematics Grade 7 seed",
+    )
+    harness.outcome_store.upsert(
+        OutcomeUpsert.model_validate(
+            {
+                **build_outcome(
+                    "CURR-2",
+                    title="Equivalent Fraction Practice",
+                    knowledge_component_ids=["KC-2"],
+                ),
+                "curriculum_provenance": provenance.model_dump(mode="json"),
+            }
+        )
+    )
+
+    result = harness.ensure_active_trajectory(
+        EnsureActiveTrajectoryCommand(student_id=student_id)
+    )
+
+    assert result.goal is not None
+    assert result.trajectory is not None
+    assert result.goal.curriculum_provenance is not None
+    assert result.goal.curriculum_provenance.published_snapshot_id == "snapshot-123"
+    assert result.trajectory.curriculum_provenance is not None
+    assert result.trajectory.curriculum_provenance.framework_import_id == "import-123"

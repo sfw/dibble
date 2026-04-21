@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from dibble.models.curriculum import CurriculumVersionReference
+
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -168,6 +170,7 @@ class LearnerGoal(BaseModel):
     target_outcome_ids: list[str] = Field(default_factory=list)
     target_kc_ids: list[str] = Field(default_factory=list)
     active_trajectory_id: str | None = None
+    curriculum_provenance: CurriculumVersionReference | None = None
     rationale: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
@@ -226,6 +229,7 @@ class TrajectoryPlan(BaseModel):
     status: str = "active"
     active_node_id: str | None = None
     active_checkpoint_id: str | None = None
+    curriculum_provenance: CurriculumVersionReference | None = None
     nodes: list[TrajectoryNode] = Field(default_factory=list)
     checkpoints: list[TrajectoryCheckpoint] = Field(default_factory=list)
     revisions: list[TrajectoryRevision] = Field(default_factory=list)

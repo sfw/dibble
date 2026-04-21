@@ -10,6 +10,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
+from dibble.models.curriculum import CurriculumVersionReference
 from dibble.models.profile import LearnerContinueAction, LearnerFlowNextStep
 
 
@@ -62,6 +63,7 @@ class GenerationRequest(BaseModel):
     learning_session_id: str | None = None
     target_kc_ids: list[str] = Field(default_factory=list)
     target_lo_ids: list[str] = Field(default_factory=list)
+    curriculum_provenance: CurriculumVersionReference | None = None
     intent: ContentIntent = ContentIntent.explanation
     requested_content_type: RequestedContentType | None = None
     learner_prompt: str | None = None
@@ -79,6 +81,7 @@ class CurriculumContentRequest(BaseModel):
     content_type: RequestedContentType
     target_kc_ids: list[str] = Field(default_factory=list)
     target_lo_ids: list[str] = Field(default_factory=list)
+    curriculum_provenance: CurriculumVersionReference | None = None
     curriculum_context: list[str] = Field(default_factory=list)
     target_kc_hints: list["TargetKcGenerationHint"] = Field(default_factory=list)
     delivery_tone: str = "Keep the tone calm, specific, and encouraging."
@@ -93,10 +96,14 @@ class CurriculumContentRequest(BaseModel):
             "content_type": self.content_type.value,
             "target_kc_ids": sorted(self.target_kc_ids),
             "target_lo_ids": sorted(self.target_lo_ids),
+            "curriculum_provenance": (
+                self.curriculum_provenance.model_dump(mode="json")
+                if self.curriculum_provenance is not None
+                else None
+            ),
             "curriculum_context": sorted(self.curriculum_context),
             "target_kc_hints": sorted(
-                hint.model_dump_json()
-                for hint in self.target_kc_hints
+                hint.model_dump_json() for hint in self.target_kc_hints
             ),
             "adaptive_variant_hint": self.adaptive_variant_hint,
         }
@@ -110,10 +117,14 @@ class CurriculumContentRequest(BaseModel):
             "content_type": self.content_type.value,
             "target_kc_ids": sorted(self.target_kc_ids),
             "target_lo_ids": sorted(self.target_lo_ids),
+            "curriculum_provenance": (
+                self.curriculum_provenance.model_dump(mode="json")
+                if self.curriculum_provenance is not None
+                else None
+            ),
             "curriculum_context": sorted(self.curriculum_context),
             "target_kc_hints": sorted(
-                hint.model_dump_json()
-                for hint in self.target_kc_hints
+                hint.model_dump_json() for hint in self.target_kc_hints
             ),
             "provider_safe_guidance": {
                 "delivery_tone": self.delivery_tone,
@@ -300,6 +311,7 @@ class GroundingReference(BaseModel):
     title: str
     grade_level: str
     subject: str | None = None
+    curriculum_provenance: CurriculumVersionReference | None = None
     score: float = Field(ge=0.0)
     matched_terms: list[str] = Field(default_factory=list)
     excerpt: str | None = None
@@ -309,6 +321,11 @@ class GroundingReference(BaseModel):
             "outcome_id": self.outcome_id,
             "grade_level": self.grade_level,
             "subject": self.subject,
+            "curriculum_provenance": (
+                self.curriculum_provenance.model_dump(mode="json")
+                if self.curriculum_provenance is not None
+                else None
+            ),
         }
 
 
@@ -327,8 +344,7 @@ class CurriculumContentKey(BaseModel):
                 "target_lo_ids": sorted(self.request.target_lo_ids),
                 "curriculum_context": sorted(self.request.curriculum_context),
                 "target_kc_hints": sorted(
-                    hint.model_dump_json()
-                    for hint in self.request.target_kc_hints
+                    hint.model_dump_json() for hint in self.request.target_kc_hints
                 ),
             },
             "route": {
@@ -517,7 +533,9 @@ GeneratedArtifact = (
 )
 
 
-def build_generated_artifacts(blocks: list["GeneratedBlock"]) -> list[GeneratedArtifact]:
+def build_generated_artifacts(
+    blocks: list["GeneratedBlock"],
+) -> list[GeneratedArtifact]:
     artifacts: list[GeneratedArtifact] = []
     for index, block in enumerate(blocks):
         body = block.body or (block.interaction.prompt if block.interaction else "")
@@ -728,9 +746,16 @@ class CurriculumLibraryEntry(BaseModel):
         if self.source_generation_id is None:
             self.source_generation_id = self.content.generation_id
         if self.provenance is None:
+            curriculum_provenance = self.content_key.request.curriculum_provenance
+            if curriculum_provenance is None:
+                for reference in self.content_key.grounding:
+                    if reference.curriculum_provenance is not None:
+                        curriculum_provenance = reference.curriculum_provenance
+                        break
             self.provenance = CurriculumLibraryProvenance(
                 source_generation_id=self.content.generation_id,
                 provider_name=self.content.quality.provider_name,
+                curriculum_provenance=curriculum_provenance,
                 validator_passed=self.content.quality.validation_passed,
                 validation_issues=list(self.content.response.validation_issues),
                 moderation_status=self.content.quality.moderation.status,
@@ -772,6 +797,7 @@ class CurriculumLibraryEntry(BaseModel):
 class CurriculumLibraryProvenance(BaseModel):
     source_generation_id: str
     provider_name: str | None = None
+    curriculum_provenance: CurriculumVersionReference | None = None
     validator_passed: bool = True
     validation_issues: list[str] = Field(default_factory=list)
     moderation_status: str = "clear"

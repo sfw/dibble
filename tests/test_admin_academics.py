@@ -100,6 +100,7 @@ def test_admin_can_manage_courses_and_sections(tmp_path):
             "subject": "math",
             "grade_band": "5",
             "curriculum_package_id": None,
+            "curriculum_provenance": None,
             "tags": ["fractions"],
             "updated_at": course_payload[0]["updated_at"],
             "section_count": 1,
