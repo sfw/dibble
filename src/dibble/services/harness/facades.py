@@ -100,34 +100,39 @@ class ContentLibraryHarnessFacade:
         self,
         *,
         key: CurriculumContentKey,
+        learner_id: str | None = None,
     ) -> CurriculumLibraryEntry | None:
         if self.library is None:
             return None
-        return self.library.get_fresh_entry(key=key)
+        return self.library.get_fresh_entry(key=key, learner_id=learner_id)
 
-    def get_fresh(self, *, key: CurriculumContentKey) -> GeneratedContent | None:
+    def get_fresh(
+        self, *, key: CurriculumContentKey, learner_id: str | None = None
+    ) -> GeneratedContent | None:
         if self.library is None:
             return None
-        return self.library.get_fresh(key=key)
+        return self.library.get_fresh(key=key, learner_id=learner_id)
 
     def upsert_entry(
         self,
         *,
         entry: CurriculumLibraryEntry,
+        learner_id: str | None = None,
     ) -> CurriculumLibraryEntry | None:
         if self.library is None:
             return None
-        return self.library.upsert_entry(entry=entry)
+        return self.library.upsert_entry(entry=entry, learner_id=learner_id)
 
     def upsert(
         self,
         *,
         key: CurriculumContentKey,
         content: GeneratedContent,
+        learner_id: str | None = None,
     ) -> GeneratedContent | None:
         if self.library is None:
             return None
-        return self.library.upsert(key=key, content=content)
+        return self.library.upsert(key=key, content=content, learner_id=learner_id)
 
 
 @dataclass(slots=True)

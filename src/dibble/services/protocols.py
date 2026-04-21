@@ -49,6 +49,7 @@ from dibble.models.generation import (
 from dibble.models.observations import LearnerObservation, LearnerObservationCreate
 from dibble.models.planning import LearnerGoal, TrajectoryPlan
 from dibble.models.profile import LearnerProfile
+from dibble.models.rollout import RolloutPolicy
 from dibble.models.remediation import RemediationWorkflowSession
 from dibble.models.session_control import SessionControlState
 from dibble.models.session_adaptation import WithinSessionControllerState
@@ -256,6 +257,11 @@ class AuditStore(Protocol):
     ) -> AuditEvent: ...
 
     def list(self, *, limit: int = 50) -> list[AuditEvent]: ...
+
+
+class RolloutPolicyStore(Protocol):
+    def upsert(self, policy: RolloutPolicy) -> RolloutPolicy: ...
+    def get(self, policy_id: str = "default") -> RolloutPolicy | None: ...
 
 
 class GeneratedContentStore(Protocol):

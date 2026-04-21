@@ -37,7 +37,9 @@ from dibble.models.curriculum_intake import (
 from dibble.models.generation import CurriculumLibraryEntry
 from dibble.models.observability import HarnessBoundary, OperationalTraceStatus
 from dibble.models.planning import TrajectoryRevision
+from dibble.models.rollout import MigrationExecutionMode, RolloutCapability
 from dibble.services.operational_observability import OperationalObservabilityService
+from dibble.services.rollout_decision_service import RolloutDecisionService
 from dibble.services.protocols import (
     AlignmentEdgeStore,
     AssignmentStore,
@@ -131,6 +133,7 @@ class CurriculumEvolutionHarness:
     course_store: CourseStore
     curriculum_content_library_store: CurriculumContentLibraryStore
     operational_observability_service: OperationalObservabilityService | None = None
+    rollout_decision_service: RolloutDecisionService | None = None
 
     def list_snapshot_diffs(self) -> list[CurriculumSnapshotDiff]:
         return self.curriculum_snapshot_diff_store.list()
@@ -636,6 +639,30 @@ class CurriculumEvolutionHarness:
         self, plan_id: str, request: CurriculumMigrationExecutionRequest
     ) -> CurriculumMigrationPlan:
         plan = self._require_plan(plan_id)
+        decision = (
+            self.rollout_decision_service.decision_for(
+                capability=RolloutCapability.migration_execution
+            )
+            if self.rollout_decision_service is not None
+            else None
+        )
+        if (
+            decision is not None
+            and decision.mode == MigrationExecutionMode.manual_only.value
+        ):
+            self._record_trace(
+                operation="execute_migration_plan",
+                status=OperationalTraceStatus.success,
+                summary="Skipped curriculum migration execution because rollout policy requires manual review.",
+                entity_id=plan.plan_id,
+                reason_code="migration_execution_blocked_by_rollout",
+                payload={
+                    "plan_status": plan.status.value if hasattr(plan.status, "value") else str(plan.status),
+                    "rollout_bucket_id": decision.evaluation_bucket_id,
+                    "rollout_mode": decision.mode,
+                },
+            )
+            return plan
         selected_action_ids = set(request.action_ids)
         target_snapshot = self._require_snapshot(plan.target_snapshot_id)
         target_provenance = self._snapshot_provenance(target_snapshot)

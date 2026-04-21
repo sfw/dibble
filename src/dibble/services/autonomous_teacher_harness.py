@@ -23,7 +23,15 @@ from dibble.models.household import (
     ParentNotification,
 )
 from dibble.models.observability import HarnessBoundary, OperationalTraceStatus
+from dibble.models.rollout import (
+    AutonomousOutboundMode,
+    AutonomousSessionSuggestionMode,
+    ParentApprovalEnforcementMode,
+    RolloutCapability,
+    RolloutCapabilityDecision,
+)
 from dibble.services.operational_observability import OperationalObservabilityService
+from dibble.services.rollout_decision_service import RolloutDecisionService
 from dibble.services.harness.curriculum_planning import (
     CurriculumPlanningHarness,
     EnsureActiveTrajectoryCommand,
@@ -72,6 +80,7 @@ class AutonomousTeacherHarness:
     audit_store: AuditStore | None = None
     modality_routing_prior_store: ModalityRoutingPriorStore | None = None
     operational_observability_service: OperationalObservabilityService | None = None
+    rollout_decision_service: RolloutDecisionService | None = None
 
     def orchestrate_household(
         self,
@@ -122,7 +131,26 @@ class AutonomousTeacherHarness:
             household_id=household.household_id,
             learner_id=learner_id,
         )
-        preferences = self._primary_preferences(household=household)
+        base_preferences = self._primary_preferences(household=household)
+        suggestion_decision = self._rollout_decision(
+            capability=RolloutCapability.autonomous_session_suggestions,
+            household_id=household.household_id,
+            learner_id=learner_id,
+        )
+        approval_decision = self._rollout_decision(
+            capability=RolloutCapability.parent_approval_enforcement,
+            household_id=household.household_id,
+            learner_id=learner_id,
+        )
+        outbound_decision = self._rollout_decision(
+            capability=RolloutCapability.autonomous_teacher_outbound_actions,
+            household_id=household.household_id,
+            learner_id=learner_id,
+        )
+        preferences = self._preferences_with_rollout(
+            preferences=base_preferences,
+            approval_decision=approval_decision,
+        )
         adaptation_state, approval_requests = self._adaptation_state_for(
             existing_state=existing_state,
             student_id=student_id,
@@ -268,6 +296,7 @@ class AutonomousTeacherHarness:
             relationship_state=relationship_state,
             weekly_summary=weekly_summary,
             now=now,
+            outbound_decision=outbound_decision,
         )
         for notification in learner_notifications:
             self.parent_notification_store.upsert(notification)
@@ -285,7 +314,14 @@ class AutonomousTeacherHarness:
             cadence_decision=cadence_decision,
             relationship_state=relationship_state,
             session=session,
-            auto_session_suggestions=preferences.auto_session_suggestions,
+            auto_session_suggestions=(
+                preferences.auto_session_suggestions
+                and (
+                    suggestion_decision is None
+                    or suggestion_decision.mode
+                    != AutonomousSessionSuggestionMode.disabled.value
+                )
+            ),
             blocking_approvals=blocking_approvals,
             now=now,
         )
@@ -297,6 +333,9 @@ class AutonomousTeacherHarness:
             blocking_approvals=blocking_approvals,
             notifications=learner_notifications,
             session_suggestion=session_suggestion,
+            suggestion_decision=suggestion_decision,
+            approval_decision=approval_decision,
+            outbound_decision=outbound_decision,
         )
         return AutonomousTeacherLearnerPlan(
             learner_id=learner_id,
@@ -325,6 +364,9 @@ class AutonomousTeacherHarness:
         blocking_approvals: list[ParentApprovalRequest],
         notifications: list[ParentNotification],
         session_suggestion: AutonomousTeacherSessionSuggestion | None,
+        suggestion_decision: RolloutCapabilityDecision | None,
+        approval_decision: RolloutCapabilityDecision | None,
+        outbound_decision: RolloutCapabilityDecision | None,
     ) -> None:
         payload = {
             "cadence_decision": cadence_decision,
@@ -338,6 +380,20 @@ class AutonomousTeacherHarness:
             ),
             "approval_request_count": len(relationship_state.approval_requests),
             "summary_headline": relationship_state.summary_headline,
+            "rollout_bucket_id": (
+                suggestion_decision.evaluation_bucket_id
+                if suggestion_decision is not None
+                else None
+            ),
+            "rollout_autonomous_suggestions_mode": (
+                suggestion_decision.mode if suggestion_decision is not None else None
+            ),
+            "rollout_parent_approval_mode": (
+                approval_decision.mode if approval_decision is not None else None
+            ),
+            "rollout_outbound_mode": (
+                outbound_decision.mode if outbound_decision is not None else None
+            ),
         }
         if self.audit_store is not None:
             self.audit_store.append(
@@ -367,6 +423,47 @@ class AutonomousTeacherHarness:
         if household.parent_profiles:
             return household.parent_profiles[0].preferences
         return ParentPreference()
+
+    def _rollout_decision(
+        self,
+        *,
+        capability: RolloutCapability,
+        household_id: str,
+        learner_id: str,
+    ) -> RolloutCapabilityDecision | None:
+        if self.rollout_decision_service is None:
+            return None
+        return self.rollout_decision_service.decision_for(
+            capability=capability,
+            household_id=household_id,
+            learner_id=learner_id,
+        )
+
+    def _preferences_with_rollout(
+        self,
+        *,
+        preferences: ParentPreference,
+        approval_decision: RolloutCapabilityDecision | None,
+    ) -> ParentPreference:
+        if approval_decision is None:
+            return preferences
+        if approval_decision.mode == ParentApprovalEnforcementMode.strict.value:
+            return preferences.model_copy(
+                update={
+                    "modality_introduction_requires_approval": True,
+                    "trajectory_revision_requires_approval": True,
+                    "high_autonomy_session_requires_approval": True,
+                }
+            )
+        if approval_decision.mode == ParentApprovalEnforcementMode.disabled.value:
+            return preferences.model_copy(
+                update={
+                    "modality_introduction_requires_approval": False,
+                    "trajectory_revision_requires_approval": False,
+                    "high_autonomy_session_requires_approval": False,
+                }
+            )
+        return preferences
 
     def _adaptation_state_for(
         self,
@@ -736,7 +833,13 @@ class AutonomousTeacherHarness:
         relationship_state: LearnerRelationshipState,
         weekly_summary: AutonomousTeacherWeeklySummary | None,
         now: datetime,
+        outbound_decision: RolloutCapabilityDecision | None,
     ) -> list[ParentNotification]:
+        if (
+            outbound_decision is not None
+            and outbound_decision.mode == AutonomousOutboundMode.disabled.value
+        ):
+            return []
         notifications: list[ParentNotification] = []
         week_stamp = now.isocalendar()
         if weekly_summary is not None:

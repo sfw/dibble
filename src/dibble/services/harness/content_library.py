@@ -19,7 +19,13 @@ from dibble.models.generation import (
     AdaptiveScoreComponent,
 )
 from dibble.models.observability import HarnessBoundary, OperationalTraceStatus
+from dibble.models.rollout import (
+    CloudLibraryPublishMode,
+    CloudLibraryReadMode,
+    RolloutCapability,
+)
 from dibble.services.operational_observability import OperationalObservabilityService
+from dibble.services.rollout_decision_service import RolloutDecisionService
 from dibble.services.protocols import (
     CurriculumContentLibraryStore,
     GeneratedContentStore,
@@ -44,21 +50,26 @@ class CurriculumContentLibrary(Protocol):
         self,
         *,
         key: CurriculumContentKey,
+        learner_id: str | None = None,
     ) -> CurriculumLibraryEntry | None: ...
 
     def upsert_entry(
         self,
         *,
         entry: CurriculumLibraryEntry,
+        learner_id: str | None = None,
     ) -> CurriculumLibraryEntry: ...
 
-    def get_fresh(self, *, key: CurriculumContentKey) -> GeneratedContent | None: ...
+    def get_fresh(
+        self, *, key: CurriculumContentKey, learner_id: str | None = None
+    ) -> GeneratedContent | None: ...
 
     def upsert(
         self,
         *,
         key: CurriculumContentKey,
         content: GeneratedContent,
+        learner_id: str | None = None,
     ) -> GeneratedContent: ...
 
 
@@ -150,6 +161,7 @@ class GeneratedContentBackedCurriculumLibraryStore:
         self,
         *,
         key: CurriculumContentKey,
+        learner_id: str | None = None,
     ) -> CurriculumLibraryEntry | None:
         content = self._generated_content_store.get_fresh(cache_key=key.cache_key())
         if content is None:
@@ -164,6 +176,7 @@ class GeneratedContentBackedCurriculumLibraryStore:
         self,
         *,
         entry: CurriculumLibraryEntry,
+        learner_id: str | None = None,
     ) -> CurriculumLibraryEntry:
         persisted = self._generated_content_store.upsert(
             cache_key=entry.cache_key,
@@ -206,6 +219,7 @@ class LocalCurriculumContentLibrary:
         self,
         *,
         key: CurriculumContentKey,
+        learner_id: str | None = None,
     ) -> CurriculumLibraryEntry | None:
         return self._store.get_fresh_entry(key=key)
 
@@ -213,6 +227,7 @@ class LocalCurriculumContentLibrary:
         self,
         *,
         entry: CurriculumLibraryEntry,
+        learner_id: str | None = None,
     ) -> CurriculumLibraryEntry:
         return self._store.upsert_entry(entry=entry)
 
@@ -239,8 +254,10 @@ class LocalCurriculumContentLibrary:
             progress_score=progress_score,
         )
 
-    def get_fresh(self, *, key: CurriculumContentKey) -> GeneratedContent | None:
-        entry = self.get_fresh_entry(key=key)
+    def get_fresh(
+        self, *, key: CurriculumContentKey, learner_id: str | None = None
+    ) -> GeneratedContent | None:
+        entry = self.get_fresh_entry(key=key, learner_id=learner_id)
         return entry.content if entry is not None else None
 
     def upsert(
@@ -248,13 +265,15 @@ class LocalCurriculumContentLibrary:
         *,
         key: CurriculumContentKey,
         content: GeneratedContent,
+        learner_id: str | None = None,
     ) -> GeneratedContent:
         return self.upsert_entry(
             entry=CurriculumLibraryEntry(
                 content_key=key,
                 content=content,
                 storage_scope=CurriculumLibraryStorageScope.local_only,
-            )
+            ),
+            learner_id=learner_id,
         ).content
 
 
@@ -438,15 +457,29 @@ class LibraryFirstCurriculumContentLibrary:
     local_client: CloudLibraryClient
     remote_client: CloudLibraryClient | None = None
     observability_service: OperationalObservabilityService | None = None
+    rollout_decision_service: RolloutDecisionService | None = None
 
     def get_fresh_entry(
         self,
         *,
         key: CurriculumContentKey,
+        learner_id: str | None = None,
     ) -> CurriculumLibraryEntry | None:
+        read_decision = (
+            self.rollout_decision_service.decision_for(
+                capability=RolloutCapability.cloud_library_remote_read,
+                learner_id=learner_id,
+            )
+            if self.rollout_decision_service is not None
+            else None
+        )
         remote_error: Exception | None = None
         remote_entry: CurriculumLibraryEntry | None = None
-        if self.remote_client is not None:
+        remote_allowed = (
+            read_decision is None
+            or read_decision.mode == CloudLibraryReadMode.remote_preferred.value
+        )
+        if self.remote_client is not None and remote_allowed:
             try:
                 remote_entry = self.remote_client.lookup(key=key)
             except Exception as exc:  # pragma: no cover - defensive contract handling
@@ -494,6 +527,13 @@ class LibraryFirstCurriculumContentLibrary:
                 "cache_key": entry.cache_key,
                 "selection_key": key.selection_key(),
                 "remote_enabled": self.remote_client is not None,
+                "rollout_bucket_id": (
+                    read_decision.evaluation_bucket_id if read_decision is not None else None
+                ),
+                "rollout_mode": read_decision.mode if read_decision is not None else None,
+                "rollout_policy_reason": (
+                    read_decision.rationale if read_decision is not None else []
+                ),
             },
         )
         return entry
@@ -502,7 +542,16 @@ class LibraryFirstCurriculumContentLibrary:
         self,
         *,
         entry: CurriculumLibraryEntry,
+        learner_id: str | None = None,
     ) -> CurriculumLibraryEntry:
+        publish_decision = (
+            self.rollout_decision_service.decision_for(
+                capability=RolloutCapability.cloud_library_remote_publish,
+                learner_id=learner_id,
+            )
+            if self.rollout_decision_service is not None
+            else None
+        )
         if not self._is_verified(entry):
             persisted = self._persist_local_entry(
                 self._with_library_provenance(
@@ -527,11 +576,20 @@ class LibraryFirstCurriculumContentLibrary:
                 payload={
                     "cache_key": persisted.cache_key,
                     "selection_key": persisted.content_key.selection_key(),
+                    "rollout_bucket_id": (
+                        publish_decision.evaluation_bucket_id
+                        if publish_decision is not None
+                        else None
+                    ),
                 },
             )
             return persisted
         stored = self.local_client.publish(entry=entry) or entry
-        if self.remote_client is not None:
+        remote_allowed = (
+            publish_decision is None
+            or publish_decision.mode == CloudLibraryPublishMode.remote_verified.value
+        )
+        if self.remote_client is not None and remote_allowed:
             try:
                 remote_entry = self.remote_client.publish(
                     entry=stored.model_copy(
@@ -563,6 +621,11 @@ class LibraryFirstCurriculumContentLibrary:
                         "cache_key": persisted.cache_key,
                         "selection_key": persisted.content_key.selection_key(),
                         "remote_enabled": True,
+                        "rollout_bucket_id": (
+                            publish_decision.evaluation_bucket_id
+                            if publish_decision is not None
+                            else None
+                        ),
                     },
                 )
                 return persisted
@@ -582,6 +645,11 @@ class LibraryFirstCurriculumContentLibrary:
                         "cache_key": persisted.cache_key,
                         "selection_key": persisted.content_key.selection_key(),
                         "remote_enabled": True,
+                        "rollout_bucket_id": (
+                            publish_decision.evaluation_bucket_id
+                            if publish_decision is not None
+                            else None
+                        ),
                     },
                 )
                 return persisted
@@ -606,6 +674,11 @@ class LibraryFirstCurriculumContentLibrary:
                     "cache_key": persisted.cache_key,
                     "selection_key": persisted.content_key.selection_key(),
                     "remote_enabled": True,
+                    "rollout_bucket_id": (
+                        publish_decision.evaluation_bucket_id
+                        if publish_decision is not None
+                        else None
+                    ),
                 },
             )
             return persisted
@@ -613,7 +686,11 @@ class LibraryFirstCurriculumContentLibrary:
             self._with_library_provenance(
                 stored,
                 lookup_status="local_only",
-                publish_status="local_only",
+                publish_status=(
+                    "rollout_local_only"
+                    if publish_decision is not None and not remote_allowed
+                    else "local_only"
+                ),
                 degraded_mode=False,
             )
         )
@@ -626,12 +703,25 @@ class LibraryFirstCurriculumContentLibrary:
                 "cache_key": persisted.cache_key,
                 "selection_key": persisted.content_key.selection_key(),
                 "remote_enabled": False,
+                "rollout_bucket_id": (
+                    publish_decision.evaluation_bucket_id
+                    if publish_decision is not None
+                    else None
+                ),
+                "rollout_mode": (
+                    publish_decision.mode if publish_decision is not None else None
+                ),
+                "rollout_policy_reason": (
+                    publish_decision.rationale if publish_decision is not None else []
+                ),
             },
         )
         return persisted
 
-    def get_fresh(self, *, key: CurriculumContentKey) -> GeneratedContent | None:
-        entry = self.get_fresh_entry(key=key)
+    def get_fresh(
+        self, *, key: CurriculumContentKey, learner_id: str | None = None
+    ) -> GeneratedContent | None:
+        entry = self.get_fresh_entry(key=key, learner_id=learner_id)
         return entry.content if entry is not None else None
 
     def upsert(
@@ -639,12 +729,14 @@ class LibraryFirstCurriculumContentLibrary:
         *,
         key: CurriculumContentKey,
         content: GeneratedContent,
+        learner_id: str | None = None,
     ) -> GeneratedContent:
         return self.upsert_entry(
             entry=CurriculumLibraryEntry(
                 content_key=key,
                 content=content,
-            )
+            ),
+            learner_id=learner_id,
         ).content
 
     def inspect_selection(

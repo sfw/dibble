@@ -227,6 +227,19 @@ class ContentGenerationHarness:
                 "learning_session_id": request.learning_session_id,
                 "selected_plugin_id": plan.directive.plugin_id,
                 "selected_modality": plan.directive.modality,
+                "policy_fallback_applied": (
+                    plan.inspection.policy_fallback_applied
+                    if plan.inspection is not None
+                    else False
+                ),
+                "policy_reason": (
+                    plan.inspection.policy_reason if plan.inspection is not None else None
+                ),
+                "rollout_bucket_id": (
+                    plan.inspection.rollout_bucket_id
+                    if plan.inspection is not None
+                    else None
+                ),
                 "requested_content_type": (
                     request.requested_content_type.value
                     if request.requested_content_type is not None

@@ -685,6 +685,20 @@ def test_admin_curriculum_evolution_api_flow(tmp_path, monkeypatch):
             json={"reviewer_id": "admin-user"},
         )
         assert approve_response.status_code == 200
+        rollout_policy = client.get(
+            "/api/admin/rollout/policy",
+            headers=headers,
+        ).json()["policy"]
+        for gate in rollout_policy["behavior_gates"]:
+            if gate["capability"] == "migration_execution":
+                gate["mode"] = "approved_low_risk_only"
+                break
+        rollout_update = client.put(
+            "/api/admin/rollout/policy",
+            headers=headers,
+            json={"policy": rollout_policy},
+        )
+        assert rollout_update.status_code == 200
         execute_response = client.post(
             f"/api/admin/curriculum/migration-plans/{plan['plan_id']}/execute",
             headers=headers,

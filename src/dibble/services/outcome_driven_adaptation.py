@@ -5,7 +5,9 @@ from datetime import datetime
 from uuid import UUID
 
 from dibble.models.generation import ModalityRoutingPrior, RoutingPriorScope
+from dibble.models.rollout import AdaptationStrength, RolloutCapability
 from dibble.models.telemetry import AuditEvent
+from dibble.services.rollout_decision_service import RolloutDecisionService
 from dibble.services.protocols import (
     AuditStore,
     CurriculumContentLibraryStore,
@@ -28,6 +30,7 @@ class OutcomeDrivenAdaptationService:
     audit_store: AuditStore
     prior_store: ModalityRoutingPriorStore
     curriculum_content_library_store: CurriculumContentLibraryStore
+    rollout_decision_service: RolloutDecisionService | None = None
     max_events: int = 500
 
     def record_from_summary_events(
@@ -59,12 +62,37 @@ class OutcomeDrivenAdaptationService:
                 generation_event.payload.get("routing_context_key") or _GLOBAL_CONTEXT_KEY
             )
             observed_at = summary_event.created_at
-            outcome_score = float(summary_event.payload.get("run_summary_score", 0.5))
-            engagement_score = _optional_float(
+            raw_outcome_score = float(summary_event.payload.get("run_summary_score", 0.5))
+            raw_engagement_score = _optional_float(
                 summary_event.payload.get("downstream_observation_score")
             )
-            progress_score = _optional_float(
+            raw_progress_score = _optional_float(
                 summary_event.payload.get("downstream_assessment_score")
+            )
+            adaptation_decision = (
+                self.rollout_decision_service.decision_for(
+                    capability=RolloutCapability.outcome_driven_adaptation,
+                    learner_id=str(learner_id),
+                )
+                if self.rollout_decision_service is not None
+                else None
+            )
+            if (
+                adaptation_decision is not None
+                and adaptation_decision.mode == AdaptationStrength.off.value
+            ):
+                continue
+            adaptation_factor = _adaptation_factor(
+                adaptation_decision.mode if adaptation_decision is not None else None
+            )
+            outcome_score = _scale_score(raw_outcome_score, factor=adaptation_factor)
+            engagement_score = _scale_optional_score(
+                raw_engagement_score,
+                factor=adaptation_factor,
+            )
+            progress_score = _scale_optional_score(
+                raw_progress_score,
+                factor=adaptation_factor,
             )
             updated_priors = [
                 self._apply_prior_observation(
@@ -247,3 +275,24 @@ def _optional_float(value: object) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _adaptation_factor(mode: str | None) -> float:
+    if mode == AdaptationStrength.aggressive.value:
+        return 1.25
+    if mode == AdaptationStrength.standard.value:
+        return 1.0
+    if mode == AdaptationStrength.conservative.value:
+        return 0.35
+    return 1.0
+
+
+def _scale_score(value: float, *, factor: float) -> float:
+    centered = value - 0.5
+    return round(max(0.0, min(1.0, 0.5 + (centered * factor))), 2)
+
+
+def _scale_optional_score(value: float | None, *, factor: float) -> float | None:
+    if value is None:
+        return None
+    return _scale_score(value, factor=factor)

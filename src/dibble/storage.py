@@ -433,6 +433,14 @@ CREATE TABLE IF NOT EXISTS modality_routing_priors (
 );
 """
 
+ROLLOUT_POLICY_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS rollout_policies (
+    policy_id TEXT PRIMARY KEY,
+    payload TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+"""
+
 CLASSROOM_MEMBERSHIP_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS classroom_memberships (
     classroom_id TEXT NOT NULL,
@@ -479,6 +487,7 @@ def ensure_database(database_path: str) -> None:
         connection.execute(LEARNER_RELATIONSHIP_STATE_TABLE_SQL)
         connection.execute(PARENT_NOTIFICATION_TABLE_SQL)
         connection.execute(MODALITY_ROUTING_PRIOR_TABLE_SQL)
+        connection.execute(ROLLOUT_POLICY_TABLE_SQL)
         connection.execute(STRAND_TABLE_SQL)
         connection.execute(OUTCOME_TABLE_SQL)
         connection.execute(OUTCOME_EMBEDDING_TABLE_SQL)

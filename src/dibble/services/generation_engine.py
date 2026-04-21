@@ -588,7 +588,10 @@ class GenerationEngine:
     ) -> tuple[GeneratedContent | None, bool]:
         if self.cache_ttl_seconds <= 0:
             return None, False
-        cached_entry = self.harness.content_library.get_fresh_entry(key=content_key)
+        cached_entry = self.harness.content_library.get_fresh_entry(
+            key=content_key,
+            learner_id=str(profile.student_id),
+        )
         if cached_entry is None:
             return None, False
         if (
@@ -712,7 +715,8 @@ class GenerationEngine:
                     content_key=content_key,
                 ),
                 storage_scope=CurriculumLibraryStorageScope.local_only,
-            )
+            ),
+            learner_id=str(content.student_id),
         )
 
     @staticmethod

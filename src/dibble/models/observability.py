@@ -5,6 +5,7 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
+from dibble.models.rollout import KillSwitchState
 from dibble.models.telemetry import ProviderStatusSnapshot
 
 
@@ -18,6 +19,7 @@ class HarnessBoundary(str, Enum):
     within_session_control = "within_session_control"
     autonomous_teacher = "autonomous_teacher"
     curriculum_evolution = "curriculum_evolution"
+    rollout_control = "rollout_control"
 
 
 class OperationalTraceStatus(str, Enum):
@@ -104,4 +106,5 @@ class ReleaseReadinessSnapshot(BaseModel):
     cloud_library: CloudLibraryReadiness = Field(
         default_factory=CloudLibraryReadiness
     )
+    active_kill_switches: list[KillSwitchState] = Field(default_factory=list)
     recent_degraded_operations: list[OperationalTrace] = Field(default_factory=list)

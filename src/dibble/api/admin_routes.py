@@ -14,6 +14,7 @@ from dibble.models.admin import (
     SystemConfigUpdateRequest,
     SystemConfigUpdateResponse,
 )
+from dibble.models.observability import HarnessBoundary, OperationalTraceStatus
 from dibble.models.course import CourseUpsert
 from dibble.models.curriculum_intake import (
     AlignmentEdge,
@@ -34,6 +35,16 @@ from dibble.models.curriculum_intake import (
     FrameworkImport,
     FrameworkImportArtifact,
     PublishedCurriculumSnapshot,
+)
+from dibble.models.rollout import (
+    EvaluationBucket,
+    EvaluationSummaryResponse,
+    KillSwitchState,
+    RolloutCohort,
+    RolloutInspection,
+    RolloutPolicyResponse,
+    RolloutPolicyUpdateRequest,
+    RolloutSubject,
 )
 from dibble.models.section import SectionUpsert
 from dibble.services.admin_section_membership_service import (
@@ -56,6 +67,59 @@ def build_admin_router(context: ApiContext) -> APIRouter:
         payload: SystemConfigUpdateRequest,
     ) -> SystemConfigUpdateResponse:
         return context.services.admin_config_service.update_config(payload)
+
+    @router.get("/rollout/policy", response_model=RolloutPolicyResponse)
+    def get_rollout_policy() -> RolloutPolicyResponse:
+        return RolloutPolicyResponse(
+            policy=context.services.rollout_decision_service.get_policy()
+        )
+
+    @router.put("/rollout/policy", response_model=RolloutPolicyResponse)
+    def update_rollout_policy(
+        payload: RolloutPolicyUpdateRequest,
+    ) -> RolloutPolicyResponse:
+        policy = context.services.rollout_decision_service.update_policy(payload.policy)
+        context.services.operational_observability_service.record_trace(
+            harness=HarnessBoundary.rollout_control,
+            operation="update_rollout_policy",
+            status=OperationalTraceStatus.success,
+            summary="Updated rollout policy.",
+            entity_kind="rollout_policy",
+            entity_id=policy.policy_id,
+            reason_code="rollout_policy_updated",
+            payload={
+                "cohort_count": len(policy.cohorts),
+                "bucket_count": len(policy.evaluation_buckets),
+                "kill_switch_count": len(policy.kill_switches),
+            },
+        )
+        return RolloutPolicyResponse(policy=policy)
+
+    @router.get("/rollout/cohorts", response_model=list[RolloutCohort])
+    def list_rollout_cohorts() -> list[RolloutCohort]:
+        return context.services.rollout_decision_service.list_cohorts()
+
+    @router.get("/rollout/buckets", response_model=list[EvaluationBucket])
+    def list_rollout_buckets() -> list[EvaluationBucket]:
+        return context.services.rollout_decision_service.list_buckets()
+
+    @router.get("/rollout/kill-switches", response_model=list[KillSwitchState])
+    def list_rollout_kill_switches() -> list[KillSwitchState]:
+        return context.services.rollout_decision_service.list_kill_switches()
+
+    @router.post("/rollout/inspect", response_model=RolloutInspection)
+    def inspect_rollout_subject(payload: RolloutSubject) -> RolloutInspection:
+        return context.services.rollout_decision_service.inspect_subject(
+            learner_id=payload.learner_id,
+            household_id=payload.household_id,
+        )
+
+    @router.get(
+        "/rollout/evaluation-summary",
+        response_model=EvaluationSummaryResponse,
+    )
+    def get_rollout_evaluation_summary() -> EvaluationSummaryResponse:
+        return context.services.rollout_evaluation_service.summarize()
 
     @router.get("/courses", response_model=list[AdminCourseSummary])
     def list_courses() -> list[AdminCourseSummary]:

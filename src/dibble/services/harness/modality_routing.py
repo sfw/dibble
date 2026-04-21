@@ -13,7 +13,9 @@ from dibble.models.generation import (
     RoutingPriorScope,
 )
 from dibble.models.profile import LearnerProfile
+from dibble.models.rollout import ModalityAvailabilityMode, RolloutCapability
 from dibble.plugins.contracts import ModalityPlugins, RouterPlugin
+from dibble.services.rollout_decision_service import RolloutDecisionService
 from dibble.services.protocols import AuditStore, ModalityRoutingPriorStore
 
 _GLOBAL_CONTEXT_KEY = "__global__"
@@ -54,6 +56,7 @@ class ModalityRoutingHarness:
     modality_plugins: ModalityPlugins
     prior_store: ModalityRoutingPriorStore | None = None
     audit_store: AuditStore | None = None
+    rollout_decision_service: RolloutDecisionService | None = None
 
     def plan(
         self,
@@ -63,7 +66,7 @@ class ModalityRoutingHarness:
     ) -> ModalityRoutingPlan:
         route = self.router.route(profile, request)
         inspection = self.inspect(profile=profile, request=request, route=route)
-        plugin = self.modality_plugins.plugins[inspection.selected_plugin_id]
+        plugin = self.modality_plugins.plugins[inspection.effective_plugin_id]
         directive = ModalityDirective(
             modality=plugin.modality,
             plugin_id=plugin.plugin_id,
@@ -238,11 +241,32 @@ class ModalityRoutingHarness:
                 item for item in candidate_scores if item.plugin_id == heuristic_winner_id
             )
             weak_evidence_fallback_applied = True
+        effective_plugin_id = selected.plugin_id
+        effective_modality = selected.modality
+        rollout_bucket_id: str | None = None
+        policy_fallback_applied = False
+        policy_reason: str | None = None
+        if self.rollout_decision_service is not None and selected.plugin_id != "text":
+            decision = self.rollout_decision_service.decision_for(
+                capability=RolloutCapability.non_text_modalities,
+                learner_id=str(profile.student_id),
+            )
+            rollout_bucket_id = decision.evaluation_bucket_id
+            if decision.mode == ModalityAvailabilityMode.text_only.value:
+                effective_plugin_id = "text"
+                effective_modality = "text"
+                policy_fallback_applied = True
+                policy_reason = "; ".join(decision.rationale)
         return ModalityRoutingInspection(
             learner_id=profile.student_id,
             context_key=context_key,
             selected_plugin_id=selected.plugin_id,
             selected_modality=selected.modality,
+            effective_plugin_id=effective_plugin_id,
+            effective_modality=effective_modality,
+            rollout_bucket_id=rollout_bucket_id,
+            policy_fallback_applied=policy_fallback_applied,
+            policy_reason=policy_reason,
             weak_evidence_fallback_applied=weak_evidence_fallback_applied,
             candidate_scores=candidate_scores,
             priors=deduped_priors,

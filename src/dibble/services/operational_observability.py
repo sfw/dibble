@@ -16,6 +16,7 @@ from dibble.models.observability import (
     StaleAutonomousSuggestionDiagnostic,
     StuckMigrationPlanDiagnostic,
 )
+from dibble.services.rollout_decision_service import RolloutDecisionService
 from dibble.services.operational_trace_store import SQLiteOperationalTraceStore
 from dibble.services.protocols import (
     CurriculumMigrationPlanStore,
@@ -37,6 +38,7 @@ class OperationalObservabilityService:
     learner_relationship_state_store: LearnerRelationshipStateStore | None = None
     user_store: UserStore | None = None
     content_library: Any | None = None
+    rollout_decision_service: RolloutDecisionService | None = None
 
     def record_trace(
         self,
@@ -111,6 +113,15 @@ class OperationalObservabilityService:
             stuck_migration_plans=self._stuck_migration_plans(),
             stale_autonomous_suggestions=self._stale_autonomous_suggestions(),
             cloud_library=self._cloud_library_readiness(recent_traces),
+            active_kill_switches=(
+                [
+                    switch
+                    for switch in self.rollout_decision_service.list_kill_switches()
+                    if switch.active
+                ]
+                if self.rollout_decision_service is not None
+                else []
+            ),
             recent_degraded_operations=degraded_traces[:20],
         )
 

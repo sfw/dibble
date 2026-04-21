@@ -53,6 +53,9 @@ from dibble.services.autonomous_teacher_harness import AutonomousTeacherHarness
 from dibble.services.modality_routing_prior_store import SQLiteModalityRoutingPriorStore
 from dibble.services.outcome_driven_adaptation import OutcomeDrivenAdaptationService
 from dibble.services.planning_adaptation import PlanningAdaptationService
+from dibble.services.rollout_decision_service import RolloutDecisionService
+from dibble.services.rollout_evaluation import RolloutEvaluationService
+from dibble.services.rollout_policy_store import SQLiteRolloutPolicyStore
 from dibble.services.harness.assessment_evidence import AssessmentEvidenceHarness
 from dibble.services.harness.content_generation import ContentGenerationHarness
 from dibble.services.harness.content_library import (
@@ -217,9 +220,12 @@ class ApplicationServices:
     trajectory_store: TrajectoryStore
     session_control_store: SessionControlStore
     household_store: HouseholdStore
+    rollout_policy_store: SQLiteRolloutPolicyStore
     auth_service: AuthService
     telemetry_service: TelemetryService
     operational_observability_service: OperationalObservabilityService
+    rollout_decision_service: RolloutDecisionService
+    rollout_evaluation_service: RolloutEvaluationService
     generation_engine: GenerationEngine
     content_warmer: ContentWarmer
     content_workflow_service: ContentWorkflowService
@@ -320,9 +326,14 @@ def build_application_services(
     operational_trace_store = SQLiteOperationalTraceStore(conn)
     user_store = SQLiteUserStore(conn)
     household_store = SQLiteHouseholdStore(conn)
+    rollout_policy_store = SQLiteRolloutPolicyStore(conn)
     learner_relationship_state_store = SQLiteLearnerRelationshipStateStore(conn)
     parent_notification_store = SQLiteParentNotificationStore(conn)
     modality_routing_prior_store = SQLiteModalityRoutingPriorStore(conn)
+    rollout_decision_service = RolloutDecisionService(
+        policy_store=rollout_policy_store,
+        user_store=user_store,
+    )
     auth_service = AuthService.from_settings(
         settings,
         session_store=SQLiteAuthSessionStore(conn),
@@ -392,6 +403,7 @@ def build_application_services(
         modality_plugins=modality_plugins,
         prior_store=modality_routing_prior_store,
         audit_store=audit_store,
+        rollout_decision_service=rollout_decision_service,
     )
     operational_observability_service = OperationalObservabilityService(
         trace_store=operational_trace_store,
@@ -400,10 +412,12 @@ def build_application_services(
         learner_relationship_state_store=learner_relationship_state_store,
         user_store=user_store,
         content_library=local_curriculum_content_library,
+        rollout_decision_service=rollout_decision_service,
     )
     local_curriculum_content_library.observability_service = (
         operational_observability_service
     )
+    local_curriculum_content_library.rollout_decision_service = rollout_decision_service
     content_generation_harness = ContentGenerationHarness(
         generation_engine=generation_engine,
         modality_routing_harness=modality_routing_harness,
@@ -581,6 +595,7 @@ def build_application_services(
         course_store=course_store,
         curriculum_content_library_store=curriculum_content_library_store,
         operational_observability_service=operational_observability_service,
+        rollout_decision_service=rollout_decision_service,
     )
     within_session_control_harness = WithinSessionControlHarness(
         curriculum_planning_harness=curriculum_planning_harness,
@@ -609,12 +624,15 @@ def build_application_services(
         audit_store=audit_store,
         modality_routing_prior_store=modality_routing_prior_store,
         operational_observability_service=operational_observability_service,
+        rollout_decision_service=rollout_decision_service,
     )
     outcome_driven_adaptation_service = OutcomeDrivenAdaptationService(
         audit_store=audit_store,
         prior_store=modality_routing_prior_store,
         curriculum_content_library_store=curriculum_content_library_store,
+        rollout_decision_service=rollout_decision_service,
     )
+    rollout_evaluation_service = RolloutEvaluationService(audit_store=audit_store)
     teacher_intervention_action_service = TeacherInterventionActionService(
         audit_store=audit_store,
         learner_flow_service=learner_flow_service,
@@ -718,6 +736,7 @@ def build_application_services(
         trajectory_store=trajectory_store,
         session_control_store=session_control_store,
         household_store=household_store,
+        rollout_policy_store=rollout_policy_store,
         auth_service=auth_service,
         telemetry_service=TelemetryService(
             audit_store,
@@ -726,6 +745,8 @@ def build_application_services(
             predictive_warm_queue_store=predictive_warm_queue_store,
         ),
         operational_observability_service=operational_observability_service,
+        rollout_decision_service=rollout_decision_service,
+        rollout_evaluation_service=rollout_evaluation_service,
         generation_engine=generation_engine,
         content_warmer=content_warmer,
         content_workflow_service=content_workflow_service,

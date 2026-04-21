@@ -292,10 +292,23 @@ class ModalityRoutingInspection(BaseModel):
     context_key: str
     selected_plugin_id: str
     selected_modality: str
+    effective_plugin_id: str | None = None
+    effective_modality: str | None = None
+    rollout_bucket_id: str | None = None
+    policy_fallback_applied: bool = False
+    policy_reason: str | None = None
     weak_evidence_fallback_applied: bool = False
     candidate_scores: list[ModalityCandidateScore] = Field(default_factory=list)
     priors: list[ModalityRoutingPrior] = Field(default_factory=list)
     generated_at: datetime = Field(default_factory=utc_now)
+
+    @model_validator(mode="after")
+    def populate_effective_selection(self) -> "ModalityRoutingInspection":
+        if self.effective_plugin_id is None:
+            self.effective_plugin_id = self.selected_plugin_id
+        if self.effective_modality is None:
+            self.effective_modality = self.selected_modality
+        return self
 
 
 class AdaptiveRouteDecision(BaseModel):

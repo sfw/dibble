@@ -204,6 +204,12 @@ class ContentWorkflowService:
             request=prepared.request,
             route=response.route,
         )
+        rollout_inspection = None
+        rollout_service = self.content_generation_harness.modality_routing_harness.rollout_decision_service
+        if rollout_service is not None:
+            rollout_inspection = rollout_service.inspect_subject(
+                learner_id=str(request.student_id)
+            )
         metadata = response.generation_metadata
         if metadata is None or response.generation_id is None:
             raise RuntimeError("Generated content metadata was not available.")
@@ -329,6 +335,37 @@ class ContentWorkflowService:
                     prepared.request.mode_calibration.strategy_recovery_focus
                     if prepared.request.mode_calibration is not None
                     else None
+                ),
+                "rollout_cohort_ids": (
+                    list(rollout_inspection.cohort_ids)
+                    if rollout_inspection is not None
+                    else []
+                ),
+                "rollout_evaluation_bucket_id": (
+                    rollout_inspection.evaluation_bucket.bucket_id
+                    if rollout_inspection is not None
+                    and rollout_inspection.evaluation_bucket is not None
+                    else None
+                ),
+                "rollout_evaluation_bucket_label": (
+                    rollout_inspection.evaluation_bucket.label
+                    if rollout_inspection is not None
+                    and rollout_inspection.evaluation_bucket is not None
+                    else None
+                ),
+                "rollout_evaluation_dimensions": (
+                    rollout_inspection.evaluation_bucket.dimensions
+                    if rollout_inspection is not None
+                    and rollout_inspection.evaluation_bucket is not None
+                    else {}
+                ),
+                "rollout_capability_modes": (
+                    {
+                        decision.capability.value: decision.mode
+                        for decision in rollout_inspection.decisions
+                    }
+                    if rollout_inspection is not None
+                    else {}
                 ),
                 "mode_calibration_applied": bool(
                     authoring_policy.request_context.get(
