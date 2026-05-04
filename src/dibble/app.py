@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from dibble.api.common import build_api_error_response
 from dibble.api.routes import build_router
@@ -25,6 +27,7 @@ def create_app(
         settings_loader = settings_loader or get_settings
         settings = settings_loader()
     elif settings_loader is None:
+
         def _current_settings() -> Settings:
             return settings
 
@@ -51,4 +54,41 @@ def create_app(
         return build_api_error_response(exc)
 
     app.include_router(build_router(services))
+    _mount_static_frontend(app, settings)
     return app
+
+
+def _mount_static_frontend(app: FastAPI, settings: Settings) -> None:
+    if not settings.frontend_dist_path:
+        return
+    dist_path = Path(settings.frontend_dist_path)
+    index_path = dist_path / "index.html"
+    if not index_path.is_file():
+        return
+
+    reserved_prefixes = {"api"}
+    reserved_paths = {
+        "docs",
+        "health",
+        "openapi.json",
+        "ready",
+        "redoc",
+    }
+
+    @app.get("/", include_in_schema=False)
+    async def serve_frontend_root():
+        return FileResponse(index_path)
+
+    @app.get("/{frontend_path:path}", include_in_schema=False)
+    async def serve_frontend(frontend_path: str):
+        first_segment = frontend_path.split("/", 1)[0]
+        if first_segment in reserved_prefixes or frontend_path in reserved_paths:
+            raise HTTPException(status_code=404, detail="Not found")
+        candidate = (dist_path / frontend_path).resolve()
+        try:
+            candidate.relative_to(dist_path.resolve())
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail="Not found") from exc
+        if candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(index_path)

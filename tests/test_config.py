@@ -195,6 +195,19 @@ level = "debug"
         settings = get_settings(config_path=path)
         assert settings.database_path == "/opt/dibble/data.db"
 
+    def test_toml_top_level_frontend_dist_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        for key in list(os.environ):
+            if key.startswith("DIBBLE_"):
+                monkeypatch.delenv(key)
+
+        path = _write_toml(tmp_path, 'frontend_dist_path = "~/dibble-dist"')
+        settings = get_settings(config_path=path)
+        assert settings.frontend_dist_path is not None
+        assert "~" not in settings.frontend_dist_path
+        assert settings.frontend_dist_path.endswith("/dibble-dist")
+
     def test_toml_tilde_expansion(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -256,7 +269,9 @@ model = "kimi-k2.5"
         assert "restoring backup" in caplog.text
         assert 'api_key = "sk-real"' in path.read_text()
 
-    def test_load_writes_backup_for_non_placeholder_config(self, tmp_path: Path) -> None:
+    def test_load_writes_backup_for_non_placeholder_config(
+        self, tmp_path: Path
+    ) -> None:
         path = _write_toml(
             tmp_path,
             """

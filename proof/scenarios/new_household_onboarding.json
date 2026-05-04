@@ -1,0 +1,114 @@
+{
+  "scenario_id": "new_household_onboarding",
+  "title": "New household onboarding",
+  "proof_focus": [
+    "household_first_setup",
+    "parent_operator_control",
+    "first_session_readiness"
+  ],
+  "entrypoints": [
+    "GET /ready",
+    "POST /api/setup/admin",
+    "POST /api/users",
+    "PUT /api/households/me/setup",
+    "GET /api/households/me/overview"
+  ],
+  "preconditions": [
+    "Fresh household container is running with /data mounted.",
+    "Operator has copied deploy/household/.env.example to deploy/household/.env.",
+    "No admin, household, learner, or trajectory state exists in the database."
+  ],
+  "rehearsal_steps": [
+    {
+      "step_id": "onboarding-01",
+      "actor": "operator",
+      "surface": "container",
+      "action": "Start the household compose stack and open /ready.",
+      "expected_observation": "Readiness returns setup_required with database persistence passing and setup/admin next steps.",
+      "proof_signal": "The deployment can start before secrets and admin state exist, while making the missing setup explicit."
+    },
+    {
+      "step_id": "onboarding-02",
+      "actor": "parent",
+      "surface": "setup",
+      "action": "Create the initial admin/operator credential, then create one parent user and one learner user.",
+      "expected_observation": "The learner user receives a learner_id and a default learner profile is created server-side.",
+      "proof_signal": "Household participants are represented without frontend-derived learner state."
+    },
+    {
+      "step_id": "onboarding-03",
+      "actor": "parent",
+      "surface": "parent dashboard",
+      "action": "Run household setup with the learner_id and guided parent preferences.",
+      "expected_observation": "Household overview shows the learner, cadence status, approval settings, and first session suggestion state.",
+      "proof_signal": "The parent surface becomes the primary POC control plane."
+    },
+    {
+      "step_id": "onboarding-04",
+      "actor": "operator",
+      "surface": "readiness",
+      "action": "Recheck /ready after setup.",
+      "expected_observation": "Configured runtime moves from setup_required toward ready or degraded with concrete remaining warnings.",
+      "proof_signal": "Startup and first-run status are operator-readable without database inspection."
+    }
+  ],
+  "expected_observations": [
+    "A new household can be created without hand-editing the database.",
+    "Learner state persists in SQLite under the mounted household volume.",
+    "The parent can see first-session readiness and approval posture before learner activity begins."
+  ],
+  "privacy_contract": {
+    "container_private_fields": [
+      "learner_id",
+      "student_id",
+      "household_id",
+      "parent_user_id",
+      "learner_profile",
+      "relationship_state"
+    ],
+    "external_flows": [
+      {
+        "destination": "model_provider",
+        "allowed_fields": [
+          "kc_targets",
+          "pedagogical_move",
+          "theme_family",
+          "locale",
+          "scaffolding_level"
+        ],
+        "forbidden_fields": [
+          "learner_id",
+          "student_id",
+          "household_id",
+          "parent_user_id",
+          "learner_profile"
+        ]
+      },
+      {
+        "destination": "cloud_library",
+        "allowed_fields": [
+          "curriculum_metadata",
+          "modality",
+          "theme_family",
+          "locale",
+          "verification_results"
+        ],
+        "forbidden_fields": [
+          "learner_id",
+          "student_id",
+          "household_id",
+          "session_id",
+          "learner_profile"
+        ]
+      }
+    ]
+  },
+  "success_criteria": [
+    "The parent can create the household and attach learners through documented API/UI paths.",
+    "Readiness explains every missing first-run requirement.",
+    "Restarting the container preserves the household and learner profile."
+  ],
+  "reset_notes": [
+    "Stop the compose stack and remove the dibble-household-data volume to rehearse a true fresh start."
+  ]
+}

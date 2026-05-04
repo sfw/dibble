@@ -1,0 +1,114 @@
+{
+  "scenario_id": "cross_session_planning_revision",
+  "title": "Cross-session planning revision",
+  "proof_focus": [
+    "long_horizon_planning",
+    "evidence_accumulation",
+    "trajectory_revision"
+  ],
+  "entrypoints": [
+    "POST /api/learners/{student_id}/goals",
+    "GET /api/observability/adaptation/planning/{student_id}",
+    "POST /api/learners/{student_id}/observations",
+    "GET /api/households/me/overview"
+  ],
+  "preconditions": [
+    "A learner has an active goal and trajectory.",
+    "Multiple learning sessions can be recorded against the same KC cluster.",
+    "Parent preferences require trajectory revision approval for guided autonomy."
+  ],
+  "rehearsal_steps": [
+    {
+      "step_id": "planning-01",
+      "actor": "parent",
+      "surface": "goal setup",
+      "action": "Create a goal such as Grade 5 fraction equivalence.",
+      "expected_observation": "Planning state shows an active trajectory with checkpoints and current nodes.",
+      "proof_signal": "Dibble has a persistent plan beyond a single generated item."
+    },
+    {
+      "step_id": "planning-02",
+      "actor": "learner",
+      "surface": "learner sessions",
+      "action": "Record two or more sessions with weak outcomes, high support, and stalled mastery on the current node.",
+      "expected_observation": "Progression and adaptation summaries accumulate evidence across sessions.",
+      "proof_signal": "Trajectory decisions use durable evidence, not one-off response handling."
+    },
+    {
+      "step_id": "planning-03",
+      "actor": "system",
+      "surface": "curriculum planning harness",
+      "action": "Refresh active planning state after accumulated outcomes.",
+      "expected_observation": "Trajectory revision adjusts pacing, revisit density, bridge nodes, or scaffolding.",
+      "proof_signal": "The plan changes in response to learning evidence."
+    },
+    {
+      "step_id": "planning-04",
+      "actor": "parent",
+      "surface": "parent dashboard",
+      "action": "Review any trajectory revision approval or summary.",
+      "expected_observation": "The parent sees why the trajectory changed and what happens next.",
+      "proof_signal": "Cross-session autonomy remains parent-governed."
+    }
+  ],
+  "expected_observations": [
+    "Trajectory history is inspectable and not overwritten silently.",
+    "Planning revision is attributable to evidence across sessions.",
+    "Parent approval posture is honored for trajectory changes."
+  ],
+  "privacy_contract": {
+    "container_private_fields": [
+      "student_id",
+      "learner_id",
+      "goal_id",
+      "trajectory_id",
+      "session_history",
+      "observation_history"
+    ],
+    "external_flows": [
+      {
+        "destination": "model_provider",
+        "allowed_fields": [
+          "kc_targets",
+          "curriculum_goal",
+          "pedagogical_move",
+          "scaffolding_level",
+          "locale"
+        ],
+        "forbidden_fields": [
+          "student_id",
+          "learner_id",
+          "goal_id",
+          "trajectory_id",
+          "session_history",
+          "observation_history"
+        ]
+      },
+      {
+        "destination": "cloud_library",
+        "allowed_fields": [
+          "curriculum_metadata",
+          "modality",
+          "content_payload",
+          "verification_results"
+        ],
+        "forbidden_fields": [
+          "student_id",
+          "learner_id",
+          "goal_id",
+          "trajectory_id",
+          "session_history",
+          "observation_history"
+        ]
+      }
+    ]
+  },
+  "success_criteria": [
+    "The active trajectory changes after repeated weak outcomes.",
+    "The revision rationale references accumulated evidence.",
+    "Parent-facing review shows the changed next focus."
+  ],
+  "reset_notes": [
+    "Use a fresh goal or learner when repeating this scenario to avoid prior trajectory history changing the baseline."
+  ]
+}

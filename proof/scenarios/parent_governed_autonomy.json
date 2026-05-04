@@ -1,0 +1,112 @@
+{
+  "scenario_id": "parent_governed_autonomy",
+  "title": "Parent-governed autonomy",
+  "proof_focus": [
+    "autonomous_teacher",
+    "parent_approval_gates",
+    "operator_explainability"
+  ],
+  "entrypoints": [
+    "GET /api/households/me/overview",
+    "GET /api/households/me/approvals/{learner_id}/{approval_id}/preview",
+    "POST /api/households/me/approvals/{learner_id}/{approval_id}/approve",
+    "POST /api/households/me/approvals/{learner_id}/{approval_id}/reject",
+    "GET /api/observability/adaptation/autonomous-teacher/{household_id}/{learner_id}/explain"
+  ],
+  "preconditions": [
+    "Parent preferences require approval for new modalities and trajectory revisions.",
+    "Autonomous teacher has enough learner state to suggest a modality or trajectory change.",
+    "Parent approval enforcement rollout mode is guided or strict."
+  ],
+  "rehearsal_steps": [
+    {
+      "step_id": "autonomy-01",
+      "actor": "system",
+      "surface": "autonomous teacher",
+      "action": "Generate or refresh a session suggestion for a learner with stalled progress.",
+      "expected_observation": "Household overview shows a pending suggestion and any blocking approval request.",
+      "proof_signal": "The system can initiate meaningful teaching work without a teacher manually picking the next activity."
+    },
+    {
+      "step_id": "autonomy-02",
+      "actor": "parent",
+      "surface": "approval preview",
+      "action": "Open the approval preview for the proposed modality or trajectory change.",
+      "expected_observation": "Preview lists if-approved and if-denied consequences plus rollout constraints.",
+      "proof_signal": "Parent authority is legible before the action is taken."
+    },
+    {
+      "step_id": "autonomy-03",
+      "actor": "parent",
+      "surface": "parent dashboard",
+      "action": "Reject the approval.",
+      "expected_observation": "The suggestion remains constrained or falls back to an approved modality/trajectory path.",
+      "proof_signal": "A denial changes what the autonomous teacher can do next."
+    },
+    {
+      "step_id": "autonomy-04",
+      "actor": "parent",
+      "surface": "parent dashboard",
+      "action": "Approve a later equivalent request.",
+      "expected_observation": "The learner plan updates and the approved path becomes available for the next session.",
+      "proof_signal": "A parent decision can safely widen autonomy in a controlled way."
+    }
+  ],
+  "expected_observations": [
+    "Autonomous suggestions are visible before learner delivery.",
+    "Parent approvals, denials, and constraints change effective behavior.",
+    "Operator explainability shows cadence, modality, blockers, and rollout effects."
+  ],
+  "privacy_contract": {
+    "container_private_fields": [
+      "household_id",
+      "learner_id",
+      "approval_id",
+      "relationship_state",
+      "notification_history",
+      "parent_preferences"
+    ],
+    "external_flows": [
+      {
+        "destination": "model_provider",
+        "allowed_fields": [
+          "curriculum_goal",
+          "kc_targets",
+          "pedagogical_move",
+          "theme_family",
+          "scaffolding_level"
+        ],
+        "forbidden_fields": [
+          "household_id",
+          "learner_id",
+          "approval_id",
+          "relationship_state",
+          "parent_preferences"
+        ]
+      },
+      {
+        "destination": "cloud_library",
+        "allowed_fields": [
+          "curriculum_metadata",
+          "modality",
+          "verification_results"
+        ],
+        "forbidden_fields": [
+          "household_id",
+          "learner_id",
+          "approval_id",
+          "notification_history",
+          "parent_preferences"
+        ]
+      }
+    ]
+  },
+  "success_criteria": [
+    "At least one autonomous action is blocked by parent policy.",
+    "Rejecting and approving produce different visible next states.",
+    "The explanation bundle identifies remaining blockers and expected consequences."
+  ],
+  "reset_notes": [
+    "Reset approval requests by creating a fresh relationship state or using a different learner."
+  ]
+}

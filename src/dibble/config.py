@@ -22,6 +22,8 @@ class Settings:
     database_path: str = "dibble.db"
     app_name: str = "Dibble Adaptive Platform"
     app_version: str = "0.3.0"
+    deployment_mode: str = "local_dev"
+    frontend_dist_path: str | None = None
     router_plugin: str = "dibble.plugins.defaults.router:build"
     retriever_plugin: str = "dibble.plugins.defaults.retriever:build"
     provider_plugin: str = "dibble.plugins.defaults.provider:build"
@@ -67,9 +69,7 @@ class Settings:
     def __post_init__(self) -> None:
         self.telemetry_level = self.telemetry_level.strip().lower()
         if self.telemetry_level not in _TELEMETRY_LEVELS:
-            raise ValueError(
-                "telemetry_level must be one of: off, normal, debug."
-            )
+            raise ValueError("telemetry_level must be one of: off, normal, debug.")
 
 
 # ---------------------------------------------------------------------------
@@ -396,7 +396,11 @@ def _coerce(field_name: str, value: Any) -> Any:
         return value
 
     # Expand ~ in paths
-    if field_name == "database_path" and isinstance(value, str) and "~" in value:
+    if (
+        field_name in {"database_path", "frontend_dist_path"}
+        and isinstance(value, str)
+        and "~" in value
+    ):
         return str(Path(value).expanduser())
     if field_name == "telemetry_level" and isinstance(value, str):
         return value.strip().lower()
@@ -514,5 +518,11 @@ def get_settings(*, config_path: Path | None = _UNSET) -> Settings:  # type: ign
         merged["database_path"] = str(ensure_dibble_dir() / "dibble.db")
     elif "~" in str(merged.get("database_path", "")):
         merged["database_path"] = str(Path(merged["database_path"]).expanduser())
+    if "frontend_dist_path" in merged and "~" in str(
+        merged.get("frontend_dist_path", "")
+    ):
+        merged["frontend_dist_path"] = str(
+            Path(merged["frontend_dist_path"]).expanduser()
+        )
 
     return Settings(**merged)

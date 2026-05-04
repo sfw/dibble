@@ -40,6 +40,8 @@ docs/                Extended technical documentation
 
 ## Quick start
 
+For the proof household container path, see [`docs/deployment/household-container.md`](docs/deployment/household-container.md).
+
 ### Backend
 
 ```bash
@@ -75,6 +77,8 @@ Dibble runs on SQLite by default (`dibble.db`). No external services needed for 
 | Variable | Purpose |
 |---|---|
 | `DIBBLE_DATABASE_PATH` | SQLite database location (default: `dibble.db`) |
+| `DIBBLE_DEPLOYMENT_MODE` | Operator-readable deployment posture (`local_dev` or `household_container`) |
+| `DIBBLE_FRONTEND_DIST_PATH` | Optional built React frontend served by FastAPI |
 | `DIBBLE_AUTH_ENABLED` | Enable API key + bearer token auth |
 | `DIBBLE_AUTH_TOKEN_SECRET` | Secret for signing bearer tokens |
 

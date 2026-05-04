@@ -66,6 +66,8 @@ model = "gpt-4o"
 | Key | Type | Default | Description |
 |---|---|---|---|
 | `database_path` | string | `~/.dibble/dibble.db` | Path to the SQLite database. Supports `~` expansion. |
+| `deployment_mode` | string | `local_dev` | Operator-readable deployment posture surfaced by `/ready`; use `household_container` for the container proof path. |
+| `frontend_dist_path` | string | *none* | Optional built React `dist/` directory served by the backend process. The household image sets this to `/app/frontend/dist`. |
 | `app_name` | string | `Dibble Adaptive Platform` | Display name shown in API docs. Not configurable via env var. |
 | `app_version` | string | `0.3.0` | Platform version. Not configurable via env var. |
 
@@ -202,6 +204,8 @@ Every Settings field maps to `DIBBLE_{FIELD_UPPER}`:
 | `llm_api_key` | `DIBBLE_LLM_API_KEY` |
 | `llm_model` | `DIBBLE_LLM_MODEL` |
 | `database_path` | `DIBBLE_DATABASE_PATH` |
+| `deployment_mode` | `DIBBLE_DEPLOYMENT_MODE` |
+| `frontend_dist_path` | `DIBBLE_FRONTEND_DIST_PATH` |
 | `auth_enabled` | `DIBBLE_AUTH_ENABLED` |
 
 File permissions on `config.toml` are set to `0600` (owner-only) since it may contain API keys.

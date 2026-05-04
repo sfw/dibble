@@ -1,0 +1,29 @@
+services:
+  dibble:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    image: dibble-household:local
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      DIBBLE_DEPLOYMENT_MODE: household_container
+      DIBBLE_DATABASE_PATH: /data/dibble.db
+      DIBBLE_FRONTEND_DIST_PATH: /app/frontend/dist
+    volumes:
+      - dibble-household-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - /app/.venv/bin/python
+        - scripts/container_healthcheck.py
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  dibble-household-data:

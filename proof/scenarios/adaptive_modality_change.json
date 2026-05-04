@@ -1,0 +1,114 @@
+{
+  "scenario_id": "adaptive_modality_change",
+  "title": "Adaptive learning and modality change",
+  "proof_focus": [
+    "visible_modality_adaptation",
+    "backend_owned_routing",
+    "outcome_feedback"
+  ],
+  "entrypoints": [
+    "POST /api/content/generate",
+    "POST /api/learners/{student_id}/observations",
+    "POST /api/observability/adaptation/modality-routing/inspect",
+    "GET /api/observability/readiness"
+  ],
+  "preconditions": [
+    "A household and learner profile exist.",
+    "The learner has a fraction-equivalence KC target and low recent mastery.",
+    "Rollout policy allows non-text modalities, or the expected fallback is documented."
+  ],
+  "rehearsal_steps": [
+    {
+      "step_id": "modality-01",
+      "actor": "learner",
+      "surface": "learner session",
+      "action": "Request a worked example for equivalent fractions with default routing.",
+      "expected_observation": "Initial content is text or narrative with a visible modality directive in the response metadata.",
+      "proof_signal": "The backend chooses the delivery path and exposes presentation-ready labels."
+    },
+    {
+      "step_id": "modality-02",
+      "actor": "learner",
+      "surface": "learner session",
+      "action": "Submit weak observations: low completion, hints used, repeated error, high load, and low confidence.",
+      "expected_observation": "Observation evidence updates learner state and records overload or stalled-progress signals.",
+      "proof_signal": "Outcome evidence, not frontend logic, drives the next routing decision."
+    },
+    {
+      "step_id": "modality-03",
+      "actor": "operator",
+      "surface": "observability",
+      "action": "Inspect modality routing for the same KC and move.",
+      "expected_observation": "Routing explanation shows diagram or narrative as the selected/effective modality, or a rollout fallback to text.",
+      "proof_signal": "The modality change is legible and attributable to learner-private priors that remain local."
+    },
+    {
+      "step_id": "modality-04",
+      "actor": "learner",
+      "surface": "learner session",
+      "action": "Generate the follow-up attempt and submit improved observations.",
+      "expected_observation": "The follow-up uses a materially different representation; improved evidence changes the adaptation summary.",
+      "proof_signal": "The scenario demonstrates a visible before/after teaching change."
+    }
+  ],
+  "expected_observations": [
+    "Text, narrative, and diagram produce visibly different learner experiences.",
+    "Modality decisions can be inspected from the operator surface.",
+    "Rollout fallback to text is explicit when non-text modalities are disabled."
+  ],
+  "privacy_contract": {
+    "container_private_fields": [
+      "learner_id",
+      "student_id",
+      "learning_session_id",
+      "response_text",
+      "observation_history",
+      "modality_priors"
+    ],
+    "external_flows": [
+      {
+        "destination": "model_provider",
+        "allowed_fields": [
+          "target_kc_ids",
+          "misconception_target",
+          "content_type",
+          "theme_family",
+          "scaffolding_level",
+          "locale",
+          "modality"
+        ],
+        "forbidden_fields": [
+          "learner_id",
+          "student_id",
+          "learning_session_id",
+          "response_text",
+          "modality_priors"
+        ]
+      },
+      {
+        "destination": "cloud_library",
+        "allowed_fields": [
+          "curriculum_content_key",
+          "content_payload",
+          "provenance",
+          "verification_results"
+        ],
+        "forbidden_fields": [
+          "learner_id",
+          "student_id",
+          "learning_session_id",
+          "response_text",
+          "observation_history"
+        ]
+      }
+    ]
+  },
+  "success_criteria": [
+    "The second attempt changes modality or records a policy-constrained fallback.",
+    "The explanation names the routing reason and rollout effect.",
+    "No learner-private evidence is present in content-library artifacts."
+  ],
+  "reset_notes": [
+    "Use a fresh learner profile or clear modality-routing priors to repeat the before/after shape."
+  ]
+}

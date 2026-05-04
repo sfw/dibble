@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SetupStatus(BaseModel):
@@ -16,6 +16,30 @@ class SetupStatus(BaseModel):
     auth_enabled: bool
     config_file_exists: bool
     app_version: str
+
+
+class DeploymentReadinessCheck(BaseModel):
+    key: str
+    status: Literal["pass", "warn", "fail"]
+    summary: str
+    detail: str | None = None
+
+
+class DeploymentReadiness(BaseModel):
+    status: Literal["ready", "setup_required", "degraded", "not_ready"]
+    deployment_mode: str
+    app_version: str
+    configured: bool
+    database_path: str
+    frontend_dist_path: str | None = None
+    auth_enabled: bool
+    has_admin_user: bool
+    cloud_library_enabled: bool
+    cloud_library_endpoint_configured: bool
+    mock_fallback_enabled: bool
+    telemetry_level: str
+    checks: list[DeploymentReadinessCheck] = Field(default_factory=list)
+    next_steps: list[str] = Field(default_factory=list)
 
 
 class SetupConfigureRequest(BaseModel):

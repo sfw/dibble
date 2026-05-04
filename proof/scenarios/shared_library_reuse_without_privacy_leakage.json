@@ -1,0 +1,121 @@
+{
+  "scenario_id": "shared_library_reuse_without_privacy_leakage",
+  "title": "Shared library reuse without privacy leakage",
+  "proof_focus": [
+    "curriculum_shaped_library",
+    "privacy_boundary",
+    "verified_reuse"
+  ],
+  "entrypoints": [
+    "POST /api/content/generate",
+    "POST /api/observability/adaptation/library/inspect",
+    "GET /api/observability/readiness",
+    "GET /api/observability/traces"
+  ],
+  "preconditions": [
+    "Local curriculum content library is empty or has a known baseline.",
+    "Cloud-library remote access remains disabled for the default pilot posture.",
+    "Two learners can request the same curriculum-shaped content key."
+  ],
+  "rehearsal_steps": [
+    {
+      "step_id": "library-01",
+      "actor": "learner",
+      "surface": "content generation",
+      "action": "Generate verified content for learner A against a specific KC, modality, theme, locale, and scaffolding level.",
+      "expected_observation": "The generated artifact is stored with a curriculum content key and provenance.",
+      "proof_signal": "Verified content becomes reusable without storing learner identity in the library contract."
+    },
+    {
+      "step_id": "library-02",
+      "actor": "learner",
+      "surface": "content generation",
+      "action": "Have learner B request the same curriculum-shaped content key.",
+      "expected_observation": "The library path can serve or rank the existing artifact before fresh generation.",
+      "proof_signal": "The library compounds across learners while staying curriculum-shaped."
+    },
+    {
+      "step_id": "library-03",
+      "actor": "operator",
+      "surface": "library observability",
+      "action": "Inspect the library selection trace.",
+      "expected_observation": "Trace shows curriculum metadata, provenance, verification state, and local/remote fallback status.",
+      "proof_signal": "Reuse is explainable and operationally visible."
+    },
+    {
+      "step_id": "library-04",
+      "actor": "operator",
+      "surface": "database or API inspection",
+      "action": "Review the serialized curriculum_content_library entry.",
+      "expected_observation": "No learner_id, student_id, household_id, session_id, response_text, or profile fields appear in the content key or payload.",
+      "proof_signal": "The milestone-1 privacy boundary remains intact."
+    }
+  ],
+  "expected_observations": [
+    "Library entries are keyed by curriculum metadata rather than learner identity.",
+    "Remote disabled state falls back to local-only behavior without blocking learning.",
+    "Operational traces make remote lookup or publish degradation visible when remote access is enabled later."
+  ],
+  "privacy_contract": {
+    "container_private_fields": [
+      "learner_id",
+      "student_id",
+      "household_id",
+      "session_id",
+      "response_text",
+      "learner_profile",
+      "observation_history"
+    ],
+    "external_flows": [
+      {
+        "destination": "model_provider",
+        "allowed_fields": [
+          "kc_targets",
+          "misconception_target",
+          "content_type",
+          "theme_family",
+          "scaffolding_level",
+          "locale",
+          "modality"
+        ],
+        "forbidden_fields": [
+          "learner_id",
+          "student_id",
+          "household_id",
+          "session_id",
+          "response_text",
+          "learner_profile"
+        ]
+      },
+      {
+        "destination": "cloud_library",
+        "allowed_fields": [
+          "curriculum_metadata",
+          "content_payload",
+          "modality",
+          "theme_family",
+          "locale",
+          "verification_results",
+          "provenance"
+        ],
+        "forbidden_fields": [
+          "learner_id",
+          "student_id",
+          "household_id",
+          "session_id",
+          "response_text",
+          "learner_profile",
+          "observation_history"
+        ]
+      }
+    ]
+  },
+  "success_criteria": [
+    "Learner B can reuse or rank content generated during learner A's flow.",
+    "The library artifact contains only curriculum-shaped metadata and content.",
+    "Remote-library degradation is visible and falls back to local-only behavior."
+  ],
+  "reset_notes": [
+    "Clear curriculum_content_library rows or use a new KC/theme/scaffolding combination to repeat the miss-then-hit pattern."
+  ]
+}
