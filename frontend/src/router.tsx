@@ -31,6 +31,8 @@ import { Reports } from './views/teacher/Reports'
 import { StaffDashboard } from './views/staff/StaffDashboard'
 import { AcademicCatalog } from './views/staff/AcademicCatalog'
 import { CurriculumManager } from './views/staff/CurriculumManager'
+import { RolloutConsole } from './views/staff/RolloutConsole'
+import { MigrationReview } from './views/staff/MigrationReview'
 import { SystemConfig } from './views/staff/SystemConfig'
 import { UserManagement } from './views/staff/UserManagement'
 
@@ -150,6 +152,22 @@ export const router = createBrowserRouter([
         element: (
           <AuthGuard allowedRoles={['admin']}>
             <SystemConfig />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: 'rollout',
+        element: (
+          <AuthGuard allowedRoles={['admin']}>
+            <RolloutConsole />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: 'migrations',
+        element: (
+          <AuthGuard allowedRoles={['admin']}>
+            <MigrationReview />
           </AuthGuard>
         ),
       },

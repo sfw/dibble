@@ -64,7 +64,7 @@ export function StaffDashboard() {
             <div className="space-y-2">
               <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Operate Dibble as a service, not a demo.</h1>
               <p className="max-w-2xl text-sm leading-6 text-slate-600">
-                This dashboard is the control room for backend status, provider wiring, authentication posture, and operator actions.
+                This dashboard is the control room for backend status, provider wiring, authentication posture, and the trust/governance workflows that now sit on top of rollout and migration APIs.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
@@ -74,6 +74,22 @@ export function StaffDashboard() {
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
+            {auth.identity?.role === 'admin' && (
+              <Button asChild variant="outline">
+                <Link to="/staff/rollout">
+                  Open rollout console
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            )}
+            {auth.identity?.role === 'admin' && (
+              <Button asChild variant="outline">
+                <Link to="/staff/migrations">
+                  Review migrations
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            )}
             {auth.identity?.role === 'admin' && (
               <Button asChild variant="outline">
                 <Link to="/staff/academics">
@@ -169,11 +185,11 @@ export function StaffDashboard() {
         <Card>
           <CardHeader>
             <CardDescription>What changed</CardDescription>
-            <CardTitle>Admin-first staff area</CardTitle>
+            <CardTitle>Governance is now UI-shaped</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm leading-6 text-slate-600">
             <p>
-              The old staff route embedded the entire workbench app. This surface is now deliberately scoped for system administration: setup state, service posture, configuration, and account operations.
+              Rollout policy controls, migration dry-runs, blocked-review previews, and readiness signals no longer live only in raw admin APIs. Operators can now review them through focused pages without dropping into JSON or direct calls.
             </p>
             <p>
               Configuration changes are written into <code className="rounded bg-muted px-1 py-0.5 text-xs">~/.dibble/config.toml</code> and still require a backend restart before the running process picks them up.
@@ -187,6 +203,22 @@ export function StaffDashboard() {
             <CardTitle>Operator shortcuts</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
+            {auth.identity?.role === 'admin' && (
+              <Button asChild variant="outline" className="justify-between">
+                <Link to="/staff/rollout">
+                  Simulate rollout changes
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            )}
+            {auth.identity?.role === 'admin' && (
+              <Button asChild variant="outline" className="justify-between">
+                <Link to="/staff/migrations">
+                  Review migration dry-runs
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            )}
             {auth.identity?.role === 'admin' && (
               <Button asChild variant="outline" className="justify-between">
                 <Link to="/staff/academics">

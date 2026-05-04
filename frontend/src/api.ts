@@ -38,6 +38,7 @@ import type {
   HouseholdNotificationSnoozeRequest,
   HouseholdSetupRequest,
   HouseholdSetupResponse,
+  ParentApprovalPreview,
   GeneratedContent,
   GenerationRequestPayload,
   GenerationStreamEvent,
@@ -58,6 +59,16 @@ import type {
   TeacherSectionReadModel,
   TeacherInterventionActionContract,
   TeacherInterventionDecisionRequest,
+  RolloutPolicyResponse,
+  RolloutSimulationRequest,
+  RolloutSimulationResponse,
+  EvaluationSummaryResponse,
+  ReleaseReadinessSnapshot,
+  CurriculumSnapshotDiff,
+  CurriculumImpactAnalysis,
+  CurriculumMigrationPlan,
+  CurriculumMigrationApprovalRequest,
+  CurriculumMigrationExecutionPreview,
 } from './types'
 
 function buildHeaders(config: FrontendConfig, contentType = true): HeadersInit {
@@ -353,6 +364,20 @@ export function rejectHouseholdParentApproval(
       method: 'POST',
       headers: buildHeaders(config),
       body: JSON.stringify({}),
+    },
+  )
+}
+
+export function getHouseholdParentApprovalPreview(
+  config: FrontendConfig,
+  learnerId: string,
+  approvalId: string,
+) {
+  return requestJson<ParentApprovalPreview>(
+    config,
+    `/api/households/me/approvals/${learnerId}/${approvalId}/preview`,
+    {
+      headers: buildHeaders(config, false),
     },
   )
 }
@@ -801,6 +826,117 @@ export function updateAdminSectionMemberships(
     headers: buildHeaders(config),
     body: JSON.stringify(payload),
   })
+}
+
+export function getRolloutPolicy(config: FrontendConfig) {
+  return requestJson<RolloutPolicyResponse>(config, '/api/admin/rollout/policy', {
+    headers: buildHeaders(config, false),
+  })
+}
+
+export function updateRolloutPolicy(config: FrontendConfig, payload: RolloutPolicyResponse) {
+  return requestJson<RolloutPolicyResponse>(config, '/api/admin/rollout/policy', {
+    method: 'PUT',
+    headers: buildHeaders(config),
+    body: JSON.stringify(payload),
+  })
+}
+
+export function simulateRolloutPolicyChange(
+  config: FrontendConfig,
+  payload: RolloutSimulationRequest,
+) {
+  return requestJson<RolloutSimulationResponse>(config, '/api/admin/rollout/simulate', {
+    method: 'POST',
+    headers: buildHeaders(config),
+    body: JSON.stringify(payload),
+  })
+}
+
+export function getRolloutEvaluationSummary(config: FrontendConfig) {
+  return requestJson<EvaluationSummaryResponse>(
+    config,
+    '/api/admin/rollout/evaluation-summary',
+    {
+      headers: buildHeaders(config, false),
+    },
+  )
+}
+
+export function getReleaseReadiness(config: FrontendConfig) {
+  return requestJson<ReleaseReadinessSnapshot>(config, '/api/observability/readiness', {
+    headers: buildHeaders(config, false),
+  })
+}
+
+export function listCurriculumSnapshotDiffs(config: FrontendConfig) {
+  return requestJson<CurriculumSnapshotDiff[]>(config, '/api/admin/curriculum/diffs', {
+    headers: buildHeaders(config, false),
+  })
+}
+
+export function listCurriculumImpactAnalyses(config: FrontendConfig) {
+  return requestJson<CurriculumImpactAnalysis[]>(config, '/api/admin/curriculum/impacts', {
+    headers: buildHeaders(config, false),
+  })
+}
+
+export function listCurriculumMigrationPlans(config: FrontendConfig) {
+  return requestJson<CurriculumMigrationPlan[]>(
+    config,
+    '/api/admin/curriculum/migration-plans',
+    {
+      headers: buildHeaders(config, false),
+    },
+  )
+}
+
+export function createCurriculumMigrationPlan(config: FrontendConfig, diffId: string) {
+  return requestJson<CurriculumMigrationPlan>(
+    config,
+    '/api/admin/curriculum/migration-plans',
+    {
+      method: 'POST',
+      headers: buildHeaders(config),
+      body: JSON.stringify({ diff_id: diffId }),
+    },
+  )
+}
+
+export function approveCurriculumMigrationPlan(
+  config: FrontendConfig,
+  planId: string,
+  payload: CurriculumMigrationApprovalRequest,
+) {
+  return requestJson<CurriculumMigrationPlan>(
+    config,
+    `/api/admin/curriculum/migration-plans/${planId}/approve`,
+    {
+      method: 'POST',
+      headers: buildHeaders(config),
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export function previewCurriculumMigrationExecution(
+  config: FrontendConfig,
+  planId: string,
+  payload: {
+    executor_id?: string | null
+    action_ids: string[]
+    dry_run: boolean
+  },
+) {
+  return requestJson<CurriculumMigrationExecutionPreview>(
+    config,
+    `/api/admin/curriculum/migration-plans/${planId}/dry-run`,
+    {
+      method: 'POST',
+      headers: buildHeaders(config),
+      body: JSON.stringify(payload),
+    },
+  )
 }
 
 // ---------------------------------------------------------------------------

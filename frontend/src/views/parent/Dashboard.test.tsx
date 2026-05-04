@@ -1,8 +1,20 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Dashboard } from './Dashboard'
+import { getHouseholdParentApprovalPreview } from '@/api'
 import type { ParentContext } from '../../shells/ParentShell'
+
+vi.mock('@/api', async () => {
+  const actual = await vi.importActual<typeof import('@/api')>('@/api')
+  return {
+    ...actual,
+    getHouseholdParentApprovalPreview: vi.fn(),
+  }
+})
+
+const mockedGetHouseholdParentApprovalPreview = vi.mocked(getHouseholdParentApprovalPreview)
 
 function renderDashboard(context: ParentContext) {
   const router = createMemoryRouter(
@@ -19,6 +31,10 @@ function renderDashboard(context: ParentContext) {
 }
 
 describe('Parent Dashboard', () => {
+  beforeEach(() => {
+    mockedGetHouseholdParentApprovalPreview.mockReset()
+  })
+
   const baseContext: ParentContext = {
     config: {
       baseUrl: 'http://localhost:8000',
@@ -166,5 +182,85 @@ describe('Parent Dashboard', () => {
     expect(screen.getAllByText('Snooze 1 day').length).toBeGreaterThan(0)
     expect(screen.getByText(/Status: pending/)).toBeInTheDocument()
     expect(screen.getByText('Save preferences')).toBeInTheDocument()
+  })
+
+  it('shows approval consequences before the parent approves or rejects', async () => {
+    const user = userEvent.setup()
+    mockedGetHouseholdParentApprovalPreview.mockResolvedValue({
+      approval_id: 'approval-1',
+      learner_id: 'student-1',
+      approval_type: 'modality_introduction',
+      title: 'Approve diagram lessons',
+      summary: 'Diagram lessons would become available for the next recommended session.',
+      proposed_value: 'diagram',
+      if_approved: ['Diagram lessons become eligible for the learner.'],
+      if_denied: ['Diagram lessons remain blocked for this learner.'],
+      rollout_constraints: ['Rollout policy still constrains non-text exposure for some cohorts.'],
+      remaining_blockers: ['A trajectory revision approval is still pending.'],
+      next_expected_consequence: 'The next session suggestion will stay text-first until every blocker clears.',
+      generated_at: '2026-04-20T00:00:00Z',
+    })
+
+    renderDashboard({
+      ...baseContext,
+      overview: {
+        household: {
+          household_id: 'household-1',
+          household_name: 'Avery Family',
+          parent_profiles: [
+            {
+              parent_user_id: 'parent-1',
+              relationship_label: 'parent',
+              preferences: {
+                session_cadence: 'daily',
+                auto_session_suggestions: true,
+                weekly_summary_day: 'sunday',
+                soft_escalation_enabled: true,
+                approval_mode: 'guided',
+                modality_introduction_requires_approval: true,
+                trajectory_revision_requires_approval: true,
+                high_autonomy_session_requires_approval: true,
+              },
+            },
+          ],
+          learner_ids: ['student-1'],
+          created_at: '2026-04-20T00:00:00Z',
+          updated_at: '2026-04-20T00:00:00Z',
+        },
+        learners: [],
+        session_suggestions: [],
+        pending_approvals: [
+          {
+            approval_id: 'approval-1',
+            learner_id: 'student-1',
+            approval_type: 'modality_introduction',
+            status: 'pending',
+            title: 'Approve diagram lessons',
+            message: 'Dibble wants to introduce a new teaching modality.',
+            proposed_value: 'diagram',
+            metadata: {},
+            requested_at: '2026-04-20T00:00:00Z',
+          },
+        ],
+        weekly_summaries: [],
+        notifications: [],
+        available_learners: [],
+      },
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Preview change' }))
+
+    await waitFor(() => {
+      expect(mockedGetHouseholdParentApprovalPreview).toHaveBeenCalledWith(
+        expect.objectContaining({ baseUrl: 'http://localhost:8000' }),
+        'student-1',
+        'approval-1',
+      )
+    })
+
+    expect(await screen.findByText('Diagram lessons would become available for the next recommended session.')).toBeInTheDocument()
+    expect(screen.getByText('If approved')).toBeInTheDocument()
+    expect(screen.getByText('Rollout constraints')).toBeInTheDocument()
+    expect(screen.getByText(/The next session suggestion will stay text-first until every blocker clears\./)).toBeInTheDocument()
   })
 })

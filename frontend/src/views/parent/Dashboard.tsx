@@ -3,14 +3,18 @@ import { useOutletContext } from 'react-router'
 import { BellRing, CalendarClock, CheckCircle2, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { ErrorBanner } from '@/components/ui/error-banner'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { useParentApprovalPreview } from '@/hooks/useParentApprovalPreview'
+import type { ParentApprovalPreview as ParentApprovalPreviewContract } from '@/types'
 import type { ParentContext } from '../../shells/ParentShell'
 
 export function Dashboard() {
   const {
+    config,
     overview,
     loading,
     error,
@@ -35,6 +39,8 @@ export function Dashboard() {
   const [modalityApprovalDraft, setModalityApprovalDraft] = useState<boolean | null>(null)
   const [trajectoryApprovalDraft, setTrajectoryApprovalDraft] = useState<boolean | null>(null)
   const [highAutonomyApprovalDraft, setHighAutonomyApprovalDraft] = useState<boolean | null>(null)
+  const [expandedApprovals, setExpandedApprovals] = useState<Record<string, boolean>>({})
+  const approvalPreview = useParentApprovalPreview(config)
 
   const parentProfile = overview.household?.parent_profiles[0]
   const householdName = householdNameDraft ?? overview.household?.household_name ?? 'Our household'
@@ -390,9 +396,10 @@ export function Dashboard() {
           <Card className="border-amber-200 bg-white/95">
             <CardHeader>
               <CardTitle>Approval gates</CardTitle>
-              <CardDescription>Parent review requests the autonomous teacher is respecting before it changes modality, trajectory, or autonomy level.</CardDescription>
+              <CardDescription>Preview the consequences before you approve or reject a teaching change.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
+              <ErrorBanner message={approvalPreview.error} />
               {overview.pending_approvals.length === 0 ? (
                 <p className="text-sm text-slate-600">No approvals are waiting right now.</p>
               ) : (
@@ -405,6 +412,24 @@ export function Dashboard() {
                       <p className="mt-2 text-xs text-slate-500">Proposed value: {approval.proposed_value}</p>
                     ) : null}
                     <div className="mt-3 flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const approvalKey = approval.approval_id
+                          const nextExpanded = !expandedApprovals[approvalKey]
+                          setExpandedApprovals((current) => ({ ...current, [approvalKey]: nextExpanded }))
+                          if (nextExpanded && !approvalPreview.getPreview(approval.learner_id, approval.approval_id)) {
+                            void approvalPreview.loadPreview(approval.learner_id, approval.approval_id)
+                          }
+                        }}
+                      >
+                        {approvalPreview.isLoading(approval.learner_id, approval.approval_id)
+                          ? 'Loading preview...'
+                          : expandedApprovals[approval.approval_id]
+                            ? 'Hide preview'
+                            : 'Preview change'}
+                      </Button>
                       <Button variant="outline" size="sm" onClick={() => void approveParentApproval(approval.learner_id, approval.approval_id)}>
                         Approve
                       </Button>
@@ -412,6 +437,9 @@ export function Dashboard() {
                         Not now
                       </Button>
                     </div>
+                    {expandedApprovals[approval.approval_id] ? (
+                      <ApprovalPreviewPanel preview={approvalPreview.getPreview(approval.learner_id, approval.approval_id)} />
+                    ) : null}
                   </article>
                 ))
               )}
@@ -497,6 +525,60 @@ function InfoStat({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl border border-white bg-white px-4 py-3 shadow-sm">
       <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">{label}</p>
       <p className="mt-2 text-sm font-semibold text-slate-900">{value}</p>
+    </div>
+  )
+}
+
+function ApprovalPreviewPanel({
+  preview,
+}: {
+  preview: ParentApprovalPreviewContract | null
+}) {
+  if (!preview) {
+    return (
+      <div className="mt-4 rounded-2xl border border-white bg-white/90 p-4 text-sm text-slate-600 shadow-sm">
+        Loading preview details from the approval contract.
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-4 grid gap-4 rounded-2xl border border-white bg-white/90 p-4 shadow-sm">
+      <p className="text-sm font-medium text-slate-900">{preview.summary}</p>
+      <PreviewList title="If approved" items={preview.if_approved} />
+      <PreviewList title="If denied" items={preview.if_denied} />
+      {preview.rollout_constraints.length > 0 ? <PreviewList title="Rollout constraints" items={preview.rollout_constraints} tone="warning" /> : null}
+      {preview.remaining_blockers.length > 0 ? <PreviewList title="Still blocked" items={preview.remaining_blockers} tone="warning" /> : null}
+      <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+        Next expected consequence: {preview.next_expected_consequence}
+      </p>
+    </div>
+  )
+}
+
+function PreviewList({
+  title,
+  items,
+  tone = 'neutral',
+}: {
+  title: string
+  items: string[]
+  tone?: 'neutral' | 'warning'
+}) {
+  return (
+    <div className={`rounded-2xl border p-3 ${tone === 'warning' ? 'border-amber-200 bg-amber-50/70' : 'border-slate-200 bg-slate-50/70'}`}>
+      <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">{title}</p>
+      <div className="mt-2 grid gap-2">
+        {items.length === 0 ? (
+          <p className="text-sm text-slate-600">No additional changes listed.</p>
+        ) : (
+          items.map((item) => (
+            <p key={item} className="text-sm text-slate-700">
+              {item}
+            </p>
+          ))
+        )}
+      </div>
     </div>
   )
 }

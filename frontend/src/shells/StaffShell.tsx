@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router'
-import { Blocks, BookOpen, LayoutDashboard, LogOut, Settings, SlidersHorizontal, Users } from 'lucide-react'
+import { Blocks, BookOpen, LayoutDashboard, LogOut, Settings, ShieldCheck, SlidersHorizontal, Users } from 'lucide-react'
 import { useAuthContext } from '../contexts/AuthContext'
 import { useConfigContext } from '../contexts/ConfigContext'
 
@@ -13,6 +13,8 @@ export function StaffShell() {
       ? [
           { to: '/staff/academics', icon: Blocks, label: 'Courses & Sections' },
           { to: '/staff/curriculum', icon: BookOpen, label: 'Curriculum' },
+          { to: '/staff/rollout', icon: ShieldCheck, label: 'Rollout' },
+          { to: '/staff/migrations', icon: ShieldCheck, label: 'Migrations' },
           { to: '/staff/config', icon: SlidersHorizontal, label: 'Configuration' },
           { to: '/staff/users', icon: Users, label: 'Users' },
         ]

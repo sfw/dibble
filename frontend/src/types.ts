@@ -1170,6 +1170,419 @@ export interface HouseholdSessionSuggestionSnoozeRequest {
   hours: number
 }
 
+export interface ParentApprovalPreview {
+  approval_id: string
+  learner_id: string
+  approval_type: string
+  title: string
+  summary: string
+  proposed_value?: string | null
+  if_approved: string[]
+  if_denied: string[]
+  rollout_constraints: string[]
+  remaining_blockers: string[]
+  next_expected_consequence: string
+  generated_at: string
+}
+
+export interface BehaviorGate {
+  capability: string
+  mode: string
+  fallback_behavior: string
+  description?: string | null
+}
+
+export interface RolloutCohort {
+  cohort_id: string
+  label: string
+  description?: string | null
+  assignment_unit: string
+  rollout_percentage: number
+  learner_ids: string[]
+  household_ids: string[]
+  pinned_evaluation_bucket_id?: string | null
+  behavior_overrides: BehaviorGate[]
+}
+
+export interface EvaluationBucket {
+  bucket_id: string
+  label: string
+  description?: string | null
+  weight: number
+  dimensions: Record<string, string>
+  behavior_overrides: BehaviorGate[]
+}
+
+export interface KillSwitchState {
+  capability: string
+  active: boolean
+  reason?: string | null
+  updated_at: string
+}
+
+export interface RolloutPolicy {
+  policy_id: string
+  label: string
+  description: string
+  assignment_salt: string
+  behavior_gates: BehaviorGate[]
+  cohorts: RolloutCohort[]
+  evaluation_buckets: EvaluationBucket[]
+  kill_switches: KillSwitchState[]
+  updated_at: string
+}
+
+export interface RolloutCapabilityDecision {
+  capability: string
+  enabled: boolean
+  mode: string
+  fallback_behavior: string
+  effective_gate: BehaviorGate
+  source: string
+  source_cohort_ids: string[]
+  evaluation_bucket_id?: string | null
+  kill_switch_active: boolean
+  kill_switch_reason?: string | null
+  rationale: string[]
+}
+
+export interface RolloutSubject {
+  learner_id?: string | null
+  household_id?: string | null
+}
+
+export interface RolloutInspection {
+  policy_id: string
+  subject: RolloutSubject
+  cohort_ids: string[]
+  evaluation_bucket?: EvaluationBucket | null
+  decisions: RolloutCapabilityDecision[]
+  generated_at: string
+}
+
+export interface RolloutPolicyResponse {
+  policy: RolloutPolicy
+}
+
+export interface RolloutSimulationSubject {
+  learner_id?: string | null
+  household_id?: string | null
+  label?: string | null
+}
+
+export interface CapabilityDecisionDelta {
+  capability: string
+  current_decision: RolloutCapabilityDecision
+  proposed_decision: RolloutCapabilityDecision
+  changed: boolean
+  changed_fields: string[]
+  fallback_changed: boolean
+  newly_exposed_to_risky_capability: boolean
+}
+
+export interface RolloutSimulationDiff {
+  subject: RolloutSimulationSubject
+  current_inspection: RolloutInspection
+  proposed_inspection: RolloutInspection
+  cohort_changed: boolean
+  evaluation_bucket_changed: boolean
+  newly_risky_capabilities: string[]
+  capability_deltas: CapabilityDecisionDelta[]
+}
+
+export interface CapabilityDeltaSummary {
+  capability: string
+  affected_subject_count: number
+  newly_risky_subject_count: number
+}
+
+export interface SimulationSummary {
+  total_subject_count: number
+  changed_subject_count: number
+  changed_learner_count: number
+  changed_household_count: number
+  newly_risky_subject_count: number
+  capability_change_counts: Record<string, number>
+  top_capability_deltas: CapabilityDeltaSummary[]
+}
+
+export interface RolloutSimulationRequest {
+  proposed_policy: RolloutPolicy
+  subjects: RolloutSimulationSubject[]
+  include_unchanged: boolean
+}
+
+export interface RolloutSimulationResponse {
+  current_policy_id: string
+  proposed_policy_id: string
+  summary: SimulationSummary
+  diffs: RolloutSimulationDiff[]
+  generated_at: string
+}
+
+export interface EvaluationBucketSummary {
+  bucket_id: string
+  label: string
+  dimensions: Record<string, string>
+  sample_count: number
+  learner_count: number
+  positive_run_rate: number
+  average_run_outcome_score: number
+  average_observation_score: number
+  average_assessment_score: number
+  modality_counts: Record<string, number>
+}
+
+export interface EvaluationSummaryResponse {
+  generated_at: string
+  total_samples: number
+  buckets: EvaluationBucketSummary[]
+}
+
+export interface ProviderStatusSnapshot {
+  provider_name: string
+  status: string
+  detail: Record<string, unknown>
+  updated_at: string
+}
+
+export interface HarnessFallbackCount {
+  harness: string
+  fallback_kind: string
+  count: number
+}
+
+export interface PendingReviewQueue {
+  queue_key: string
+  count: number
+  summary: string
+}
+
+export interface StuckMigrationPlanDiagnostic {
+  plan_id: string
+  status: string
+  approved_action_count: number
+  failed_action_count: number
+  review_item_count: number
+  updated_at: string
+}
+
+export interface StaleAutonomousSuggestionDiagnostic {
+  household_id: string
+  learner_id: string
+  status: string
+  pending_approval_count: number
+  updated_at: string
+  hours_stale: number
+}
+
+export interface CloudLibraryReadiness {
+  remote_enabled: boolean
+  degraded: boolean
+  recent_lookup_failures: number
+  recent_publish_failures: number
+  remote_endpoint?: string | null
+  last_degraded_at?: string | null
+  last_degraded_reason?: string | null
+}
+
+export interface OperationalTrace {
+  trace_id: string
+  harness: string
+  operation: string
+  status: string
+  summary: string
+  request_id?: string | null
+  session_id?: string | null
+  student_id?: string | null
+  household_id?: string | null
+  entity_kind?: string | null
+  entity_id?: string | null
+  degraded_mode: boolean
+  degraded_reason?: string | null
+  fallback_kind?: string | null
+  fallback_provenance?: string | null
+  reason_code?: string | null
+  payload: Record<string, unknown>
+  created_at: string
+}
+
+export interface BlockedReviewPreview {
+  item_kind: string
+  item_id: string
+  summary: string
+  explanation: string
+  next_step: string
+  risk_level: string
+  household_id?: string | null
+  learner_id?: string | null
+}
+
+export interface ReleaseReadinessSnapshot {
+  generated_at: string
+  total_recent_traces: number
+  degraded_trace_count: number
+  provider_statuses: ProviderStatusSnapshot[]
+  fallback_counts: HarnessFallbackCount[]
+  pending_review_queues: PendingReviewQueue[]
+  stuck_migration_plans: StuckMigrationPlanDiagnostic[]
+  stale_autonomous_suggestions: StaleAutonomousSuggestionDiagnostic[]
+  cloud_library: CloudLibraryReadiness
+  active_kill_switches: KillSwitchState[]
+  recent_degraded_operations: OperationalTrace[]
+  blocked_review_previews: BlockedReviewPreview[]
+}
+
+export interface CurriculumFieldChange {
+  field_name: string
+  before_value?: unknown
+  after_value?: unknown
+}
+
+export interface CurriculumEntityRef {
+  snapshot_id: string
+  framework_id: string
+  framework_version?: string | null
+  artifact_kind: string
+  artifact_id: string
+  title?: string | null
+}
+
+export interface CurriculumEntityDelta {
+  delta_id: string
+  artifact_kind: string
+  artifact_id: string
+  change_kind: string
+  risk_level: string
+  before?: CurriculumEntityRef | null
+  after?: CurriculumEntityRef | null
+  field_changes: CurriculumFieldChange[]
+  approved_alignment_edge_id?: string | null
+  suggested_action?: string | null
+  rationale: string
+}
+
+export interface CurriculumSnapshotDiff {
+  diff_id: string
+  source_snapshot_id: string
+  target_snapshot_id: string
+  framework_id?: string | null
+  source_framework_version?: string | null
+  target_framework_version?: string | null
+  entity_deltas: CurriculumEntityDelta[]
+  created_at: string
+  updated_at: string
+}
+
+export interface CurriculumImpactRecord {
+  impact_id: string
+  entity_kind: string
+  entity_id: string
+  student_id?: string | null
+  current_snapshot_id?: string | null
+  referenced_course_ids: string[]
+  referenced_outcome_ids: string[]
+  referenced_kc_ids: string[]
+  matched_delta_ids: string[]
+  suggested_action: string
+  confidence: number
+  risk_level: string
+  rationale: string
+}
+
+export interface CurriculumImpactAnalysis {
+  analysis_id: string
+  diff_id: string
+  source_snapshot_id: string
+  target_snapshot_id: string
+  impacts: CurriculumImpactRecord[]
+  created_at: string
+  updated_at: string
+}
+
+export interface MigrationAction {
+  action_id: string
+  action_type: string
+  entity_kind: string
+  entity_id: string
+  source_snapshot_id: string
+  target_snapshot_id: string
+  source_outcome_ids: string[]
+  target_outcome_ids: string[]
+  source_kc_ids: string[]
+  target_kc_ids: string[]
+  approved_alignment_edge_ids: string[]
+  risk_level: string
+  confidence: number
+  status: string
+  rationale: string
+  reviewer_id?: string | null
+  approved_at?: string | null
+  executed_at?: string | null
+  execution_summary?: string | null
+}
+
+export interface MigrationReviewItem {
+  review_item_id: string
+  entity_kind: string
+  entity_id: string
+  risk_level: string
+  blocking_delta_ids: string[]
+  recommended_action: string
+  rationale: string
+}
+
+export interface CurriculumMigrationPlan {
+  plan_id: string
+  diff_id: string
+  source_snapshot_id: string
+  target_snapshot_id: string
+  status: string
+  actions: MigrationAction[]
+  review_items: MigrationReviewItem[]
+  created_at: string
+  updated_at: string
+}
+
+export interface CurriculumMigrationApprovalRequest {
+  reviewer_id?: string | null
+  action_ids: string[]
+  approve_all_low_risk: boolean
+}
+
+export interface MigrationActionExplanationBundle {
+  action_id: string
+  entity_kind: string
+  entity_id: string
+  action_type: string
+  risk_level: string
+  confidence: number
+  rationale: string
+  rollout_effect?: RolloutCapabilityDecision | null
+  fallback_behavior?: string | null
+  next_expected_consequence: string
+  generated_at: string
+}
+
+export interface MigrationDryRunAction {
+  action_id: string
+  would_execute: boolean
+  status: string
+  summary: string
+  explanation: MigrationActionExplanationBundle
+}
+
+export interface CurriculumMigrationExecutionPreview {
+  plan_id: string
+  diff_id: string
+  rollout_blocked: boolean
+  rollout_reason?: string | null
+  action_previews: MigrationDryRunAction[]
+  executed_action_count: number
+  blocked_action_count: number
+  generated_at: string
+}
+
 export interface SetupConfigureResponse {
   status: 'ok'
   config_path: string
