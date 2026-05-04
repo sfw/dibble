@@ -865,6 +865,25 @@ class CurriculumLibrarySelectionTrace(BaseModel):
     generated_at: datetime = Field(default_factory=utc_now)
 
 
+class CurriculumLibraryPrivacyAuditEntry(BaseModel):
+    cache_key: str
+    storage_scope: CurriculumLibraryStorageScope
+    source_generation_id: str | None = None
+    content_student_id: UUID
+    response_student_id: UUID
+    request_context_keys: list[str] = Field(default_factory=list)
+    curriculum_key_fields: list[str] = Field(default_factory=list)
+    provenance_status: str | None = None
+    forbidden_field_hits: list[str] = Field(default_factory=list)
+
+
+class CurriculumLibraryPrivacyAudit(BaseModel):
+    entry_count: int = Field(default=0, ge=0)
+    forbidden_field_hits: list[str] = Field(default_factory=list)
+    entries: list[CurriculumLibraryPrivacyAuditEntry] = Field(default_factory=list)
+    generated_at: datetime = Field(default_factory=utc_now)
+
+
 class GenerationStreamEvent(BaseModel):
     event: str
     student_id: UUID

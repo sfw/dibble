@@ -80,6 +80,8 @@ class UserCreateResponse(BaseModel):
     credential: str
     display_name: str | None = None
     role: str
+    learner_id: str | None = None
+    household_id: str | None = None
 
 
 class UserUpdateRequest(BaseModel):

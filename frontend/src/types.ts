@@ -479,6 +479,25 @@ export interface GeneratedContent {
   expires_at?: string | null
 }
 
+export interface CurriculumLibraryPrivacyAuditEntry {
+  cache_key: string
+  storage_scope: string
+  source_generation_id?: string | null
+  content_student_id: string
+  response_student_id: string
+  request_context_keys: string[]
+  curriculum_key_fields: string[]
+  provenance_status?: string | null
+  forbidden_field_hits: string[]
+}
+
+export interface CurriculumLibraryPrivacyAudit {
+  entry_count: number
+  forbidden_field_hits: string[]
+  entries: CurriculumLibraryPrivacyAuditEntry[]
+  generated_at: string
+}
+
 export interface GenerationRequestPayload {
   student_id: string
   learning_session_id?: string | null
@@ -1723,6 +1742,8 @@ export interface UserCreateResponse {
   credential: string
   display_name: string | null
   role: string
+  learner_id?: string | null
+  household_id?: string | null
 }
 
 export interface UserSummary {

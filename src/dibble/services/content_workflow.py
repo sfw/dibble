@@ -199,10 +199,12 @@ class ContentWorkflowService:
         response = self.content_generation_harness.generate_prepared(
             prepared.prepared_generation
         )
-        authoring_policy = self.generation_engine.harness.authoring.authoring_policy_for(
-            profile=prepared.profile,
-            request=prepared.request,
-            route=response.route,
+        authoring_policy = (
+            self.generation_engine.harness.authoring.authoring_policy_for(
+                profile=prepared.profile,
+                request=prepared.request,
+                route=response.route,
+            )
         )
         rollout_inspection = None
         rollout_service = self.content_generation_harness.modality_routing_harness.rollout_decision_service
@@ -421,6 +423,9 @@ class ContentWorkflowService:
             request=prepared.request,
             response=response,
             progression_decision=prepared.progression_decision,
+            request_context_override=(
+                prepared.prepared_generation.authoring.policy.request_context
+            ),
         )
         log_runtime_event(
             logger,
@@ -465,7 +470,9 @@ class ContentWorkflowService:
             BindGenerationRequestCommand(request=request)
         ).request
         profile = self._load_profile(bound_request.student_id)
-        progression_decision = self._progression_ownership_decision(request=bound_request)
+        progression_decision = self._progression_ownership_decision(
+            request=bound_request
+        )
         enriched_request = hydrate_target_kc_hints(
             request=progression_decision.request,
             knowledge_component_store=self.knowledge_component_store,
@@ -507,11 +514,14 @@ class ContentWorkflowService:
         response: GenerationResponse,
         progression_decision: ProgressionOwnershipDecision,
         record_moderation_event: bool = True,
+        request_context_override: dict[str, object] | None = None,
     ) -> GeneratedContent:
-        authoring_policy = self.generation_engine.harness.authoring.authoring_policy_for(
-            profile=profile,
-            request=request,
-            route=response.route,
+        authoring_policy = (
+            self.generation_engine.harness.authoring.authoring_policy_for(
+                profile=profile,
+                request=request,
+                route=response.route,
+            )
         )
         metadata = response.generation_metadata
         if metadata is None or response.generation_id is None:
@@ -521,7 +531,8 @@ class ContentWorkflowService:
             generation_id=response.generation_id,
             student_id=response.student_id,
             content_type=authoring_policy.content_type.value,
-            request_context=authoring_policy.request_context,
+            request_context=request_context_override
+            or authoring_policy.request_context,
             response=response,
             quality=metadata,
             created_at=response.generated_at,
@@ -547,10 +558,12 @@ class ContentWorkflowService:
             generated_content=generated_content,
             progression_decision=progression_decision,
         )
-        summary_result = self.within_session_control_harness.summarize_generated_content(
-            SummarizeGeneratedContentCommand(
-                generated_content=generated_content,
-                persist_session_state=not request.predictive_warm,
+        summary_result = (
+            self.within_session_control_harness.summarize_generated_content(
+                SummarizeGeneratedContentCommand(
+                    generated_content=generated_content,
+                    persist_session_state=not request.predictive_warm,
+                )
             )
         )
         generated_content = summary_result.content

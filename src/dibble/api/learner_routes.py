@@ -12,6 +12,7 @@ from dibble.models.history import (
 )
 from dibble.models.observations import InferredLearnerState, LearnerObservationCreate
 from dibble.models.mastery_history import MasteryHistoryResponse
+from dibble.models.planning import ActivePlanningState, LearnerGoalCreateRequest
 from dibble.models.profile import (
     LearnerCurriculumProgressionSummary,
     LearnerFlowSummary,
@@ -31,6 +32,9 @@ from dibble.services.harness.assessment_evidence import (
 from dibble.services.harness.learner_profile import (
     ApplyObservationEvidenceCommand,
     UpsertLearnerProfileCommand,
+)
+from dibble.services.harness.curriculum_planning import (
+    CreateLearnerGoalCommand,
 )
 from dibble.services.teacher_intervention_actions import (
     TeacherInterventionActionUnavailableError,
@@ -78,6 +82,33 @@ def build_learner_router(context: ApiContext) -> APIRouter:
     )
     def list_profiles() -> list[str]:
         return services.profile_store.list_ids()
+
+    @router.post(
+        "/learners/{student_id}/goals",
+        response_model=ActivePlanningState,
+        dependencies=context.deps("editor"),
+    )
+    def create_learner_goal(
+        student_id: UUID, payload: LearnerGoalCreateRequest
+    ) -> ActivePlanningState:
+        try:
+            planning = services.curriculum_planning_harness.create_goal(
+                CreateLearnerGoalCommand(
+                    student_id=student_id,
+                    title=payload.title,
+                    target_outcome_id=payload.target_outcome_id,
+                    target_kc_ids=payload.target_kc_ids,
+                    rationale=payload.rationale,
+                    source="operator_requested",
+                )
+            )
+        except LearnerProfileNotFoundError as exc:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(exc),
+                code="learner_profile_not_found",
+            ) from exc
+        return ActivePlanningState(goal=planning.goal, trajectory=planning.trajectory)
 
     @router.post(
         "/learners/{student_id}/observations",

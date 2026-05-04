@@ -105,6 +105,28 @@ curl -sS http://localhost:8000/ready
 
 Then sign in or call `GET /api/households/me/overview` with the parent key. The household and learner should still be present. If they are missing, the `/data` mount is not persistent and the deployment is not proved.
 
+## Proof Scenario Rehearsal
+
+After the household runtime is reachable, seed and rehearse the canonical proof
+household through the API:
+
+```bash
+uv run python scripts/rehearse_proof_scenarios.py --base-url http://localhost:8000
+```
+
+If an admin already exists, pass the saved operator key:
+
+```bash
+uv run python scripts/rehearse_proof_scenarios.py \
+  --base-url http://localhost:8000 \
+  --admin-api-key ADMIN_API_KEY
+```
+
+The script creates a proof parent, two learners, fraction-equivalence curriculum,
+guided household preferences, and an explicit goal/trajectory. It then rehearses
+the five canonical scenarios from `docs/proof/scenarios.md` without database
+edits. The generated parent key and learner ids are printed at the end.
+
 ## Backup And Restore
 
 For the proof deployment, the backup unit is `/data/dibble.db`.

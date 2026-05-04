@@ -27,10 +27,15 @@ from dibble.models.observability import (
     OperationalTraceStatus,
     RolloutEffectExplanation,
 )
+from dibble.models.planning import ActivePlanningState, LearnerGoalCreateRequest
 from dibble.models.rollout import (
     AutonomousSessionSuggestionMode,
     ModalityAvailabilityMode,
     RolloutCapability,
+)
+from dibble.services.harness.curriculum_planning import (
+    CreateLearnerGoalCommand,
+    CurriculumPlanningHarness,
 )
 from dibble.services.operational_observability import OperationalObservabilityService
 from dibble.services.autonomous_teacher_harness import AutonomousTeacherHarness
@@ -48,6 +53,7 @@ class HouseholdService:
     user_store: UserStore
     autonomous_teacher_harness: AutonomousTeacherHarness
     parent_notification_store: ParentNotificationStore
+    curriculum_planning_harness: CurriculumPlanningHarness
     audit_store: AuditStore | None = None
     operational_observability_service: OperationalObservabilityService | None = None
 
@@ -65,7 +71,9 @@ class HouseholdService:
         existing = self._household_for_user(user)
         learner_ids = self._validated_learner_ids(
             learner_ids=request.learner_ids,
-            existing_household_id=existing.household_id if existing is not None else None,
+            existing_household_id=existing.household_id
+            if existing is not None
+            else None,
         )
         now = datetime.now(timezone.utc)
         existing_profiles = (
@@ -80,7 +88,9 @@ class HouseholdService:
             preferences=request.preferences,
         )
         household = Household(
-            household_id=existing.household_id if existing is not None else str(uuid4()),
+            household_id=existing.household_id
+            if existing is not None
+            else str(uuid4()),
             household_name=request.household_name,
             parent_profiles=list(existing_profiles.values()),
             learner_ids=learner_ids,
@@ -89,7 +99,10 @@ class HouseholdService:
         )
         self.household_store.upsert(household)
         updated_user = user.model_copy(
-            update={"household_id": household.household_id, "updated_at": now.isoformat()}
+            update={
+                "household_id": household.household_id,
+                "updated_at": now.isoformat(),
+            }
         )
         self.user_store.update(updated_user)
         self._sync_learner_membership(
@@ -102,6 +115,33 @@ class HouseholdService:
 
     def get_household_overview(self, *, parent_user_id: str) -> HouseholdOverview:
         return self.get_household_overview_at(parent_user_id=parent_user_id)
+
+    def create_parent_requested_goal(
+        self,
+        *,
+        parent_user_id: str,
+        learner_id: str,
+        request: LearnerGoalCreateRequest,
+    ) -> ActivePlanningState:
+        user = self.user_store.get(parent_user_id)
+        if user is None:
+            raise RuntimeError("Parent user not found.")
+        household = self._household_for_user(user)
+        if household is None:
+            raise RuntimeError("Household not found.")
+        if learner_id not in household.learner_ids:
+            raise RuntimeError("Learner does not belong to this household.")
+        planning = self.curriculum_planning_harness.create_goal(
+            CreateLearnerGoalCommand(
+                student_id=learner_id,
+                title=request.title,
+                target_outcome_id=request.target_outcome_id,
+                target_kc_ids=request.target_kc_ids,
+                rationale=request.rationale,
+                source="parent_requested",
+            )
+        )
+        return ActivePlanningState(goal=planning.goal, trajectory=planning.trajectory)
 
     def get_household_overview_at(
         self,
@@ -122,7 +162,11 @@ class HouseholdService:
             for item in self.user_store.list()
             if item.role == "learner"
             and item.learner_id is not None
-            and (item.household_id is None or household is None or item.household_id == household.household_id)
+            and (
+                item.household_id is None
+                or household is None
+                or item.household_id == household.household_id
+            )
         ]
         if household is None:
             return HouseholdOverview(available_learners=available_learners)
@@ -191,7 +235,10 @@ class HouseholdService:
         if household is None:
             return HouseholdOverview()
         notification = self.parent_notification_store.get(notification_id)
-        if notification is not None and notification.household_id == household.household_id:
+        if (
+            notification is not None
+            and notification.household_id == household.household_id
+        ):
             self.parent_notification_store.upsert(
                 notification.model_copy(
                     update={
@@ -213,7 +260,10 @@ class HouseholdService:
         if household is None:
             return HouseholdOverview()
         notification = self.parent_notification_store.get(notification_id)
-        if notification is not None and notification.household_id == household.household_id:
+        if (
+            notification is not None
+            and notification.household_id == household.household_id
+        ):
             self.parent_notification_store.upsert(
                 notification.model_copy(
                     update={
@@ -239,7 +289,10 @@ class HouseholdService:
         if household is None:
             return HouseholdOverview()
         notification = self.parent_notification_store.get(notification_id)
-        if notification is not None and notification.household_id == household.household_id:
+        if (
+            notification is not None
+            and notification.household_id == household.household_id
+        ):
             now = datetime.now(timezone.utc)
             self.parent_notification_store.upsert(
                 notification.model_copy(
@@ -398,7 +451,8 @@ class HouseholdService:
             item.title
             for item in plan.relationship_state.approval_requests
             if item.approval_id != approval_id
-            and item.status in {ParentApprovalStatus.pending, ParentApprovalStatus.rejected}
+            and item.status
+            in {ParentApprovalStatus.pending, ParentApprovalStatus.rejected}
         ]
         if_approved, if_denied, next_expected_consequence = self._approval_outcomes(
             approval_type=approval.approval_type,
@@ -452,7 +506,8 @@ class HouseholdService:
             self._rollout_effect_explanation(
                 decision=suggestion_decision,
                 constrained=plan.next_session is None
-                and relationship_state.cadence_status in {"session_due", "reengage_now", "check_in"},
+                and relationship_state.cadence_status
+                in {"session_due", "reengage_now", "check_in"},
                 detail=(
                     "Autonomous session suggestions remain gated by rollout policy."
                     if suggestion_decision is not None
@@ -473,12 +528,19 @@ class HouseholdService:
             ),
         ]
         risk = DecisionRisk.low
-        if relationship_state.soft_escalation_active or relationship_state.cadence_status == "check_in":
+        if (
+            relationship_state.soft_escalation_active
+            or relationship_state.cadence_status == "check_in"
+        ):
             risk = DecisionRisk.high
-        elif relationship_state.approval_requests or relationship_state.cadence_status in {
-            "reengage_now",
-            "session_due",
-        }:
+        elif (
+            relationship_state.approval_requests
+            or relationship_state.cadence_status
+            in {
+                "reengage_now",
+                "session_due",
+            }
+        ):
             risk = DecisionRisk.moderate
         confidence = DecisionConfidence.medium
         if trace is not None and trace.average_session_outcome_score >= 0.68:
@@ -488,7 +550,8 @@ class HouseholdService:
         return AutonomousTeacherExplanationBundle(
             household_id=household_id,
             learner_id=learner_id,
-            summary=relationship_state.summary_headline or "Autonomous teacher decision preview ready.",
+            summary=relationship_state.summary_headline
+            or "Autonomous teacher decision preview ready.",
             cadence_decision=plan.cadence_decision,
             suggested_modality=relationship_state.suggested_modality,
             blocking_approval_types=(
@@ -499,7 +562,8 @@ class HouseholdService:
             fallback_behavior=(
                 "approval_blocked"
                 if any(
-                    approval.status in {ParentApprovalStatus.pending, ParentApprovalStatus.rejected}
+                    approval.status
+                    in {ParentApprovalStatus.pending, ParentApprovalStatus.rejected}
                     for approval in relationship_state.approval_requests
                 )
                 else None
@@ -560,10 +624,14 @@ class HouseholdService:
         proposed_value: str | None,
     ) -> list[str]:
         constraints: list[str] = []
-        if approval_type == ParentApprovalType.modality_introduction and proposed_value not in {
-            None,
-            "text",
-        }:
+        if (
+            approval_type == ParentApprovalType.modality_introduction
+            and proposed_value
+            not in {
+                None,
+                "text",
+            }
+        ):
             decision = self._rollout_decision(
                 capability=RolloutCapability.non_text_modalities,
                 household_id=household_id,
@@ -607,7 +675,9 @@ class HouseholdService:
             denied = [
                 f"{proposed_value or 'The proposed modality'} remains blocked for this learner."
             ]
-            consequence = "Future session suggestions can use the newly approved modality."
+            consequence = (
+                "Future session suggestions can use the newly approved modality."
+            )
         elif approval_type == ParentApprovalType.trajectory_revision:
             approved = [
                 "The longer-horizon plan can advance to the proposed next focus."
@@ -620,9 +690,7 @@ class HouseholdService:
             approved = [
                 "The pending high-autonomy re-engagement session can move forward."
             ]
-            denied = [
-                "The autonomous re-engagement session remains blocked."
-            ]
+            denied = ["The autonomous re-engagement session remains blocked."]
             consequence = (
                 "The next session suggestion can surface immediately."
                 if not rollout_constraints and not remaining_blockers
@@ -633,7 +701,9 @@ class HouseholdService:
                 "Rollout policy would still keep part of the change constrained."
             )
         if remaining_blockers:
-            approved.append("Other approvals still need attention before everything can proceed.")
+            approved.append(
+                "Other approvals still need attention before everything can proceed."
+            )
             denied.append("Other approvals would remain blocked as well.")
         return approved, denied, consequence
 
@@ -707,9 +777,11 @@ class HouseholdService:
         household = self._household_for_user(user)
         if household is None:
             return HouseholdOverview()
-        relationship_state = self.autonomous_teacher_harness.learner_relationship_state_store.get(
-            household_id=household.household_id,
-            learner_id=learner_id,
+        relationship_state = (
+            self.autonomous_teacher_harness.learner_relationship_state_store.get(
+                household_id=household.household_id,
+                learner_id=learner_id,
+            )
         )
         if relationship_state is None:
             self.get_household_overview(parent_user_id=parent_user_id)
@@ -868,9 +940,11 @@ class HouseholdService:
         household = self._household_for_user(user)
         if household is None:
             return HouseholdOverview()
-        relationship_state = self.autonomous_teacher_harness.learner_relationship_state_store.get(
-            household_id=household.household_id,
-            learner_id=learner_id,
+        relationship_state = (
+            self.autonomous_teacher_harness.learner_relationship_state_store.get(
+                household_id=household.household_id,
+                learner_id=learner_id,
+            )
         )
         if relationship_state is None:
             return self.get_household_overview(parent_user_id=parent_user_id)
@@ -917,7 +991,11 @@ class HouseholdService:
             )
         )
         resolved_approval = next(
-            (approval for approval in updated_approvals if approval.approval_id == approval_id),
+            (
+                approval
+                for approval in updated_approvals
+                if approval.approval_id == approval_id
+            ),
             None,
         )
         payload = {
@@ -925,10 +1003,14 @@ class HouseholdService:
             "learner_id": learner_id,
             "approval_status": status.value,
             "approval_type": (
-                resolved_approval.approval_type.value if resolved_approval is not None else None
+                resolved_approval.approval_type.value
+                if resolved_approval is not None
+                else None
             ),
             "proposed_value": (
-                resolved_approval.proposed_value if resolved_approval is not None else None
+                resolved_approval.proposed_value
+                if resolved_approval is not None
+                else None
             ),
             "approved_modalities": list(approved_modalities),
         }

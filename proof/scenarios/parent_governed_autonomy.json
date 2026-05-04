@@ -18,6 +18,34 @@
     "Autonomous teacher has enough learner state to suggest a modality or trajectory change.",
     "Parent approval enforcement rollout mode is guided or strict."
   ],
+  "rehearsal_assets": [
+    "proof/fixtures/scenario_household_seed.json",
+    "scripts/rehearse_proof_scenarios.py",
+    "docs/proof/scenarios.md"
+  ],
+  "setup_path": [
+    "Run the seeded household setup through scripts/rehearse_proof_scenarios.py.",
+    "Use Avery from the proof fixture; the seed profile intentionally starts with high frustration and guided approvals enabled.",
+    "Open the parent overview or use the script to fetch the pending approval id."
+  ],
+  "execution_path": [
+    "GET /api/households/me/overview to surface pending approvals.",
+    "GET /api/households/me/approvals/{learner_id}/{approval_id}/preview.",
+    "POST /api/households/me/approvals/{learner_id}/{approval_id}/reject.",
+    "GET /api/observability/adaptation/autonomous-teacher/{household_id}/{learner_id}/explain.",
+    "POST /api/households/me/approvals/{learner_id}/{approval_id}/approve."
+  ],
+  "visible_outcome": "The approval preview explains both branches, rejection keeps the autonomous suggestion blocked, and approval clears or reduces the blocker list.",
+  "observability_hooks": [
+    "GET /api/observability/adaptation/autonomous-teacher/{household_id}/{learner_id}/explain",
+    "GET /api/observability/readiness",
+    "GET /api/observability/traces?harness=autonomous_teacher"
+  ],
+  "approval_hooks": [
+    "GET /api/households/me/approvals/{learner_id}/{approval_id}/preview",
+    "POST /api/households/me/approvals/{learner_id}/{approval_id}/reject",
+    "POST /api/households/me/approvals/{learner_id}/{approval_id}/approve"
+  ],
   "rehearsal_steps": [
     {
       "step_id": "autonomy-01",

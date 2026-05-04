@@ -11,8 +11,14 @@ REQUIRED_SCENARIO_KEYS = {
     "proof_focus",
     "entrypoints",
     "preconditions",
+    "rehearsal_assets",
+    "setup_path",
+    "execution_path",
     "rehearsal_steps",
     "expected_observations",
+    "visible_outcome",
+    "observability_hooks",
+    "approval_hooks",
     "privacy_contract",
     "success_criteria",
     "reset_notes",
@@ -57,7 +63,12 @@ def validate_scenario(scenario: dict[str, Any]) -> list[str]:
         "proof_focus",
         "entrypoints",
         "preconditions",
+        "rehearsal_assets",
+        "setup_path",
+        "execution_path",
         "expected_observations",
+        "visible_outcome",
+        "observability_hooks",
         "success_criteria",
     ]:
         if not scenario.get(key):
@@ -126,12 +137,29 @@ def validate_all(scenario_dir: Path) -> list[str]:
     scenarios = load_scenarios(scenario_dir)
     errors: list[str] = []
     seen_ids: set[str] = set()
+    repo_root = scenario_dir.resolve().parents[1]
     for scenario in scenarios:
         scenario_id = str(scenario.get("scenario_id", "<missing>"))
         if scenario_id in seen_ids:
             errors.append(f"{scenario_id}: duplicate scenario_id")
         seen_ids.add(scenario_id)
         errors.extend(validate_scenario(scenario))
+        errors.extend(_validate_rehearsal_assets(repo_root, scenario))
+    return errors
+
+
+def _validate_rehearsal_assets(repo_root: Path, scenario: dict[str, Any]) -> list[str]:
+    scenario_id = str(scenario.get("scenario_id", "<missing>"))
+    assets = scenario.get("rehearsal_assets", [])
+    errors: list[str] = []
+    if not isinstance(assets, list) or not assets:
+        return [f"{scenario_id}: rehearsal_assets must be a non-empty list"]
+    for asset in assets:
+        if not isinstance(asset, str) or not asset.strip():
+            errors.append(f"{scenario_id}: rehearsal asset must be a non-empty string")
+            continue
+        if not (repo_root / asset).exists():
+            errors.append(f"{scenario_id}: rehearsal asset not found: {asset}")
     return errors
 
 

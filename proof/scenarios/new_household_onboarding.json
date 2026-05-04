@@ -18,6 +18,33 @@
     "Operator has copied deploy/household/.env.example to deploy/household/.env.",
     "No admin, household, learner, or trajectory state exists in the database."
   ],
+  "rehearsal_assets": [
+    "proof/fixtures/scenario_household_seed.json",
+    "scripts/rehearse_proof_scenarios.py",
+    "docs/proof/scenarios.md"
+  ],
+  "setup_path": [
+    "Start the household container from deploy/household with docker compose up --build.",
+    "Run uv run python scripts/rehearse_proof_scenarios.py --base-url http://localhost:8000 --scenario new_household_onboarding.",
+    "If an admin already exists, rerun with --admin-api-key or DIBBLE_PROOF_ADMIN_API_KEY."
+  ],
+  "execution_path": [
+    "GET /ready before and after setup.",
+    "POST /api/setup/admin when the runtime has no operator.",
+    "POST /api/users for the parent and learners; use the returned learner_id values.",
+    "PUT /api/households/me/setup with guided parent preferences.",
+    "POST /api/households/me/learners/{learner_id}/goals to create the first proof trajectory with the parent key.",
+    "GET /api/households/me/overview as the parent."
+  ],
+  "visible_outcome": "The parent overview shows the seeded household, both learners, first trajectory state, guided approval posture, and any first-session blockers without database inspection.",
+  "observability_hooks": [
+    "GET /ready",
+    "GET /api/households/me/overview",
+    "GET /api/observability/readiness"
+  ],
+  "approval_hooks": [
+    "Parent preferences require modality introduction, trajectory revision, and high-autonomy session approval."
+  ],
   "rehearsal_steps": [
     {
       "step_id": "onboarding-01",

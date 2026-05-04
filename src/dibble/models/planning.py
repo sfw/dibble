@@ -176,6 +176,13 @@ class LearnerGoal(BaseModel):
     updated_at: datetime = Field(default_factory=utc_now)
 
 
+class LearnerGoalCreateRequest(BaseModel):
+    title: str | None = None
+    target_outcome_id: str | None = None
+    target_kc_ids: list[str] = Field(default_factory=list)
+    rationale: str | None = None
+
+
 class TrajectoryNode(BaseModel):
     node_id: str
     node_kind: str = "instruction"

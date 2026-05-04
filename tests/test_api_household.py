@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 
 from dibble.app import create_app
@@ -20,7 +21,15 @@ from dibble.storage import ensure_database
 from tests.support import build_knowledge_component, build_outcome, build_profile
 
 
-def _seed_user(db_path: str, *, api_key: str, role: str, user_id: str, learner_id: str | None = None, display_name: str | None = None) -> None:
+def _seed_user(
+    db_path: str,
+    *,
+    api_key: str,
+    role: str,
+    user_id: str,
+    learner_id: str | None = None,
+    display_name: str | None = None,
+) -> None:
     conn = create_connection(db_path)
     store = SQLiteUserStore(conn)
     now = datetime.now(timezone.utc).isoformat()
@@ -44,13 +53,36 @@ def test_household_setup_and_parent_overview_route(tmp_path):
     settings = Settings(database_path=db_path, auth_enabled=True)
     app = create_app(settings)
 
-    _seed_user(db_path, api_key="parent-key", role="parent", user_id="parent-1", display_name="Morgan")
-    _seed_user(db_path, api_key="learner-key", role="learner", user_id="learner-user-1", learner_id=str(student_id), display_name="Avery")
+    _seed_user(
+        db_path,
+        api_key="parent-key",
+        role="parent",
+        user_id="parent-1",
+        display_name="Morgan",
+    )
+    _seed_user(
+        db_path,
+        api_key="learner-key",
+        role="learner",
+        user_id="learner-user-1",
+        learner_id=str(student_id),
+        display_name="Avery",
+    )
 
     conn = create_connection(db_path)
-    SQLiteProfileStore(conn).upsert(LearnerProfile.model_validate(build_profile(student_id, frustration="low", total_load=0.3)))
-    SQLiteOutcomeStore(conn).upsert(OutcomeUpsert.model_validate(build_outcome("CURR-1", knowledge_component_ids=["KC-1"])))
-    SQLiteKnowledgeComponentStore(conn).upsert(KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1")))
+    SQLiteProfileStore(conn).upsert(
+        LearnerProfile.model_validate(
+            build_profile(student_id, frustration="low", total_load=0.3)
+        )
+    )
+    SQLiteOutcomeStore(conn).upsert(
+        OutcomeUpsert.model_validate(
+            build_outcome("CURR-1", knowledge_component_ids=["KC-1"])
+        )
+    )
+    SQLiteKnowledgeComponentStore(conn).upsert(
+        KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1"))
+    )
 
     with TestClient(app) as client:
         setup_response = client.put(
@@ -86,6 +118,178 @@ def test_household_setup_and_parent_overview_route(tmp_path):
     assert payload["weekly_summaries"]
 
 
+@pytest.mark.parametrize("parent_role", ["parent", "household_admin"])
+def test_household_parent_can_create_goal_for_household_learner(tmp_path, parent_role):
+    db_path = str(tmp_path / "dibble.db")
+    ensure_database(db_path)
+    student_id = uuid4()
+    settings = Settings(database_path=db_path, auth_enabled=True)
+    app = create_app(settings)
+
+    _seed_user(
+        db_path,
+        api_key="parent-key",
+        role=parent_role,
+        user_id="parent-1",
+        display_name="Morgan",
+    )
+    _seed_user(
+        db_path,
+        api_key="learner-key",
+        role="learner",
+        user_id="learner-user-1",
+        learner_id=str(student_id),
+        display_name="Avery",
+    )
+
+    conn = create_connection(db_path)
+    SQLiteProfileStore(conn).upsert(
+        LearnerProfile.model_validate(
+            build_profile(
+                student_id,
+                frustration="low",
+                total_load=0.3,
+                kc_mastery={"KC-1": 0.82, "KC-2": 0.35},
+            )
+        )
+    )
+    SQLiteOutcomeStore(conn).upsert(
+        OutcomeUpsert.model_validate(
+            build_outcome(
+                "CURR-1",
+                title="Equivalent Fraction Practice",
+                knowledge_component_ids=["KC-2"],
+            )
+        )
+    )
+    SQLiteKnowledgeComponentStore(conn).upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component("KC-1", name="Fraction foundations")
+        )
+    )
+    SQLiteKnowledgeComponentStore(conn).upsert(
+        KnowledgeComponentUpsert.model_validate(
+            build_knowledge_component(
+                "KC-2",
+                prerequisite_kc_ids=["KC-1"],
+                name="Equivalent fraction practice",
+            )
+        )
+    )
+
+    with TestClient(app) as client:
+        setup_response = client.put(
+            "/api/households/me/setup",
+            headers={"X-API-Key": "parent-key"},
+            json={
+                "household_name": "Avery Family",
+                "learner_ids": [str(student_id)],
+                "relationship_label": "parent",
+                "preferences": {
+                    "session_cadence": "daily",
+                    "auto_session_suggestions": True,
+                    "weekly_summary_day": "sunday",
+                    "soft_escalation_enabled": True,
+                    "approval_mode": "guided",
+                    "modality_introduction_requires_approval": False,
+                    "trajectory_revision_requires_approval": False,
+                    "high_autonomy_session_requires_approval": False,
+                },
+            },
+        )
+        goal_response = client.post(
+            f"/api/households/me/learners/{student_id}/goals",
+            headers={"X-API-Key": "parent-key"},
+            json={
+                "title": "Proof goal: equivalent fractions",
+                "target_outcome_id": "CURR-1",
+                "target_kc_ids": ["KC-2"],
+                "rationale": "Parent rehearsal request.",
+            },
+        )
+
+    assert setup_response.status_code == 200
+    assert goal_response.status_code == 200
+    payload = goal_response.json()
+    assert payload["goal"]["source"] == "parent_requested"
+    assert payload["goal"]["target_kc_ids"] == ["KC-2"]
+    assert payload["trajectory"]["nodes"]
+
+
+def test_household_parent_cannot_create_goal_for_other_household_learner(tmp_path):
+    db_path = str(tmp_path / "dibble.db")
+    ensure_database(db_path)
+    student_id = uuid4()
+    settings = Settings(database_path=db_path, auth_enabled=True)
+    app = create_app(settings)
+
+    _seed_user(db_path, api_key="parent-one-key", role="parent", user_id="parent-1")
+    _seed_user(db_path, api_key="parent-two-key", role="parent", user_id="parent-2")
+    _seed_user(
+        db_path,
+        api_key="learner-key",
+        role="learner",
+        user_id="learner-user-1",
+        learner_id=str(student_id),
+        display_name="Avery",
+    )
+    conn = create_connection(db_path)
+    SQLiteProfileStore(conn).upsert(
+        LearnerProfile.model_validate(build_profile(student_id))
+    )
+
+    with TestClient(app) as client:
+        client.put(
+            "/api/households/me/setup",
+            headers={"X-API-Key": "parent-one-key"},
+            json={
+                "household_name": "First Family",
+                "learner_ids": [str(student_id)],
+                "relationship_label": "parent",
+                "preferences": {
+                    "session_cadence": "daily",
+                    "auto_session_suggestions": True,
+                    "weekly_summary_day": "sunday",
+                    "soft_escalation_enabled": True,
+                    "approval_mode": "guided",
+                    "modality_introduction_requires_approval": False,
+                    "trajectory_revision_requires_approval": False,
+                    "high_autonomy_session_requires_approval": False,
+                },
+            },
+        )
+        client.put(
+            "/api/households/me/setup",
+            headers={"X-API-Key": "parent-two-key"},
+            json={
+                "household_name": "Second Family",
+                "learner_ids": [],
+                "relationship_label": "parent",
+                "preferences": {
+                    "session_cadence": "daily",
+                    "auto_session_suggestions": True,
+                    "weekly_summary_day": "sunday",
+                    "soft_escalation_enabled": True,
+                    "approval_mode": "guided",
+                    "modality_introduction_requires_approval": False,
+                    "trajectory_revision_requires_approval": False,
+                    "high_autonomy_session_requires_approval": False,
+                },
+            },
+        )
+        response = client.post(
+            f"/api/households/me/learners/{student_id}/goals",
+            headers={"X-API-Key": "parent-two-key"},
+            json={
+                "title": "Wrong household goal",
+                "target_kc_ids": ["KC-1"],
+            },
+        )
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "household_learner_not_found"
+
+
 def test_household_notification_read_state_persists_across_overview_refresh(tmp_path):
     db_path = str(tmp_path / "dibble.db")
     ensure_database(db_path)
@@ -93,13 +297,36 @@ def test_household_notification_read_state_persists_across_overview_refresh(tmp_
     settings = Settings(database_path=db_path, auth_enabled=True)
     app = create_app(settings)
 
-    _seed_user(db_path, api_key="parent-key", role="household_admin", user_id="parent-1", display_name="Morgan")
-    _seed_user(db_path, api_key="learner-key", role="learner", user_id="learner-user-1", learner_id=str(student_id), display_name="Avery")
+    _seed_user(
+        db_path,
+        api_key="parent-key",
+        role="household_admin",
+        user_id="parent-1",
+        display_name="Morgan",
+    )
+    _seed_user(
+        db_path,
+        api_key="learner-key",
+        role="learner",
+        user_id="learner-user-1",
+        learner_id=str(student_id),
+        display_name="Avery",
+    )
 
     conn = create_connection(db_path)
-    SQLiteProfileStore(conn).upsert(LearnerProfile.model_validate(build_profile(student_id, frustration="high", total_load=0.6)))
-    SQLiteOutcomeStore(conn).upsert(OutcomeUpsert.model_validate(build_outcome("CURR-1", knowledge_component_ids=["KC-1"])))
-    SQLiteKnowledgeComponentStore(conn).upsert(KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1")))
+    SQLiteProfileStore(conn).upsert(
+        LearnerProfile.model_validate(
+            build_profile(student_id, frustration="high", total_load=0.6)
+        )
+    )
+    SQLiteOutcomeStore(conn).upsert(
+        OutcomeUpsert.model_validate(
+            build_outcome("CURR-1", knowledge_component_ids=["KC-1"])
+        )
+    )
+    SQLiteKnowledgeComponentStore(conn).upsert(
+        KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1"))
+    )
 
     with TestClient(app) as client:
         setup_response = client.put(
@@ -125,7 +352,9 @@ def test_household_notification_read_state_persists_across_overview_refresh(tmp_
             "/api/households/me/overview",
             headers={"X-API-Key": "parent-key"},
         )
-        notification_id = overview_response.json()["notifications"][0]["notification_id"]
+        notification_id = overview_response.json()["notifications"][0][
+            "notification_id"
+        ]
         mark_read_response = client.post(
             f"/api/households/me/notifications/{notification_id}/read",
             headers={"X-API-Key": "parent-key"},
@@ -147,21 +376,52 @@ def test_household_notification_read_state_persists_across_overview_refresh(tmp_
     assert refreshed_overview.json()["weekly_summaries"]
 
 
-def test_household_setup_rejects_learner_already_assigned_to_another_household(tmp_path):
+def test_household_setup_rejects_learner_already_assigned_to_another_household(
+    tmp_path,
+):
     db_path = str(tmp_path / "dibble.db")
     ensure_database(db_path)
     student_id = uuid4()
     settings = Settings(database_path=db_path, auth_enabled=True)
     app = create_app(settings)
 
-    _seed_user(db_path, api_key="parent-one-key", role="household_admin", user_id="parent-1", display_name="Morgan")
-    _seed_user(db_path, api_key="parent-two-key", role="household_admin", user_id="parent-2", display_name="Casey")
-    _seed_user(db_path, api_key="learner-key", role="learner", user_id="learner-user-1", learner_id=str(student_id), display_name="Avery")
+    _seed_user(
+        db_path,
+        api_key="parent-one-key",
+        role="household_admin",
+        user_id="parent-1",
+        display_name="Morgan",
+    )
+    _seed_user(
+        db_path,
+        api_key="parent-two-key",
+        role="household_admin",
+        user_id="parent-2",
+        display_name="Casey",
+    )
+    _seed_user(
+        db_path,
+        api_key="learner-key",
+        role="learner",
+        user_id="learner-user-1",
+        learner_id=str(student_id),
+        display_name="Avery",
+    )
 
     conn = create_connection(db_path)
-    SQLiteProfileStore(conn).upsert(LearnerProfile.model_validate(build_profile(student_id, frustration="low", total_load=0.3)))
-    SQLiteOutcomeStore(conn).upsert(OutcomeUpsert.model_validate(build_outcome("CURR-1", knowledge_component_ids=["KC-1"])))
-    SQLiteKnowledgeComponentStore(conn).upsert(KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1")))
+    SQLiteProfileStore(conn).upsert(
+        LearnerProfile.model_validate(
+            build_profile(student_id, frustration="low", total_load=0.3)
+        )
+    )
+    SQLiteOutcomeStore(conn).upsert(
+        OutcomeUpsert.model_validate(
+            build_outcome("CURR-1", knowledge_component_ids=["KC-1"])
+        )
+    )
+    SQLiteKnowledgeComponentStore(conn).upsert(
+        KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1"))
+    )
 
     with TestClient(app) as client:
         first_setup = client.put(
@@ -215,13 +475,36 @@ def test_household_preferences_update_can_disable_session_suggestions(tmp_path):
     settings = Settings(database_path=db_path, auth_enabled=True)
     app = create_app(settings)
 
-    _seed_user(db_path, api_key="parent-key", role="household_admin", user_id="parent-1", display_name="Morgan")
-    _seed_user(db_path, api_key="learner-key", role="learner", user_id="learner-user-1", learner_id=str(student_id), display_name="Avery")
+    _seed_user(
+        db_path,
+        api_key="parent-key",
+        role="household_admin",
+        user_id="parent-1",
+        display_name="Morgan",
+    )
+    _seed_user(
+        db_path,
+        api_key="learner-key",
+        role="learner",
+        user_id="learner-user-1",
+        learner_id=str(student_id),
+        display_name="Avery",
+    )
 
     conn = create_connection(db_path)
-    SQLiteProfileStore(conn).upsert(LearnerProfile.model_validate(build_profile(student_id, frustration="low", total_load=0.3)))
-    SQLiteOutcomeStore(conn).upsert(OutcomeUpsert.model_validate(build_outcome("CURR-1", knowledge_component_ids=["KC-1"])))
-    SQLiteKnowledgeComponentStore(conn).upsert(KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1")))
+    SQLiteProfileStore(conn).upsert(
+        LearnerProfile.model_validate(
+            build_profile(student_id, frustration="low", total_load=0.3)
+        )
+    )
+    SQLiteOutcomeStore(conn).upsert(
+        OutcomeUpsert.model_validate(
+            build_outcome("CURR-1", knowledge_component_ids=["KC-1"])
+        )
+    )
+    SQLiteKnowledgeComponentStore(conn).upsert(
+        KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1"))
+    )
 
     with TestClient(app) as client:
         client.put(
@@ -263,8 +546,15 @@ def test_household_preferences_update_can_disable_session_suggestions(tmp_path):
 
     assert update_response.status_code == 200
     payload = update_response.json()
-    assert payload["household"]["parent_profiles"][0]["relationship_label"] == "guardian"
-    assert payload["household"]["parent_profiles"][0]["preferences"]["auto_session_suggestions"] is False
+    assert (
+        payload["household"]["parent_profiles"][0]["relationship_label"] == "guardian"
+    )
+    assert (
+        payload["household"]["parent_profiles"][0]["preferences"][
+            "auto_session_suggestions"
+        ]
+        is False
+    )
     assert payload["session_suggestions"] == []
 
 
@@ -275,13 +565,36 @@ def test_household_session_suggestion_actions_persist_and_snooze_hides(tmp_path)
     settings = Settings(database_path=db_path, auth_enabled=True)
     app = create_app(settings)
 
-    _seed_user(db_path, api_key="parent-key", role="household_admin", user_id="parent-1", display_name="Morgan")
-    _seed_user(db_path, api_key="learner-key", role="learner", user_id="learner-user-1", learner_id=str(student_id), display_name="Avery")
+    _seed_user(
+        db_path,
+        api_key="parent-key",
+        role="household_admin",
+        user_id="parent-1",
+        display_name="Morgan",
+    )
+    _seed_user(
+        db_path,
+        api_key="learner-key",
+        role="learner",
+        user_id="learner-user-1",
+        learner_id=str(student_id),
+        display_name="Avery",
+    )
 
     conn = create_connection(db_path)
-    SQLiteProfileStore(conn).upsert(LearnerProfile.model_validate(build_profile(student_id, frustration="low", total_load=0.3)))
-    SQLiteOutcomeStore(conn).upsert(OutcomeUpsert.model_validate(build_outcome("CURR-1", knowledge_component_ids=["KC-1"])))
-    SQLiteKnowledgeComponentStore(conn).upsert(KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1")))
+    SQLiteProfileStore(conn).upsert(
+        LearnerProfile.model_validate(
+            build_profile(student_id, frustration="low", total_load=0.3)
+        )
+    )
+    SQLiteOutcomeStore(conn).upsert(
+        OutcomeUpsert.model_validate(
+            build_outcome("CURR-1", knowledge_component_ids=["KC-1"])
+        )
+    )
+    SQLiteKnowledgeComponentStore(conn).upsert(
+        KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1"))
+    )
 
     with TestClient(app) as client:
         client.put(
@@ -332,13 +645,36 @@ def test_household_parent_approval_endpoints_unlock_gated_session(tmp_path):
     settings = Settings(database_path=db_path, auth_enabled=True)
     app = create_app(settings)
 
-    _seed_user(db_path, api_key="parent-key", role="household_admin", user_id="parent-1", display_name="Morgan")
-    _seed_user(db_path, api_key="learner-key", role="learner", user_id="learner-user-1", learner_id=str(student_id), display_name="Avery")
+    _seed_user(
+        db_path,
+        api_key="parent-key",
+        role="household_admin",
+        user_id="parent-1",
+        display_name="Morgan",
+    )
+    _seed_user(
+        db_path,
+        api_key="learner-key",
+        role="learner",
+        user_id="learner-user-1",
+        learner_id=str(student_id),
+        display_name="Avery",
+    )
 
     conn = create_connection(db_path)
-    SQLiteProfileStore(conn).upsert(LearnerProfile.model_validate(build_profile(student_id, frustration="high", total_load=0.6)))
-    SQLiteOutcomeStore(conn).upsert(OutcomeUpsert.model_validate(build_outcome("CURR-1", knowledge_component_ids=["KC-1"])))
-    SQLiteKnowledgeComponentStore(conn).upsert(KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1")))
+    SQLiteProfileStore(conn).upsert(
+        LearnerProfile.model_validate(
+            build_profile(student_id, frustration="high", total_load=0.6)
+        )
+    )
+    SQLiteOutcomeStore(conn).upsert(
+        OutcomeUpsert.model_validate(
+            build_outcome("CURR-1", knowledge_component_ids=["KC-1"])
+        )
+    )
+    SQLiteKnowledgeComponentStore(conn).upsert(
+        KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1"))
+    )
 
     with TestClient(app) as client:
         client.put(
@@ -382,20 +718,45 @@ def test_household_parent_approval_endpoints_unlock_gated_session(tmp_path):
     assert latest_response.json()["session_suggestions"]
 
 
-def test_household_notification_snooze_hides_notification_from_immediate_overview(tmp_path):
+def test_household_notification_snooze_hides_notification_from_immediate_overview(
+    tmp_path,
+):
     db_path = str(tmp_path / "dibble.db")
     ensure_database(db_path)
     student_id = uuid4()
     settings = Settings(database_path=db_path, auth_enabled=True)
     app = create_app(settings)
 
-    _seed_user(db_path, api_key="parent-key", role="household_admin", user_id="parent-1", display_name="Morgan")
-    _seed_user(db_path, api_key="learner-key", role="learner", user_id="learner-user-1", learner_id=str(student_id), display_name="Avery")
+    _seed_user(
+        db_path,
+        api_key="parent-key",
+        role="household_admin",
+        user_id="parent-1",
+        display_name="Morgan",
+    )
+    _seed_user(
+        db_path,
+        api_key="learner-key",
+        role="learner",
+        user_id="learner-user-1",
+        learner_id=str(student_id),
+        display_name="Avery",
+    )
 
     conn = create_connection(db_path)
-    SQLiteProfileStore(conn).upsert(LearnerProfile.model_validate(build_profile(student_id, frustration="high", total_load=0.6)))
-    SQLiteOutcomeStore(conn).upsert(OutcomeUpsert.model_validate(build_outcome("CURR-1", knowledge_component_ids=["KC-1"])))
-    SQLiteKnowledgeComponentStore(conn).upsert(KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1")))
+    SQLiteProfileStore(conn).upsert(
+        LearnerProfile.model_validate(
+            build_profile(student_id, frustration="high", total_load=0.6)
+        )
+    )
+    SQLiteOutcomeStore(conn).upsert(
+        OutcomeUpsert.model_validate(
+            build_outcome("CURR-1", knowledge_component_ids=["KC-1"])
+        )
+    )
+    SQLiteKnowledgeComponentStore(conn).upsert(
+        KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1"))
+    )
 
     with TestClient(app) as client:
         client.put(
@@ -421,7 +782,9 @@ def test_household_notification_snooze_hides_notification_from_immediate_overvie
             "/api/households/me/overview",
             headers={"X-API-Key": "parent-key"},
         )
-        first_notification_id = first_overview.json()["notifications"][0]["notification_id"]
+        first_notification_id = first_overview.json()["notifications"][0][
+            "notification_id"
+        ]
         snooze_response = client.post(
             f"/api/households/me/notifications/{first_notification_id}/snooze",
             headers={"X-API-Key": "parent-key"},
@@ -435,20 +798,45 @@ def test_household_notification_snooze_hides_notification_from_immediate_overvie
     )
 
 
-def test_household_notification_dismiss_hides_notification_from_immediate_overview(tmp_path):
+def test_household_notification_dismiss_hides_notification_from_immediate_overview(
+    tmp_path,
+):
     db_path = str(tmp_path / "dibble.db")
     ensure_database(db_path)
     student_id = uuid4()
     settings = Settings(database_path=db_path, auth_enabled=True)
     app = create_app(settings)
 
-    _seed_user(db_path, api_key="parent-key", role="household_admin", user_id="parent-1", display_name="Morgan")
-    _seed_user(db_path, api_key="learner-key", role="learner", user_id="learner-user-1", learner_id=str(student_id), display_name="Avery")
+    _seed_user(
+        db_path,
+        api_key="parent-key",
+        role="household_admin",
+        user_id="parent-1",
+        display_name="Morgan",
+    )
+    _seed_user(
+        db_path,
+        api_key="learner-key",
+        role="learner",
+        user_id="learner-user-1",
+        learner_id=str(student_id),
+        display_name="Avery",
+    )
 
     conn = create_connection(db_path)
-    SQLiteProfileStore(conn).upsert(LearnerProfile.model_validate(build_profile(student_id, frustration="high", total_load=0.6)))
-    SQLiteOutcomeStore(conn).upsert(OutcomeUpsert.model_validate(build_outcome("CURR-1", knowledge_component_ids=["KC-1"])))
-    SQLiteKnowledgeComponentStore(conn).upsert(KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1")))
+    SQLiteProfileStore(conn).upsert(
+        LearnerProfile.model_validate(
+            build_profile(student_id, frustration="high", total_load=0.6)
+        )
+    )
+    SQLiteOutcomeStore(conn).upsert(
+        OutcomeUpsert.model_validate(
+            build_outcome("CURR-1", knowledge_component_ids=["KC-1"])
+        )
+    )
+    SQLiteKnowledgeComponentStore(conn).upsert(
+        KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1"))
+    )
 
     with TestClient(app) as client:
         client.put(
@@ -474,7 +862,9 @@ def test_household_notification_dismiss_hides_notification_from_immediate_overvi
             "/api/households/me/overview",
             headers={"X-API-Key": "parent-key"},
         )
-        first_notification_id = first_overview.json()["notifications"][0]["notification_id"]
+        first_notification_id = first_overview.json()["notifications"][0][
+            "notification_id"
+        ]
         dismiss_response = client.post(
             f"/api/households/me/notifications/{first_notification_id}/dismiss",
             headers={"X-API-Key": "parent-key"},

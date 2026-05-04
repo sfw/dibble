@@ -7,7 +7,7 @@
     "trajectory_revision"
   ],
   "entrypoints": [
-    "POST /api/learners/{student_id}/goals",
+    "POST /api/households/me/learners/{learner_id}/goals",
     "GET /api/observability/adaptation/planning/{student_id}",
     "POST /api/learners/{student_id}/observations",
     "GET /api/households/me/overview"
@@ -16,6 +16,32 @@
     "A learner has an active goal and trajectory.",
     "Multiple learning sessions can be recorded against the same KC cluster.",
     "Parent preferences require trajectory revision approval for guided autonomy."
+  ],
+  "rehearsal_assets": [
+    "proof/fixtures/scenario_household_seed.json",
+    "scripts/rehearse_proof_scenarios.py",
+    "docs/proof/scenarios.md"
+  ],
+  "setup_path": [
+    "Run the seeded household setup through scripts/rehearse_proof_scenarios.py.",
+    "Use the parent-created Proof goal: equivalent fractions trajectory for Avery.",
+    "Record repeated weak/strong observations through the API rather than inserting audit rows manually."
+  ],
+  "execution_path": [
+    "GET /api/observability/adaptation/planning/{student_id} for the baseline trajectory.",
+    "POST /api/content/generate and POST /api/learners/{student_id}/observations for multiple attempts against KC-FRAC-EQUIV.",
+    "GET /api/learners/{student_id}/workspace to refresh the active planning/session state.",
+    "GET /api/observability/adaptation/planning/{student_id} to inspect revision count, revisit density, scaffolding, and revision reasons.",
+    "GET /api/households/me/overview to see whether the parent posture blocks or exposes the revised plan."
+  ],
+  "visible_outcome": "The active trajectory shows a new revision or increased revisit density with reasons tied to accumulated run summaries.",
+  "observability_hooks": [
+    "GET /api/observability/adaptation/planning/{student_id}",
+    "GET /api/learners/{student_id}/workspace",
+    "GET /api/observability/traces"
+  ],
+  "approval_hooks": [
+    "Trajectory revision approval appears in the household overview when the guided parent policy sees a changed trajectory signature."
   ],
   "rehearsal_steps": [
     {

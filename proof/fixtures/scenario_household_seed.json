@@ -1,0 +1,283 @@
+{
+  "household_name": "Proof Rehearsal Household",
+  "parent": {
+    "display_name": "Morgan Proof Parent",
+    "role": "parent"
+  },
+  "learners": [
+    {
+      "alias": "avery",
+      "display_name": "Avery Proof Learner",
+      "profile": {
+        "grade_level": "5",
+        "cognitive_traits": {
+          "working_memory": {
+            "value": 0.52,
+            "confidence": 0.8
+          }
+        },
+        "knowledge_state": {
+          "lo_mastery": {
+            "LO-FRACTIONS": 0.48
+          },
+          "kc_mastery": {
+            "KC-FRAC-FOUNDATION": 0.86,
+            "KC-FRAC-EQUIV": 0.34,
+            "KC-FRAC-COMPARE": 0.12
+          }
+        },
+        "affective_state": {
+          "engagement": "medium",
+          "frustration": "high",
+          "confusion": "medium",
+          "confidence": 0.28
+        },
+        "cognitive_load": {
+          "intrinsic_load": 0.54,
+          "extraneous_load": 0.32,
+          "germane_load": 0.17,
+          "total_load": 0.88,
+          "capacity_utilization": 0.92
+        },
+        "metacognitive_state": {
+          "confidence_calibration": 0.34,
+          "help_seeking": "low",
+          "help_seeking_effectiveness": 0.42,
+          "self_monitoring": 0.45
+        },
+        "learning_preferences": {
+          "modality_affinity": {
+            "textual": 0.9,
+            "visual": 0.72,
+            "interactive": 0.4
+          },
+          "example_domain_preferences": [
+            "science",
+            "music"
+          ],
+          "scaffolding_preference": "high",
+          "pace_preference": "slower_than_average"
+        }
+      }
+    },
+    {
+      "alias": "blair",
+      "display_name": "Blair Proof Learner",
+      "profile": {
+        "grade_level": "5",
+        "cognitive_traits": {
+          "working_memory": {
+            "value": 0.6,
+            "confidence": 0.75
+          }
+        },
+        "knowledge_state": {
+          "lo_mastery": {
+            "LO-FRACTIONS": 0.52
+          },
+          "kc_mastery": {
+            "KC-FRAC-FOUNDATION": 0.82,
+            "KC-FRAC-EQUIV": 0.38,
+            "KC-FRAC-COMPARE": 0.2
+          }
+        },
+        "affective_state": {
+          "engagement": "medium",
+          "frustration": "low",
+          "confusion": "medium",
+          "confidence": 0.4
+        },
+        "cognitive_load": {
+          "intrinsic_load": 0.48,
+          "extraneous_load": 0.22,
+          "germane_load": 0.24,
+          "total_load": 0.58,
+          "capacity_utilization": 0.66
+        },
+        "metacognitive_state": {
+          "confidence_calibration": 0.5,
+          "help_seeking": "medium",
+          "help_seeking_effectiveness": 0.52,
+          "self_monitoring": 0.56
+        },
+        "learning_preferences": {
+          "modality_affinity": {
+            "textual": 0.82,
+            "visual": 0.68,
+            "interactive": 0.45
+          },
+          "example_domain_preferences": [
+            "science"
+          ],
+          "scaffolding_preference": "medium",
+          "pace_preference": "average"
+        }
+      }
+    }
+  ],
+  "preferences": {
+    "session_cadence": "daily",
+    "auto_session_suggestions": true,
+    "weekly_summary_day": "sunday",
+    "soft_escalation_enabled": true,
+    "approval_mode": "guided",
+    "modality_introduction_requires_approval": true,
+    "trajectory_revision_requires_approval": true,
+    "high_autonomy_session_requires_approval": true
+  },
+  "curriculum": {
+    "outcomes": [
+      {
+        "outcome_id": "PROOF-FRAC-1",
+        "title": "Fraction Visual Foundations",
+        "strand_id": "PROOF-FRACTIONS",
+        "grade_level": "5",
+        "subject": "math",
+        "knowledge_component_ids": [
+          "KC-FRAC-FOUNDATION"
+        ],
+        "tags": [
+          "fractions",
+          "visual models",
+          "proof-rehearsal"
+        ],
+        "description": "Use visual fraction models to name equal parts of a whole."
+      },
+      {
+        "outcome_id": "PROOF-FRAC-2",
+        "title": "Equivalent Fraction Practice",
+        "strand_id": "PROOF-FRACTIONS",
+        "grade_level": "5",
+        "subject": "math",
+        "knowledge_component_ids": [
+          "KC-FRAC-EQUIV"
+        ],
+        "tags": [
+          "fractions",
+          "equivalent fractions",
+          "proof-rehearsal"
+        ],
+        "description": "Use visual fraction models to explain why equivalent fractions name the same amount."
+      },
+      {
+        "outcome_id": "PROOF-FRAC-3",
+        "title": "Compare Fraction Families",
+        "strand_id": "PROOF-FRACTIONS",
+        "grade_level": "5",
+        "subject": "math",
+        "knowledge_component_ids": [
+          "KC-FRAC-COMPARE"
+        ],
+        "tags": [
+          "fractions",
+          "comparison",
+          "proof-rehearsal"
+        ],
+        "description": "Compare related fraction families using shared visual models."
+      }
+    ],
+    "knowledge_components": [
+      {
+        "kc_id": "KC-FRAC-FOUNDATION",
+        "name": "Identify equal parts in visual fraction models",
+        "outcome_id": "PROOF-FRAC-1",
+        "grade_level": "5",
+        "subject": "math",
+        "taxonomy_cluster_id": "proof-fractions",
+        "concept_family": "equivalent-fractions",
+        "prerequisite_kc_ids": [],
+        "nearby_kc_ids": [
+          "KC-FRAC-EQUIV"
+        ],
+        "difficulty": 0.35,
+        "estimated_time_minutes": 8,
+        "tags": [
+          "fractions",
+          "visual models"
+        ],
+        "common_misconceptions": [
+          {
+            "misconception_id": "mis-equal-parts",
+            "label": "Counts unequal pieces as fractions",
+            "description": "Counts pieces without checking whether the pieces are equal sized.",
+            "trigger_terms": [
+              "pieces",
+              "parts"
+            ],
+            "remediation_hint": "Start by checking whether every part is the same size."
+          }
+        ]
+      },
+      {
+        "kc_id": "KC-FRAC-EQUIV",
+        "name": "Generate equivalent fractions with visual models",
+        "outcome_id": "PROOF-FRAC-2",
+        "grade_level": "5",
+        "subject": "math",
+        "taxonomy_cluster_id": "proof-fractions",
+        "concept_family": "equivalent-fractions",
+        "prerequisite_kc_ids": [
+          "KC-FRAC-FOUNDATION"
+        ],
+        "nearby_kc_ids": [
+          "KC-FRAC-COMPARE"
+        ],
+        "difficulty": 0.52,
+        "estimated_time_minutes": 10,
+        "tags": [
+          "fractions",
+          "equivalent fractions"
+        ],
+        "common_misconceptions": [
+          {
+            "misconception_id": "mis-denominator-size",
+            "label": "Larger denominator means larger amount",
+            "description": "Thinks larger denominators always mean larger amounts.",
+            "trigger_terms": [
+              "denominator",
+              "bigger number"
+            ],
+            "prerequisite_kc_ids": [
+              "KC-FRAC-FOUNDATION"
+            ],
+            "remediation_hint": "Compare same-sized wholes with visual area models."
+          }
+        ]
+      },
+      {
+        "kc_id": "KC-FRAC-COMPARE",
+        "name": "Compare related fraction families",
+        "outcome_id": "PROOF-FRAC-3",
+        "grade_level": "5",
+        "subject": "math",
+        "taxonomy_cluster_id": "proof-fractions",
+        "concept_family": "equivalent-fractions",
+        "prerequisite_kc_ids": [
+          "KC-FRAC-EQUIV"
+        ],
+        "nearby_kc_ids": [],
+        "difficulty": 0.62,
+        "estimated_time_minutes": 12,
+        "tags": [
+          "fractions",
+          "comparison"
+        ],
+        "common_misconceptions": [
+          {
+            "misconception_id": "mis-compare-denominators",
+            "label": "Compares denominators without a common whole",
+            "description": "Compares denominators without reference to the same whole.",
+            "trigger_terms": [
+              "denominator",
+              "same whole"
+            ],
+            "prerequisite_kc_ids": [
+              "KC-FRAC-EQUIV"
+            ],
+            "remediation_hint": "Normalize the whole before comparing the parts."
+          }
+        ]
+      }
+    ]
+  }
+}

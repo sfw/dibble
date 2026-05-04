@@ -157,15 +157,63 @@ def test_workspace_bootstraps_explicit_planning_and_session_state(
         == payload["planning"]["trajectory"]["trajectory_id"]
     )
     assert payload["continue_action"]["kind"] == "generate_follow_up"
-    assert (
-        conn.execute("SELECT count(*) FROM learner_goals").fetchone()[0] >= 1
-    )
-    assert (
-        conn.execute("SELECT count(*) FROM learner_trajectories").fetchone()[0] >= 1
-    )
+    assert conn.execute("SELECT count(*) FROM learner_goals").fetchone()[0] >= 1
+    assert conn.execute("SELECT count(*) FROM learner_trajectories").fetchone()[0] >= 1
     assert (
         conn.execute("SELECT count(*) FROM session_control_states").fetchone()[0] >= 1
     )
+
+
+def test_operator_requested_goal_route_creates_active_planning_state(
+    client, student_id
+):
+    client.put(
+        f"/api/learners/{student_id}/profile",
+        json=build_profile(
+            student_id,
+            frustration="low",
+            total_load=0.2,
+            kc_mastery={"KC-1": 0.86, "KC-2": 0.35},
+        ),
+    )
+    client.put(
+        "/api/curriculum/outcomes/CURR-1",
+        json=build_outcome(
+            "CURR-1",
+            title="Equivalent Fraction Practice",
+            knowledge_component_ids=["KC-2"],
+        ),
+    )
+    client.put(
+        "/api/knowledge-components/KC-1",
+        json=build_knowledge_component("KC-1", name="Fraction foundations"),
+    )
+    client.put(
+        "/api/knowledge-components/KC-2",
+        json=build_knowledge_component(
+            "KC-2",
+            prerequisite_kc_ids=["KC-1"],
+            name="Equivalent fraction practice",
+        ),
+    )
+
+    response = client.post(
+        f"/api/learners/{student_id}/goals",
+        json={
+            "title": "Proof goal: equivalent fractions",
+            "target_outcome_id": "CURR-1",
+            "target_kc_ids": ["KC-2"],
+            "rationale": "Operator rehearsal seed.",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["goal"]["title"] == "Proof goal: equivalent fractions"
+    assert payload["goal"]["source"] == "operator_requested"
+    assert payload["goal"]["target_kc_ids"] == ["KC-2"]
+    assert payload["trajectory"]["trajectory_id"]
+    assert payload["trajectory"]["nodes"]
 
 
 def test_learner_progression_returns_machine_readable_not_found_error(

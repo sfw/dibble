@@ -12,6 +12,8 @@ from dibble.models.household import (
     HouseholdSetupRequest,
     HouseholdSetupResponse,
 )
+from dibble.models.planning import ActivePlanningState, LearnerGoalCreateRequest
+from dibble.services.errors import LearnerProfileNotFoundError
 
 
 def build_household_router(context: ApiContext) -> APIRouter:
@@ -63,7 +65,44 @@ def build_household_router(context: ApiContext) -> APIRouter:
                 code="household_parent_not_found",
             ) from exc
 
-    @router.post("/me/notifications/{notification_id}/read", response_model=HouseholdOverview)
+    @router.post(
+        "/me/learners/{learner_id}/goals",
+        response_model=ActivePlanningState,
+    )
+    def create_household_learner_goal(
+        learner_id: str,
+        payload: LearnerGoalCreateRequest,
+        request: Request,
+    ) -> ActivePlanningState:
+        identity = getattr(request.state, "auth_identity", None)
+        if identity is None:
+            raise api_error(
+                status_code=401,
+                detail="Authentication is required.",
+                code="auth_invalid_credentials",
+            )
+        try:
+            return context.services.household_service.create_parent_requested_goal(
+                parent_user_id=identity.principal_id,
+                learner_id=learner_id,
+                request=payload,
+            )
+        except LearnerProfileNotFoundError as exc:
+            raise api_error(
+                status_code=404,
+                detail=str(exc),
+                code="learner_profile_not_found",
+            ) from exc
+        except RuntimeError as exc:
+            raise api_error(
+                status_code=404,
+                detail=str(exc),
+                code="household_learner_not_found",
+            ) from exc
+
+    @router.post(
+        "/me/notifications/{notification_id}/read", response_model=HouseholdOverview
+    )
     def mark_household_notification_read(
         notification_id: str, request: Request
     ) -> HouseholdOverview:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter
@@ -7,6 +8,8 @@ from fastapi import APIRouter
 from dibble.api.common import ApiContext, api_error
 from dibble.models.generation import (
     CurriculumContentKey,
+    CurriculumLibraryPrivacyAudit,
+    CurriculumLibraryPrivacyAuditEntry,
     CurriculumLibrarySelectionTrace,
     GenerationRequest,
     ModalityRoutingInspection,
@@ -21,6 +24,22 @@ from dibble.models.observability import (
 )
 from dibble.models.planning import ActivePlanningState
 from dibble.models.telemetry import AuditEvent, TelemetrySnapshot
+
+
+_CURRICULUM_LIBRARY_STUDENT_ID = UUID("00000000-0000-0000-0000-000000000000")
+_FORBIDDEN_LIBRARY_FIELDS = {
+    "learner_id",
+    "household_id",
+    "parent_user_id",
+    "session_id",
+    "learning_session_id",
+    "learner_profile",
+    "observation_history",
+    "relationship_state",
+    "parent_preferences",
+    "response_text",
+    "profile",
+}
 
 
 def build_observability_router(context: ApiContext) -> APIRouter:
@@ -78,7 +97,9 @@ def build_observability_router(context: ApiContext) -> APIRouter:
         response_model=ModalityRoutingInspection,
         dependencies=context.deps("admin"),
     )
-    def inspect_modality_routing(payload: GenerationRequest) -> ModalityRoutingInspection:
+    def inspect_modality_routing(
+        payload: GenerationRequest,
+    ) -> ModalityRoutingInspection:
         profile = services.profile_store.get(payload.student_id)
         if profile is None:
             raise api_error(
@@ -129,6 +150,47 @@ def build_observability_router(context: ApiContext) -> APIRouter:
         return library.inspect_selection(key=payload)
 
     @router.get(
+        "/observability/adaptation/library/privacy-audit",
+        response_model=CurriculumLibraryPrivacyAudit,
+        dependencies=context.deps("admin"),
+    )
+    def audit_library_privacy() -> CurriculumLibraryPrivacyAudit:
+        entries = services.curriculum_content_library_store.list_entries(
+            include_expired=True
+        )
+        audit_entries: list[CurriculumLibraryPrivacyAuditEntry] = []
+        all_hits: list[str] = []
+        for entry in entries:
+            hits = _library_forbidden_field_hits(entry.model_dump(mode="json"))
+            all_hits.extend(
+                f"{entry.cache_key or '<missing-cache-key>'}:{hit}" for hit in hits
+            )
+            audit_entries.append(
+                CurriculumLibraryPrivacyAuditEntry(
+                    cache_key=entry.cache_key or entry.content_key.cache_key(),
+                    storage_scope=entry.storage_scope,
+                    source_generation_id=entry.source_generation_id,
+                    content_student_id=entry.content.student_id,
+                    response_student_id=entry.content.response.student_id,
+                    request_context_keys=sorted(entry.content.request_context.keys()),
+                    curriculum_key_fields=sorted(
+                        entry.content_key.request.model_dump(mode="json").keys()
+                    ),
+                    provenance_status=(
+                        entry.provenance.publish_status
+                        if entry.provenance is not None
+                        else None
+                    ),
+                    forbidden_field_hits=hits,
+                )
+            )
+        return CurriculumLibraryPrivacyAudit(
+            entry_count=len(audit_entries),
+            forbidden_field_hits=all_hits,
+            entries=audit_entries,
+        )
+
+    @router.get(
         "/observability/adaptation/planning/{student_id}",
         response_model=ActivePlanningState,
         dependencies=context.deps("admin"),
@@ -154,9 +216,11 @@ def build_observability_router(context: ApiContext) -> APIRouter:
         household_id: str,
         learner_id: str,
     ) -> LearnerRelationshipState:
-        state = services.autonomous_teacher_harness.learner_relationship_state_store.get(
-            household_id=household_id,
-            learner_id=learner_id,
+        state = (
+            services.autonomous_teacher_harness.learner_relationship_state_store.get(
+                household_id=household_id,
+                learner_id=learner_id,
+            )
         )
         if state is None:
             raise api_error(
@@ -188,3 +252,24 @@ def build_observability_router(context: ApiContext) -> APIRouter:
             ) from exc
 
     return router
+
+
+def _library_forbidden_field_hits(value: Any, *, path: str = "$") -> list[str]:
+    hits: list[str] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}"
+            if _is_forbidden_library_field(key=key, value=child):
+                hits.append(child_path)
+            hits.extend(_library_forbidden_field_hits(child, path=child_path))
+        return hits
+    if isinstance(value, list):
+        for index, child in enumerate(value):
+            hits.extend(_library_forbidden_field_hits(child, path=f"{path}[{index}]"))
+    return hits
+
+
+def _is_forbidden_library_field(*, key: str, value: Any) -> bool:
+    if key == "student_id":
+        return str(value) != str(_CURRICULUM_LIBRARY_STUDENT_ID)
+    return key in _FORBIDDEN_LIBRARY_FIELDS

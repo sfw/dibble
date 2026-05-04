@@ -238,9 +238,10 @@ def build_content_router(context: ApiContext) -> APIRouter:
         def event_stream():
             try:
                 complete_event: GenerationStreamEvent | None = None
-                for event in services.content_generation_harness.stream_generate_prepared(
+                events = services.content_generation_harness.stream_generate_prepared(
                     prepared.prepared_generation
-                ):
+                )
+                for event in events:
                     if event.event == "moderation" and event.moderation is not None:
                         services.audit_store.append(
                             event_type="content.moderation",
@@ -279,6 +280,9 @@ def build_content_router(context: ApiContext) -> APIRouter:
                                 request=prepared.request,
                                 response=response,
                                 progression_decision=prepared.progression_decision,
+                                request_context_override=(
+                                    prepared.prepared_generation.authoring.policy.request_context
+                                ),
                                 record_moderation_event=False,
                             )
                             event = event.model_copy(

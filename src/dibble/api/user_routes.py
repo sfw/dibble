@@ -133,6 +133,8 @@ def build_user_router(context: ApiContext) -> APIRouter:
             credential=credential,
             display_name=user.display_name,
             role=user.role,
+            learner_id=user.learner_id,
+            household_id=user.household_id,
         )
 
     @router.get("", response_model=list[UserSummary])
@@ -207,6 +209,8 @@ def build_user_router(context: ApiContext) -> APIRouter:
             credential=credential,
             display_name=user.display_name,
             role=user.role,
+            learner_id=user.learner_id,
+            household_id=user.household_id,
         )
 
     @router.post("/bulk", response_model=BulkUserCreateResponse)
@@ -231,6 +235,8 @@ def build_user_router(context: ApiContext) -> APIRouter:
                     credential=credential,
                     display_name=user.display_name,
                     role=user.role,
+                    learner_id=user.learner_id,
+                    household_id=user.household_id,
                 )
             )
         return BulkUserCreateResponse(created=results)

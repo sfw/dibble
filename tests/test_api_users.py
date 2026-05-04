@@ -132,6 +132,7 @@ def test_creating_learner_auto_creates_profile(tmp_path):
     user = user_store.get(user_id)
     assert user is not None
     assert user.learner_id is not None
+    assert response.json()["learner_id"] == user.learner_id
     # learner_id is auto-generated as a valid UUID
     learner_uuid = UUID(user.learner_id)
     profile = profile_store.get(learner_uuid)
@@ -194,6 +195,7 @@ def test_learner_id_is_auto_generated_uuid(tmp_path):
     user = user_store.get(resp.json()["user_id"])
     assert user is not None
     assert user.learner_id is not None
+    assert resp.json()["learner_id"] == user.learner_id
     UUID(user.learner_id)  # must be a valid UUID
 
 
@@ -212,6 +214,7 @@ def test_non_learner_does_not_get_learner_id(tmp_path):
         )
 
     assert resp.status_code == 200
+    assert resp.json()["learner_id"] is None
     user = user_store.get(resp.json()["user_id"])
     assert user is not None
     assert user.learner_id is None

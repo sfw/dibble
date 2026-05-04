@@ -17,6 +17,32 @@
     "Cloud-library remote access remains disabled for the default pilot posture.",
     "Two learners can request the same curriculum-shaped content key."
   ],
+  "rehearsal_assets": [
+    "proof/fixtures/scenario_household_seed.json",
+    "scripts/rehearse_proof_scenarios.py",
+    "docs/proof/scenarios.md"
+  ],
+  "setup_path": [
+    "Run the seeded household setup through scripts/rehearse_proof_scenarios.py.",
+    "Use Avery and Blair from the proof fixture as two learners in the same household.",
+    "Keep DIBBLE_CLOUD_LIBRARY_ENABLED=false for the default local-only privacy rehearsal."
+  ],
+  "execution_path": [
+    "POST /api/content/generate for learner A with a curriculum-shaped KC/theme/modality request.",
+    "POST /api/content/generate for learner B with the same curriculum-shaped request.",
+    "GET /api/observability/adaptation/library/privacy-audit.",
+    "GET /api/observability/traces?harness=content_library.",
+    "Confirm learner B receives a cache/library hit and the audit has no forbidden field hits."
+  ],
+  "visible_outcome": "Learner B reuses learner A's verified curriculum artifact while the privacy audit reports only sentinel student ids and curriculum-shaped request context.",
+  "observability_hooks": [
+    "GET /api/observability/adaptation/library/privacy-audit",
+    "POST /api/observability/adaptation/library/inspect",
+    "GET /api/observability/traces?harness=content_library"
+  ],
+  "approval_hooks": [
+    "Cloud-library remote read and publish remain governed by rollout policy; the default proof path is local_only."
+  ],
   "rehearsal_steps": [
     {
       "step_id": "library-01",

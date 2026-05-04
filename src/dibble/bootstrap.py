@@ -714,6 +714,7 @@ def build_application_services(
         user_store=user_store,
         autonomous_teacher_harness=autonomous_teacher_harness,
         parent_notification_store=parent_notification_store,
+        curriculum_planning_harness=curriculum_planning_harness,
         audit_store=audit_store,
         operational_observability_service=operational_observability_service,
     )

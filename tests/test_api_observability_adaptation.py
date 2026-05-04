@@ -74,10 +74,14 @@ def test_adaptation_observability_routes_expose_modality_and_autonomous_teacher_
 
     conn = create_connection(db_path)
     SQLiteProfileStore(conn).upsert(
-        LearnerProfile.model_validate(build_profile(student_id, frustration="low", total_load=0.3))
+        LearnerProfile.model_validate(
+            build_profile(student_id, frustration="low", total_load=0.3)
+        )
     )
     SQLiteOutcomeStore(conn).upsert(
-        OutcomeUpsert.model_validate(build_outcome("CURR-1", knowledge_component_ids=["KC-1"]))
+        OutcomeUpsert.model_validate(
+            build_outcome("CURR-1", knowledge_component_ids=["KC-1"])
+        )
     )
     SQLiteKnowledgeComponentStore(conn).upsert(
         KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1"))
@@ -197,9 +201,13 @@ def test_observability_readiness_and_traces_surface_parent_approval_audit(tmp_pa
     )
 
     conn = create_connection(db_path)
-    SQLiteProfileStore(conn).upsert(LearnerProfile.model_validate(build_profile(student_id)))
+    SQLiteProfileStore(conn).upsert(
+        LearnerProfile.model_validate(build_profile(student_id))
+    )
     SQLiteOutcomeStore(conn).upsert(
-        OutcomeUpsert.model_validate(build_outcome("CURR-1", knowledge_component_ids=["KC-1"]))
+        OutcomeUpsert.model_validate(
+            build_outcome("CURR-1", knowledge_component_ids=["KC-1"])
+        )
     )
     SQLiteKnowledgeComponentStore(conn).upsert(
         KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1"))
@@ -286,9 +294,13 @@ def test_rollout_simulation_and_parent_approval_preview_routes(tmp_path):
     )
 
     conn = create_connection(db_path)
-    SQLiteProfileStore(conn).upsert(LearnerProfile.model_validate(build_profile(student_id)))
+    SQLiteProfileStore(conn).upsert(
+        LearnerProfile.model_validate(build_profile(student_id))
+    )
     SQLiteOutcomeStore(conn).upsert(
-        OutcomeUpsert.model_validate(build_outcome("CURR-1", knowledge_component_ids=["KC-1"]))
+        OutcomeUpsert.model_validate(
+            build_outcome("CURR-1", knowledge_component_ids=["KC-1"])
+        )
     )
     SQLiteKnowledgeComponentStore(conn).upsert(
         KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1"))
@@ -370,12 +382,14 @@ def test_rollout_simulation_and_parent_approval_preview_routes(tmp_path):
         == 1
     )
     assert simulate_payload["summary"]["newly_risky_subject_count"] == 1
-    assert policy_after_response.json()["policy"]["behavior_gates"] == policy_before["policy"][
-        "behavior_gates"
-    ]
-    assert policy_after_response.json()["policy"]["evaluation_buckets"] == policy_before[
-        "policy"
-    ]["evaluation_buckets"]
+    assert (
+        policy_after_response.json()["policy"]["behavior_gates"]
+        == policy_before["policy"]["behavior_gates"]
+    )
+    assert (
+        policy_after_response.json()["policy"]["evaluation_buckets"]
+        == policy_before["policy"]["evaluation_buckets"]
+    )
     assert any(
         "disables autonomous session suggestions" in item.lower()
         for item in preview_payload["rollout_constraints"]
@@ -384,3 +398,60 @@ def test_rollout_simulation_and_parent_approval_preview_routes(tmp_path):
         "re-engagement session can move forward" in item.lower()
         for item in preview_payload["if_approved"]
     )
+
+
+def test_library_privacy_audit_reports_curriculum_safe_entries(tmp_path):
+    db_path = str(tmp_path / "dibble-library-audit.db")
+    ensure_database(db_path)
+    settings = Settings(database_path=db_path, auth_enabled=True)
+    app = create_app(settings)
+    student_id = uuid4()
+
+    _seed_user(db_path, api_key="admin-key", role="admin", user_id="admin-1")
+
+    conn = create_connection(db_path)
+    SQLiteProfileStore(conn).upsert(
+        LearnerProfile.model_validate(
+            build_profile(student_id, frustration="low", total_load=0.3)
+        )
+    )
+    SQLiteOutcomeStore(conn).upsert(
+        OutcomeUpsert.model_validate(
+            build_outcome("CURR-1", knowledge_component_ids=["KC-1"])
+        )
+    )
+    SQLiteKnowledgeComponentStore(conn).upsert(
+        KnowledgeComponentUpsert.model_validate(build_knowledge_component("KC-1"))
+    )
+
+    with TestClient(app) as client:
+        generate_response = client.post(
+            "/api/content/generate",
+            headers={"X-API-Key": "admin-key"},
+            json={
+                "student_id": str(student_id),
+                "target_kc_ids": ["KC-1"],
+                "intent": "explanation",
+                "requested_content_type": "worked_example",
+                "curriculum_context": ["Equivalent fractions with visual models"],
+            },
+        )
+        audit_response = client.get(
+            "/api/observability/adaptation/library/privacy-audit",
+            headers={"X-API-Key": "admin-key"},
+        )
+
+    assert generate_response.status_code == 200
+    assert generate_response.json()["request_context"]["modality_plugin_id"] in {
+        "text",
+        "diagram",
+        "narrative",
+    }
+    assert audit_response.status_code == 200
+    payload = audit_response.json()
+    assert payload["entry_count"] >= 1
+    assert payload["forbidden_field_hits"] == []
+    assert payload["entries"][0]["content_student_id"] == (
+        "00000000-0000-0000-0000-000000000000"
+    )
+    assert "curriculum_cache_key" in payload["entries"][0]["request_context_keys"]

@@ -24,6 +24,7 @@ This runbook defines the first supported pilot state: a small operator-managed h
 - Parent preferences are reviewed and match the consented pilot posture.
 - A database backup has been taken before the first learner session.
 - Operator has validated the five proof scenarios in `proof/scenarios`.
+- Operator has run `uv run python scripts/rehearse_proof_scenarios.py --base-url http://localhost:8000` against the household runtime or recorded why a scenario was intentionally skipped.
 - LLM provider credentials are real; mock fallback is acceptable only for rehearsal.
 - Rollout kill switches are known and reachable from the operator surface.
 
