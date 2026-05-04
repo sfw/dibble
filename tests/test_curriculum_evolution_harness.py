@@ -747,3 +747,68 @@ def test_migration_execution_marks_partial_failure_when_runtime_entity_is_missin
     assert executed.status == MigrationPlanStatus.partial_failure
     assert executed.actions[0].status == MigrationActionStatus.execution_failed
     assert "goal missing" in str(executed.actions[0].execution_summary)
+
+
+def test_migration_execution_dry_run_does_not_mutate_runtime_state(tmp_path):
+    adapter_v1 = _base_curriculum("curriculum_v1", "v1")
+    adapter_v2 = _base_curriculum("curriculum_v2", "v2")
+    intake, evolution = _build_harnesses(tmp_path, adapter_v1, adapter_v2)
+    source_snapshot = _publish(intake, "curriculum_v1")
+    target_snapshot = _publish(intake, "curriculum_v2")
+    student_id = uuid4()
+    goal = LearnerGoal(
+        goal_id="goal-dry-run",
+        student_id=student_id,
+        title="Equivalent Fractions",
+        target_kc_ids=["KC-1"],
+        curriculum_provenance=CurriculumVersionReference(
+            framework_id=source_snapshot.framework_id,
+            framework_version=source_snapshot.framework_version,
+            published_snapshot_id=source_snapshot.snapshot_id,
+        ),
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    evolution.learner_goal_store.upsert(goal)
+    plan = CurriculumMigrationPlan(
+        plan_id="plan-dry-run",
+        diff_id="diff-dry-run",
+        source_snapshot_id=source_snapshot.snapshot_id,
+        target_snapshot_id=target_snapshot.snapshot_id,
+        status=MigrationPlanStatus.ready,
+        actions=[
+            MigrationAction(
+                action_id="action-goal-dry-run",
+                action_type=MigrationActionType.swap_provenance_only,
+                entity_kind=RuntimeEntityKind.learner_goal,
+                entity_id=goal.goal_id,
+                source_snapshot_id=source_snapshot.snapshot_id,
+                target_snapshot_id=target_snapshot.snapshot_id,
+                risk_level=MigrationRiskLevel.low,
+                confidence=0.9,
+                status=MigrationActionStatus.approved,
+                rationale="Low-risk provenance swap.",
+            )
+        ],
+    )
+    evolution.curriculum_migration_plan_store.upsert(plan)
+
+    preview = evolution.preview_migration_execution(
+        plan.plan_id,
+        CurriculumMigrationExecutionRequest(
+            executor_id="admin-user",
+            dry_run=True,
+        ),
+    )
+
+    persisted_goal = evolution.learner_goal_store.get(goal.goal_id)
+    assert preview.executed_action_count == 1
+    assert preview.rollout_blocked is False
+    assert preview.action_previews[0].would_execute is True
+    assert "would update goal" in preview.action_previews[0].summary
+    assert persisted_goal is not None
+    assert persisted_goal.curriculum_provenance is not None
+    assert (
+        persisted_goal.curriculum_provenance.published_snapshot_id
+        == source_snapshot.snapshot_id
+    )

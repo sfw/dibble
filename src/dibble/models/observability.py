@@ -5,6 +5,8 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
+from dibble.models.generation import AdaptiveScoreComponent, ModalityRoutingInspection
+from dibble.models.household import AutonomousTeacherDecisionFactor
 from dibble.models.rollout import KillSwitchState
 from dibble.models.telemetry import ProviderStatusSnapshot
 
@@ -90,6 +92,68 @@ class CloudLibraryReadiness(BaseModel):
     last_degraded_reason: str | None = None
 
 
+class DecisionConfidence(str, Enum):
+    low = "low"
+    medium = "medium"
+    high = "high"
+
+
+class DecisionRisk(str, Enum):
+    low = "low"
+    moderate = "moderate"
+    high = "high"
+
+
+class RolloutEffectExplanation(BaseModel):
+    capability: str
+    enabled: bool
+    mode: str
+    source: str
+    fallback_behavior: str
+    constrained: bool = False
+    detail: str | None = None
+
+
+class ModalityDecisionExplanationBundle(BaseModel):
+    learner_id: str
+    summary: str
+    inspection: ModalityRoutingInspection
+    selected_score_components: list[AdaptiveScoreComponent] = Field(default_factory=list)
+    rollout_effect: RolloutEffectExplanation | None = None
+    fallback_behavior: str | None = None
+    confidence: DecisionConfidence = DecisionConfidence.medium
+    risk: DecisionRisk = DecisionRisk.low
+    next_expected_consequence: str
+    generated_at: datetime = Field(default_factory=utc_now)
+
+
+class AutonomousTeacherExplanationBundle(BaseModel):
+    household_id: str
+    learner_id: str
+    summary: str
+    cadence_decision: str
+    suggested_modality: str | None = None
+    blocking_approval_types: list[str] = Field(default_factory=list)
+    factors: list[AutonomousTeacherDecisionFactor] = Field(default_factory=list)
+    rollout_effects: list[RolloutEffectExplanation] = Field(default_factory=list)
+    fallback_behavior: str | None = None
+    confidence: DecisionConfidence = DecisionConfidence.medium
+    risk: DecisionRisk = DecisionRisk.low
+    next_expected_consequence: str
+    generated_at: datetime = Field(default_factory=utc_now)
+
+
+class BlockedReviewPreview(BaseModel):
+    item_kind: str
+    item_id: str
+    summary: str
+    explanation: str
+    next_step: str
+    risk_level: str = "medium"
+    household_id: str | None = None
+    learner_id: str | None = None
+
+
 class ReleaseReadinessSnapshot(BaseModel):
     generated_at: datetime = Field(default_factory=utc_now)
     total_recent_traces: int = Field(default=0, ge=0)
@@ -108,3 +172,4 @@ class ReleaseReadinessSnapshot(BaseModel):
     )
     active_kill_switches: list[KillSwitchState] = Field(default_factory=list)
     recent_degraded_operations: list[OperationalTrace] = Field(default_factory=list)
+    blocked_review_previews: list[BlockedReviewPreview] = Field(default_factory=list)

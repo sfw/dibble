@@ -5,6 +5,7 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
+from dibble.models.rollout import RolloutCapabilityDecision
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -377,3 +378,37 @@ class CurriculumMigrationApprovalRequest(BaseModel):
 class CurriculumMigrationExecutionRequest(BaseModel):
     executor_id: str | None = None
     action_ids: list[str] = Field(default_factory=list)
+    dry_run: bool = False
+
+
+class MigrationActionExplanationBundle(BaseModel):
+    action_id: str
+    entity_kind: RuntimeEntityKind
+    entity_id: str
+    action_type: MigrationActionType
+    risk_level: MigrationRiskLevel
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    rationale: str
+    rollout_effect: RolloutCapabilityDecision | None = None
+    fallback_behavior: str | None = None
+    next_expected_consequence: str
+    generated_at: datetime = Field(default_factory=utc_now)
+
+
+class MigrationDryRunAction(BaseModel):
+    action_id: str
+    would_execute: bool = False
+    status: str
+    summary: str
+    explanation: MigrationActionExplanationBundle
+
+
+class CurriculumMigrationExecutionPreview(BaseModel):
+    plan_id: str
+    diff_id: str
+    rollout_blocked: bool = False
+    rollout_reason: str | None = None
+    action_previews: list[MigrationDryRunAction] = Field(default_factory=list)
+    executed_action_count: int = Field(default=0, ge=0)
+    blocked_action_count: int = Field(default=0, ge=0)
+    generated_at: datetime = Field(default_factory=utc_now)

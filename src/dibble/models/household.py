@@ -64,6 +64,21 @@ class ParentApprovalRequest(BaseModel):
     decided_at: datetime | None = None
 
 
+class ParentApprovalPreview(BaseModel):
+    approval_id: str
+    learner_id: str
+    approval_type: ParentApprovalType
+    title: str
+    summary: str
+    proposed_value: str | None = None
+    if_approved: list[str] = Field(default_factory=list)
+    if_denied: list[str] = Field(default_factory=list)
+    rollout_constraints: list[str] = Field(default_factory=list)
+    remaining_blockers: list[str] = Field(default_factory=list)
+    next_expected_consequence: str
+    generated_at: datetime = Field(default_factory=utc_now)
+
+
 class AutonomousTeacherModalityOutcome(BaseModel):
     modality: str
     average_outcome_score: float = Field(default=0.5, ge=0.0, le=1.0)

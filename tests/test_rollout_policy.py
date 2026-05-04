@@ -37,6 +37,8 @@ from dibble.models.rollout import (
     OutcomeDrivenAdaptationGate,
     RolloutCapability,
     RolloutPolicy,
+    RolloutSimulationRequest,
+    RolloutSimulationSubject,
 )
 from dibble.plugins.loader import build_modality_plugins
 from dibble.services.harness.content_library import LibraryFirstCurriculumContentLibrary
@@ -197,6 +199,66 @@ def test_rollout_bucket_assignment_is_stable():
     assert second.evaluation_bucket is not None
     assert first.evaluation_bucket.bucket_id == second.evaluation_bucket.bucket_id
     assert first.decision_for(RolloutCapability.non_text_modalities) is not None
+
+
+def test_rollout_policy_simulation_is_side_effect_free_and_matches_live_logic():
+    learner_id = str(uuid4())
+    household_id = "household-1"
+    service = _rollout_service(
+        _policy_with_buckets(non_text_mode=ModalityAvailabilityMode.full_multimodal),
+        learner_id,
+        household_id,
+    )
+    current_policy = service.get_policy()
+    proposed_policy = current_policy.model_copy(
+        update={
+            "behavior_gates": [
+                gate.model_copy(update={"mode": CloudLibraryReadMode.remote_preferred})
+                if gate.capability == RolloutCapability.cloud_library_remote_read
+                else gate
+                for gate in current_policy.behavior_gates
+            ]
+        }
+    )
+
+    simulation = service.simulate_policy_change(
+        RolloutSimulationRequest(
+            proposed_policy=proposed_policy,
+            subjects=[RolloutSimulationSubject(learner_id=learner_id)],
+        )
+    )
+    live_proposed = RolloutDecisionService(
+        policy_store=_MemoryRolloutPolicyStore(proposed_policy),
+        user_store=_UserStore(
+            [
+                User(
+                    user_id="learner-user",
+                    display_name="Avery",
+                    role="learner",
+                    learner_id=learner_id,
+                    household_id=household_id,
+                    created_at=datetime.now(timezone.utc).isoformat(),
+                    updated_at=datetime.now(timezone.utc).isoformat(),
+                )
+            ]
+        ),
+    ).inspect_subject(learner_id=learner_id)
+
+    assert service.get_policy() == current_policy
+    assert simulation.summary.changed_subject_count == 1
+    assert simulation.summary.newly_risky_subject_count == 1
+    assert simulation.summary.capability_change_counts[
+        RolloutCapability.cloud_library_remote_read.value
+    ] == 1
+    diff = simulation.diffs[0]
+    simulated_decision = diff.proposed_inspection.decision_for(
+        RolloutCapability.cloud_library_remote_read
+    )
+    live_decision = live_proposed.decision_for(RolloutCapability.cloud_library_remote_read)
+    assert simulated_decision is not None
+    assert live_decision is not None
+    assert simulated_decision.mode == live_decision.mode
+    assert simulated_decision.enabled == live_decision.enabled
 
 
 def test_modality_rollout_policy_falls_back_to_text():

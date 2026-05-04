@@ -305,6 +305,62 @@ class RolloutPolicyUpdateRequest(BaseModel):
     policy: RolloutPolicy
 
 
+class RolloutSimulationSubject(BaseModel):
+    learner_id: str | None = None
+    household_id: str | None = None
+    label: str | None = None
+
+
+class CapabilityDecisionDelta(BaseModel):
+    capability: RolloutCapability
+    current_decision: RolloutCapabilityDecision
+    proposed_decision: RolloutCapabilityDecision
+    changed: bool = False
+    changed_fields: list[str] = Field(default_factory=list)
+    fallback_changed: bool = False
+    newly_exposed_to_risky_capability: bool = False
+
+
+class RolloutSimulationDiff(BaseModel):
+    subject: RolloutSimulationSubject
+    current_inspection: RolloutInspection
+    proposed_inspection: RolloutInspection
+    cohort_changed: bool = False
+    evaluation_bucket_changed: bool = False
+    newly_risky_capabilities: list[RolloutCapability] = Field(default_factory=list)
+    capability_deltas: list[CapabilityDecisionDelta] = Field(default_factory=list)
+
+
+class CapabilityDeltaSummary(BaseModel):
+    capability: RolloutCapability
+    affected_subject_count: int = Field(default=0, ge=0)
+    newly_risky_subject_count: int = Field(default=0, ge=0)
+
+
+class SimulationSummary(BaseModel):
+    total_subject_count: int = Field(default=0, ge=0)
+    changed_subject_count: int = Field(default=0, ge=0)
+    changed_learner_count: int = Field(default=0, ge=0)
+    changed_household_count: int = Field(default=0, ge=0)
+    newly_risky_subject_count: int = Field(default=0, ge=0)
+    capability_change_counts: dict[str, int] = Field(default_factory=dict)
+    top_capability_deltas: list[CapabilityDeltaSummary] = Field(default_factory=list)
+
+
+class RolloutSimulationRequest(BaseModel):
+    proposed_policy: RolloutPolicy
+    subjects: list[RolloutSimulationSubject] = Field(default_factory=list)
+    include_unchanged: bool = False
+
+
+class RolloutSimulationResponse(BaseModel):
+    current_policy_id: str
+    proposed_policy_id: str
+    summary: SimulationSummary
+    diffs: list[RolloutSimulationDiff] = Field(default_factory=list)
+    generated_at: datetime = Field(default_factory=utc_now)
+
+
 class EvaluationBucketSummary(BaseModel):
     bucket_id: str
     label: str

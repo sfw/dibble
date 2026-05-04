@@ -88,6 +88,31 @@ class AutonomousTeacherHarness:
         household: Household,
         now: datetime | None = None,
     ) -> AutonomousTeacherHouseholdResult:
+        return self._orchestrate_household(
+            household=household,
+            now=now,
+            persist=True,
+        )
+
+    def preview_household(
+        self,
+        *,
+        household: Household,
+        now: datetime | None = None,
+    ) -> AutonomousTeacherHouseholdResult:
+        return self._orchestrate_household(
+            household=household,
+            now=now,
+            persist=False,
+        )
+
+    def _orchestrate_household(
+        self,
+        *,
+        household: Household,
+        now: datetime | None,
+        persist: bool,
+    ) -> AutonomousTeacherHouseholdResult:
         reference_time = now or datetime.now(timezone.utc)
         learner_plans: list[AutonomousTeacherLearnerPlan] = []
         notifications: list[ParentNotification] = []
@@ -96,6 +121,7 @@ class AutonomousTeacherHarness:
                 household=household,
                 learner_id=learner_id,
                 now=reference_time,
+                persist=persist,
             )
             if plan is None:
                 continue
@@ -116,6 +142,7 @@ class AutonomousTeacherHarness:
         household: Household,
         learner_id: str,
         now: datetime,
+        persist: bool,
     ) -> AutonomousTeacherLearnerPlan | None:
         student_id = UUID(learner_id)
         summary = self.learner_summary_service.build_for_student(student_id=student_id)
@@ -288,7 +315,8 @@ class AutonomousTeacherHarness:
                 )
             }
         )
-        self.learner_relationship_state_store.upsert(relationship_state)
+        if persist:
+            self.learner_relationship_state_store.upsert(relationship_state)
 
         learner_notifications = self._notifications_for(
             household=household,
@@ -298,8 +326,9 @@ class AutonomousTeacherHarness:
             now=now,
             outbound_decision=outbound_decision,
         )
-        for notification in learner_notifications:
-            self.parent_notification_store.upsert(notification)
+        if persist:
+            for notification in learner_notifications:
+                self.parent_notification_store.upsert(notification)
 
         learner_user = next(
             (
@@ -325,18 +354,19 @@ class AutonomousTeacherHarness:
             blocking_approvals=blocking_approvals,
             now=now,
         )
-        self._record_plan_trace(
-            household_id=household.household_id,
-            learner_id=learner_id,
-            cadence_decision=cadence_decision,
-            relationship_state=relationship_state,
-            blocking_approvals=blocking_approvals,
-            notifications=learner_notifications,
-            session_suggestion=session_suggestion,
-            suggestion_decision=suggestion_decision,
-            approval_decision=approval_decision,
-            outbound_decision=outbound_decision,
-        )
+        if persist:
+            self._record_plan_trace(
+                household_id=household.household_id,
+                learner_id=learner_id,
+                cadence_decision=cadence_decision,
+                relationship_state=relationship_state,
+                blocking_approvals=blocking_approvals,
+                notifications=learner_notifications,
+                session_suggestion=session_suggestion,
+                suggestion_decision=suggestion_decision,
+                approval_decision=approval_decision,
+                outbound_decision=outbound_decision,
+            )
         return AutonomousTeacherLearnerPlan(
             learner_id=learner_id,
             learner_label=(

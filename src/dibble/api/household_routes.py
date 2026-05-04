@@ -6,6 +6,7 @@ from dibble.api.common import ApiContext, api_error
 from dibble.models.household import (
     HouseholdNotificationSnoozeRequest,
     HouseholdOverview,
+    ParentApprovalPreview,
     HouseholdPreferenceUpdateRequest,
     HouseholdSessionSuggestionSnoozeRequest,
     HouseholdSetupRequest,
@@ -223,6 +224,35 @@ def build_household_router(context: ApiContext) -> APIRouter:
             learner_id=learner_id,
             approval_id=approval_id,
         )
+
+    @router.get(
+        "/me/approvals/{learner_id}/{approval_id}/preview",
+        response_model=ParentApprovalPreview,
+    )
+    def preview_household_parent_approval(
+        learner_id: str,
+        approval_id: str,
+        request: Request,
+    ) -> ParentApprovalPreview:
+        identity = getattr(request.state, "auth_identity", None)
+        if identity is None:
+            raise api_error(
+                status_code=401,
+                detail="Authentication is required.",
+                code="auth_invalid_credentials",
+            )
+        try:
+            return context.services.household_service.preview_parent_approval(
+                parent_user_id=identity.principal_id,
+                learner_id=learner_id,
+                approval_id=approval_id,
+            )
+        except RuntimeError as exc:
+            raise api_error(
+                status_code=404,
+                detail=str(exc),
+                code="household_parent_approval_not_found",
+            ) from exc
 
     @router.post(
         "/me/approvals/{learner_id}/{approval_id}/reject",

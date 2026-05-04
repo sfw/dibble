@@ -25,6 +25,7 @@ from dibble.models.curriculum_intake import (
     CurriculumImpactAnalysisRequest,
     CurriculumMigrationApprovalRequest,
     CurriculumMigrationExecutionRequest,
+    CurriculumMigrationExecutionPreview,
     CurriculumMigrationPlan,
     CurriculumMigrationPlanRequest,
     CurriculumSnapshotDiff,
@@ -43,6 +44,8 @@ from dibble.models.rollout import (
     RolloutCohort,
     RolloutInspection,
     RolloutPolicyResponse,
+    RolloutSimulationRequest,
+    RolloutSimulationResponse,
     RolloutPolicyUpdateRequest,
     RolloutSubject,
 )
@@ -94,6 +97,15 @@ def build_admin_router(context: ApiContext) -> APIRouter:
             },
         )
         return RolloutPolicyResponse(policy=policy)
+
+    @router.post(
+        "/rollout/simulate",
+        response_model=RolloutSimulationResponse,
+    )
+    def simulate_rollout_policy(
+        payload: RolloutSimulationRequest,
+    ) -> RolloutSimulationResponse:
+        return context.services.rollout_decision_service.simulate_policy_change(payload)
 
     @router.get("/rollout/cohorts", response_model=list[RolloutCohort])
     def list_rollout_cohorts() -> list[RolloutCohort]:
@@ -333,6 +345,26 @@ def build_admin_router(context: ApiContext) -> APIRouter:
     ) -> CurriculumMigrationPlan:
         try:
             return context.services.curriculum_evolution_harness.execute_migration_plan(
+                plan_id,
+                payload,
+            )
+        except LookupError as exc:
+            raise api_error(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Curriculum migration plan not found.",
+                code="curriculum_migration_plan_not_found",
+            ) from exc
+
+    @router.post(
+        "/curriculum/migration-plans/{plan_id}/dry-run",
+        response_model=CurriculumMigrationExecutionPreview,
+    )
+    def preview_curriculum_migration_plan_execution(
+        plan_id: str,
+        payload: CurriculumMigrationExecutionRequest,
+    ) -> CurriculumMigrationExecutionPreview:
+        try:
+            return context.services.curriculum_evolution_harness.preview_migration_execution(
                 plan_id,
                 payload,
             )

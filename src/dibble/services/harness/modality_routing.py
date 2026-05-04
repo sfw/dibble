@@ -12,6 +12,12 @@ from dibble.models.generation import (
     ModalityRoutingPrior,
     RoutingPriorScope,
 )
+from dibble.models.observability import (
+    DecisionConfidence,
+    DecisionRisk,
+    ModalityDecisionExplanationBundle,
+    RolloutEffectExplanation,
+)
 from dibble.models.profile import LearnerProfile
 from dibble.models.rollout import ModalityAvailabilityMode, RolloutCapability
 from dibble.plugins.contracts import ModalityPlugins, RouterPlugin
@@ -272,6 +278,73 @@ class ModalityRoutingHarness:
             priors=deduped_priors,
         )
 
+    def explain(
+        self,
+        *,
+        profile: LearnerProfile,
+        request: GenerationRequest,
+        route: AdaptiveRouteDecision | None = None,
+    ) -> ModalityDecisionExplanationBundle:
+        inspection = self.inspect(profile=profile, request=request, route=route)
+        selected = next(
+            item
+            for item in inspection.candidate_scores
+            if item.plugin_id == inspection.selected_plugin_id
+        )
+        rollout_effect: RolloutEffectExplanation | None = None
+        fallback_behavior: str | None = None
+        if self.rollout_decision_service is not None:
+            decision = self.rollout_decision_service.decision_for(
+                capability=RolloutCapability.non_text_modalities,
+                learner_id=str(profile.student_id),
+            )
+            rollout_effect = RolloutEffectExplanation(
+                capability=decision.capability.value,
+                enabled=decision.enabled,
+                mode=decision.mode,
+                source=decision.source,
+                fallback_behavior=decision.fallback_behavior,
+                constrained=inspection.policy_fallback_applied,
+                detail=(
+                    inspection.policy_reason
+                    if inspection.policy_fallback_applied
+                    else "Rollout policy allowed the selected modality to proceed."
+                ),
+            )
+            if inspection.policy_fallback_applied:
+                fallback_behavior = decision.fallback_behavior
+        if fallback_behavior is None and inspection.weak_evidence_fallback_applied:
+            fallback_behavior = "weak_evidence_fallback_to_heuristic"
+        return ModalityDecisionExplanationBundle(
+            learner_id=str(profile.student_id),
+            summary=(
+                f"Routing preferred {inspection.selected_plugin_id} but policy forced "
+                f"{inspection.effective_plugin_id}."
+                if inspection.policy_fallback_applied
+                else f"Routing selected {inspection.effective_plugin_id} for the next generated step."
+            ),
+            inspection=inspection,
+            selected_score_components=sorted(
+                selected.score_components,
+                key=lambda item: abs(item.value),
+                reverse=True,
+            )[:4],
+            rollout_effect=rollout_effect,
+            fallback_behavior=fallback_behavior,
+            confidence=_explanation_confidence(
+                selected=selected,
+                inspection=inspection,
+            ),
+            risk=_explanation_risk(
+                selected=selected,
+                inspection=inspection,
+            ),
+            next_expected_consequence=(
+                f"Content generation will use {inspection.effective_plugin_id} "
+                f"({inspection.effective_modality})."
+            ),
+        )
+
     def context_key_for(
         self,
         *,
@@ -472,3 +545,39 @@ def _dedupe_priors(
     for prior in priors:
         deduped[(prior.scope.value, prior.prior_key, prior.context_key)] = prior
     return list(deduped.values())
+
+
+def _explanation_confidence(
+    *,
+    selected: ModalityCandidateScore,
+    inspection: ModalityRoutingInspection,
+) -> DecisionConfidence:
+    scores = inspection.candidate_scores
+    margin = 0.0
+    if len(scores) > 1:
+        margin = round(scores[0].total_score - scores[1].total_score, 2)
+    if inspection.policy_fallback_applied or inspection.weak_evidence_fallback_applied:
+        return DecisionConfidence.medium
+    if selected.evidence_count >= 4 and margin >= 0.12:
+        return DecisionConfidence.high
+    if margin < 0.05:
+        return DecisionConfidence.low
+    return DecisionConfidence.medium
+
+
+def _explanation_risk(
+    *,
+    selected: ModalityCandidateScore,
+    inspection: ModalityRoutingInspection,
+) -> DecisionRisk:
+    scores = inspection.candidate_scores
+    margin = 0.0
+    if len(scores) > 1:
+        margin = round(scores[0].total_score - scores[1].total_score, 2)
+    if inspection.policy_fallback_applied:
+        return DecisionRisk.moderate
+    if inspection.weak_evidence_fallback_applied or margin < 0.04:
+        return DecisionRisk.high
+    if selected.evidence_count < 2:
+        return DecisionRisk.moderate
+    return DecisionRisk.low

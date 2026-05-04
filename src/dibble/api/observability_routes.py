@@ -13,7 +13,9 @@ from dibble.models.generation import (
 )
 from dibble.models.household import LearnerRelationshipState
 from dibble.models.observability import (
+    AutonomousTeacherExplanationBundle,
     HarnessBoundary,
+    ModalityDecisionExplanationBundle,
     OperationalTrace,
     ReleaseReadinessSnapshot,
 )
@@ -90,6 +92,26 @@ def build_observability_router(context: ApiContext) -> APIRouter:
         )
 
     @router.post(
+        "/observability/adaptation/modality-routing/explain",
+        response_model=ModalityDecisionExplanationBundle,
+        dependencies=context.deps("admin"),
+    )
+    def explain_modality_routing(
+        payload: GenerationRequest,
+    ) -> ModalityDecisionExplanationBundle:
+        profile = services.profile_store.get(payload.student_id)
+        if profile is None:
+            raise api_error(
+                status_code=404,
+                detail="Learner profile not found.",
+                code="learner_profile_not_found",
+            )
+        return services.modality_routing_harness.explain(
+            profile=profile,
+            request=payload,
+        )
+
+    @router.post(
         "/observability/adaptation/library/inspect",
         response_model=CurriculumLibrarySelectionTrace,
         dependencies=context.deps("admin"),
@@ -143,5 +165,26 @@ def build_observability_router(context: ApiContext) -> APIRouter:
                 code="learner_relationship_state_not_found",
             )
         return state
+
+    @router.get(
+        "/observability/adaptation/autonomous-teacher/{household_id}/{learner_id}/explain",
+        response_model=AutonomousTeacherExplanationBundle,
+        dependencies=context.deps("admin"),
+    )
+    def explain_autonomous_teacher_adaptation(
+        household_id: str,
+        learner_id: str,
+    ) -> AutonomousTeacherExplanationBundle:
+        try:
+            return services.household_service.explain_autonomous_teacher_decision(
+                household_id=household_id,
+                learner_id=learner_id,
+            )
+        except RuntimeError as exc:
+            raise api_error(
+                status_code=404,
+                detail=str(exc),
+                code="learner_relationship_state_not_found",
+            ) from exc
 
     return router

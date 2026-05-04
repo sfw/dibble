@@ -21,11 +21,14 @@ from dibble.models.curriculum_intake import (
     CurriculumImpactRecord,
     CurriculumMigrationApprovalRequest,
     CurriculumMigrationExecutionRequest,
+    CurriculumMigrationExecutionPreview,
     CurriculumMigrationPlan,
     CurriculumMigrationPlanRequest,
     CurriculumSnapshotDiff,
     CurriculumSnapshotDiffRequest,
+    MigrationActionExplanationBundle,
     MigrationAction,
+    MigrationDryRunAction,
     MigrationActionStatus,
     MigrationActionType,
     MigrationPlanStatus,
@@ -757,33 +760,153 @@ class CurriculumEvolutionHarness:
         )
         return persisted
 
+    def preview_migration_execution(
+        self,
+        plan_id: str,
+        request: CurriculumMigrationExecutionRequest,
+    ) -> CurriculumMigrationExecutionPreview:
+        plan = self._require_plan(plan_id)
+        decision = (
+            self.rollout_decision_service.decision_for(
+                capability=RolloutCapability.migration_execution
+            )
+            if self.rollout_decision_service is not None
+            else None
+        )
+        if (
+            decision is not None
+            and decision.mode == MigrationExecutionMode.manual_only.value
+        ):
+            return CurriculumMigrationExecutionPreview(
+                plan_id=plan.plan_id,
+                diff_id=plan.diff_id,
+                rollout_blocked=True,
+                rollout_reason=(
+                    "Rollout policy keeps migration execution in manual-only mode, "
+                    "so no approved action would run."
+                ),
+            )
+        selected_action_ids = set(request.action_ids)
+        target_snapshot = self._require_snapshot(plan.target_snapshot_id)
+        target_provenance = self._snapshot_provenance(target_snapshot)
+        action_previews: list[MigrationDryRunAction] = []
+        executed_action_count = 0
+        blocked_action_count = 0
+        for action in plan.actions:
+            is_selected = not selected_action_ids or action.action_id in selected_action_ids
+            would_execute = (
+                is_selected
+                and action.status == MigrationActionStatus.approved
+                and action.risk_level == MigrationRiskLevel.low
+            )
+            if not would_execute:
+                blocked_action_count += 1
+                action_previews.append(
+                    MigrationDryRunAction(
+                        action_id=action.action_id,
+                        would_execute=False,
+                        status=action.status.value,
+                        summary="This action would remain unchanged in dry-run mode.",
+                        explanation=self._migration_action_explanation(
+                            action=action,
+                            decision=decision,
+                            next_expected_consequence=(
+                                "The action is still blocked until it is approved, "
+                                "selected, and classified as low risk."
+                            ),
+                        ),
+                    )
+                )
+                continue
+            executed_action_count += 1
+            try:
+                summary = self._execute_action(
+                    action=action,
+                    target_provenance=target_provenance,
+                    dry_run=True,
+                )
+            except MigrationExecutionError as exc:
+                blocked_action_count += 1
+                action_previews.append(
+                    MigrationDryRunAction(
+                        action_id=action.action_id,
+                        would_execute=False,
+                        status=MigrationActionStatus.execution_failed.value,
+                        summary=str(exc),
+                        explanation=self._migration_action_explanation(
+                            action=action,
+                            decision=decision,
+                            next_expected_consequence="Execution would still fail until the missing runtime entity is repaired.",
+                        ),
+                    )
+                )
+                continue
+            action_previews.append(
+                MigrationDryRunAction(
+                    action_id=action.action_id,
+                    would_execute=True,
+                    status="dry_run",
+                    summary=summary,
+                    explanation=self._migration_action_explanation(
+                        action=action,
+                        decision=decision,
+                        next_expected_consequence=summary,
+                    ),
+                )
+            )
+        return CurriculumMigrationExecutionPreview(
+            plan_id=plan.plan_id,
+            diff_id=plan.diff_id,
+            action_previews=action_previews,
+            executed_action_count=executed_action_count,
+            blocked_action_count=blocked_action_count,
+        )
+
     def _execute_action(
         self,
         *,
         action: MigrationAction,
         target_provenance: CurriculumVersionReference,
+        dry_run: bool = False,
     ) -> str:
         if action.action_type == MigrationActionType.keep_pinned:
-            return "left pinned to the source snapshot"
+            return (
+                "would leave the entity pinned to the source snapshot"
+                if dry_run
+                else "left pinned to the source snapshot"
+            )
         if action.entity_kind == RuntimeEntityKind.learner_goal:
-            return self._execute_goal_action(action=action, target_provenance=target_provenance)
+            return self._execute_goal_action(
+                action=action,
+                target_provenance=target_provenance,
+                dry_run=dry_run,
+            )
         if action.entity_kind == RuntimeEntityKind.trajectory:
             return self._execute_trajectory_action(
-                action=action, target_provenance=target_provenance
+                action=action,
+                target_provenance=target_provenance,
+                dry_run=dry_run,
             )
         if action.entity_kind == RuntimeEntityKind.assignment:
-            return self._execute_assignment_action(action=action)
+            return self._execute_assignment_action(action=action, dry_run=dry_run)
         if action.entity_kind == RuntimeEntityKind.library_artifact:
             return self._execute_library_action(
-                action=action, target_provenance=target_provenance
+                action=action,
+                target_provenance=target_provenance,
+                dry_run=dry_run,
             )
-        return "no supported execution path; kept for review"
+        return (
+            "would keep the action for manual review because no supported execution path exists"
+            if dry_run
+            else "no supported execution path; kept for review"
+        )
 
     def _execute_goal_action(
         self,
         *,
         action: MigrationAction,
         target_provenance: CurriculumVersionReference,
+        dry_run: bool = False,
     ) -> str:
         goal = self.learner_goal_store.get(action.entity_id)
         if goal is None:
@@ -816,14 +939,20 @@ class CurriculumEvolutionHarness:
                     "updated_at": now,
                 }
             )
-        self.learner_goal_store.upsert(updated)
-        return f"updated goal {goal.goal_id}"
+        if not dry_run:
+            self.learner_goal_store.upsert(updated)
+        return (
+            f"would update goal {goal.goal_id}"
+            if dry_run
+            else f"updated goal {goal.goal_id}"
+        )
 
     def _execute_trajectory_action(
         self,
         *,
         action: MigrationAction,
         target_provenance: CurriculumVersionReference,
+        dry_run: bool = False,
     ) -> str:
         trajectory = self.trajectory_store.get(action.entity_id)
         if trajectory is None:
@@ -898,10 +1027,20 @@ class CurriculumEvolutionHarness:
                 "updated_at": now,
             }
         )
-        self.trajectory_store.upsert(updated)
-        return f"updated trajectory {trajectory.trajectory_id}"
+        if not dry_run:
+            self.trajectory_store.upsert(updated)
+        return (
+            f"would update trajectory {trajectory.trajectory_id}"
+            if dry_run
+            else f"updated trajectory {trajectory.trajectory_id}"
+        )
 
-    def _execute_assignment_action(self, *, action: MigrationAction) -> str:
+    def _execute_assignment_action(
+        self,
+        *,
+        action: MigrationAction,
+        dry_run: bool = False,
+    ) -> str:
         assignment = self.assignment_store.get(action.entity_id)
         if assignment is None:
             raise MigrationExecutionError("assignment missing; no mutation applied")
@@ -919,14 +1058,20 @@ class CurriculumEvolutionHarness:
                 "updated_at": datetime.now(timezone.utc),
             }
         )
-        self.assignment_store.upsert(updated)
-        return f"updated assignment {assignment.assignment_id}"
+        if not dry_run:
+            self.assignment_store.upsert(updated)
+        return (
+            f"would update assignment {assignment.assignment_id}"
+            if dry_run
+            else f"updated assignment {assignment.assignment_id}"
+        )
 
     def _execute_library_action(
         self,
         *,
         action: MigrationAction,
         target_provenance: CurriculumVersionReference,
+        dry_run: bool = False,
     ) -> str:
         entries = {
             entry.cache_key: entry
@@ -944,8 +1089,13 @@ class CurriculumEvolutionHarness:
                     "content": entry.content.model_copy(update={"expires_at": now}),
                 }
             )
-            self.curriculum_content_library_store.upsert_entry(entry=expired)
-            return f"expired library artifact {action.entity_id}"
+            if not dry_run:
+                self.curriculum_content_library_store.upsert_entry(entry=expired)
+            return (
+                f"would expire library artifact {action.entity_id}"
+                if dry_run
+                else f"expired library artifact {action.entity_id}"
+            )
 
         outcome_map = dict(zip(action.source_outcome_ids, action.target_outcome_ids))
         kc_map = dict(zip(action.source_kc_ids, action.target_kc_ids))
@@ -985,14 +1135,43 @@ class CurriculumEvolutionHarness:
             storage_scope=entry.storage_scope,
             source_generation_id=entry.source_generation_id,
         )
-        self.curriculum_content_library_store.upsert_entry(entry=migrated)
+        if not dry_run:
+            self.curriculum_content_library_store.upsert_entry(entry=migrated)
         expired = entry.model_copy(
             update={
                 "content": entry.content.model_copy(update={"expires_at": now}),
             }
         )
-        self.curriculum_content_library_store.upsert_entry(entry=expired)
-        return f"migrated library artifact {action.entity_id}"
+        if not dry_run:
+            self.curriculum_content_library_store.upsert_entry(entry=expired)
+        return (
+            f"would migrate library artifact {action.entity_id}"
+            if dry_run
+            else f"migrated library artifact {action.entity_id}"
+        )
+
+    def _migration_action_explanation(
+        self,
+        *,
+        action: MigrationAction,
+        decision,
+        next_expected_consequence: str,
+    ) -> MigrationActionExplanationBundle:
+        fallback_behavior = (
+            decision.fallback_behavior if decision is not None and not decision.enabled else None
+        )
+        return MigrationActionExplanationBundle(
+            action_id=action.action_id,
+            entity_kind=action.entity_kind,
+            entity_id=action.entity_id,
+            action_type=action.action_type,
+            risk_level=action.risk_level,
+            confidence=action.confidence,
+            rationale=action.rationale,
+            rollout_effect=decision,
+            fallback_behavior=fallback_behavior,
+            next_expected_consequence=next_expected_consequence,
+        )
 
     def _record_trace(
         self,

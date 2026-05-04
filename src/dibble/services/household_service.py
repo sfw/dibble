@@ -10,6 +10,7 @@ from dibble.models.household import (
     HouseholdLearnerOverview,
     HouseholdNotificationSnoozeRequest,
     HouseholdOverview,
+    ParentApprovalPreview,
     ParentApprovalStatus,
     ParentApprovalType,
     HouseholdPreferenceUpdateRequest,
@@ -18,7 +19,19 @@ from dibble.models.household import (
     HouseholdSetupResponse,
     ParentProfile,
 )
-from dibble.models.observability import HarnessBoundary, OperationalTraceStatus
+from dibble.models.observability import (
+    AutonomousTeacherExplanationBundle,
+    DecisionConfidence,
+    DecisionRisk,
+    HarnessBoundary,
+    OperationalTraceStatus,
+    RolloutEffectExplanation,
+)
+from dibble.models.rollout import (
+    AutonomousSessionSuggestionMode,
+    ModalityAvailabilityMode,
+    RolloutCapability,
+)
 from dibble.services.operational_observability import OperationalObservabilityService
 from dibble.services.autonomous_teacher_harness import AutonomousTeacherHarness
 from dibble.services.protocols import (
@@ -351,12 +364,297 @@ class HouseholdService:
             status=ParentApprovalStatus.rejected,
         )
 
+    def preview_parent_approval(
+        self,
+        *,
+        parent_user_id: str,
+        learner_id: str,
+        approval_id: str,
+    ) -> ParentApprovalPreview:
+        user = self.user_store.get(parent_user_id)
+        if user is None:
+            raise RuntimeError("Parent user not found.")
+        household = self._household_for_user(user)
+        if household is None:
+            raise RuntimeError("Household not found.")
+        plan = self._preview_plan(household=household, learner_id=learner_id)
+        approval = next(
+            (
+                item
+                for item in plan.relationship_state.approval_requests
+                if item.approval_id == approval_id
+            ),
+            None,
+        )
+        if approval is None:
+            raise RuntimeError("Parent approval not found.")
+        rollout_constraints = self._approval_rollout_constraints(
+            household_id=household.household_id,
+            learner_id=learner_id,
+            approval_type=approval.approval_type,
+            proposed_value=approval.proposed_value,
+        )
+        remaining_blockers = [
+            item.title
+            for item in plan.relationship_state.approval_requests
+            if item.approval_id != approval_id
+            and item.status in {ParentApprovalStatus.pending, ParentApprovalStatus.rejected}
+        ]
+        if_approved, if_denied, next_expected_consequence = self._approval_outcomes(
+            approval_type=approval.approval_type,
+            proposed_value=approval.proposed_value,
+            plan=plan,
+            rollout_constraints=rollout_constraints,
+            remaining_blockers=remaining_blockers,
+        )
+        return ParentApprovalPreview(
+            approval_id=approval.approval_id,
+            learner_id=learner_id,
+            approval_type=approval.approval_type,
+            title=approval.title,
+            summary=approval.message,
+            proposed_value=approval.proposed_value,
+            if_approved=if_approved,
+            if_denied=if_denied,
+            rollout_constraints=rollout_constraints,
+            remaining_blockers=remaining_blockers,
+            next_expected_consequence=next_expected_consequence,
+        )
+
+    def explain_autonomous_teacher_decision(
+        self,
+        *,
+        household_id: str,
+        learner_id: str,
+    ) -> AutonomousTeacherExplanationBundle:
+        household = self.household_store.get(household_id)
+        if household is None:
+            raise RuntimeError("Household not found.")
+        plan = self._preview_plan(household=household, learner_id=learner_id)
+        relationship_state = plan.relationship_state
+        trace = relationship_state.latest_decision_trace
+        suggestion_decision = self._rollout_decision(
+            capability=RolloutCapability.autonomous_session_suggestions,
+            household_id=household.household_id,
+            learner_id=learner_id,
+        )
+        approval_decision = self._rollout_decision(
+            capability=RolloutCapability.parent_approval_enforcement,
+            household_id=household.household_id,
+            learner_id=learner_id,
+        )
+        outbound_decision = self._rollout_decision(
+            capability=RolloutCapability.autonomous_teacher_outbound_actions,
+            household_id=household.household_id,
+            learner_id=learner_id,
+        )
+        rollout_effects = [
+            self._rollout_effect_explanation(
+                decision=suggestion_decision,
+                constrained=plan.next_session is None
+                and relationship_state.cadence_status in {"session_due", "reengage_now", "check_in"},
+                detail=(
+                    "Autonomous session suggestions remain gated by rollout policy."
+                    if suggestion_decision is not None
+                    and suggestion_decision.mode
+                    == AutonomousSessionSuggestionMode.disabled.value
+                    else "Autonomous session suggestions are available under the current rollout."
+                ),
+            ),
+            self._rollout_effect_explanation(
+                decision=approval_decision,
+                constrained=bool(relationship_state.approval_requests),
+                detail="Parent approval rollout policy can tighten or relax household-level approvals.",
+            ),
+            self._rollout_effect_explanation(
+                decision=outbound_decision,
+                constrained=False,
+                detail="Outbound actions remain bounded to the rollout-selected notification mode.",
+            ),
+        ]
+        risk = DecisionRisk.low
+        if relationship_state.soft_escalation_active or relationship_state.cadence_status == "check_in":
+            risk = DecisionRisk.high
+        elif relationship_state.approval_requests or relationship_state.cadence_status in {
+            "reengage_now",
+            "session_due",
+        }:
+            risk = DecisionRisk.moderate
+        confidence = DecisionConfidence.medium
+        if trace is not None and trace.average_session_outcome_score >= 0.68:
+            confidence = DecisionConfidence.high
+        elif trace is not None and trace.average_session_outcome_score < 0.45:
+            confidence = DecisionConfidence.low
+        return AutonomousTeacherExplanationBundle(
+            household_id=household_id,
+            learner_id=learner_id,
+            summary=relationship_state.summary_headline or "Autonomous teacher decision preview ready.",
+            cadence_decision=plan.cadence_decision,
+            suggested_modality=relationship_state.suggested_modality,
+            blocking_approval_types=(
+                trace.blocking_approval_types if trace is not None else []
+            ),
+            factors=trace.factors if trace is not None else [],
+            rollout_effects=[item for item in rollout_effects if item is not None],
+            fallback_behavior=(
+                "approval_blocked"
+                if any(
+                    approval.status in {ParentApprovalStatus.pending, ParentApprovalStatus.rejected}
+                    for approval in relationship_state.approval_requests
+                )
+                else None
+            ),
+            confidence=confidence,
+            risk=risk,
+            next_expected_consequence=(
+                "A session suggestion is ready to surface."
+                if plan.next_session is not None
+                else "The next teaching change remains blocked until approvals or rollout constraints clear."
+            ),
+        )
+
     def _household_for_user(self, user: User) -> Household | None:
         if user.household_id:
             household = self.household_store.get(user.household_id)
             if household is not None:
                 return household
         return self.household_store.get_by_parent_user_id(user.user_id)
+
+    def _preview_plan(
+        self,
+        *,
+        household: Household,
+        learner_id: str,
+    ):
+        result = self.autonomous_teacher_harness.preview_household(household=household)
+        plan = next(
+            (item for item in result.learner_plans if item.learner_id == learner_id),
+            None,
+        )
+        if plan is None:
+            raise RuntimeError("Learner plan not found.")
+        return plan
+
+    def _rollout_decision(
+        self,
+        *,
+        capability: RolloutCapability,
+        household_id: str,
+        learner_id: str,
+    ):
+        rollout_service = self.autonomous_teacher_harness.rollout_decision_service
+        if rollout_service is None:
+            return None
+        return rollout_service.decision_for(
+            capability=capability,
+            household_id=household_id,
+            learner_id=learner_id,
+        )
+
+    def _approval_rollout_constraints(
+        self,
+        *,
+        household_id: str,
+        learner_id: str,
+        approval_type: ParentApprovalType,
+        proposed_value: str | None,
+    ) -> list[str]:
+        constraints: list[str] = []
+        if approval_type == ParentApprovalType.modality_introduction and proposed_value not in {
+            None,
+            "text",
+        }:
+            decision = self._rollout_decision(
+                capability=RolloutCapability.non_text_modalities,
+                household_id=household_id,
+                learner_id=learner_id,
+            )
+            if (
+                decision is not None
+                and decision.mode == ModalityAvailabilityMode.text_only.value
+            ):
+                constraints.append(
+                    "Rollout policy still constrains the learner to text-only delivery."
+                )
+        if approval_type == ParentApprovalType.high_autonomy_session:
+            decision = self._rollout_decision(
+                capability=RolloutCapability.autonomous_session_suggestions,
+                household_id=household_id,
+                learner_id=learner_id,
+            )
+            if (
+                decision is not None
+                and decision.mode == AutonomousSessionSuggestionMode.disabled.value
+            ):
+                constraints.append(
+                    "Rollout policy still disables autonomous session suggestions."
+                )
+        return constraints
+
+    def _approval_outcomes(
+        self,
+        *,
+        approval_type: ParentApprovalType,
+        proposed_value: str | None,
+        plan,
+        rollout_constraints: list[str],
+        remaining_blockers: list[str],
+    ) -> tuple[list[str], list[str], str]:
+        if approval_type == ParentApprovalType.modality_introduction:
+            approved = [
+                f"{proposed_value or 'The proposed modality'} becomes available for future teaching steps."
+            ]
+            denied = [
+                f"{proposed_value or 'The proposed modality'} remains blocked for this learner."
+            ]
+            consequence = "Future session suggestions can use the newly approved modality."
+        elif approval_type == ParentApprovalType.trajectory_revision:
+            approved = [
+                "The longer-horizon plan can advance to the proposed next focus."
+            ]
+            denied = [
+                "The learner stays on the current trajectory until a later review approves a revision."
+            ]
+            consequence = "Trajectory changes can begin flowing into future sessions."
+        else:
+            approved = [
+                "The pending high-autonomy re-engagement session can move forward."
+            ]
+            denied = [
+                "The autonomous re-engagement session remains blocked."
+            ]
+            consequence = (
+                "The next session suggestion can surface immediately."
+                if not rollout_constraints and not remaining_blockers
+                else "The next session stays paused behind remaining blockers."
+            )
+        if rollout_constraints:
+            approved.append(
+                "Rollout policy would still keep part of the change constrained."
+            )
+        if remaining_blockers:
+            approved.append("Other approvals still need attention before everything can proceed.")
+            denied.append("Other approvals would remain blocked as well.")
+        return approved, denied, consequence
+
+    def _rollout_effect_explanation(
+        self,
+        *,
+        decision,
+        constrained: bool,
+        detail: str,
+    ) -> RolloutEffectExplanation | None:
+        if decision is None:
+            return None
+        return RolloutEffectExplanation(
+            capability=decision.capability.value,
+            enabled=decision.enabled,
+            mode=decision.mode,
+            source=decision.source,
+            fallback_behavior=decision.fallback_behavior,
+            constrained=constrained,
+            detail=detail,
+        )
 
     def _active_notifications(
         self,

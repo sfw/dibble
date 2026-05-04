@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from dibble.models.observability import (
+    BlockedReviewPreview,
     CloudLibraryReadiness,
     HarnessBoundary,
     HarnessFallbackCount,
@@ -123,6 +124,7 @@ class OperationalObservabilityService:
                 else []
             ),
             recent_degraded_operations=degraded_traces[:20],
+            blocked_review_previews=self._blocked_review_previews(),
         )
 
     def _fallback_counts(
@@ -306,3 +308,71 @@ class OperationalObservabilityService:
                     if approval.status == "pending":
                         pending.append((household_id, approval.approval_id))
         return pending
+
+    def _blocked_review_previews(self) -> list[BlockedReviewPreview]:
+        previews: list[BlockedReviewPreview] = []
+        if self.curriculum_migration_plan_store is not None:
+            for plan in self.curriculum_migration_plan_store.list():
+                for review_item in plan.review_items[:5]:
+                    previews.append(
+                        BlockedReviewPreview(
+                            item_kind="curriculum_migration_review",
+                            item_id=review_item.review_item_id,
+                            summary=(
+                                f"{review_item.entity_kind.value} {review_item.entity_id} "
+                                "still requires operator review."
+                            ),
+                            explanation=review_item.rationale,
+                            next_step="Review the migration item and either approve or keep it pinned.",
+                            risk_level=review_item.risk_level.value,
+                        )
+                    )
+                failed_actions = [
+                    action
+                    for action in plan.actions
+                    if action.status == "execution_failed"
+                ]
+                for action in failed_actions[:5]:
+                    previews.append(
+                        BlockedReviewPreview(
+                            item_kind="curriculum_migration_failure",
+                            item_id=action.action_id,
+                            summary=(
+                                f"{action.entity_kind.value} {action.entity_id} failed during migration execution."
+                            ),
+                            explanation=action.execution_summary or action.rationale,
+                            next_step="Repair the affected runtime entity and rerun the dry-run preview.",
+                            risk_level=action.risk_level.value,
+                        )
+                    )
+        if self.learner_relationship_state_store is None or self.user_store is None:
+            return previews[:20]
+        household_ids = {
+            user.household_id
+            for user in self.user_store.list()
+            if user.household_id is not None
+        }
+        for household_id in sorted(household_ids):
+            for state in self.learner_relationship_state_store.list_for_household(
+                household_id=household_id
+            ):
+                for approval in state.approval_requests:
+                    if approval.status != "pending":
+                        continue
+                    previews.append(
+                        BlockedReviewPreview(
+                            item_kind="parent_approval",
+                            item_id=approval.approval_id,
+                            summary=approval.title,
+                            explanation=approval.message,
+                            next_step="Parent review is still required before the teaching change can proceed.",
+                            risk_level=(
+                                "high"
+                                if approval.approval_type.value == "high_autonomy_session"
+                                else "moderate"
+                            ),
+                            household_id=household_id,
+                            learner_id=state.learner_id,
+                        )
+                    )
+        return previews[:20]
