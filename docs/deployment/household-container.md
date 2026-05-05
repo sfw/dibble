@@ -22,6 +22,23 @@ Edit `deploy/household/.env`:
 
 - Set `DIBBLE_AUTH_TOKEN_SECRET` to a long random value.
 - Set `DIBBLE_LLM_API_KEY` and `DIBBLE_LLM_MODEL` for real generation.
+- Set `DIBBLE_LLM_ALLOW_MOCK_FALLBACK=false` for the final real-provider proof
+  run. Keep it `true` only for setup and dry-run rehearsal.
+- If the selected OpenAI-compatible model enforces provider-specific values,
+  set them explicitly. The Moonshot `kimi-k2.5` live proof uses
+  `DIBBLE_LLM_TEMPERATURE=1.0`.
+- Keep `DIBBLE_LLM_THINKING_ENABLED=true` or omit it for the Moonshot
+  `kimi-k2.5` proof path. Moonshot rejects `temperature=1.0` when thinking is
+  explicitly disabled.
+- Set `DIBBLE_LLM_RESPONSE_FORMAT_JSON=true` for the Moonshot proof path so
+  generated content stays on Dibble's structured JSON contract.
+- For high-latency or verbose providers, set `DIBBLE_LLM_TIMEOUT_SECONDS` and
+  `DIBBLE_LLM_MAX_TOKENS` to bounded live-proof values instead of relying on
+  the defaults. The `kimi-k2.5` live proof used
+  `DIBBLE_LLM_THINKING_ENABLED=true`, `DIBBLE_LLM_TEMPERATURE=1.0`,
+  `DIBBLE_LLM_RESPONSE_FORMAT_JSON=true`, `DIBBLE_LLM_TIMEOUT_SECONDS=300`,
+  `DIBBLE_LLM_RETRY_BACKOFF_SECONDS=20`, `DIBBLE_LLM_RETRY_ATTEMPTS=6`, and
+  `DIBBLE_LLM_MAX_TOKENS=8000`.
 - Leave `DIBBLE_CLOUD_LIBRARY_ENABLED=false` for the first household pilot rehearsal.
 
 Start the household runtime:
@@ -105,42 +122,89 @@ curl -sS http://localhost:8000/ready
 
 Then sign in or call `GET /api/households/me/overview` with the parent key. The household and learner should still be present. If they are missing, the `/data` mount is not persistent and the deployment is not proved.
 
-## Proof Scenario Rehearsal
+## Live Household Proof
 
-After the household runtime is reachable, seed and rehearse the canonical proof
-household through the API:
+The final proof path is the live household proof wrapper. It runs the public API
+proof scenarios against the Compose service, then exercises Docker restart,
+backup, restore, and post-restore verification:
 
 ```bash
-uv run python scripts/rehearse_proof_scenarios.py --base-url http://localhost:8000
+uv run python scripts/live_household_proof.py \
+  --base-url http://localhost:8000 \
+  --compose-dir deploy/household \
+  --request-timeout-seconds 360 \
+  --require-real-provider
 ```
 
 If an admin already exists, pass the saved operator key:
 
 ```bash
-uv run python scripts/rehearse_proof_scenarios.py \
+DIBBLE_PROOF_ADMIN_API_KEY=ADMIN_API_KEY \
+  uv run python scripts/live_household_proof.py \
   --base-url http://localhost:8000 \
-  --admin-api-key ADMIN_API_KEY
+  --compose-dir deploy/household \
+  --request-timeout-seconds 360 \
+  --require-real-provider
 ```
 
-The script creates a proof parent, two learners, fraction-equivalence curriculum,
-guided household preferences, and an explicit goal/trajectory. It then rehearses
-the five canonical scenarios from `docs/proof/scenarios.md` without database
-edits. The generated parent key and learner ids are printed at the end.
+Artifacts are written under `proof-artifacts/live-household-*` unless
+`--artifact-dir` is provided:
+
+- `live-household-proof-report.md` for operator review and handoff
+- `live-household-proof-report.json` for machine-readable evidence
+- `dibble-live-household-backup.db` copied from `/data/dibble.db`
+
+The script creates proof households, proof learners, fraction-equivalence
+curriculum, guided household preferences, and explicit goals/trajectories. It
+rehearses the five canonical scenarios from `docs/proof/scenarios.md`, runs the
+longitudinal timeline from a clean proof household in the same container,
+restarts the container, copies the SQLite database backup, restores it, fixes
+database file ownership for the non-root runtime user, and verifies the
+household overview still matches after restart and restore.
+
+For API-only debugging, use the lower-level rehearsal runner:
+
+```bash
+uv run python scripts/rehearse_proof_scenarios.py \
+  --base-url http://localhost:8000 \
+  --timeline longitudinal_fraction_recovery \
+  --summary-file proof-longitudinal-report.json \
+  --operator-report-file proof-longitudinal-report.md
+```
+
+Omitting `--require-real-provider` is acceptable only for dry-run rehearsal. A
+mock-backed report is not live household proof.
 
 ## Backup And Restore
 
 For the proof deployment, the backup unit is `/data/dibble.db`.
 
-Stop the container before copying the database:
+The preferred evidence-producing path is `scripts/live_household_proof.py`,
+which stops the service, uses `docker compose cp`, restarts the service, and
+records the backup path, size, checksum, restart evidence, and restore evidence
+in the proof report.
+
+Manual backup:
 
 ```bash
 docker compose stop dibble
-docker run --rm -v deploy_dibble-household-data:/data -v "$PWD":/backup busybox \
-  cp /data/dibble.db /backup/dibble-backup.db
+mkdir -p ../../proof-artifacts/manual-backup
+docker compose cp dibble:/data/dibble.db ../../proof-artifacts/manual-backup/dibble.db
 docker compose start dibble
 ```
 
-Restore by stopping the service, replacing `/data/dibble.db`, and starting the service again. Verify `/ready` and the household overview immediately after restore.
+Manual restore:
+
+```bash
+docker compose stop dibble
+docker compose cp ../../proof-artifacts/manual-backup/dibble.db dibble:/data/dibble.db
+docker compose start dibble
+docker compose exec -u root dibble chown dibble:dibble /data/dibble.db
+curl -sS http://localhost:8000/ready
+```
+
+After restore, call `GET /api/households/me/overview` with the parent key. The
+household and learner ids should match the pre-restore proof report.
 
 ## Upgrade And Rollback
 

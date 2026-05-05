@@ -1,0 +1,211 @@
+{
+  "timeline_id": "longitudinal_fraction_recovery",
+  "title": "Longitudinal fraction recovery household rehearsal",
+  "proof_focus": [
+    "multi_session_learning",
+    "repeated_parent_governance",
+    "planning_revision_over_time",
+    "operator_readiness_review",
+    "content_quality_review"
+  ],
+  "rehearsal_assets": [
+    "proof/fixtures/scenario_household_seed.json",
+    "scripts/rehearse_proof_scenarios.py",
+    "docs/proof/scenarios.md",
+    "docs/runbooks/pilot-readiness.md"
+  ],
+  "household_narrative": "Avery begins equivalent fractions with high frustration and weak early outcomes. Across repeated sessions, Dibble changes representation, keeps parent approvals visible, revises the trajectory when evidence accumulates, and then shows recovery. Blair provides a smoother comparison path that checks that autonomy and library reuse stay constrained even when learning is progressing.",
+  "phases": [
+    {
+      "phase_id": "day-0-baseline",
+      "day": "Day 0",
+      "scenario_threads": [
+        "new_household_onboarding",
+        "parent_governed_autonomy"
+      ],
+      "learner_actions": [
+        "Seed Morgan, Avery, Blair, proof curriculum, household preferences, and active equivalent-fractions goals."
+      ],
+      "system_expectations": [
+        "Parent overview shows both learners, active goals, guided approval posture, and first-session readiness.",
+        "/ready and /api/observability/readiness are operator-readable before learner work begins."
+      ],
+      "parent_operator_review": [
+        "Review pending approvals and preview at least one approval before learner delivery.",
+        "Reject one gated autonomous action to prove the block changes what can happen next."
+      ],
+      "content_quality_review": [
+        "No generated sample is expected yet; the operator records the baseline review state."
+      ],
+      "proof_signal": "The household has a durable starting point and governance is visible before the first repeated session."
+    },
+    {
+      "phase_id": "session-1-stall",
+      "day": "Day 1",
+      "scenario_threads": [
+        "adaptive_modality_change",
+        "cross_session_planning_revision"
+      ],
+      "learner_actions": [
+        "Avery receives baseline practice for KC-FRAC-EQUIV.",
+        "Two weak observations are recorded with high hints, errors, pauses, and low confidence."
+      ],
+      "system_expectations": [
+        "Modality inspection shows either a changed effective modality for the follow-up or an explicit rollout fallback.",
+        "Planning state keeps the weak evidence instead of silently treating the session as complete."
+      ],
+      "parent_operator_review": [
+        "Review readiness after the weak session.",
+        "Approve the previously previewed autonomous action if the parent wants Dibble to try the constrained recovery path."
+      ],
+      "content_quality_review": [
+        "Capture the baseline generated practice sample and check that it is curriculum-shaped, age-appropriate, and free of learner-private fields."
+      ],
+      "proof_signal": "A stalled first session produces inspectable adaptation pressure without bypassing parent authority."
+    },
+    {
+      "phase_id": "session-2-recovery-plan",
+      "day": "Day 2",
+      "scenario_threads": [
+        "adaptive_modality_change",
+        "cross_session_planning_revision",
+        "parent_governed_autonomy"
+      ],
+      "learner_actions": [
+        "Avery receives a worked example or remedial micro-module using visual-model context.",
+        "A weak practice observation and a strong remediation observation are recorded to show stall-and-repair."
+      ],
+      "system_expectations": [
+        "Planning inspection shows increased revision count, revisit density, recovery scaffold, or rationale tied to accumulated evidence.",
+        "Any new parent approval remains previewable before it changes the learner path."
+      ],
+      "parent_operator_review": [
+        "Review planning state, pending approvals, autonomous-teacher explanation, and readiness together.",
+        "Approve remaining gated actions only after previewing the expected consequence."
+      ],
+      "content_quality_review": [
+        "Capture the recovery sample and check that the explanation matches the intended misconception rather than merely varying surface wording."
+      ],
+      "proof_signal": "The trajectory reacts to evidence across sessions and the approval surface remains usable after repeated decisions."
+    },
+    {
+      "phase_id": "session-3-recovery",
+      "day": "Day 3",
+      "scenario_threads": [
+        "cross_session_planning_revision",
+        "shared_library_reuse_without_privacy_leakage"
+      ],
+      "learner_actions": [
+        "Avery completes a strong follow-up after the recovery step.",
+        "Avery generates a curriculum-shaped worked example with a reusable request key.",
+        "Blair requests the same curriculum-shaped worked example and must receive a cache/library hit."
+      ],
+      "system_expectations": [
+        "Planning remains inspectable after recovery, with the current next focus understandable from the operator surface.",
+        "Blair's generated content reports cache_hit=true or the timeline fails.",
+        "Library privacy audit reports no forbidden learner-private fields."
+      ],
+      "parent_operator_review": [
+        "Review readiness and recent traces after recovery.",
+        "Compare Avery's recovery path with Blair's smoother path without raw database inspection."
+      ],
+      "content_quality_review": [
+        "Capture Avery's recovery sample, Avery's reusable source sample, and Blair's reused sample; confirm all are suitable for parent/operator pilot review."
+      ],
+      "proof_signal": "Dibble can show a coherent over-time story: stall, constrained adaptation, plan revision, recovery, and cache-hit-proven safe reuse."
+    }
+  ],
+  "review_surfaces": [
+    "GET /ready",
+    "GET /api/observability/readiness",
+    "GET /api/observability/adaptation/planning/{student_id}",
+    "POST /api/observability/adaptation/modality-routing/inspect",
+    "GET /api/households/me/overview",
+    "GET /api/households/me/approvals/{learner_id}/{approval_id}/preview",
+    "GET /api/observability/adaptation/autonomous-teacher/{household_id}/{learner_id}/explain",
+    "GET /api/observability/adaptation/library/privacy-audit",
+    "GET /api/observability/traces"
+  ],
+  "longitudinal_success_criteria": [
+    "The timeline can be rehearsed through public API paths without database edits.",
+    "At least three review checkpoints show readiness, planning, approvals, and trace state over time.",
+    "Avery has a visible stall-and-recovery path with modality inspection and planning evidence.",
+    "Parent approval preview, rejection, and approval remain meaningful after repeated sessions.",
+    "Generated sample checkpoints are available for content-quality review.",
+    "Blair receives a cache/library hit from Avery's matching reusable artifact.",
+    "Privacy audit remains clean after cross-learner reuse."
+  ],
+  "remaining_poc_evidence": [
+    "A real pilot still needs non-scripted parent comprehension checks.",
+    "A real pilot still needs multiple households and real provider behavior, not only seeded rehearsal.",
+    "A real pilot still needs sustained review of generated content quality beyond curated checkpoints."
+  ],
+  "privacy_contract": {
+    "container_private_fields": [
+      "student_id",
+      "learner_id",
+      "household_id",
+      "approval_id",
+      "goal_id",
+      "trajectory_id",
+      "learning_session_id",
+      "session_history",
+      "observation_history",
+      "relationship_state",
+      "parent_preferences",
+      "response_text"
+    ],
+    "external_flows": [
+      {
+        "destination": "model_provider",
+        "allowed_fields": [
+          "kc_targets",
+          "curriculum_goal",
+          "pedagogical_move",
+          "requested_content_type",
+          "theme_family",
+          "scaffolding_level",
+          "locale"
+        ],
+        "forbidden_fields": [
+          "student_id",
+          "learner_id",
+          "household_id",
+          "approval_id",
+          "goal_id",
+          "trajectory_id",
+          "learning_session_id",
+          "session_history",
+          "observation_history",
+          "relationship_state",
+          "parent_preferences",
+          "response_text"
+        ]
+      },
+      {
+        "destination": "cloud_library",
+        "allowed_fields": [
+          "curriculum_metadata",
+          "modality",
+          "content_payload",
+          "verification_results",
+          "provenance"
+        ],
+        "forbidden_fields": [
+          "student_id",
+          "learner_id",
+          "household_id",
+          "approval_id",
+          "goal_id",
+          "trajectory_id",
+          "learning_session_id",
+          "session_history",
+          "observation_history",
+          "relationship_state",
+          "parent_preferences",
+          "response_text"
+        ]
+      }
+    ]
+  }
+}

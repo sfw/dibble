@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
+from http.client import HTTPException
+import json
 from typing import Any, Callable, Iterator
 from urllib import error, request
 
@@ -39,6 +40,8 @@ def post_json(
         raise LLMClientError(
             f"LLM request could not be completed: {exc.reason}"
         ) from exc
+    except (TimeoutError, ConnectionError, HTTPException, OSError) as exc:
+        raise LLMClientError(f"LLM request transport failed: {exc}") from exc
     except json.JSONDecodeError as exc:
         raise LLMClientError("LLM response was not valid JSON.") from exc
 
@@ -65,6 +68,8 @@ def post_event_stream(
         raise LLMClientError(
             f"LLM request could not be completed: {exc.reason}"
         ) from exc
+    except (TimeoutError, ConnectionError, HTTPException, OSError) as exc:
+        raise LLMClientError(f"LLM stream transport failed: {exc}") from exc
 
 
 class OpenAICompatibleChatClient:
@@ -78,6 +83,9 @@ class OpenAICompatibleChatClient:
         model: str,
         timeout_seconds: float = 20.0,
         temperature: float | None = None,
+        max_tokens: int | None = None,
+        thinking_enabled: bool | None = None,
+        response_format_json: bool = False,
         transport: Transport = post_json,
         stream_transport: StreamTransport = post_event_stream,
     ) -> None:
@@ -88,6 +96,9 @@ class OpenAICompatibleChatClient:
         self.default_temperature = (
             temperature if temperature is not None else self.DEFAULT_TEMPERATURE
         )
+        self.max_tokens = max_tokens
+        self.thinking_enabled = thinking_enabled
+        self.response_format_json = response_format_json
         self.transport = transport
         self.stream_transport = stream_transport
 
@@ -159,6 +170,8 @@ class OpenAICompatibleChatClient:
                     temperature=1.0,
                 )
             raise
+        except (TimeoutError, ConnectionError, HTTPException, OSError) as exc:
+            raise LLMClientError(f"LLM request transport failed: {exc}") from exc
 
     def _stream_lines_with_temperature(
         self,
@@ -190,6 +203,8 @@ class OpenAICompatibleChatClient:
                 )
                 return
             raise
+        except (TimeoutError, ConnectionError, HTTPException, OSError) as exc:
+            raise LLMClientError(f"LLM stream transport failed: {exc}") from exc
 
     def _build_payload(
         self,
@@ -209,6 +224,14 @@ class OpenAICompatibleChatClient:
         }
         if stream:
             payload["stream"] = True
+        if self.max_tokens is not None:
+            payload["max_tokens"] = self.max_tokens
+        if self.thinking_enabled is not None:
+            payload["thinking"] = {
+                "type": "enabled" if self.thinking_enabled else "disabled"
+            }
+        if self.response_format_json:
+            payload["response_format"] = {"type": "json_object"}
         return payload
 
     def _request_headers(self, *, stream: bool = False) -> dict[str, str]:

@@ -4,7 +4,7 @@ import json
 import logging
 from collections.abc import Iterator
 from dataclasses import dataclass
-from time import monotonic
+from time import monotonic, sleep
 from typing import Callable
 
 from dibble.config import Settings
@@ -30,6 +30,7 @@ from dibble.services.socratic_prompt_selector import SocraticPromptSelector
 from dibble.services.streaming import iter_block_chunks
 
 logger = logging.getLogger(__name__)
+DEFAULT_CLIENT_RETRY_ATTEMPTS = 4
 
 
 class LLMProviderError(RuntimeError):
@@ -44,6 +45,9 @@ class LLMProviderConfig:
     model: str | None
     timeout_seconds: float
     temperature: float | None = None
+    max_tokens: int | None = None
+    thinking_enabled: bool | None = None
+    response_format_json: bool = False
     allow_mock_fallback: bool = True
 
 
@@ -67,6 +71,9 @@ def build_llm_clients(
             model=settings.llm_model,
             timeout_seconds=settings.llm_timeout_seconds,
             temperature=settings.llm_temperature,
+            max_tokens=settings.llm_max_tokens,
+            thinking_enabled=settings.llm_thinking_enabled,
+            response_format_json=settings.llm_response_format_json,
             allow_mock_fallback=settings.llm_allow_mock_fallback,
         ),
         LLMProviderConfig(
@@ -77,6 +84,9 @@ def build_llm_clients(
             timeout_seconds=settings.llm_secondary_timeout_seconds
             or settings.llm_timeout_seconds,
             temperature=settings.llm_temperature,
+            max_tokens=settings.llm_max_tokens,
+            thinking_enabled=settings.llm_thinking_enabled,
+            response_format_json=settings.llm_response_format_json,
             allow_mock_fallback=settings.llm_allow_mock_fallback,
         ),
     ]
@@ -94,6 +104,9 @@ def build_llm_clients(
                     model=config.model,
                     timeout_seconds=config.timeout_seconds,
                     temperature=config.temperature,
+                    max_tokens=config.max_tokens,
+                    thinking_enabled=config.thinking_enabled,
+                    response_format_json=config.response_format_json,
                 ),
             )
         )
@@ -131,6 +144,8 @@ class LLMOrchestrationProvider:
         fallback_provider: MockLLMProvider | None = None,
         circuit_breaker_threshold: int = 2,
         circuit_breaker_cooldown_seconds: float = 30.0,
+        retry_backoff_seconds: float = 0.0,
+        retry_attempts: int = DEFAULT_CLIENT_RETRY_ATTEMPTS,
         selection_strategy: str = "ordered",
         time_provider: Callable[[], float] = monotonic,
         health_store: ProviderHealthStore | None = None,
@@ -143,6 +158,8 @@ class LLMOrchestrationProvider:
         self.circuit_breaker_cooldown_seconds = max(
             0.0, circuit_breaker_cooldown_seconds
         )
+        self.retry_backoff_seconds = max(0.0, retry_backoff_seconds)
+        self.retry_attempts = max(1, retry_attempts)
         self.selection_strategy = selection_strategy
         self.time_provider = time_provider
         self.client_states = {name: ClientCircuitState() for name, _ in clients}
@@ -178,6 +195,8 @@ class LLMOrchestrationProvider:
             fallback_provider=fallback_provider,
             circuit_breaker_threshold=settings.llm_circuit_breaker_threshold,
             circuit_breaker_cooldown_seconds=settings.llm_circuit_breaker_cooldown_seconds,
+            retry_backoff_seconds=settings.llm_retry_backoff_seconds,
+            retry_attempts=settings.llm_retry_attempts,
             selection_strategy=settings.llm_selection_strategy,
             health_store=health_store,
             prompt_manager=prompt_manager
@@ -239,75 +258,83 @@ class LLMOrchestrationProvider:
                 "LLM client not configured.",
             )
 
+        failure_reasons: list[str] = []
         for name, client in self._iter_candidate_clients():
             started_at = self.time_provider()
-            try:
-                completion = client.complete(
-                    system_prompt=prompts.system_prompt,
-                    user_prompt=prompts.user_prompt,
-                )
-                if telemetry_debug_enabled():
-                    log_runtime_event(
-                        logger,
-                        logging.DEBUG,
-                        "llm.generate.response",
-                        provider_name=name,
-                        model_used=self.client_models.get(name),
-                        finish_reason=completion.finish_reason,
-                        content=completion.content,
-                        raw_response=completion.raw_response,
-                    )
+            for attempt in range(1, self.retry_attempts + 1):
                 try:
-                    blocks = self._parse_blocks(completion.content)
-                except LLMProviderError:
+                    completion = client.complete(
+                        system_prompt=prompts.system_prompt,
+                        user_prompt=prompts.user_prompt,
+                    )
                     if telemetry_debug_enabled():
                         log_runtime_event(
                             logger,
                             logging.DEBUG,
-                            "llm.generate.parse_failure",
+                            "llm.generate.response",
                             provider_name=name,
                             model_used=self.client_models.get(name),
+                            finish_reason=completion.finish_reason,
                             content=completion.content,
                             raw_response=completion.raw_response,
                         )
-                    raise
-                self._set_last_used_descriptor(name, prompts)
-                self._record_success(
-                    name, latency_ms=(self.time_provider() - started_at) * 1000.0
-                )
-                log_runtime_event(
-                    logger,
-                    logging.DEBUG,
-                    "llm.generate.success",
-                    provider_name=name,
-                    model_used=self.client_models.get(name),
-                    block_count=len(blocks),
-                    blocks=[block.model_dump(mode="json") for block in blocks],
-                )
-                return blocks
-            except (LLMClientError, LLMProviderError) as exc:
-                if telemetry_debug_enabled():
+                    try:
+                        blocks = self._parse_blocks(completion.content)
+                    except LLMProviderError:
+                        if telemetry_debug_enabled():
+                            log_runtime_event(
+                                logger,
+                                logging.DEBUG,
+                                "llm.generate.parse_failure",
+                                provider_name=name,
+                                model_used=self.client_models.get(name),
+                                content=completion.content,
+                                raw_response=completion.raw_response,
+                            )
+                        raise
+                    self._set_last_used_descriptor(name, prompts)
+                    self._record_success(
+                        name, latency_ms=(self.time_provider() - started_at) * 1000.0
+                    )
                     log_runtime_event(
                         logger,
                         logging.DEBUG,
-                        "llm.generate.failure",
+                        "llm.generate.success",
                         provider_name=name,
                         model_used=self.client_models.get(name),
-                        error_type=type(exc).__name__,
-                        error=str(exc),
+                        block_count=len(blocks),
+                        blocks=[block.model_dump(mode="json") for block in blocks],
                     )
-                logger.warning(
-                    "LLM client %r failed, trying next",
-                    name,
-                    exc_info=True,
-                )
-                self._record_failure(
-                    name, latency_ms=(self.time_provider() - started_at) * 1000.0
-                )
-                continue
+                    return blocks
+                except LLMClientError as exc:
+                    if (
+                        attempt < self.retry_attempts
+                        and self._is_retryable_client_error(exc)
+                    ):
+                        logger.warning(
+                            "LLM client %r transport failed on attempt %d/%d; retrying",
+                            name,
+                            attempt,
+                            self.retry_attempts,
+                            exc_info=True,
+                        )
+                        self._backoff_before_retry(attempt)
+                        continue
+                    failure_reasons.append(
+                        f"{name}: {type(exc).__name__}: {str(exc)}"
+                    )
+                    self._record_client_failure(name, started_at, exc)
+                    break
+                except LLMProviderError as exc:
+                    failure_reasons.append(
+                        f"{name}: {type(exc).__name__}: {str(exc)}"
+                    )
+                    self._record_client_failure(name, started_at, exc)
+                    break
 
         logger.warning("All LLM clients exhausted; falling back to mock provider")
-        return self._fallback(request, route, grounding, prompts, "LLM call failed.")
+        failure_summary = "; ".join(failure_reasons) or "LLM call failed."
+        return self._fallback(request, route, grounding, prompts, failure_summary)
 
     def stream_generate(
         self,
@@ -577,6 +604,55 @@ class LLMOrchestrationProvider:
             "prompt_template_variant": prompts.template_variant,
         }
 
+    def _record_client_failure(
+        self,
+        name: str,
+        started_at: float,
+        exc: Exception,
+    ) -> None:
+        if telemetry_debug_enabled():
+            log_runtime_event(
+                logger,
+                logging.DEBUG,
+                "llm.generate.failure",
+                provider_name=name,
+                model_used=self.client_models.get(name),
+                error_type=type(exc).__name__,
+                error=str(exc),
+            )
+        logger.warning(
+            "LLM client %r failed, trying next",
+            name,
+            exc_info=True,
+        )
+        self._record_failure(
+            name,
+            latency_ms=(self.time_provider() - started_at) * 1000.0,
+        )
+
+    @staticmethod
+    def _is_retryable_client_error(exc: LLMClientError) -> bool:
+        message = str(exc).lower()
+        return (
+            "transport failed" in message
+            or "status 429" in message
+            or "status 500" in message
+            or "status 502" in message
+            or "status 503" in message
+            or "status 504" in message
+            or "internal server error" in message
+            or "bad gateway" in message
+            or "gateway timeout" in message
+            or "engine_overloaded" in message
+            or "overloaded" in message
+            or "rate limit" in message
+        )
+
+    def _backoff_before_retry(self, attempt: int) -> None:
+        if self.retry_backoff_seconds <= 0:
+            return
+        sleep(self.retry_backoff_seconds * attempt)
+
     def _fallback(
         self,
         request: CurriculumContentRequest,
@@ -626,8 +702,10 @@ class LLMOrchestrationProvider:
 
         try:
             payload = json.loads(cleaned)
-        except json.JSONDecodeError as exc:
-            raise LLMProviderError("LLM output was not valid JSON.") from exc
+        except json.JSONDecodeError:
+            payload = self._extract_json_payload(cleaned)
+            if payload is None:
+                raise LLMProviderError("LLM output was not valid JSON.") from None
 
         blocks_payload = payload.get("blocks")
         if not isinstance(blocks_payload, list) or not blocks_payload:
@@ -651,6 +729,45 @@ class LLMOrchestrationProvider:
         ):
             return "\n".join(lines[1:-1]).strip()
         return value
+
+    def _extract_json_payload(self, value: str) -> dict[str, object] | None:
+        for start, char in enumerate(value):
+            if char != "{":
+                continue
+            candidate = self._balanced_json_object(value[start:])
+            if candidate is None:
+                continue
+            try:
+                payload = json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(payload, dict) and "blocks" in payload:
+                return payload
+        return None
+
+    @staticmethod
+    def _balanced_json_object(value: str) -> str | None:
+        depth = 0
+        in_string = False
+        escaped = False
+        for index, char in enumerate(value):
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    in_string = False
+                continue
+            if char == '"':
+                in_string = True
+            elif char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    return value[: index + 1]
+        return None
 
 
 class StreamingChunkParser:

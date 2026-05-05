@@ -33,6 +33,9 @@ class Settings:
     llm_model: str | None = None
     llm_timeout_seconds: float = 20.0
     llm_temperature: float | None = None
+    llm_max_tokens: int | None = None
+    llm_thinking_enabled: bool | None = None
+    llm_response_format_json: bool = False
     llm_allow_mock_fallback: bool = True
     llm_secondary_api_base: str | None = None
     llm_secondary_api_key: str | None = None
@@ -40,6 +43,8 @@ class Settings:
     llm_secondary_timeout_seconds: float | None = None
     llm_circuit_breaker_threshold: int = 2
     llm_circuit_breaker_cooldown_seconds: float = 30.0
+    llm_retry_backoff_seconds: float = 0.0
+    llm_retry_attempts: int = 4
     llm_selection_strategy: str = "ordered"
     prompt_library_version: str = "1.0"
     prompt_experiment_enabled: bool = False

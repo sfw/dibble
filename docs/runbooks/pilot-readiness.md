@@ -24,8 +24,26 @@ This runbook defines the first supported pilot state: a small operator-managed h
 - Parent preferences are reviewed and match the consented pilot posture.
 - A database backup has been taken before the first learner session.
 - Operator has validated the five proof scenarios in `proof/scenarios`.
-- Operator has run `uv run python scripts/rehearse_proof_scenarios.py --base-url http://localhost:8000` against the household runtime or recorded why a scenario was intentionally skipped.
-- LLM provider credentials are real; mock fallback is acceptable only for rehearsal.
+- Operator has run the live household proof against the Compose deployment:
+  `uv run python scripts/live_household_proof.py --base-url http://localhost:8000 --compose-dir deploy/household --request-timeout-seconds 720 --require-real-provider`.
+- The live proof report includes restart, backup, and restore evidence.
+- Restore evidence includes corrected `/data/dibble.db` ownership for the
+  non-root container user after the backup is copied back into the container.
+- LLM provider credentials are real and `DIBBLE_LLM_ALLOW_MOCK_FALLBACK=false`
+  for the final proof run. Mock fallback is acceptable only for dry-run
+  rehearsal.
+- Provider-specific LLM settings are recorded in the household `.env`; for
+  high-latency real providers, review `DIBBLE_LLM_TIMEOUT_SECONDS`,
+  `DIBBLE_LLM_TEMPERATURE`, `DIBBLE_LLM_MAX_TOKENS`, and
+  `DIBBLE_LLM_THINKING_ENABLED` before learner use.
+- For the Moonshot `kimi-k2.5` live proof posture, confirm
+  `DIBBLE_LLM_TEMPERATURE=1.0`, do not disable thinking, and set
+  `DIBBLE_LLM_RESPONSE_FORMAT_JSON=true` with a token budget such as
+  `DIBBLE_LLM_MAX_TOKENS=8000` so thinking does not exhaust the final-answer
+  budget.
+- If the provider returns overload/rate-limit responses during live proof,
+  configure bounded `DIBBLE_LLM_RETRY_BACKOFF_SECONDS` and
+  `DIBBLE_LLM_RETRY_ATTEMPTS` instead of enabling mock fallback.
 - Rollout kill switches are known and reachable from the operator surface.
 
 ## Daily Operator Review
@@ -35,14 +53,20 @@ This runbook defines the first supported pilot state: a small operator-managed h
 - Review pending parent approvals.
 - Review stale autonomous suggestions.
 - Review learner sessions that ended in repeated stall, high frustration, or fallback-only behavior.
+- During proof rehearsal, compare the current review checkpoint with the previous checkpoint in the longitudinal report: readiness status, pending approvals, planning revision count, revisit density, recent signal count, and recent trace summaries should remain explainable.
+- During live proof review, confirm the Markdown report lists the backup
+  checksum and both restart and restore state-preservation checks.
 
 ## Weekly Operator Review
 
 - Confirm backups exist and restore has been rehearsed at least once before the cohort starts.
+- Confirm the latest `proof-artifacts/live-household-*` report is backed by a
+  real-provider run, not a mock-backed dry run.
 - Review modality outcomes by learner.
 - Review whether any non-text modality caused repeated fallback or parent confusion.
 - Review parent notifications and unresolved soft-escalations.
 - Review whether trajectory revisions are understandable to parents.
+- Review captured generated-content samples from the longitudinal report for curriculum fit, misconception targeting, age fit, and absence of learner-private fields.
 
 ## Stop Conditions
 
@@ -65,6 +89,24 @@ The pilot is evidence-positive when:
 - At least one parent approval changes an autonomous teacher action.
 - Planning revision is inspectable after accumulated evidence.
 - Shared-library reuse is demonstrated without learner-private leakage.
+- A seeded longitudinal timeline demonstrates stall, constrained adaptation, planning review, parent approval decisions, recovery, repeated readiness review, and content-quality checkpoints without raw database inspection.
+- The live household proof report demonstrates restart persistence, backup
+  capture, restore execution, and post-restore overview verification.
+
+## Longitudinal Proof Criteria
+
+The POC is stronger than demoable when these are true in a rehearsal household:
+
+- A multi-session timeline can be run through public API paths only.
+- Parent approval preview, rejection, and approval still change autonomous behavior after repeated learner sessions.
+- Planning observability shows accumulated evidence through revision count, revisit density, recovery scaffolding, or recent signal summaries.
+- `/ready`, `/api/observability/readiness`, approval previews, planning inspection, autonomous-teacher explanation, traces, and library privacy audit remain useful at multiple checkpoints.
+- Operators can review generated sample metadata and notes for content quality without inspecting the database.
+- Privacy audit stays clean after cross-learner reusable content is generated or reused.
+- Restart and restore evidence are captured from the Compose household service,
+  not inferred from a local seeded test harness.
+
+Do not describe the POC as fully proven until at least one non-scripted parent or operator can interpret the longitudinal report, more than one household has rehearsed the flow, real provider behavior has been observed, and generated content quality has been reviewed over more than curated proof checkpoints.
 
 ## Support Notes
 

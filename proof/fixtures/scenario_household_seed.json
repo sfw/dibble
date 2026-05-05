@@ -113,6 +113,114 @@
           "pace_preference": "average"
         }
       }
+    },
+    {
+      "alias": "reuse_source",
+      "display_name": "Riley Reuse Source",
+      "profile": {
+        "grade_level": "5",
+        "cognitive_traits": {
+          "working_memory": {
+            "value": 0.58,
+            "confidence": 0.75
+          }
+        },
+        "knowledge_state": {
+          "lo_mastery": {
+            "LO-FRACTIONS": 0.5
+          },
+          "kc_mastery": {
+            "KC-FRAC-FOUNDATION": 0.82,
+            "KC-FRAC-EQUIV": 0.36,
+            "KC-FRAC-COMPARE": 0.18
+          }
+        },
+        "affective_state": {
+          "engagement": "medium",
+          "frustration": "medium",
+          "confusion": "medium",
+          "confidence": 0.38
+        },
+        "cognitive_load": {
+          "intrinsic_load": 0.5,
+          "extraneous_load": 0.24,
+          "germane_load": 0.22,
+          "total_load": 0.62,
+          "capacity_utilization": 0.7
+        },
+        "metacognitive_state": {
+          "confidence_calibration": 0.48,
+          "help_seeking": "medium",
+          "help_seeking_effectiveness": 0.52,
+          "self_monitoring": 0.54
+        },
+        "learning_preferences": {
+          "modality_affinity": {
+            "textual": 0.84,
+            "visual": 0.7,
+            "interactive": 0.45
+          },
+          "example_domain_preferences": [
+            "science"
+          ],
+          "scaffolding_preference": "medium",
+          "pace_preference": "average"
+        }
+      }
+    },
+    {
+      "alias": "reuse_peer",
+      "display_name": "Quinn Reuse Peer",
+      "profile": {
+        "grade_level": "5",
+        "cognitive_traits": {
+          "working_memory": {
+            "value": 0.58,
+            "confidence": 0.75
+          }
+        },
+        "knowledge_state": {
+          "lo_mastery": {
+            "LO-FRACTIONS": 0.5
+          },
+          "kc_mastery": {
+            "KC-FRAC-FOUNDATION": 0.82,
+            "KC-FRAC-EQUIV": 0.36,
+            "KC-FRAC-COMPARE": 0.18
+          }
+        },
+        "affective_state": {
+          "engagement": "medium",
+          "frustration": "medium",
+          "confusion": "medium",
+          "confidence": 0.38
+        },
+        "cognitive_load": {
+          "intrinsic_load": 0.5,
+          "extraneous_load": 0.24,
+          "germane_load": 0.22,
+          "total_load": 0.62,
+          "capacity_utilization": 0.7
+        },
+        "metacognitive_state": {
+          "confidence_calibration": 0.48,
+          "help_seeking": "medium",
+          "help_seeking_effectiveness": 0.52,
+          "self_monitoring": 0.54
+        },
+        "learning_preferences": {
+          "modality_affinity": {
+            "textual": 0.84,
+            "visual": 0.7,
+            "interactive": 0.45
+          },
+          "example_domain_preferences": [
+            "science"
+          ],
+          "scaffolding_preference": "medium",
+          "pace_preference": "average"
+        }
+      }
     }
   ],
   "preferences": {

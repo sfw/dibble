@@ -7,4 +7,6 @@ __pycache__/
 node_modules/
 dibber.db
 dibble.db
+*.db-shm
+*.db-wal
 deploy/household/.env

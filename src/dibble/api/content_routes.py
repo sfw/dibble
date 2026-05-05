@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, status
 from fastapi.responses import StreamingResponse
 
@@ -26,6 +28,8 @@ from dibble.services.remediation_workflows import (
     RemediationWorkflowNotFoundError,
 )
 from dibble.services.streaming import encode_sse_event
+
+logger = logging.getLogger(__name__)
 
 
 def build_content_router(context: ApiContext) -> APIRouter:
@@ -62,6 +66,7 @@ def build_content_router(context: ApiContext) -> APIRouter:
                 code="learner_profile_not_found",
             ) from exc
         except RuntimeError as exc:
+            logger.exception("Content generation failed.")
             raise api_error(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=str(exc),

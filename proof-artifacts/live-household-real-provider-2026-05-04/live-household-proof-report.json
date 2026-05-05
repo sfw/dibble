@@ -1,0 +1,514 @@
+{
+  "base_url": "http://127.0.0.1:8000",
+  "generated_at": "2026-05-05T16:37:40.502391+00:00",
+  "household_id": "321ca841-1122-4987-8f8d-56c3dd6887f0",
+  "live_container_evidence": {
+    "backup": {
+      "path": "/Users/sfw/Development/dibble/proof-artifacts/live-household-real-provider-2026-05-04/dibble-live-household-backup.db",
+      "sha256": "641ae84dc18972339693182696d4423f70982c98c26e259cd3a6f5bcbf23609e",
+      "size_bytes": 2236416
+    },
+    "restart": {
+      "persistence_preserved": true,
+      "post_restart_ready_status": "ready",
+      "post_restart_signature": {
+        "household_id": "1bacc3ce-657a-4ca9-a237-7dca2e8dc2f2",
+        "household_name": null,
+        "learner_ids": [
+          "2a3433ad-737d-49e3-adb6-968f54d80476",
+          "98992f55-f4d7-4344-9440-575833191fa6",
+          "c11f0b18-ee54-41fc-b6bc-f46bd4823770",
+          "df3e66b2-d7c4-40bd-a3bc-747537526401"
+        ],
+        "pending_approval_count": 7,
+        "session_suggestion_count": 0
+      },
+      "pre_restart_signature": {
+        "household_id": "1bacc3ce-657a-4ca9-a237-7dca2e8dc2f2",
+        "household_name": null,
+        "learner_ids": [
+          "2a3433ad-737d-49e3-adb6-968f54d80476",
+          "98992f55-f4d7-4344-9440-575833191fa6",
+          "c11f0b18-ee54-41fc-b6bc-f46bd4823770",
+          "df3e66b2-d7c4-40bd-a3bc-747537526401"
+        ],
+        "pending_approval_count": 7,
+        "session_suggestion_count": 0
+      }
+    },
+    "restore": {
+      "post_restore_ready_status": "ready",
+      "post_restore_signature": {
+        "household_id": "1bacc3ce-657a-4ca9-a237-7dca2e8dc2f2",
+        "household_name": null,
+        "learner_ids": [
+          "2a3433ad-737d-49e3-adb6-968f54d80476",
+          "98992f55-f4d7-4344-9440-575833191fa6",
+          "c11f0b18-ee54-41fc-b6bc-f46bd4823770",
+          "df3e66b2-d7c4-40bd-a3bc-747537526401"
+        ],
+        "pending_approval_count": 7,
+        "session_suggestion_count": 0
+      },
+      "restore_preserved_state": true
+    }
+  },
+  "pre_seed_readiness": {
+    "cloud_library_enabled": false,
+    "configured": true,
+    "deployment_mode": "household_container",
+    "failed_checks": [],
+    "has_admin_user": false,
+    "llm_provider_status": "pass",
+    "llm_provider_summary": "Primary LLM provider credentials are configured.",
+    "mock_fallback_enabled": false,
+    "next_steps": [
+      "Create the initial admin/operator account from first-run setup."
+    ],
+    "status": "setup_required",
+    "warning_checks": [
+      "admin_user"
+    ]
+  },
+  "proof_households": {
+    "canonical": "321ca841-1122-4987-8f8d-56c3dd6887f0",
+    "longitudinal": "1bacc3ce-657a-4ca9-a237-7dca2e8dc2f2"
+  },
+  "readiness": {
+    "cloud_library_enabled": false,
+    "configured": true,
+    "deployment_mode": "household_container",
+    "failed_checks": [],
+    "has_admin_user": true,
+    "llm_provider_status": "pass",
+    "llm_provider_summary": "Primary LLM provider credentials are configured.",
+    "mock_fallback_enabled": false,
+    "next_steps": [],
+    "status": "ready",
+    "warning_checks": []
+  },
+  "run_stamp": "dc41e00a",
+  "scenarios": [
+    {
+      "result": "overview shows 4 learners and readiness is ready",
+      "scenario_id": "new_household_onboarding"
+    },
+    {
+      "result": "text -> diagram; inspected effective=diagram",
+      "scenario_id": "adaptive_modality_change"
+    },
+    {
+      "result": "rejected then approved modality_introduction; explanation=approval_blocked",
+      "scenario_id": "parent_governed_autonomy"
+    },
+    {
+      "result": "revisions 4->5; revisit_density=2; nodes=['recovery_scaffold', 'instruction']",
+      "scenario_id": "cross_session_planning_revision"
+    },
+    {
+      "result": "reuse_source generation=9f43a1bb-0eb6-40da-98ca-37beca84f99a; reuse_peer cache_hit=True; audit_entries=10",
+      "scenario_id": "shared_library_reuse_without_privacy_leakage"
+    }
+  ],
+  "timelines": [
+    {
+      "content_quality_samples": [
+        {
+          "cache_hit": false,
+          "content_type": "practice_problem",
+          "generation_id": "219e9111-103a-4766-b5bc-3657d255bf75",
+          "learner_alias": "avery",
+          "learning_session_id": "4f2a8345-e50a-47bf-84e4-a6f16fcd2165",
+          "modality": "text",
+          "phase_id": "session-1-stall",
+          "review_note": "Baseline practice sample captured after weak outcomes; review for curriculum shape, age fit, and absence of learner-private fields."
+        },
+        {
+          "cache_hit": false,
+          "content_type": "remedial_micro_module",
+          "generation_id": "56485433-49ab-4ed2-8758-b21cffe44cb9",
+          "learner_alias": "avery",
+          "learning_session_id": "4f2a8345-e50a-47bf-84e4-a6f16fcd2165",
+          "modality": "diagram",
+          "phase_id": "session-2-recovery-plan",
+          "review_note": "Recovery sample captured after mixed evidence; review that it targets the denominator-size misconception."
+        },
+        {
+          "cache_hit": false,
+          "content_type": "practice_problem",
+          "generation_id": "b76a93d1-8343-440f-b2fd-8c0b98966336",
+          "learner_alias": "avery",
+          "learning_session_id": "4f2a8345-e50a-47bf-84e4-a6f16fcd2165",
+          "modality": "text",
+          "phase_id": "session-3-recovery",
+          "review_note": "Recovery confirmation sample captured for longitudinal review."
+        },
+        {
+          "cache_hit": false,
+          "content_type": "worked_example",
+          "generation_id": "60d075c1-a54d-4d60-8512-585663d18f09",
+          "learner_alias": "reuse_source",
+          "learning_session_id": "d08a9a16-f219-4183-8296-0da3f52daae4",
+          "modality": "diagram",
+          "phase_id": "session-3-recovery",
+          "review_note": "Reusable source sample captured before the matching peer request."
+        },
+        {
+          "cache_hit": true,
+          "content_type": "worked_example",
+          "generation_id": "4ed14d88-e3fb-42ae-9f0e-6656ec63f112",
+          "learner_alias": "reuse_peer",
+          "learning_session_id": "253f9f62-9c52-4250-97a0-223892d17334",
+          "modality": "diagram",
+          "phase_id": "session-3-recovery",
+          "review_note": "Peer sample must report cache_hit=true to prove safe curriculum reuse."
+        }
+      ],
+      "phases": [
+        {
+          "content_samples": [],
+          "parent_decisions": [
+            {
+              "approval_id": "2745b985-a94d-4725-bff2-d4587dbf6710",
+              "approval_type": "modality_introduction",
+              "decision": "reject",
+              "previewed": true
+            }
+          ],
+          "phase_id": "day-0-baseline",
+          "proof_signal": "Governance was visible before learner delivery.",
+          "review_checkpoint": {
+            "active_revisit_density": 1,
+            "autonomous_blockers": [
+              "modality_introduction",
+              "trajectory_revision",
+              "high_autonomy_session"
+            ],
+            "blocked_review_preview_count": 6,
+            "degraded_trace_count": 16,
+            "pending_approval_count": 5,
+            "pending_review_queues": [
+              {
+                "count": 6,
+                "queue_key": "parent_approvals",
+                "summary": "Parent approval gates are blocking autonomous teaching changes."
+              }
+            ],
+            "phase_id": "day-0-baseline",
+            "planning_revision_count": 1,
+            "ready_status": "ready",
+            "recent_signal_count": 0,
+            "recent_trace_summaries": [
+              {
+                "harness": "autonomous_teacher",
+                "operation": "orchestrate_learner",
+                "reason_code": "approval_blocked",
+                "status": "success"
+              },
+              {
+                "harness": "within_session_control",
+                "operation": "session_control",
+                "reason_code": "session_created_from_planning",
+                "status": "success"
+              },
+              {
+                "harness": "autonomous_teacher",
+                "operation": "orchestrate_learner",
+                "reason_code": "approval_blocked",
+                "status": "success"
+              },
+              {
+                "harness": "within_session_control",
+                "operation": "session_control",
+                "reason_code": "session_created_from_planning",
+                "status": "success"
+              },
+              {
+                "harness": "autonomous_teacher",
+                "operation": "orchestrate_learner",
+                "reason_code": "approval_blocked",
+                "status": "success"
+              }
+            ],
+            "session_suggestion_count": 0,
+            "trace_count": 20
+          }
+        },
+        {
+          "content_samples": [
+            {
+              "cache_hit": false,
+              "content_type": "practice_problem",
+              "generation_id": "219e9111-103a-4766-b5bc-3657d255bf75",
+              "learner_alias": "avery",
+              "learning_session_id": "4f2a8345-e50a-47bf-84e4-a6f16fcd2165",
+              "modality": "text",
+              "phase_id": "session-1-stall",
+              "review_note": "Baseline practice sample captured after weak outcomes; review for curriculum shape, age fit, and absence of learner-private fields."
+            }
+          ],
+          "modality_inspection": {
+            "effective_plugin_id": "diagram",
+            "fallback_reason": null,
+            "policy_fallback_applied": false
+          },
+          "parent_decisions": [
+            {
+              "approval_id": "2745b985-a94d-4725-bff2-d4587dbf6710",
+              "approval_type": "modality_introduction",
+              "decision": "approve_after_prior_reject",
+              "previewed": true
+            },
+            {
+              "approval_id": "ede52859-673b-41b9-8aae-d545e7ee24b7",
+              "approval_type": "high_autonomy_session",
+              "decision": "approve",
+              "previewed": true
+            },
+            {
+              "approval_id": "9fc3e7ba-e083-4568-baae-f8dfdbbcda7e",
+              "approval_type": "trajectory_revision",
+              "decision": "approve",
+              "previewed": true
+            },
+            {
+              "approval_id": "ee8f9459-3dda-4c1d-b1fb-d36eddd8283a",
+              "approval_type": "high_autonomy_session",
+              "decision": "approve",
+              "previewed": true
+            }
+          ],
+          "phase_id": "session-1-stall",
+          "proof_signal": "Repeated weak observations created adaptation pressure and approval-gated recovery remained inspectable.",
+          "review_checkpoint": {
+            "active_revisit_density": 1,
+            "autonomous_blockers": [],
+            "blocked_review_preview_count": 12,
+            "degraded_trace_count": 18,
+            "pending_approval_count": 6,
+            "pending_review_queues": [
+              {
+                "count": 12,
+                "queue_key": "parent_approvals",
+                "summary": "Parent approval gates are blocking autonomous teaching changes."
+              }
+            ],
+            "phase_id": "session-1-stall",
+            "planning_revision_count": 3,
+            "ready_status": "ready",
+            "recent_signal_count": 5,
+            "recent_trace_summaries": [
+              {
+                "harness": "autonomous_teacher",
+                "operation": "orchestrate_learner",
+                "reason_code": "approval_blocked",
+                "status": "success"
+              },
+              {
+                "harness": "autonomous_teacher",
+                "operation": "orchestrate_learner",
+                "reason_code": "approval_blocked",
+                "status": "success"
+              },
+              {
+                "harness": "autonomous_teacher",
+                "operation": "orchestrate_learner",
+                "reason_code": "approval_blocked",
+                "status": "success"
+              },
+              {
+                "harness": "autonomous_teacher",
+                "operation": "orchestrate_learner",
+                "reason_code": "plan_generated",
+                "status": "success"
+              },
+              {
+                "harness": "autonomous_teacher",
+                "operation": "orchestrate_learner",
+                "reason_code": "approval_blocked",
+                "status": "success"
+              }
+            ],
+            "session_suggestion_count": 1,
+            "trace_count": 20
+          }
+        },
+        {
+          "content_samples": [
+            {
+              "cache_hit": false,
+              "content_type": "remedial_micro_module",
+              "generation_id": "56485433-49ab-4ed2-8758-b21cffe44cb9",
+              "learner_alias": "avery",
+              "learning_session_id": "4f2a8345-e50a-47bf-84e4-a6f16fcd2165",
+              "modality": "diagram",
+              "phase_id": "session-2-recovery-plan",
+              "review_note": "Recovery sample captured after mixed evidence; review that it targets the denominator-size misconception."
+            }
+          ],
+          "parent_decisions": [
+            {
+              "approval_id": "7a2ceb14-acc7-4c6e-a469-6d2eb1e81234",
+              "approval_type": "trajectory_revision",
+              "decision": "approve",
+              "previewed": true
+            }
+          ],
+          "phase_id": "session-2-recovery-plan",
+          "proof_signal": "Planning state changed after accumulated session evidence and remained readable from observability.",
+          "review_checkpoint": {
+            "active_revisit_density": 2,
+            "autonomous_blockers": [
+              "trajectory_revision"
+            ],
+            "blocked_review_preview_count": 12,
+            "degraded_trace_count": 20,
+            "pending_approval_count": 7,
+            "pending_review_queues": [
+              {
+                "count": 12,
+                "queue_key": "parent_approvals",
+                "summary": "Parent approval gates are blocking autonomous teaching changes."
+              }
+            ],
+            "phase_id": "session-2-recovery-plan",
+            "planning_revision_count": 4,
+            "ready_status": "ready",
+            "recent_signal_count": 7,
+            "recent_trace_summaries": [
+              {
+                "harness": "autonomous_teacher",
+                "operation": "orchestrate_learner",
+                "reason_code": "approval_blocked",
+                "status": "success"
+              },
+              {
+                "harness": "autonomous_teacher",
+                "operation": "orchestrate_learner",
+                "reason_code": "approval_blocked",
+                "status": "success"
+              },
+              {
+                "harness": "autonomous_teacher",
+                "operation": "orchestrate_learner",
+                "reason_code": "approval_blocked",
+                "status": "success"
+              },
+              {
+                "harness": "autonomous_teacher",
+                "operation": "orchestrate_learner",
+                "reason_code": "approval_blocked",
+                "status": "success"
+              },
+              {
+                "harness": "content_library",
+                "operation": "publish",
+                "reason_code": "verification_blocked_local_only",
+                "status": "degraded"
+              }
+            ],
+            "session_suggestion_count": 0,
+            "trace_count": 20
+          }
+        },
+        {
+          "content_samples": [
+            {
+              "cache_hit": false,
+              "content_type": "practice_problem",
+              "generation_id": "b76a93d1-8343-440f-b2fd-8c0b98966336",
+              "learner_alias": "avery",
+              "learning_session_id": "4f2a8345-e50a-47bf-84e4-a6f16fcd2165",
+              "modality": "text",
+              "phase_id": "session-3-recovery",
+              "review_note": "Recovery confirmation sample captured for longitudinal review."
+            },
+            {
+              "cache_hit": false,
+              "content_type": "worked_example",
+              "generation_id": "60d075c1-a54d-4d60-8512-585663d18f09",
+              "learner_alias": "reuse_source",
+              "learning_session_id": "d08a9a16-f219-4183-8296-0da3f52daae4",
+              "modality": "diagram",
+              "phase_id": "session-3-recovery",
+              "review_note": "Reusable source sample captured before the matching peer request."
+            },
+            {
+              "cache_hit": true,
+              "content_type": "worked_example",
+              "generation_id": "4ed14d88-e3fb-42ae-9f0e-6656ec63f112",
+              "learner_alias": "reuse_peer",
+              "learning_session_id": "253f9f62-9c52-4250-97a0-223892d17334",
+              "modality": "diagram",
+              "phase_id": "session-3-recovery",
+              "review_note": "Peer sample must report cache_hit=true to prove safe curriculum reuse."
+            }
+          ],
+          "parent_decisions": [],
+          "phase_id": "session-3-recovery",
+          "proof_signal": "Recovery, proven cross-learner library reuse, readiness, traces, and privacy audit are inspectable without database access.",
+          "review_checkpoint": {
+            "active_revisit_density": 2,
+            "autonomous_blockers": [
+              "high_autonomy_session"
+            ],
+            "blocked_review_preview_count": 12,
+            "degraded_trace_count": 25,
+            "pending_approval_count": 7,
+            "pending_review_queues": [
+              {
+                "count": 12,
+                "queue_key": "parent_approvals",
+                "summary": "Parent approval gates are blocking autonomous teaching changes."
+              }
+            ],
+            "phase_id": "session-3-recovery",
+            "planning_revision_count": 5,
+            "ready_status": "ready",
+            "recent_signal_count": 7,
+            "recent_trace_summaries": [
+              {
+                "harness": "autonomous_teacher",
+                "operation": "orchestrate_learner",
+                "reason_code": "approval_blocked",
+                "status": "success"
+              },
+              {
+                "harness": "autonomous_teacher",
+                "operation": "orchestrate_learner",
+                "reason_code": "approval_blocked",
+                "status": "success"
+              },
+              {
+                "harness": "autonomous_teacher",
+                "operation": "orchestrate_learner",
+                "reason_code": "approval_blocked",
+                "status": "success"
+              },
+              {
+                "harness": "autonomous_teacher",
+                "operation": "orchestrate_learner",
+                "reason_code": "approval_blocked",
+                "status": "success"
+              },
+              {
+                "harness": "content_library",
+                "operation": "lookup",
+                "reason_code": "remote_miss_local_fallback",
+                "status": "degraded"
+              }
+            ],
+            "session_suggestion_count": 0,
+            "trace_count": 20
+          }
+        }
+      ],
+      "privacy_audit": {
+        "entry_count": 19,
+        "forbidden_field_hits": []
+      },
+      "timeline_id": "longitudinal_fraction_recovery",
+      "title": "Longitudinal fraction recovery household rehearsal"
+    }
+  ]
+}

@@ -31,6 +31,28 @@ REQUIRED_STEP_KEYS = {
     "expected_observation",
     "proof_signal",
 }
+REQUIRED_TIMELINE_KEYS = {
+    "timeline_id",
+    "title",
+    "proof_focus",
+    "rehearsal_assets",
+    "household_narrative",
+    "phases",
+    "review_surfaces",
+    "longitudinal_success_criteria",
+    "remaining_poc_evidence",
+    "privacy_contract",
+}
+REQUIRED_TIMELINE_PHASE_KEYS = {
+    "phase_id",
+    "day",
+    "scenario_threads",
+    "learner_actions",
+    "system_expectations",
+    "parent_operator_review",
+    "content_quality_review",
+    "proof_signal",
+}
 PRIVATE_FIELD_TOKENS = {
     "learner_id",
     "student_id",
@@ -49,6 +71,12 @@ PRIVATE_FIELD_TOKENS = {
 def load_scenarios(scenario_dir: Path) -> list[dict[str, Any]]:
     return [
         json.loads(path.read_text()) for path in sorted(scenario_dir.glob("*.json"))
+    ]
+
+
+def load_timelines(timeline_dir: Path) -> list[dict[str, Any]]:
+    return [
+        json.loads(path.read_text()) for path in sorted(timeline_dir.glob("*.json"))
     ]
 
 
@@ -102,6 +130,53 @@ def validate_scenario(scenario: dict[str, Any]) -> list[str]:
     return errors
 
 
+def validate_timeline(timeline: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    timeline_id = str(timeline.get("timeline_id", "<missing>"))
+    missing = REQUIRED_TIMELINE_KEYS - set(timeline)
+    if missing:
+        errors.append(f"{timeline_id}: missing keys {sorted(missing)}")
+
+    for key in [
+        "proof_focus",
+        "rehearsal_assets",
+        "household_narrative",
+        "phases",
+        "review_surfaces",
+        "longitudinal_success_criteria",
+        "remaining_poc_evidence",
+    ]:
+        if not timeline.get(key):
+            errors.append(f"{timeline_id}: {key} must not be empty")
+
+    phases = timeline.get("phases", [])
+    if not isinstance(phases, list) or not phases:
+        errors.append(f"{timeline_id}: phases must not be empty")
+    for index, phase in enumerate(phases):
+        if not isinstance(phase, dict):
+            errors.append(f"{timeline_id}: phase {index} must be an object")
+            continue
+        missing_phase = REQUIRED_TIMELINE_PHASE_KEYS - set(phase)
+        if missing_phase:
+            errors.append(
+                f"{timeline_id}: phase {index} missing keys {sorted(missing_phase)}"
+            )
+
+    privacy_contract = timeline.get("privacy_contract", {})
+    if not isinstance(privacy_contract, dict):
+        errors.append(f"{timeline_id}: privacy_contract must be an object")
+        return errors
+    if not privacy_contract.get("container_private_fields"):
+        errors.append(f"{timeline_id}: container_private_fields must not be empty")
+    external_flows = privacy_contract.get("external_flows", [])
+    if not isinstance(external_flows, list) or not external_flows:
+        errors.append(f"{timeline_id}: external_flows must not be empty")
+        return errors
+    for flow in external_flows:
+        errors.extend(_validate_external_flow(timeline_id, flow))
+    return errors
+
+
 def _validate_external_flow(scenario_id: str, flow: Any) -> list[str]:
     if not isinstance(flow, dict):
         return [f"{scenario_id}: external flow must be an object"]
@@ -148,6 +223,21 @@ def validate_all(scenario_dir: Path) -> list[str]:
     return errors
 
 
+def validate_timeline_assets(timeline_dir: Path) -> list[str]:
+    timelines = load_timelines(timeline_dir)
+    errors: list[str] = []
+    seen_ids: set[str] = set()
+    repo_root = timeline_dir.resolve().parents[1]
+    for timeline in timelines:
+        timeline_id = str(timeline.get("timeline_id", "<missing>"))
+        if timeline_id in seen_ids:
+            errors.append(f"{timeline_id}: duplicate timeline_id")
+        seen_ids.add(timeline_id)
+        errors.extend(validate_timeline(timeline))
+        errors.extend(_validate_rehearsal_assets(repo_root, timeline))
+    return errors
+
+
 def _validate_rehearsal_assets(repo_root: Path, scenario: dict[str, Any]) -> list[str]:
     scenario_id = str(scenario.get("scenario_id", "<missing>"))
     assets = scenario.get("rehearsal_assets", [])
@@ -171,8 +261,16 @@ def main() -> int:
         default="proof/scenarios",
         help="Directory containing proof scenario JSON files.",
     )
+    parser.add_argument(
+        "--timeline-dir",
+        default="proof/timelines",
+        help="Directory containing longitudinal proof timeline JSON files.",
+    )
     args = parser.parse_args()
     errors = validate_all(Path(args.scenario_dir))
+    timeline_dir = Path(args.timeline_dir)
+    if timeline_dir.exists():
+        errors.extend(validate_timeline_assets(timeline_dir))
     if errors:
         for error in errors:
             print(error)

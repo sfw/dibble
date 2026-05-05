@@ -4,6 +4,10 @@ The canonical proof scenarios live in `proof/scenarios/*.json`. They are
 validated by `scripts/validate_proof_scenarios.py` and rehearsed against the
 household container with `scripts/rehearse_proof_scenarios.py`.
 
+Longitudinal proof timelines live in `proof/timelines/*.json`. They reuse the
+same seeded household and public API rehearsal runner, but organize the proof as
+multiple parent/operator review checkpoints over repeated learner sessions.
+
 Validate the scenario assets:
 
 ```bash
@@ -15,6 +19,20 @@ Run all five scenarios against a running household container:
 ```bash
 uv run python scripts/rehearse_proof_scenarios.py --base-url http://localhost:8000
 ```
+
+Run the longitudinal recovery timeline and write an operator review report:
+
+```bash
+uv run python scripts/rehearse_proof_scenarios.py \
+  --base-url http://localhost:8000 \
+  --timeline longitudinal_fraction_recovery \
+  --summary-file proof-longitudinal-report.json \
+  --operator-report-file proof-longitudinal-report.md
+```
+
+When `--timeline` is provided without `--scenario`, the runner executes the
+timeline only. Pass both flags when you want a single run to include selected
+canonical scenarios and the longitudinal timeline.
 
 If the container already has an admin user, pass the saved operator key:
 
@@ -36,6 +54,12 @@ The script seeds the runtime through public API paths only. It creates a parent,
 two learners, proof curriculum, learner profiles, household preferences, and an
 explicit first goal/trajectory. It does not require database edits.
 
+For the live household proof milestone, use
+`scripts/live_household_proof.py` instead of the lower-level rehearsal command.
+That wrapper runs these scenarios and the longitudinal timeline against the real
+Compose household service, then captures restart, backup, and restore evidence
+in the same operator report. See `docs/proof/live-household-proof.md`.
+
 ## Seeded Runtime
 
 Shared seed asset: `proof/fixtures/scenario_household_seed.json`.
@@ -45,6 +69,8 @@ Seeded participants:
 - Parent: Morgan Proof Parent
 - Learner A: Avery Proof Learner
 - Learner B: Blair Proof Learner
+- Reuse source: Riley Reuse Source
+- Reuse peer: Quinn Reuse Peer
 
 Seeded curriculum target:
 
@@ -144,14 +170,18 @@ Primary hooks:
 
 Execution path:
 
-- Generate a curriculum-shaped worked example for Avery.
-- Generate the same curriculum-shaped request for Blair.
+- Generate a curriculum-shaped worked example for Riley Reuse Source.
+- Generate the same curriculum-shaped request for Quinn Reuse Peer.
 - Inspect the library privacy audit.
 - Inspect content-library traces.
 
-Expected visible outcome: Blair receives a cache/library hit. The privacy audit
-reports no forbidden field hits and only sentinel student ids in reusable library
-templates.
+Expected visible outcome: Quinn receives a cache/library hit from Riley's
+matching request. Avery and Blair keep their intentionally different adaptive
+profiles for the longitudinal proof, while the reuse pair has identical
+curriculum-routing state so the cache-hit assertion proves cross-learner
+curriculum reuse rather than learner-specific route coincidence. The privacy
+audit reports no forbidden field hits and only sentinel student ids in reusable
+library templates.
 
 Primary hooks:
 
@@ -164,3 +194,51 @@ Primary hooks:
 A scenario is not considered passed because an endpoint returns `200`. It is
 passed only when the expected observation is visible to a parent or operator and
 the privacy contract still holds.
+
+## Longitudinal Timeline
+
+The first longitudinal proof asset is
+`proof/timelines/longitudinal_fraction_recovery.json`.
+
+Narrative:
+
+- Day 0: Morgan reviews the seeded household, pending approvals, `/ready`, and
+  `/api/observability/readiness` before learner work begins. One gated
+  autonomous action is previewed and rejected to prove the block matters.
+- Session 1: Avery receives equivalent-fraction practice and records repeated
+  weak outcomes. The operator inspects modality routing, readiness, pending
+  approvals, planning state, and the first content-quality sample.
+- Session 2: Avery receives a recovery step with visual-model context. Mixed
+  weak/strong evidence is recorded, planning is refreshed, remaining approvals
+  are previewed and approved, and the trajectory review must show accumulated
+  evidence, revision, or revisit-density change.
+- Session 3: Avery records a strong follow-up, then generates a curriculum-shaped
+  worked example with the same reusable request Blair will make. Blair's matching
+  request must return a cache/library hit. The operator reviews readiness, recent
+  traces, generated samples, and the library privacy audit.
+
+The timeline report captures, per phase:
+
+- deployment readiness status
+- release-readiness degraded trace count and pending review queues
+- blocked review preview count
+- pending approval and session suggestion counts
+- planning revision count, revisit density, and recent signal count
+- autonomous-teacher blockers
+- recent trace summaries
+- parent approval decisions
+- content-quality sample metadata
+- Quinn cache/library hit status for the reused sample
+- library privacy audit summary
+
+Longitudinal proof passes only when the timeline can be rehearsed without
+database edits, the review surfaces remain understandable across repeated
+sessions, planning/adaptation evidence changes over time, parent approval
+decisions remain enforceable, Quinn's reused sample reports a cache/library hit,
+captured content samples are reviewable, and the privacy audit remains clean
+after cross-learner reuse.
+
+This is still not full controlled-pilot confidence. Before calling the POC fully
+proven, we still need non-scripted parent comprehension checks, more than one
+household, real provider behavior under pilot load, and sustained review of
+generated content quality beyond curated checkpoints.

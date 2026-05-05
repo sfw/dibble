@@ -526,6 +526,9 @@ def test_chat_client_parses_openai_compatible_payload():
         api_key="secret",
         model="demo-model",
         timeout_seconds=12.5,
+        max_tokens=512,
+        thinking_enabled=False,
+        response_format_json=True,
         transport=transport,
     )
 
@@ -535,6 +538,9 @@ def test_chat_client_parses_openai_compatible_payload():
     assert completion.content.startswith('{"blocks"')
     assert captured["url"] == "https://example.test/v1/chat/completions"
     assert captured["payload"]["model"] == "demo-model"
+    assert captured["payload"]["max_tokens"] == 512
+    assert captured["payload"]["thinking"] == {"type": "disabled"}
+    assert captured["payload"]["response_format"] == {"type": "json_object"}
 
 
 def test_chat_client_retries_with_temperature_one_when_provider_requires_it():
@@ -568,6 +574,195 @@ def test_chat_client_retries_with_temperature_one_when_provider_requires_it():
 
     assert completion.finish_reason == "stop"
     assert temperatures == [0.2, 1.0]
+
+
+def test_chat_client_wraps_transport_disconnects():
+    def transport(url, payload, headers, timeout):
+        raise TimeoutError("provider stalled")
+
+    client = OpenAICompatibleChatClient(
+        api_base="https://example.test/v1",
+        api_key="secret",
+        model="demo-model",
+        transport=transport,
+    )
+
+    with pytest.raises(LLMClientError, match="transport failed"):
+        client.complete(system_prompt="sys", user_prompt="usr")
+
+
+def test_provider_retries_transient_client_transport_failure(
+    sample_curriculum_request,
+    sample_route,
+    sample_grounding,
+):
+    class FlakyClient(FakeClient):
+        def complete(
+            self,
+            *,
+            system_prompt: str,
+            user_prompt: str,
+            temperature: float | None = None,
+        ):
+            self.complete_calls += 1
+            if self.complete_calls == 1:
+                raise LLMClientError("LLM request transport failed: dropped")
+
+            class Result:
+                finish_reason = "stop"
+
+                def __init__(self) -> None:
+                    self.content = (
+                        '{"blocks":[{"kind":"summary","title":"Ready","body":"Body"}]}'
+                    )
+
+            return Result()
+
+    client = FlakyClient()
+    provider = LLMOrchestrationProvider(clients=[("primary", client)])
+
+    blocks = provider.generate(sample_curriculum_request, sample_route, sample_grounding)
+
+    assert client.complete_calls == 2
+    assert blocks[0].title == "Ready"
+
+
+def test_provider_retries_transient_provider_overload(
+    sample_curriculum_request,
+    sample_route,
+    sample_grounding,
+):
+    class OverloadedClient(FakeClient):
+        def complete(
+            self,
+            *,
+            system_prompt: str,
+            user_prompt: str,
+            temperature: float | None = None,
+        ):
+            self.complete_calls += 1
+            if self.complete_calls == 1:
+                raise LLMClientError(
+                    'LLM request failed with status 429: {"error":{"type":"engine_overloaded_error"}}'
+                )
+
+            class Result:
+                finish_reason = "stop"
+
+                def __init__(self) -> None:
+                    self.content = (
+                        '{"blocks":[{"kind":"summary","title":"Ready","body":"Body"}]}'
+                    )
+
+            return Result()
+
+    client = OverloadedClient()
+    provider = LLMOrchestrationProvider(clients=[("primary", client)])
+
+    blocks = provider.generate(sample_curriculum_request, sample_route, sample_grounding)
+
+    assert client.complete_calls == 2
+    assert blocks[0].title == "Ready"
+
+
+def test_provider_uses_configured_retry_attempts_for_overload(
+    sample_curriculum_request,
+    sample_route,
+    sample_grounding,
+):
+    class VeryOverloadedClient(FakeClient):
+        def complete(
+            self,
+            *,
+            system_prompt: str,
+            user_prompt: str,
+            temperature: float | None = None,
+        ):
+            self.complete_calls += 1
+            if self.complete_calls < 5:
+                raise LLMClientError(
+                    'LLM request failed with status 429: {"error":{"type":"engine_overloaded_error"}}'
+                )
+
+            class Result:
+                finish_reason = "stop"
+
+                def __init__(self) -> None:
+                    self.content = (
+                        '{"blocks":[{"kind":"summary","title":"Recovered","body":"Body"}]}'
+                    )
+
+            return Result()
+
+    client = VeryOverloadedClient()
+    provider = LLMOrchestrationProvider(
+        clients=[("primary", client)],
+        retry_attempts=5,
+    )
+
+    blocks = provider.generate(sample_curriculum_request, sample_route, sample_grounding)
+
+    assert client.complete_calls == 5
+    assert blocks[0].title == "Recovered"
+
+
+def test_provider_retries_transient_gateway_failure(
+    sample_curriculum_request,
+    sample_route,
+    sample_grounding,
+):
+    class GatewayClient(FakeClient):
+        def complete(
+            self,
+            *,
+            system_prompt: str,
+            user_prompt: str,
+            temperature: float | None = None,
+        ):
+            self.complete_calls += 1
+            if self.complete_calls == 1:
+                raise LLMClientError("LLM request failed with status 502: Bad Gateway")
+
+            class Result:
+                finish_reason = "stop"
+
+                def __init__(self) -> None:
+                    self.content = (
+                        '{"blocks":[{"kind":"summary","title":"Gateway recovered","body":"Body"}]}'
+                    )
+
+            return Result()
+
+    client = GatewayClient()
+    provider = LLMOrchestrationProvider(clients=[("primary", client)])
+
+    blocks = provider.generate(sample_curriculum_request, sample_route, sample_grounding)
+
+    assert client.complete_calls == 2
+    assert blocks[0].title == "Gateway recovered"
+
+
+def test_provider_extracts_json_blocks_from_wrapped_llm_text(
+    sample_curriculum_request,
+    sample_route,
+    sample_grounding,
+):
+    client = FakeClient(
+        """
+        Here is the requested content:
+
+        {
+          "blocks": [
+            {"kind": "summary", "title": "Ready", "body": "Body"}
+          ]
+        }
+        """
+    )
+    provider = LLMOrchestrationProvider(clients=[("primary", client)])
+
+    blocks = provider.generate(sample_curriculum_request, sample_route, sample_grounding)
+
+    assert blocks[0].title == "Ready"
 
 
 def test_chat_client_streams_openai_compatible_sse_chunks():

@@ -18,6 +18,9 @@ class SystemConfigValues(BaseModel):
     llm_model: str | None = None
     llm_timeout_seconds: float
     llm_temperature: float | None = None
+    llm_max_tokens: int | None = None
+    llm_thinking_enabled: bool | None = None
+    llm_response_format_json: bool
     llm_allow_mock_fallback: bool
     llm_secondary_api_base: str | None = None
     llm_secondary_api_key: str | None = None
@@ -25,6 +28,8 @@ class SystemConfigValues(BaseModel):
     llm_secondary_timeout_seconds: float | None = None
     llm_circuit_breaker_threshold: int
     llm_circuit_breaker_cooldown_seconds: float
+    llm_retry_backoff_seconds: float
+    llm_retry_attempts: int
     llm_selection_strategy: str
     prompt_library_version: str
     prompt_experiment_enabled: bool
@@ -66,6 +71,9 @@ class SystemConfigUpdateRequest(BaseModel):
     llm_model: str | None = None
     llm_timeout_seconds: float | None = None
     llm_temperature: float | None = None
+    llm_max_tokens: int | None = None
+    llm_thinking_enabled: bool | None = None
+    llm_response_format_json: bool | None = None
     llm_allow_mock_fallback: bool | None = None
     llm_secondary_api_base: str | None = None
     llm_secondary_api_key: str | None = None
@@ -73,6 +81,8 @@ class SystemConfigUpdateRequest(BaseModel):
     llm_secondary_timeout_seconds: float | None = None
     llm_circuit_breaker_threshold: int | None = None
     llm_circuit_breaker_cooldown_seconds: float | None = None
+    llm_retry_backoff_seconds: float | None = None
+    llm_retry_attempts: int | None = None
     llm_selection_strategy: str | None = None
     prompt_library_version: str | None = None
     prompt_experiment_enabled: bool | None = None

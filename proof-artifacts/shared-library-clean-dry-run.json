@@ -1,0 +1,49 @@
+{
+  "base_url": "http://localhost:8000",
+  "generated_at": "2026-05-04T15:26:53.006304+00:00",
+  "household_id": "c00ebdfc-bae1-4069-921d-aed04ad08336",
+  "pre_seed_readiness": {
+    "cloud_library_enabled": false,
+    "configured": true,
+    "deployment_mode": "household_container",
+    "failed_checks": [],
+    "has_admin_user": false,
+    "llm_provider_status": "warn",
+    "llm_provider_summary": "No LLM key is configured; deterministic mock fallback is active.",
+    "mock_fallback_enabled": true,
+    "next_steps": [
+      "Configure a real LLM provider before running pilot learners.",
+      "Create the initial admin/operator account from first-run setup."
+    ],
+    "status": "setup_required",
+    "warning_checks": [
+      "llm_provider",
+      "admin_user"
+    ]
+  },
+  "readiness": {
+    "cloud_library_enabled": false,
+    "configured": true,
+    "deployment_mode": "household_container",
+    "failed_checks": [],
+    "has_admin_user": true,
+    "llm_provider_status": "warn",
+    "llm_provider_summary": "No LLM key is configured; deterministic mock fallback is active.",
+    "mock_fallback_enabled": true,
+    "next_steps": [
+      "Configure a real LLM provider before running pilot learners."
+    ],
+    "status": "degraded",
+    "warning_checks": [
+      "llm_provider"
+    ]
+  },
+  "run_stamp": "29ab12ff",
+  "scenarios": [
+    {
+      "result": "reuse_source generation=c53b15d6-7c02-4178-9587-c5afcf28060d; reuse_peer cache_hit=True; audit_entries=3",
+      "scenario_id": "shared_library_reuse_without_privacy_leakage"
+    }
+  ],
+  "timelines": []
+}
