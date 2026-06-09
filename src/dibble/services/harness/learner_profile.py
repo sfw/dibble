@@ -12,6 +12,7 @@ from dibble.services.learner_state_calibration import LearnerStateCalibrationRes
 from dibble.services.observation_profile_update import ObservationProfileUpdater
 from dibble.services.observation_profile_update import ObservationProfileUpdateResult
 from dibble.services.protocols import ProfileStore
+from dibble.services.retention_scheduler import RetentionSchedulerService
 from dibble.services.socratic_profile_update import SocraticProfileUpdater
 from dibble.services.socratic_profile_update import SocraticProfileUpdateResult
 
@@ -58,6 +59,7 @@ class LearnerProfileHarness:
     profile_store: ProfileStore
     observation_profile_updater: ObservationProfileUpdater
     socratic_profile_updater: SocraticProfileUpdater
+    retention_scheduler: RetentionSchedulerService | None = None
 
     def upsert_profile(
         self, command: UpsertLearnerProfileCommand
@@ -88,6 +90,12 @@ class LearnerProfileHarness:
             recent_observations=evidence.recent_observations,
         )
         persisted_profile = self.profile_store.upsert(mastery_update.profile)
+        if self.retention_scheduler is not None and mastery_update.applied:
+            self.retention_scheduler.nominate_from_observation_writeback(
+                learner_id=persisted_profile.student_id,
+                observation=evidence.observation,
+                mastery_update=mastery_update,
+            )
         return ApplyObservationEvidenceResult(
             profile=persisted_profile,
             inferred_state=evidence.inferred_state,

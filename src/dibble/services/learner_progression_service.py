@@ -18,6 +18,7 @@ from dibble.services.protocols import (
     OutcomeStore,
     ProfileStore,
 )
+from dibble.services.retention_scheduler import RetentionSchedulerService
 from dibble.services.workflow_rationale import combine_rationales
 
 MASTERY_THRESHOLD = 0.8
@@ -60,6 +61,7 @@ class LearnerProgressionService:
     learner_flow_service: LearnerFlowService
     ordinary_mastery_signal_service: object | None = None
     quality_gate_signal_service: object | None = None
+    retention_scheduler_service: RetentionSchedulerService | None = None
 
     def build_for_student(
         self, *, student_id: UUID
@@ -185,7 +187,7 @@ class LearnerProgressionService:
                 "Current mapped curriculum outcomes appear sufficiently mastered."
             )
 
-        return LearnerCurriculumProgressionSummary(
+        summary = LearnerCurriculumProgressionSummary(
             status=status,
             flow_type=flow.flow_type,
             current_stage=flow.current_phase,
@@ -223,6 +225,12 @@ class LearnerProgressionService:
             rationale=rationale,
             updated_at=flow.updated_at or profile.updated_at,
         )
+        if self.retention_scheduler_service is not None:
+            self.retention_scheduler_service.nominate_from_progression_summary(
+                learner_id=student_id,
+                progression=summary,
+            )
+        return summary
 
     def _outcome_entry(
         self,

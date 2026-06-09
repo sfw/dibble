@@ -1,228 +1,293 @@
 # Dibble — Risk Register
 
-**Reference:** [DeepWiki — sfw/dibble](https://deepwiki.com/sfw/dibble) (commit `ef5c7960`)
-**Scoring:** Severity × Likelihood, both on a 1–5 scale. **Risk score** = S × L. Anything ≥ 16 is treated as a tier-1 risk.
+**Original audit source:** [DeepWiki — sfw/dibble](https://deepwiki.com/sfw/dibble) at commit `ef5c7960`  
+**Current-state update:** June 8, 2026  
+**Scoring:** Severity × Likelihood, both on a 1–5 scale. **Risk score** = S × L. Scores are directional; the tier groupings below reflect both score and current implementation priority, so some reduced items remain in higher-attention buckets when their residual risk still deserves near-term work.
 
-Severity is "if it happens, how bad is it for the product." Likelihood is "in the next 12 months under current trajectory."
+This document is now a **current-state register**, not a verbatim copy of the original audit. A few of the original findings were accurate at the time but are now partially or fully addressed in code. Those are marked explicitly below.
 
-The register groups risks into product/strategy, AI quality, learning-science, scalability/cost, security/compliance, and operations. Each risk has a recommended mitigation owner role (Product, Eng, Pedagogy, Ops, Security) and a primary mitigation.
+Status meanings:
+
+- **Active:** still materially true and should drive near-term work.
+- **Reduced:** the underlying concern is still worth tracking, but the original audit overstated it relative to the current codebase.
+- **Closed / stale:** the original audit claim no longer matches how the system works today.
 
 ---
 
-## Tier 1 (score ≥ 16) — fix before scaling
+## What changed since the original audit
 
-### R1 — Modality story does not match the product thesis
+The following items from the original audit no longer describe the system accurately:
+
+- **Cross-learner reuse is not absent anymore.** Dibble now has a curriculum-safe shared library path, exact-key cross-learner reuse, remote/local library abstraction, and outcome-aware ranking.
+- **Modality preference is no longer purely system-wide.** Routing now uses learner-scoped modality affinity plus learner-scoped durable routing priors.
+- **Math verification is no longer absent.** Dibble now has both `MathSanityRule` checks and a bounded symbolic linear-equation verifier, though broader subject coverage is still incomplete.
+- **Mock/provider posture is more visible.** `/ready` now surfaces provider readiness, mock fallback state, and embedder posture.
+- **Autonomous teacher is clearly a runtime subsystem.** It is no longer fair to describe it as an ambiguous internal harness.
+- **A retention scheduler now exists in stage-1 form.** Dibble can persist, nominate, and inspect retention-review candidates even though due review is not yet a first-class runtime action.
+
+The original audit is still strategically useful, but it should not be treated as a literal description of the current implementation.
+
+---
+
+## Tier 1 — highest-attention risks to address before scaling
+
+### R1 — Modality breadth still undershoots the product thesis
+- **Status:** Active
 - **Lens:** Multimodal generation
-- **Severity:** 5 — the central product claim is *"many different modalities."* Three modalities (text, narrative, SVG diagram) is not many.
-- **Likelihood:** 5 — this is the present state of the code.
+- **Severity:** 5
+- **Likelihood:** 5
 - **Score:** 25
-- **Evidence:** [4.5 Modality Plugins](https://deepwiki.com/sfw/dibble/4.5-modality-plugins). Only `text`, `narrative`, `diagram` plugins exist.
-- **Why it matters:** product positioning will not survive a serious demo.
-- **Mitigation (Product + Eng):** prioritize `audio` (TTS) and one interactive (Desmos/JSXGraph or sandboxed widget) modality plugin in the next quarter; map a 12-month modality roadmap to the strategic narrative.
-- **Watch-for trigger:** marketing/sales/demo conversations begin to feel constrained.
+- **Current evidence:** The modality plugin system is real, but the practical set is still `text`, `narrative`, and `diagram`.
+- **Why it matters:** The architecture supports modality growth, but the product thesis still sounds broader than the delivered experience.
+- **Mitigation (Product + Eng):** add one audio path and one genuinely interactive path, or deliberately narrow the product narrative.
+- **Watch-for trigger:** demos start feeling like “text plus formatting” rather than “many modalities.”
 
-### R2 — Cross-learner content reuse is absent; cost will run away with multimodal expansion
-- **Lens:** Scalability & cost
-- **Severity:** 4 — directly affects unit economics and subsidy of pilots.
-- **Likelihood:** 4 — adding video / audio / simulation will multiply per-interaction cost 3–10×.
-- **Score:** 16
-- **Evidence:** `generated_content` cache is keyed per-generation. No semantic dedup across learners.
-- **Mitigation (Eng):** introduce a content-addressable semantic cache (hash of `kc_id + difficulty_band + modality + grounding_hash + prompt_template_version`) separate from per-learner adaptive variants.
-- **Watch-for trigger:** weekly LLM spend / household > forecast.
-
-### R3 — Math correctness has no symbolic verification
+### R3 — Math correctness verification is stronger, but still not broad enough for a math-heavy product
+- **Status:** Reduced
 - **Lens:** AI quality
-- **Severity:** 5 — incorrect math in a K-12-shaped product is brand-defining damage.
-- **Likelihood:** 4 — frontier LLMs still produce wrong arithmetic at non-trivial rate, especially on multi-step.
-- **Score:** 20
-- **Evidence:** `ContentValidator` rules cover grounding, alignment, readability, instruction-block, accessibility. None evaluate arithmetic or algebra.
-- **Mitigation (Eng + Pedagogy):** implement `MathCorrectnessRule` using sympy. Reject blocks where computed answer ≠ stated answer. Flag unverifiable steps for review.
-- **Watch-for trigger:** any pilot reports incorrect math from the system.
+- **Severity:** 5
+- **Likelihood:** 3
+- **Score:** 15
+- **Current evidence:** Dibble now has `MathSanityRule` plus bounded symbolic checks for linear equations and arithmetic equalities. This is materially better than the earlier posture, but it is still not a full subject-aware verifier for richer math content.
+- **Why it matters:** For K-12 math, “mostly right” is not enough.
+- **Mitigation (Eng + Pedagogy):** extend the current verifier toward richer equation families, answer validation, and step-level checks where possible.
+- **Watch-for trigger:** any live pilot reports incorrect math or contradictory worked examples.
 
-### R4 — Knowledge-tracing model is unspecified; adaptation ceiling is unknown
+### R4 — The knowledge-tracing ceiling is still heuristic
+- **Status:** Active
 - **Lens:** Adaptive learning loop
-- **Severity:** 4 — caps how good the product can ever become at adaptation.
-- **Likelihood:** 4 — the wiki only says "trend-aware logic and mastery decay," which suggests heuristics.
+- **Severity:** 4
+- **Likelihood:** 4
 - **Score:** 16
-- **Evidence:** [3.2 Mastery Gates](https://deepwiki.com/sfw/dibble/3.2-learner-progression-and-mastery-gates).
-- **Mitigation (Eng + Pedagogy):** confirm what's actually in `progression_ownership.py`. If heuristic, plan migration to BKT-per-KC for state and IRT for item selection inside Socratic assessments. Validate against held-out outcome data.
-- **Watch-for trigger:** false-positive mastery (learners advancing then failing later) above an internal threshold.
+- **Current evidence:** The system now has much richer state, outcome tracking, and progression evidence than the original audit assumed. But the mastery and progression loop is still fundamentally heuristic / threshold / weighted-history driven rather than a formal KT model.
+- **Why it matters:** This likely caps adaptation quality and makes long-run tuning harder.
+- **Mitigation (Eng + Pedagogy):** document the current model clearly, define target failure metrics, and evaluate migration options such as BKT-per-KC or another explicit learner-state model.
+- **Watch-for trigger:** repeated false-positive mastery or repeated “advance then fail later” patterns.
 
-### R5 — Modality preference is system-wide, not per-learner
-- **Lens:** Personalization
-- **Severity:** 4 — direct gap against the *"adapted for the learner"* clause of the goal.
-- **Likelihood:** 4 — substrate exists but no learner-scoped term in routing.
-- **Score:** 16
-- **Evidence:** [7.3 — Modality Routing Inspection](https://deepwiki.com/sfw/dibble/7.3-operational-observability-and-telemetry) shows scoring components are heuristic + prior + repetition penalty; no per-learner term documented.
-- **Mitigation (Eng):** add `ModalityPreferenceState` to `LearnerProfileV2`; have the existing outcome scorer update it; bias the routing prior with a learner-scoped term.
-- **Watch-for trigger:** learner research or pilot feedback that "the system picks the same kind of content even when I struggle with it."
-
-### R6 — `LocalHashEmbedder` will silently degrade RAG in misconfigured deployments
+### R6 — Embedding fallback is safer now, but retrieval quality can still degrade if embedder posture is weak
+- **Status:** Reduced
 - **Lens:** AI orchestration
-- **Severity:** 5 — RAG drives all grounding; if it fails silently, content quality collapses.
-- **Likelihood:** 4 — easy to misconfigure; nothing in the wiki suggests boot-time enforcement.
-- **Score:** 20
-- **Evidence:** [4.4](https://deepwiki.com/sfw/dibble/4.4-content-moderation-validation-and-rag-retrieval) — embedder is `LocalHashEmbedder` or `OpenAICompatibleEmbedder`; the former is for tests.
-- **Mitigation (Eng + Ops):** make `bootstrap` refuse to enter `production` mode without a real embedder. Surface embedder identity in `/ready`. Emit a warning into telemetry when hash-embedder is active.
-- **Watch-for trigger:** retrieval-relevance metrics drop without an upstream change.
+- **Severity:** 5
+- **Likelihood:** 2
+- **Score:** 10
+- **Current evidence:** Dibble now surfaces embedder identity in `/ready`, treats local-hash embeddings as not-ready for real-provider household/managed runtimes, and provides stronger setup guidance. The remaining risk is degraded retrieval quality in fallback or misconfigured environments, not silent invisibility.
+- **Why it matters:** Retrieval quality is a hidden dependency for most of the content pipeline.
+- **Mitigation (Eng + Ops):** keep failing closed for strict runtime modes, and add stronger degraded telemetry and trend visibility when fallback embedding is used in non-strict environments.
+- **Watch-for trigger:** retrieval or grounding quality drops without visible provider or prompt changes.
+
+### R15 — Offline content-quality evaluation exists now, but coverage is still narrow
+- **Status:** Reduced
+- **Lens:** AI quality / release process
+- **Severity:** 4
+- **Likelihood:** 3
+- **Score:** 12
+- **Current evidence:** Dibble now has an offline content-quality eval harness plus a real golden corpus and regression command. The remaining gap is breadth and depth of corpus coverage, not absence of a harness.
+- **Why it matters:** Prompt/model changes can still regress content quality without a fast automated gate.
+- **Mitigation (Eng + Pedagogy):** grow the corpus across more grades, intervention types, and failure patterns, and make it part of every provider / prompt / template change path.
+- **Watch-for trigger:** content quality regressions are detected only through manual review or pilot usage.
 
 ---
 
-## Tier 2 (score 9–15) — fix before broad release
+## Tier 2 — important follow-on work before broad release
 
-### R7 — No course-scale narrative coherence layer
-- **Lens:** Multimodal generation, Pedagogy
+### R2 — Cross-learner reuse exists, but semantic dedup is still missing
+- **Status:** Reduced
+- **Lens:** Scalability & cost
 - **Severity:** 4
 - **Likelihood:** 3
 - **Score:** 12
-- **Mitigation:** introduce a `Course` first-class entity and a course-architect planning step that emits cross-KC narrative grounding (running examples, metaphors, characters) consumed by per-KC generation.
+- **Current evidence:** Dibble now supports curriculum-safe shared library reuse, exact-key cache reuse across learners, and ranked candidate selection. What it does not yet have is broader semantic dedup across near-equivalent requests.
+- **Mitigation (Eng):** introduce a second-layer semantic reuse mechanism above exact curriculum-safe selection keys.
+- **Watch-for trigger:** LLM spend rises materially even though many requests are near-identical in curricular shape.
 
-### R8 — Single SQLite for everything will hit write contention as modalities multiply
-- **Lens:** Scalability & cost
-- **Severity:** 3 — recoverable with a swap; the protocol abstraction makes this clean.
-- **Likelihood:** 4 — predictive warming + audio + video generation in parallel = many concurrent writers.
+### R5 — Learner-specific modality state exists, but the preference model is still shallow
+- **Status:** Reduced
+- **Lens:** Personalization
+- **Severity:** 3
+- **Likelihood:** 4
 - **Score:** 12
-- **Mitigation (Eng):** Postgres + pgvector adapter behind the existing `protocols.py` interfaces for the multi-tenant path. Keep SQLite for households.
+- **Current evidence:** Modality routing already uses learner-scoped affinities, priors, and recent outcomes. The remaining gap is that this preference model is still relatively lightweight and may not capture durable learner-specific modality strategy well.
+- **Mitigation (Eng):** deepen learner-scoped modality preference state and calibrate it against repeated outcome evidence.
+- **Watch-for trigger:** pilots show the system rotating modalities, but not in ways that feel meaningfully individualized.
 
-### R9 — No generation-budget primitive
+### R7 — No strong course-scale narrative coherence layer
+- **Status:** Active
+- **Lens:** Pedagogy / generation
+- **Severity:** 4
+- **Likelihood:** 3
+- **Score:** 12
+- **Mitigation:** add a course-architect planning layer or other durable narrative scaffolding above per-KC generation.
+
+### R8 — Single SQLite architecture may still become a concurrency bottleneck in managed deployments
+- **Status:** Active
 - **Lens:** Scalability & cost
 - **Severity:** 3
 - **Likelihood:** 4
 - **Score:** 12
-- **Mitigation:** `GenerationBudgetController(learner, modality, KC) → token_budget`; hard-stop at threshold and fall back to a cheaper modality.
+- **Mitigation (Eng):** keep SQLite for households, but add a Postgres/pgvector-backed managed path behind existing protocol seams.
 
-### R10 — No symbolic / domain-specific verification beyond text rules
+### R9 — No explicit generation-budget controller
+- **Status:** Active
+- **Lens:** Scalability & cost
+- **Severity:** 3
+- **Likelihood:** 4
+- **Score:** 12
+- **Mitigation:** add `GenerationBudgetController` with modality-aware and household-aware hard limits and cheaper fallbacks.
+
+### R10 — Domain-specific verification remains thin outside basic text and arithmetic checks
+- **Status:** Active
 - **Lens:** AI quality
 - **Severity:** 4
 - **Likelihood:** 3
 - **Score:** 12
-- **Mitigation (Eng + Pedagogy):** in addition to math, add code-correctness (sandboxed run), unit/dimension checks for physics, ChemicalEquationBalanceRule for chemistry.
+- **Mitigation:** layer in subject-specific validators for math, code, unit checking, chemistry, and richer diagram verification where relevant.
 
-### R11 — Misconception detector relies on term-normalization; misses paraphrase
+### R11 — Misconception detection likely misses paraphrase and deeper semantic variants
+- **Status:** Active
 - **Lens:** Adaptive learning loop
 - **Severity:** 3
 - **Likelihood:** 4
 - **Score:** 12
-- **Evidence:** [5 Assessment & Remediation](https://deepwiki.com/sfw/dibble/5-assessment-and-remediation) — `_normalize_terms` term match.
-- **Mitigation:** layer in embedding-based misconception clustering with the existing embedder; learn a misconception lexicon over time.
+- **Mitigation:** add embedding-assisted misconception clustering and a learned misconception lexicon.
 
-### R12 — No spaced-repetition primitive; long-term retention is left to "mastery decay"
+### R12 — Retention scheduling exists in stage 1, but due review is not yet a first-class runtime behavior
+- **Status:** Reduced
 - **Lens:** Pedagogy
 - **Severity:** 3
-- **Likelihood:** 4
-- **Score:** 12
-- **Mitigation:** `RetentionScheduler` (FSRS / SM-2) emits review candidates into the predictive warm queue.
+- **Likelihood:** 3
+- **Score:** 9
+- **Current evidence:** Dibble now has durable retention-review candidates, nomination from observation/progression/planning evidence, suppression rules, and admin inspectability. The remaining gap is stage-2 runtime integration into planning, warming, and household-facing suggestion flows.
+- **Mitigation:** complete retention scheduler stage 2 so due reviews can shape runtime planning and pre-generation in a bounded, explainable way.
 
-### R13 — Telemetry is local-file; no central observability for managed deployments
+### R13 — Central observability is still thin for managed deployments
+- **Status:** Reduced
 - **Lens:** Operations
 - **Severity:** 3
 - **Likelihood:** 3
 - **Score:** 9
-- **Mitigation (Ops):** pluggable telemetry export (OTLP). Default to local files for sovereign households.
+- **Current evidence:** Dibble now has much stronger trace, readiness, audit, and rollout observability than the original audit assumed. The remaining gap is export / centralization, not absence.
+- **Mitigation (Ops):** add pluggable OTLP or another managed export path while keeping local-first defaults.
 
-### R14 — Mock LLM fallback could silently serve mock content in production
-- **Lens:** AI orchestration / Operations
-- **Severity:** 4
-- **Likelihood:** 2 (dependent on misconfiguration)
-- **Score:** 8 (just below Tier 2; flagged anyway)
-- **Mitigation (Eng + Ops):** config-gate `MockLLMProvider` use behind a `production_allow_mock=false` setting. Emit prominent telemetry when mock is active. Surface in `/ready`.
-
-### R15 — No content-quality offline eval harness
-- **Lens:** AI orchestration / quality
-- **Severity:** 4
-- **Likelihood:** 3
-- **Score:** 12
-- **Mitigation:** golden corpus of (KC, grade, intervention_type, modality) → expected-properties; runs on every prompt-template / model change.
-
-### R16 — Inline-SVG diagram path will produce poor visuals at scale
-- **Lens:** Multimodal generation / AI quality
+### R14 — Mock fallback production risk is reduced but still configuration-sensitive
+- **Status:** Reduced
+- **Lens:** AI orchestration / operations
 - **Severity:** 3
-- **Likelihood:** 4
-- **Score:** 12
-- **Mitigation:** replace LLM-generated raw SVG with structured DSLs the LLM is good at producing — KaTeX/MathJax for equations, Desmos JSON for graphs, JSXGraph for geometry, Vega-Lite for data viz. Renderer in the frontend.
-
----
-
-## Tier 3 (score 4–8) — track and fix as you can
-
-### R17 — `AffectiveState` and `CognitiveLoadState` measurement model not documented
-- **Severity:** 3 — affect-driven adaptations may be miscalibrated
 - **Likelihood:** 2
 - **Score:** 6
-- **Mitigation:** document the proxy inputs or learned classifier; bring it into outcome-scoring loop.
+- **Current evidence:** Mock fallback is now surfaced in readiness and deployment docs, and live proof explicitly disables it. The remaining risk is misconfiguration, not silent invisibility.
+- **Mitigation (Eng + Ops):** make managed/production modes fail closed unless mock fallback is explicitly and deliberately allowed.
 
-### R18 — No multimodal *input* (image, audio, handwriting)
+### R16 — Narrow SVG hardening reduced the immediate diagram risk, but raw SVG remains a ceiling
+- **Status:** Reduced
+- **Lens:** Multimodal generation / AI quality
 - **Severity:** 3
 - **Likelihood:** 3
 - **Score:** 9
-- **Mitigation:** Whisper STT for voice; vision-LLM grading for handwritten work; canvas input primitive on the frontend.
+- **Current evidence:** Dibble now constrains supported diagram shapes, validates SVG structure and accessibility more aggressively, and uses a stronger fallback. The remaining risk is semantic fidelity and long-run expressiveness, not totally unconstrained SVG output.
+- **Mitigation:** keep the narrowed SVG path for now, and only move to structured renderers if proof or pilot evidence shows the hardened path is still insufficient.
 
-### R19 — No interest / locale / cultural personalization
-- **Severity:** 2 — engagement effect is real but not blocking
-- **Likelihood:** 4
-- **Score:** 8
-- **Mitigation:** add `interests` vector and `locale` to profile; pass into prompt context; build per-locale example libraries.
+---
 
-### R20 — Compliance posture (FERPA / COPPA / GDPR) not fully documented
-- **Severity:** 4
-- **Likelihood:** 2 — household-first model with local data limits exposure
-- **Score:** 8
-- **Mitigation:** publish a compliance one-pager; expand `CurriculumLibraryPrivacyAudit` to cover learner-record audit; document data residency and deletion.
+## Tier 3 (track, but not the highest-leverage next work)
 
-### R21 — No PWA / offline learner experience
-- **Severity:** 2
-- **Likelihood:** 3
-- **Score:** 6
-- **Mitigation:** PWA shell with pre-warmed content for the next N steps; tolerated-offline session that syncs on reconnect.
-
-### R22 — Frontend is a thin renderer with no client-side bias / parallelization
-- **Severity:** 2
-- **Likelihood:** 3
-- **Score:** 6
-- **Mitigation:** keep the backend-owns-logic principle but allow thin client-side optimistic interactions (e.g., MCQ check) so the loop feels instantaneous. Backend remains source of truth.
-
-### R23 — `prior_score` source unverified; could be over-weighted at small N
+### R17 — Measurement model for affective and cognitive-load state still needs clearer documentation
+- **Status:** Active
 - **Severity:** 3
 - **Likelihood:** 2
 - **Score:** 6
-- **Mitigation:** verify Bayesian smoothing in `ModalityRoutingHarness`; ensure modalities don't get penalized into oblivion at low traffic.
+- **Mitigation:** document proxies, confidence, and update mechanics, then tie calibration back to outcome data.
 
-### R24 — No bias / fairness audit on generated content
-- **Severity:** 4 — child-facing content
+### R18 — No multimodal input path yet
+- **Status:** Active
+- **Severity:** 3
+- **Likelihood:** 3
+- **Score:** 9
+- **Mitigation:** add voice, image, handwriting, or canvas input only when it strengthens a concrete learner workflow.
+
+### R19 — Interest / locale / cultural personalization remains shallow
+- **Status:** Active
+- **Severity:** 2
+- **Likelihood:** 4
+- **Score:** 8
+- **Mitigation:** extend learner profile and example libraries with locale and interest-aware variation.
+
+### R20 — Compliance posture is still not fully documented
+- **Status:** Active
+- **Severity:** 4
 - **Likelihood:** 2
 - **Score:** 8
-- **Mitigation:** bias-pattern rule (gender, race, ability stereotypes in word problems and narratives); periodic audit corpus.
+- **Mitigation:** publish a clear FERPA / COPPA / GDPR posture memo and data-handling summary.
 
-### R25 — `Autonomous Teacher Harness` purpose / runtime use unclear from wiki
+### R21 — No offline/PWA learner experience
+- **Status:** Active
 - **Severity:** 2
+- **Likelihood:** 3
+- **Score:** 6
+- **Mitigation:** only prioritize if household reliability or field conditions make this important.
+
+### R22 — Frontend remains intentionally thin
+- **Status:** Active but acceptable
+- **Severity:** 2
+- **Likelihood:** 3
+- **Score:** 6
+- **Mitigation:** preserve backend-owned logic, but allow narrowly scoped low-risk optimistic UX where it meaningfully improves responsiveness.
+
+### R23 — Modality prior weighting may still be brittle at low evidence counts
+- **Status:** Active
+- **Severity:** 3
 - **Likelihood:** 2
-- **Score:** 4
-- **Mitigation:** clarify if this is a runtime system or a test/eval harness. Treat as internal QA tool unless documented otherwise.
+- **Score:** 6
+- **Mitigation:** keep tuning weak-evidence fallbacks and verify smoothing behavior with small-sample cohorts.
+
+### R24 — No explicit bias/fairness audit on generated content
+- **Status:** Active
+- **Severity:** 4
+- **Likelihood:** 2
+- **Score:** 8
+- **Mitigation:** add bias-pattern rules and periodic audit corpora for child-facing content.
+
+### R25 — Autonomous teacher runtime ambiguity is closed
+- **Status:** Closed / stale
+- **Severity:** 1
+- **Likelihood:** 1
+- **Score:** 1
+- **Current evidence:** The autonomous teacher is now a clear runtime subsystem used through household and learner workspace flows.
+- **Mitigation:** none needed beyond documentation hygiene.
 
 ---
 
-## Risk heatmap
+## Revised heatmap summary
 
-Rows are likelihood (L), columns are severity (S). Risk score = S × L. Tier-1 cells (score ≥ 16) are **bolded**.
+### Tier 1 — act this quarter
 
-| L \ S | S=1 | S=2 | S=3 | S=4 | S=5 |
-|---|---|---|---|---|---|
-| **L=5** | — | — | — | — | **R1** (25) |
-| **L=4** | — | R19 | R8, R9, R11, R12, R16 | **R2, R4, R5** (16) | **R3, R6** (20) |
-| **L=3** | — | R21, R22 | R13, R18 | R7, R10, R15 | — |
-| **L=2** | — | R25 | R17, R23 | R14, R20, R24 | — |
-| **L=1** | — | — | — | — | — |
+1. **R1:** modality breadth vs thesis
+2. **R3:** stronger math correctness verification
+3. **R6:** production-safe embedder enforcement and visibility
+4. **R15:** offline content-quality eval harness
+5. **R4:** formalize/document the knowledge-tracing path and decide whether to evolve beyond heuristics
 
-**Tier-1 (≥16):** R1 (25), R3 (20), R6 (20), R2 (16), R4 (16), R5 (16) — six risks.
+### Tier 2 — important, but no longer emergency
+
+1. **R2:** semantic reuse above exact curriculum-safe reuse
+2. **R5:** deepen learner-specific modality preference modeling
+3. **R8:** managed-deployment database path
+4. **R9:** generation-budget control
+5. **R16:** structured diagram rendering
 
 ---
 
-## Top 5 to act on this quarter
+## Practical conclusion
 
-1. **R1 + R5 together:** ship audio (TTS) + interactive (Desmos/JSXGraph) modalities, *and* per-learner modality preference.
-2. **R3:** `MathCorrectnessRule` (sympy).
-3. **R6:** boot-time enforcement of a real embedder for production mode.
-4. **R2:** semantic cross-learner content cache.
-5. **R4:** confirm and document the knowledge-tracing model; plan BKT migration if heuristic.
+The original audit was valuable, but the current codebase is meaningfully stronger than that snapshot implied:
 
-These five address the most visible gaps against the stated product goal and the most damaging quality risks.
+- rollout, observability, readiness, and governance are much better
+- curriculum-safe shared library reuse is real
+- learner-scoped modality adaptation is real
+- live proof and operational hardening have reduced several deployment risks
+
+The highest-leverage remaining risks are now less about missing architecture and more about:
+
+- **quality ceilings** (`R3`, `R15`, `R16`)
+- **adaptation ceilings** (`R4`, `R5`, `R11`, `R12`)
+- **production safeguards** (`R6`, `R8`, `R9`, `R20`)
+- **product-thesis credibility** (`R1`, `R18`)

@@ -23,6 +23,7 @@ from dibble.models.observability import (
     ReleaseReadinessSnapshot,
 )
 from dibble.models.planning import ActivePlanningState
+from dibble.models.retention import RetentionReviewCandidate
 from dibble.models.telemetry import AuditEvent, TelemetrySnapshot
 
 
@@ -206,6 +207,34 @@ def build_observability_router(context: ApiContext) -> APIRouter:
                 code="planning_state_not_found",
             )
         return ActivePlanningState(goal=planning.goal, trajectory=planning.trajectory)
+
+    @router.get(
+        "/observability/adaptation/retention/{student_id}/due",
+        response_model=list[RetentionReviewCandidate],
+        dependencies=context.deps("admin"),
+    )
+    def get_due_retention_reviews(
+        student_id: UUID,
+        limit: int = 20,
+    ) -> list[RetentionReviewCandidate]:
+        return services.retention_scheduler_service.due_reviews_for_student(
+            learner_id=student_id,
+            limit=max(1, min(limit, 100)),
+        )
+
+    @router.get(
+        "/observability/adaptation/retention/{student_id}/scheduled",
+        response_model=list[RetentionReviewCandidate],
+        dependencies=context.deps("admin"),
+    )
+    def get_scheduled_retention_reviews(
+        student_id: UUID,
+        limit: int = 20,
+    ) -> list[RetentionReviewCandidate]:
+        return services.retention_scheduler_service.scheduled_reviews_for_student(
+            learner_id=student_id,
+            limit=max(1, min(limit, 100)),
+        )
 
     @router.get(
         "/observability/adaptation/autonomous-teacher/{household_id}/{learner_id}",

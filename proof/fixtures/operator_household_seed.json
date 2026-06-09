@@ -1,0 +1,392 @@
+{
+  "household_name": "Operator Review Household",
+  "parent": {
+    "display_name": "Jordan Operator Parent",
+    "role": "parent"
+  },
+  "learners": [
+    {
+      "alias": "avery",
+      "display_name": "Sam Operator Learner",
+      "profile": {
+        "grade_level": "5",
+        "cognitive_traits": {
+          "working_memory": {
+            "value": 0.46,
+            "confidence": 0.72
+          }
+        },
+        "knowledge_state": {
+          "lo_mastery": {
+            "LO-FRACTIONS": 0.42
+          },
+          "kc_mastery": {
+            "KC-FRAC-FOUNDATION": 0.74,
+            "KC-FRAC-EQUIV": 0.24,
+            "KC-FRAC-COMPARE": 0.1
+          }
+        },
+        "affective_state": {
+          "engagement": "low",
+          "frustration": "high",
+          "confusion": "high",
+          "confidence": 0.22
+        },
+        "cognitive_load": {
+          "intrinsic_load": 0.58,
+          "extraneous_load": 0.36,
+          "germane_load": 0.14,
+          "total_load": 0.92,
+          "capacity_utilization": 0.94
+        },
+        "metacognitive_state": {
+          "confidence_calibration": 0.28,
+          "help_seeking": "low",
+          "help_seeking_effectiveness": 0.36,
+          "self_monitoring": 0.38
+        },
+        "learning_preferences": {
+          "modality_affinity": {
+            "textual": 0.64,
+            "visual": 0.88,
+            "interactive": 0.52
+          },
+          "example_domain_preferences": [
+            "cooking",
+            "maps"
+          ],
+          "scaffolding_preference": "high",
+          "pace_preference": "slower_than_average"
+        }
+      }
+    },
+    {
+      "alias": "blair",
+      "display_name": "Taylor Operator Learner",
+      "profile": {
+        "grade_level": "6",
+        "cognitive_traits": {
+          "working_memory": {
+            "value": 0.68,
+            "confidence": 0.7
+          }
+        },
+        "knowledge_state": {
+          "lo_mastery": {
+            "LO-FRACTIONS": 0.64
+          },
+          "kc_mastery": {
+            "KC-FRAC-FOUNDATION": 0.9,
+            "KC-FRAC-EQUIV": 0.58,
+            "KC-FRAC-COMPARE": 0.32
+          }
+        },
+        "affective_state": {
+          "engagement": "high",
+          "frustration": "low",
+          "confusion": "low",
+          "confidence": 0.62
+        },
+        "cognitive_load": {
+          "intrinsic_load": 0.42,
+          "extraneous_load": 0.18,
+          "germane_load": 0.32,
+          "total_load": 0.48,
+          "capacity_utilization": 0.58
+        },
+        "metacognitive_state": {
+          "confidence_calibration": 0.62,
+          "help_seeking": "medium",
+          "help_seeking_effectiveness": 0.64,
+          "self_monitoring": 0.66
+        },
+        "learning_preferences": {
+          "modality_affinity": {
+            "textual": 0.78,
+            "visual": 0.72,
+            "interactive": 0.58
+          },
+          "example_domain_preferences": [
+            "sports",
+            "science"
+          ],
+          "scaffolding_preference": "medium",
+          "pace_preference": "average"
+        }
+      }
+    },
+    {
+      "alias": "reuse_source",
+      "display_name": "Casey Operator Source",
+      "profile": {
+        "grade_level": "5",
+        "cognitive_traits": {
+          "working_memory": {
+            "value": 0.56,
+            "confidence": 0.74
+          }
+        },
+        "knowledge_state": {
+          "lo_mastery": {
+            "LO-FRACTIONS": 0.5
+          },
+          "kc_mastery": {
+            "KC-FRAC-FOUNDATION": 0.82,
+            "KC-FRAC-EQUIV": 0.36,
+            "KC-FRAC-COMPARE": 0.18
+          }
+        },
+        "affective_state": {
+          "engagement": "medium",
+          "frustration": "medium",
+          "confusion": "medium",
+          "confidence": 0.38
+        },
+        "cognitive_load": {
+          "intrinsic_load": 0.5,
+          "extraneous_load": 0.24,
+          "germane_load": 0.22,
+          "total_load": 0.62,
+          "capacity_utilization": 0.7
+        },
+        "metacognitive_state": {
+          "confidence_calibration": 0.48,
+          "help_seeking": "medium",
+          "help_seeking_effectiveness": 0.52,
+          "self_monitoring": 0.54
+        },
+        "learning_preferences": {
+          "modality_affinity": {
+            "textual": 0.84,
+            "visual": 0.7,
+            "interactive": 0.45
+          },
+          "example_domain_preferences": [
+            "science"
+          ],
+          "scaffolding_preference": "medium",
+          "pace_preference": "average"
+        }
+      }
+    },
+    {
+      "alias": "reuse_peer",
+      "display_name": "Drew Operator Peer",
+      "profile": {
+        "grade_level": "5",
+        "cognitive_traits": {
+          "working_memory": {
+            "value": 0.56,
+            "confidence": 0.74
+          }
+        },
+        "knowledge_state": {
+          "lo_mastery": {
+            "LO-FRACTIONS": 0.5
+          },
+          "kc_mastery": {
+            "KC-FRAC-FOUNDATION": 0.82,
+            "KC-FRAC-EQUIV": 0.36,
+            "KC-FRAC-COMPARE": 0.18
+          }
+        },
+        "affective_state": {
+          "engagement": "medium",
+          "frustration": "medium",
+          "confusion": "medium",
+          "confidence": 0.38
+        },
+        "cognitive_load": {
+          "intrinsic_load": 0.5,
+          "extraneous_load": 0.24,
+          "germane_load": 0.22,
+          "total_load": 0.62,
+          "capacity_utilization": 0.7
+        },
+        "metacognitive_state": {
+          "confidence_calibration": 0.48,
+          "help_seeking": "medium",
+          "help_seeking_effectiveness": 0.52,
+          "self_monitoring": 0.54
+        },
+        "learning_preferences": {
+          "modality_affinity": {
+            "textual": 0.84,
+            "visual": 0.7,
+            "interactive": 0.45
+          },
+          "example_domain_preferences": [
+            "science"
+          ],
+          "scaffolding_preference": "medium",
+          "pace_preference": "average"
+        }
+      }
+    }
+  ],
+  "preferences": {
+    "session_cadence": "weekdays",
+    "auto_session_suggestions": true,
+    "weekly_summary_day": "monday",
+    "soft_escalation_enabled": true,
+    "approval_mode": "guided",
+    "modality_introduction_requires_approval": true,
+    "trajectory_revision_requires_approval": true,
+    "high_autonomy_session_requires_approval": true
+  },
+  "curriculum": {
+    "outcomes": [
+      {
+        "outcome_id": "PROOF-FRAC-1",
+        "title": "Fraction Visual Foundations",
+        "strand_id": "PROOF-FRACTIONS",
+        "grade_level": "5",
+        "subject": "math",
+        "knowledge_component_ids": [
+          "KC-FRAC-FOUNDATION"
+        ],
+        "tags": [
+          "fractions",
+          "visual models",
+          "operator-proof"
+        ],
+        "description": "Use visual fraction models to name equal parts of a whole."
+      },
+      {
+        "outcome_id": "PROOF-FRAC-2",
+        "title": "Equivalent Fraction Practice",
+        "strand_id": "PROOF-FRACTIONS",
+        "grade_level": "5",
+        "subject": "math",
+        "knowledge_component_ids": [
+          "KC-FRAC-EQUIV"
+        ],
+        "tags": [
+          "fractions",
+          "equivalent fractions",
+          "operator-proof"
+        ],
+        "description": "Use visual fraction models to explain why equivalent fractions name the same amount."
+      },
+      {
+        "outcome_id": "PROOF-FRAC-3",
+        "title": "Compare Fraction Families",
+        "strand_id": "PROOF-FRACTIONS",
+        "grade_level": "5",
+        "subject": "math",
+        "knowledge_component_ids": [
+          "KC-FRAC-COMPARE"
+        ],
+        "tags": [
+          "fractions",
+          "comparison",
+          "operator-proof"
+        ],
+        "description": "Compare related fraction families using shared visual models."
+      }
+    ],
+    "knowledge_components": [
+      {
+        "kc_id": "KC-FRAC-FOUNDATION",
+        "name": "Identify equal parts in visual fraction models",
+        "outcome_id": "PROOF-FRAC-1",
+        "grade_level": "5",
+        "subject": "math",
+        "taxonomy_cluster_id": "proof-fractions",
+        "concept_family": "equivalent-fractions",
+        "prerequisite_kc_ids": [],
+        "nearby_kc_ids": [
+          "KC-FRAC-EQUIV"
+        ],
+        "difficulty": 0.35,
+        "estimated_time_minutes": 8,
+        "tags": [
+          "fractions",
+          "visual models"
+        ],
+        "common_misconceptions": [
+          {
+            "misconception_id": "mis-equal-parts",
+            "label": "Counts unequal pieces as fractions",
+            "description": "Counts pieces without checking whether the pieces are equal sized.",
+            "trigger_terms": [
+              "pieces",
+              "parts"
+            ],
+            "remediation_hint": "Start by checking whether every part is the same size."
+          }
+        ]
+      },
+      {
+        "kc_id": "KC-FRAC-EQUIV",
+        "name": "Generate equivalent fractions with visual models",
+        "outcome_id": "PROOF-FRAC-2",
+        "grade_level": "5",
+        "subject": "math",
+        "taxonomy_cluster_id": "proof-fractions",
+        "concept_family": "equivalent-fractions",
+        "prerequisite_kc_ids": [
+          "KC-FRAC-FOUNDATION"
+        ],
+        "nearby_kc_ids": [
+          "KC-FRAC-COMPARE"
+        ],
+        "difficulty": 0.52,
+        "estimated_time_minutes": 10,
+        "tags": [
+          "fractions",
+          "equivalent fractions"
+        ],
+        "common_misconceptions": [
+          {
+            "misconception_id": "mis-denominator-size",
+            "label": "Larger denominator means larger amount",
+            "description": "Thinks larger denominators always mean larger amounts.",
+            "trigger_terms": [
+              "denominator",
+              "bigger number"
+            ],
+            "prerequisite_kc_ids": [
+              "KC-FRAC-FOUNDATION"
+            ],
+            "remediation_hint": "Compare same-sized wholes with visual area models."
+          }
+        ]
+      },
+      {
+        "kc_id": "KC-FRAC-COMPARE",
+        "name": "Compare related fraction families",
+        "outcome_id": "PROOF-FRAC-3",
+        "grade_level": "5",
+        "subject": "math",
+        "taxonomy_cluster_id": "proof-fractions",
+        "concept_family": "equivalent-fractions",
+        "prerequisite_kc_ids": [
+          "KC-FRAC-EQUIV"
+        ],
+        "nearby_kc_ids": [],
+        "difficulty": 0.62,
+        "estimated_time_minutes": 12,
+        "tags": [
+          "fractions",
+          "comparison"
+        ],
+        "common_misconceptions": [
+          {
+            "misconception_id": "mis-compare-denominators",
+            "label": "Compares denominators without a common whole",
+            "description": "Compares denominators without reference to the same whole.",
+            "trigger_terms": [
+              "denominator",
+              "same whole"
+            ],
+            "prerequisite_kc_ids": [
+              "KC-FRAC-EQUIV"
+            ],
+            "remediation_hint": "Normalize the whole before comparing the parts."
+          }
+        ]
+      }
+    ]
+  }
+}

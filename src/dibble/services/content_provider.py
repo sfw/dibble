@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from html import escape
 
 from dibble.models.generation import (
     AdaptiveRouteDecision,
@@ -212,7 +213,7 @@ class MockLLMProvider:
                     1,
                     GeneratedBlock(
                         kind="visual_representation",
-                        title="See the structure",
+                        title=focus,
                         body=self._diagram_svg(
                             title=focus,
                             emphasis=preserve,
@@ -260,7 +261,7 @@ class MockLLMProvider:
             return [
                 GeneratedBlock(
                     kind="visual_representation",
-                    title="See the concept",
+                    title=focus,
                     body=self._diagram_svg(
                         title=focus,
                         emphasis=grounding_summary,
@@ -298,16 +299,19 @@ class MockLLMProvider:
         return f"Keep the instructional tone supportive and concise, and {prompt_clause}."
 
     def _diagram_svg(self, *, title: str, emphasis: str, caption: str) -> str:
-        safe_title = title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        safe_emphasis = (
-            emphasis.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        )
-        safe_caption = (
-            caption.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        safe_title = escape(title, quote=True)
+        safe_emphasis = escape(emphasis, quote=True)
+        safe_caption = escape(caption, quote=True)
+        safe_label = f"{safe_title} target invariant diagram"
+        safe_description = (
+            f"{safe_title}: a target is connected to what stays true. "
+            f"Caption: {safe_caption}"
         )
         return (
             "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 420 180' role='img' "
-            f"aria-label='{safe_title} diagram'>"
+            f"aria-label='{safe_label}' data-diagram-shape='target_invariant'>"
+            f"<title>{safe_title}</title>"
+            f"<desc>{safe_description}</desc>"
             "<rect x='12' y='24' width='180' height='28' rx='10' fill='#dbeafe' stroke='#2563eb'/>"
             "<rect x='228' y='24' width='180' height='28' rx='10' fill='#dcfce7' stroke='#15803d'/>"
             "<path d='M192 38 H228' stroke='#475569' stroke-width='3' marker-end='url(#arrow)'/>"
@@ -315,7 +319,7 @@ class MockLLMProvider:
             "<text x='102' y='42' font-size='14' font-family='Arial' fill='#1e3a8a'>Target</text>"
             "<text x='258' y='42' font-size='14' font-family='Arial' fill='#166534'>What stays true</text>"
             f"<text x='50' y='122' font-size='14' font-family='Arial' fill='#9a3412'>{safe_emphasis}</text>"
-            f"<text x='18' y='164' font-size='12' font-family='Arial' fill='#334155'>{safe_caption}</text>"
+            f"<text x='18' y='164' font-size='12' font-family='Arial' fill='#334155' data-role='caption'>{safe_caption}</text>"
             "<defs><marker id='arrow' markerWidth='10' markerHeight='10' refX='7' refY='3' orient='auto'>"
             "<path d='M0,0 L0,6 L9,3 z' fill='#475569'/></marker></defs>"
             "</svg>"

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -11,10 +11,18 @@ from dibble.config import Settings
 from dibble.models.auth import User
 from dibble.models.curriculum import KnowledgeComponentUpsert, OutcomeUpsert
 from dibble.models.profile import LearnerProfile
+from dibble.models.retention import (
+    RetentionReviewCandidate,
+    RetentionReviewReason,
+    RetentionStrengthTier,
+)
 from dibble.services.auth import hash_credential
 from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
 from dibble.services.outcome_store import SQLiteOutcomeStore
 from dibble.services.profile_store import SQLiteProfileStore
+from dibble.services.retention_review_candidate_store import (
+    SQLiteRetentionReviewCandidateStore,
+)
 from dibble.services.sqlite_connection import create_connection
 from dibble.services.user_store import SQLiteUserStore
 from dibble.storage import ensure_database
@@ -174,6 +182,58 @@ def test_adaptation_observability_routes_expose_modality_and_autonomous_teacher_
     assert "latest_decision_trace" in relationship_payload
     assert autonomous_explain_payload["rollout_effects"]
     assert autonomous_explain_payload["next_expected_consequence"]
+
+
+def test_retention_observability_routes_expose_due_and_scheduled_candidates(tmp_path):
+    db_path = str(tmp_path / "dibble-retention-observability.db")
+    ensure_database(db_path)
+    settings = Settings(database_path=db_path, auth_enabled=True)
+    app = create_app(settings)
+    student_id = uuid4()
+    now = datetime.now(timezone.utc)
+
+    _seed_user(db_path, api_key="admin-key", role="admin", user_id="admin-1")
+    conn = create_connection(db_path)
+    SQLiteRetentionReviewCandidateStore(conn).upsert_many(
+        [
+            RetentionReviewCandidate(
+                candidate_id="due-retention",
+                learner_id=student_id,
+                kc_ids=["KC-DUE"],
+                review_reason=RetentionReviewReason.recovery_after_stall,
+                retention_strength_tier=RetentionStrengthTier.urgent,
+                due_at=now - timedelta(minutes=10),
+            ),
+            RetentionReviewCandidate(
+                candidate_id="scheduled-retention",
+                learner_id=student_id,
+                kc_ids=["KC-SCHEDULED"],
+                review_reason=RetentionReviewReason.outcome_mastered,
+                retention_strength_tier=RetentionStrengthTier.light,
+                due_at=now + timedelta(days=2),
+            ),
+        ]
+    )
+
+    with TestClient(app) as client:
+        due_response = client.get(
+            f"/api/observability/adaptation/retention/{student_id}/due",
+            headers={"X-API-Key": "admin-key"},
+        )
+        scheduled_response = client.get(
+            f"/api/observability/adaptation/retention/{student_id}/scheduled",
+            headers={"X-API-Key": "admin-key"},
+        )
+
+    assert due_response.status_code == 200
+    assert scheduled_response.status_code == 200
+    due_payload = due_response.json()
+    scheduled_payload = scheduled_response.json()
+    assert [item["candidate_id"] for item in due_payload] == ["due-retention"]
+    assert due_payload[0]["status"] == "due"
+    assert [item["candidate_id"] for item in scheduled_payload] == [
+        "scheduled-retention"
+    ]
 
 
 def test_observability_readiness_and_traces_surface_parent_approval_audit(tmp_path):

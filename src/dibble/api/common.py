@@ -66,9 +66,11 @@ from dibble.services.protocols import (
     ObservationStore,
     OutcomeStore,
     ProfileStore,
+    RetentionReviewCandidateStore,
     SocraticSessionStore,
     StrandStore,
 )
+from dibble.services.retention_scheduler import RetentionSchedulerService
 from dibble.services.remediation_planner import RemediationPlanner
 from dibble.services.setup_config import SetupConfigService
 from dibble.services.setup_model_catalog import SetupModelCatalogService
@@ -171,6 +173,8 @@ class ApiServices(Protocol):
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_invalidator: PredictiveContentInvalidator
     predictive_warm_scheduler: PredictiveWarmScheduler
+    retention_review_candidate_store: RetentionReviewCandidateStore
+    retention_scheduler_service: RetentionSchedulerService
     within_session_adaptation_service: WithinSessionAdaptationService
     user_store: UserStore
     modality_routing_prior_store: ModalityRoutingPriorStore

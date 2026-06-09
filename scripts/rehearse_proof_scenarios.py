@@ -275,6 +275,18 @@ def operator_markdown_report(report: dict[str, Any]) -> str:
         f"- Mock fallback enabled: {readiness.get('mock_fallback_enabled', '<unknown>')}",
         f"- Cloud library enabled: {readiness.get('cloud_library_enabled', '<unknown>')}",
     ]
+    lines.extend(
+        [
+            "",
+            "## How To Read This Report",
+            "",
+            "- `ready=ready` means startup and configuration checks passed for this proof posture.",
+            "- Pending approvals are expected in guided mode; they are a parent-control signal, not a failure.",
+            "- Planning revisions and recent signals should increase after learner evidence accumulates.",
+            "- Degraded traces require review when they point to provider failure, privacy, persistence, or blocked learner delivery.",
+            "- A real-provider proof must show `Mock fallback enabled: False`.",
+        ]
+    )
     if readiness.get("failed_checks"):
         lines.append(f"- Failed checks: {', '.join(readiness['failed_checks'])}")
     if readiness.get("warning_checks"):
@@ -287,6 +299,30 @@ def operator_markdown_report(report: dict[str, Any]) -> str:
         lines.extend(["", "Proof households:"])
         for label, household_id in proof_households.items():
             lines.append(f"- {label}: {household_id}")
+
+    multi_household = report.get("multi_household_evidence") or []
+    if multi_household:
+        lines.extend(["", "## Multi-Household Evidence", ""])
+        lines.append(
+            "These checks exercise an additional seeded household through public API "
+            "proof paths so the report is not only true for the first canonical household."
+        )
+        lines.append("")
+        for item in multi_household:
+            readiness_summary = item.get("readiness") or {}
+            audit = item.get("privacy_audit") or {}
+            lines.append(
+                f"- {item.get('label', '<unknown>')}: "
+                f"{item.get('household_name', '<unnamed>')} "
+                f"({item.get('learner_count', 0)} learners), "
+                f"ready={readiness_summary.get('status', '<unknown>')}, "
+                f"privacy_forbidden_hits={audit.get('forbidden_hit_count', '<unknown>')}"
+            )
+            for scenario in item.get("scenario_results", []):
+                lines.append(
+                    f"  - {scenario.get('scenario_id', '<unknown>')}: "
+                    f"{scenario.get('result', '<no result>')}"
+                )
 
     scenarios = report.get("scenarios") or []
     if scenarios:
@@ -319,12 +355,17 @@ def operator_markdown_report(report: dict[str, Any]) -> str:
             lines.append("")
             lines.append(f"Content samples captured: {len(samples)}")
             for sample in samples:
+                checklist = sample.get("review_checklist") or {}
+                checklist_labels = ", ".join(checklist) if checklist else "not recorded"
                 lines.append(
                     f"- {sample.get('phase_id')}/{sample.get('learner_alias')}: "
                     f"{sample.get('generation_id')} "
                     f"modality={sample.get('modality')} "
-                    f"cache_hit={sample.get('cache_hit')}"
+                    f"cache_hit={sample.get('cache_hit')} "
+                    f"review={checklist_labels}"
                 )
+                if sample.get("review_note"):
+                    lines.append(f"  Note: {sample['review_note']}")
             audit = timeline.get("privacy_audit") or {}
             if audit:
                 lines.append(
@@ -342,6 +383,13 @@ def operator_markdown_report(report: dict[str, Any]) -> str:
             f"- Restart preserved household state: "
             f"{restart.get('persistence_preserved', '<unknown>')}"
         )
+        signatures = restart.get("pre_restart_signature")
+        if isinstance(signatures, dict):
+            if all(isinstance(value, dict) for value in signatures.values()):
+                checked = ", ".join(sorted(signatures))
+            else:
+                checked = "single household signature"
+            lines.append(f"- Restart/restore household labels checked: {checked}")
         if backup:
             lines.append(
                 f"- Backup: {backup.get('path')} "
@@ -364,8 +412,10 @@ def operator_markdown_report(report: dict[str, Any]) -> str:
             "",
             "- Confirm `/ready` is acceptable for the intended run posture.",
             "- Confirm real-provider proof has mock fallback disabled.",
-            "- Review generated content samples for curriculum fit and privacy.",
+            "- Review generated content samples using curriculum fit, misconception targeting, age fit, privacy, and actionability.",
+            "- Confirm at least two household labels appear when claiming multi-household proof.",
             "- Confirm restart and restore evidence are present before learner use.",
+            "- Record any confusing wording or ambiguous next action as operator friction, even when the proof passes.",
         ]
     )
     return "\n".join(lines).rstrip() + "\n"
@@ -1116,6 +1166,13 @@ def content_quality_sample(
         "modality": content_modality(generation),
         "cache_hit": bool(quality.get("cache_hit")),
         "review_note": review_note,
+        "review_checklist": {
+            "curriculum_fit": "Does the sample teach the named KC/outcome without drifting?",
+            "misconception_targeting": "Does it address the intended misconception or evidence need?",
+            "age_fit": "Is the language and task shape plausible for the seeded learner grade?",
+            "privacy": "Does it avoid learner identity, household facts, credentials, and private history?",
+            "actionability": "Would a parent know whether to approve, retry, or escalate after seeing it?",
+        },
     }
 
 

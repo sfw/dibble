@@ -29,6 +29,10 @@ This runbook defines the first supported pilot state: a small operator-managed h
 - The live proof report includes restart, backup, and restore evidence.
 - Restore evidence includes corrected `/data/dibble.db` ownership for the
   non-root container user after the backup is copied back into the container.
+- The live proof report includes multi-household evidence. The default live
+  proof seeds a canonical household, a clean longitudinal household, and a
+  varied operator-review household unless `--skip-multi-household-evidence` is
+  passed.
 - LLM provider credentials are real and `DIBBLE_LLM_ALLOW_MOCK_FALLBACK=false`
   for the final proof run. Mock fallback is acceptable only for dry-run
   rehearsal.
@@ -56,6 +60,10 @@ This runbook defines the first supported pilot state: a small operator-managed h
 - During proof rehearsal, compare the current review checkpoint with the previous checkpoint in the longitudinal report: readiness status, pending approvals, planning revision count, revisit density, recent signal count, and recent trace summaries should remain explainable.
 - During live proof review, confirm the Markdown report lists the backup
   checksum and both restart and restore state-preservation checks.
+- During human/operator review, ask whether each report count explains what to
+  do next. Pending approvals are fine in guided mode; unclear approval previews,
+  unexplained degraded traces, or ambiguous content-review actions are friction
+  to fix or document.
 
 ## Weekly Operator Review
 
@@ -67,6 +75,9 @@ This runbook defines the first supported pilot state: a small operator-managed h
 - Review parent notifications and unresolved soft-escalations.
 - Review whether trajectory revisions are understandable to parents.
 - Review captured generated-content samples from the longitudinal report for curriculum fit, misconception targeting, age fit, and absence of learner-private fields.
+- Record generated-content review notes using
+  `docs/proof/content-quality-review.md`; use `pass`, `watch`, or `fail` for
+  curriculum fit, misconception targeting, age fit, privacy, and actionability.
 
 ## Stop Conditions
 
@@ -92,6 +103,8 @@ The pilot is evidence-positive when:
 - A seeded longitudinal timeline demonstrates stall, constrained adaptation, planning review, parent approval decisions, recovery, repeated readiness review, and content-quality checkpoints without raw database inspection.
 - The live household proof report demonstrates restart persistence, backup
   capture, restore execution, and post-restore overview verification.
+- At least two household labels are present in restart/restore evidence before
+  making a multi-household proof claim.
 
 ## Longitudinal Proof Criteria
 
@@ -106,7 +119,13 @@ The POC is stronger than demoable when these are true in a rehearsal household:
 - Restart and restore evidence are captured from the Compose household service,
   not inferred from a local seeded test harness.
 
-Do not describe the POC as fully proven until at least one non-scripted parent or operator can interpret the longitudinal report, more than one household has rehearsed the flow, real provider behavior has been observed, and generated content quality has been reviewed over more than curated proof checkpoints.
+Do not describe the POC as fully proven for unsupervised real-world parent use
+until at least one non-scripted parent or operator can interpret the
+longitudinal report, more than one household has rehearsed the flow, real
+provider behavior has been observed, and generated content quality has been
+reviewed over more than curated proof checkpoints. With the current proof
+package, the honest claim is stronger but narrower: Dibble is credibly proven
+for a small, operator-managed pilot rehearsal.
 
 ## Support Notes
 

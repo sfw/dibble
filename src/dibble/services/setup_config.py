@@ -21,6 +21,11 @@ from dibble.models.setup import (
 )
 from dibble.services.auth import hash_credential
 from dibble.services.protocols import UserStore
+from dibble.services.retrieval.embeddings import (
+    embedder_detail,
+    embedder_kind,
+    local_hash_embedder_disallowed,
+)
 from dibble.services.runtime_telemetry import log_runtime_event
 
 logger = logging.getLogger(__name__)
@@ -68,6 +73,7 @@ class SetupConfigService:
         checks = [
             self._database_check(database_path),
             self._llm_check(s),
+            self._embedder_check(s),
             self._admin_check(setup_status.has_admin_user),
             self._auth_check(s),
             self._frontend_check(frontend_dist_path),
@@ -219,6 +225,47 @@ class SetupConfigService:
             detail="Run first-run setup and create the initial admin API key.",
         )
 
+    def _embedder_check(self, settings: Settings) -> DeploymentReadinessCheck:
+        kind = embedder_kind(settings)
+        detail = embedder_detail(settings)
+        if kind == "openai_compatible":
+            return DeploymentReadinessCheck(
+                key="embedder",
+                status="pass",
+                summary="A real embedding provider is configured for retrieval.",
+                detail=detail,
+            )
+        if kind == "local_hash":
+            if local_hash_embedder_disallowed(settings):
+                return DeploymentReadinessCheck(
+                    key="embedder",
+                    status="fail",
+                    summary="Local hash embeddings are active in a real-provider household runtime.",
+                    detail=(
+                        "Configure DIBBLE_EMBEDDING_API_KEY and DIBBLE_EMBEDDING_MODEL "
+                        "before running pilot learners."
+                    ),
+                )
+            if settings.deployment_mode == "local_dev":
+                return DeploymentReadinessCheck(
+                    key="embedder",
+                    status="warn",
+                    summary="Local hash embeddings are active.",
+                    detail="Acceptable for development and lightweight rehearsal, not for high-trust retrieval quality.",
+                )
+            return DeploymentReadinessCheck(
+                key="embedder",
+                status="warn",
+                summary="No real embedding provider is configured yet; local hash fallback is active.",
+                detail=detail,
+            )
+        return DeploymentReadinessCheck(
+            key="embedder",
+            status="fail",
+            summary="No embedding provider is configured and local fallback is disabled.",
+            detail="Set DIBBLE_EMBEDDING_API_KEY and DIBBLE_EMBEDDING_MODEL, or explicitly allow local fallback only for development.",
+        )
+
     def _auth_check(self, settings: Settings) -> DeploymentReadinessCheck:
         if not settings.auth_enabled:
             return DeploymentReadinessCheck(
@@ -312,6 +359,10 @@ class SetupConfigService:
         check_by_key = {check.key: check for check in checks}
         if not settings.llm_api_key:
             steps.append("Configure a real LLM provider before running pilot learners.")
+        if check_by_key["embedder"].status != "pass":
+            steps.append(
+                "Configure a real embedding provider before trusting retrieval-backed learner sessions."
+            )
         if not has_admin:
             steps.append(
                 "Create the initial admin/operator account from first-run setup."

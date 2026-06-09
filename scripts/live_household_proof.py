@@ -103,6 +103,20 @@ def main() -> int:
         default="proof/fixtures/scenario_household_seed.json",
     )
     parser.add_argument(
+        "--multi-household-seed-file",
+        action="append",
+        default=None,
+        help=(
+            "Additional varied proof household seed to exercise after the canonical "
+            "and longitudinal households. Repeat for multiple households."
+        ),
+    )
+    parser.add_argument(
+        "--skip-multi-household-evidence",
+        action="store_true",
+        help="Do not seed and exercise the default additional operator household.",
+    )
+    parser.add_argument(
         "--timeline-dir",
         default="proof/timelines",
         help="Directory containing longitudinal proof timelines.",
@@ -151,6 +165,10 @@ def main() -> int:
             },
             "scenarios": [],
             "timelines": [],
+            "multi_household_evidence": [],
+        }
+        restart_restore_parent_keys = {
+            "canonical": canonical_state.parent_key,
         }
 
         for scenario_id in SCENARIO_IDS:
@@ -164,6 +182,7 @@ def main() -> int:
             admin_key=canonical_state.admin_key,
         )
         report["proof_households"]["longitudinal"] = longitudinal_state.household_id
+        restart_restore_parent_keys["longitudinal"] = longitudinal_state.parent_key
         timeline = load_timeline(Path(args.timeline_dir), "longitudinal_fraction_recovery")
         timeline_result = TIMELINE_RUNNERS["longitudinal_fraction_recovery"](
             client,
@@ -177,11 +196,29 @@ def main() -> int:
             f"{len(timeline_result['content_quality_samples'])} samples"
         )
 
+        for extra_index, seed_file in enumerate(multi_household_seed_files(args), start=1):
+            evidence = exercise_additional_household(
+                client=client,
+                seed_file=seed_file,
+                admin_key=canonical_state.admin_key,
+                label=f"operator_household_{extra_index}",
+            )
+            restart_restore_parent_keys[evidence["label"]] = evidence["parent_key"]
+            report["proof_households"][evidence["label"]] = evidence["household_id"]
+            public_evidence = dict(evidence)
+            public_evidence.pop("parent_key", None)
+            report["multi_household_evidence"].append(public_evidence)
+            print(
+                f"PASS {evidence['label']}: "
+                f"{len(evidence['scenario_results'])} scenario checks, "
+                f"privacy_forbidden_hits={evidence['privacy_audit']['forbidden_hit_count']}"
+            )
+
         if not args.skip_container_ops:
             report["live_container_evidence"] = exercise_container_ops(
                 client=client,
                 compose=compose,
-                state_parent_key=longitudinal_state.parent_key,
+                household_parent_keys=restart_restore_parent_keys,
                 backup_path=artifact_dir / "dibble-live-household-backup.db",
             )
 
@@ -204,21 +241,74 @@ def default_artifact_dir() -> str:
     return f"proof-artifacts/live-household-{stamp}"
 
 
+def multi_household_seed_files(args: argparse.Namespace) -> list[Path]:
+    if args.skip_multi_household_evidence:
+        return []
+    seed_files = args.multi_household_seed_file or [
+        "proof/fixtures/operator_household_seed.json"
+    ]
+    return [Path(seed_file) for seed_file in seed_files]
+
+
+def exercise_additional_household(
+    *,
+    client: ApiClient,
+    seed_file: Path,
+    admin_key: str,
+    label: str,
+) -> dict[str, Any]:
+    if not seed_file.exists():
+        raise RehearsalError(f"Multi-household seed not found: {seed_file}")
+    seed = json.loads(seed_file.read_text())
+    state = seed_runtime(client=client, seed=seed, admin_key=admin_key)
+    scenario_results = []
+    for scenario_id in (
+        "new_household_onboarding",
+        "adaptive_modality_change",
+        "shared_library_reuse_without_privacy_leakage",
+    ):
+        result = SCENARIO_RUNNERS[scenario_id](client, state)
+        scenario_results.append({"scenario_id": scenario_id, "result": result})
+    audit = client.get(
+        "/api/observability/adaptation/library/privacy-audit",
+        api_key=state.admin_key,
+    )
+    forbidden_hits = audit.get("forbidden_field_hits", [])
+    if forbidden_hits:
+        raise RehearsalError(
+            f"Additional household {label} privacy audit found private fields: "
+            f"{forbidden_hits}"
+        )
+    return {
+        "label": label,
+        "seed_file": str(seed_file),
+        "household_id": state.household_id,
+        "parent_key": state.parent_key,
+        "run_stamp": state.run_stamp,
+        "household_name": seed.get("household_name"),
+        "learner_aliases": sorted(state.learner_ids),
+        "learner_count": len(state.learner_ids),
+        "preferences": seed.get("preferences", {}),
+        "scenario_results": scenario_results,
+        "readiness": readiness_summary(client.get("/ready")),
+        "privacy_audit": {
+            "entry_count": audit.get("entry_count", 0),
+            "forbidden_hit_count": len(forbidden_hits),
+        },
+    }
+
+
 def exercise_container_ops(
     *,
     client: ApiClient,
     compose: ComposeRuntime,
-    state_parent_key: str,
+    household_parent_keys: dict[str, str],
     backup_path: Path,
 ) -> dict[str, Any]:
-    before_restart = household_signature(
-        client.get("/api/households/me/overview", api_key=state_parent_key)
-    )
+    before_restart = household_signatures(client, household_parent_keys)
     compose.restart()
     restart_ready = wait_for_ready(client)
-    after_restart = household_signature(
-        client.get("/api/households/me/overview", api_key=state_parent_key)
-    )
+    after_restart = household_signatures(client, household_parent_keys)
     restart_evidence = {
         "pre_restart_signature": before_restart,
         "post_restart_signature": after_restart,
@@ -237,9 +327,7 @@ def exercise_container_ops(
         compose.start()
     compose.chown_database()
     restore_ready = wait_for_ready(client)
-    after_restore = household_signature(
-        client.get("/api/households/me/overview", api_key=state_parent_key)
-    )
+    after_restore = household_signatures(client, household_parent_keys)
     restore_evidence = {
         "post_restore_signature": after_restore,
         "post_restore_ready_status": restore_ready.get("status"),
@@ -252,6 +340,17 @@ def exercise_container_ops(
         "restart": restart_evidence,
         "backup": backup_evidence,
         "restore": restore_evidence,
+    }
+
+
+def household_signatures(
+    client: ApiClient, household_parent_keys: dict[str, str]
+) -> dict[str, Any]:
+    return {
+        label: household_signature(
+            client.get("/api/households/me/overview", api_key=parent_key)
+        )
+        for label, parent_key in sorted(household_parent_keys.items())
     }
 
 

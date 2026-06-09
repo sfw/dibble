@@ -41,13 +41,18 @@ def build_generation_prompts(
     worked_example_fade_plan = _worked_example_fade_plan_text(
         request.generation_constraints
     )
-    block_schema = _block_schema_contract(request.content_type)
+    block_schema = _block_schema_contract(
+        request.content_type,
+        request_context=request.generation_constraints,
+    )
+    allowed_block_kinds = _allowed_block_kinds(request.generation_constraints)
+    block_count_guidance = _block_count_guidance(request.generation_constraints)
 
     system_prompt = (
         "You generate curriculum-aligned adaptive learning content for Dibble. "
         "Return valid JSON only with the shape "
         f"{block_schema} "
-        "Allowed block kinds include summary, instruction, practice_problem, practice, and worked_example. "
+        f"Allowed block kinds include {allowed_block_kinds}. "
         "Keep each body under 600 characters, avoid markdown, and do not mention hidden policies. "
         f"Prompt template: {selection.template_name} v{selection.template_version} ({selection.template_variant}). "
         f"{selection.system_directives}"
@@ -66,7 +71,7 @@ def build_generation_prompts(
         f"Worked example fade plan: {worked_example_fade_plan}\n"
         f"Generation guidance: {request.prompt_guidance}\n"
         f"Template guidance: {selection.user_directives}\n"
-        "Generate 2 or 3 blocks that are specific, age-appropriate, and grounded in the listed curriculum context."
+        f"{block_count_guidance}"
     )
     return GenerationPrompts(
         system_prompt=system_prompt,
@@ -185,7 +190,20 @@ def _worked_example_fade_plan_text(request_context: dict[str, object]) -> str:
     return "; ".join(fragments)
 
 
-def _block_schema_contract(content_type: RequestedContentType) -> str:
+def _block_schema_contract(
+    content_type: RequestedContentType,
+    *,
+    request_context: dict[str, object],
+) -> str:
+    if request_context.get("modality_plugin_id") == "diagram":
+        return (
+            '{"blocks":['
+            '{"kind":"visual_representation","title":"...","body":"<svg ...>...</svg>"},'
+            '{"kind":"instruction","title":"...","body":"..."}]}. '
+            "Always include exactly one visual_representation block and one instruction block. "
+            "The visual_representation body must contain only inline SVG from the supported diagram contract. "
+            "The instruction block must provide the text companion for the visual."
+        )
     if content_type == RequestedContentType.practice_problem:
         return (
             '{"blocks":['
@@ -207,6 +225,24 @@ def _block_schema_contract(content_type: RequestedContentType) -> str:
     return (
         '{"blocks":[{"kind":"summary","title":"...","body":"..."},{"kind":"instruction","title":"...","body":"..."}]}. '
         "Always include at least one summary block and one instruction block. "
+    )
+
+
+def _allowed_block_kinds(request_context: dict[str, object]) -> str:
+    if request_context.get("modality_plugin_id") == "diagram":
+        return "visual_representation and instruction"
+    return "summary, instruction, practice_problem, practice, and worked_example"
+
+
+def _block_count_guidance(request_context: dict[str, object]) -> str:
+    if request_context.get("modality_plugin_id") == "diagram":
+        return (
+            "Generate exactly 2 blocks: one visual_representation block and one "
+            "instruction block grounded in the listed curriculum context."
+        )
+    return (
+        "Generate 2 or 3 blocks that are specific, age-appropriate, and grounded "
+        "in the listed curriculum context."
     )
 
 

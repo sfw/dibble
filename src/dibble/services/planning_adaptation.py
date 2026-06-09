@@ -24,6 +24,7 @@ from dibble.models.telemetry import AuditEvent
 from dibble.services.learner_state_signal import LearnerStateSignalService
 from dibble.services.learner_strategy_signal import LearnerStrategySignalService
 from dibble.services.protocols import AuditStore, ModalityRoutingPriorStore
+from dibble.services.retention_scheduler import RetentionSchedulerService
 
 _GLOBAL_CONTEXT_KEY = "__global__"
 
@@ -34,6 +35,7 @@ class PlanningAdaptationService:
     prior_store: ModalityRoutingPriorStore | None = None
     strategy_signal_service: LearnerStrategySignalService | None = None
     state_signal_service: LearnerStateSignalService | None = None
+    retention_scheduler_service: RetentionSchedulerService | None = None
     max_events: int = 500
     max_profiles_per_dimension: int = 2
 
@@ -113,7 +115,7 @@ class PlanningAdaptationService:
             effectiveness_profiles=effectiveness_profiles,
             recent_signals=recent_signals,
         )
-        return PlanningAdaptationState(
+        state_result = PlanningAdaptationState(
             revision_count=(existing_state.revision_count if existing_state is not None else 0),
             active_pacing_adjustment=self._active_pacing_adjustment(
                 adjustments=active_adjustments,
@@ -144,6 +146,12 @@ class PlanningAdaptationService:
             active_adjustments=active_adjustments,
             updated_at=max(event.created_at for event in summary_events),
         )
+        if self.retention_scheduler_service is not None:
+            self.retention_scheduler_service.nominate_from_planning_state(
+                learner_id=student_id,
+                planning_state=state_result,
+            )
+        return state_result
 
     def _concept_cluster_markers(
         self,

@@ -377,6 +377,20 @@ CREATE TABLE IF NOT EXISTS predictive_warm_queue (
 """
 
 
+RETENTION_REVIEW_CANDIDATE_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS retention_review_candidates (
+    candidate_id TEXT PRIMARY KEY,
+    learner_id TEXT NOT NULL,
+    cluster_key TEXT NOT NULL,
+    outcome_id TEXT,
+    status TEXT NOT NULL,
+    due_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    payload TEXT NOT NULL
+);
+"""
+
+
 USER_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS users (
     user_id TEXT PRIMARY KEY,
@@ -482,6 +496,7 @@ def ensure_database(database_path: str) -> None:
         connection.execute(ASSIGNMENT_TABLE_SQL)
         connection.execute(MASTERY_SNAPSHOT_TABLE_SQL)
         connection.execute(PREDICTIVE_WARM_QUEUE_TABLE_SQL)
+        connection.execute(RETENTION_REVIEW_CANDIDATE_TABLE_SQL)
         connection.execute(USER_TABLE_SQL)
         connection.execute(HOUSEHOLD_TABLE_SQL)
         connection.execute(LEARNER_RELATIONSHIP_STATE_TABLE_SQL)

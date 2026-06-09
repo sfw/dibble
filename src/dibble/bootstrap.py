@@ -135,6 +135,10 @@ from dibble.services.predictive_content_invalidator import PredictiveContentInva
 from dibble.services.predictive_content_warming import PredictiveContentWarmer
 from dibble.services.predictive_warm_queue_store import SQLitePredictiveWarmQueueStore
 from dibble.services.predictive_warm_scheduler import PredictiveWarmScheduler
+from dibble.services.retention_review_candidate_store import (
+    SQLiteRetentionReviewCandidateStore,
+)
+from dibble.services.retention_scheduler import RetentionSchedulerService
 from dibble.services.progression_outcome_signals import ProgressionOutcomeSignalService
 from dibble.services.progression_outcome_tracker import ProgressionOutcomeTracker
 from dibble.services.resource_state_transitions import OutcomeStateTransitionTracker
@@ -162,6 +166,7 @@ from dibble.services.protocols import (
     KnowledgeComponentStore,
     ObservationStore,
     ProfileStore,
+    RetentionReviewCandidateStore,
     TrajectoryStore,
     SocraticSessionStore,
     UserStore,
@@ -265,6 +270,8 @@ class ApplicationServices:
     generation_mode_calibrator: GenerationModeCalibrator
     predictive_content_invalidator: PredictiveContentInvalidator
     predictive_warm_scheduler: PredictiveWarmScheduler
+    retention_review_candidate_store: RetentionReviewCandidateStore
+    retention_scheduler_service: RetentionSchedulerService
     mastery_snapshot_service: MasterySnapshotService
     progression_outcome_tracker: ProgressionOutcomeTracker
     misconception_remediation_outcome_tracker: MisconceptionRemediationOutcomeTracker
@@ -315,6 +322,7 @@ def build_application_services(
     generated_content_store = SQLiteGeneratedContentStore(conn)
     curriculum_content_library_store = SQLiteCurriculumContentLibraryStore(conn)
     predictive_warm_queue_store = SQLitePredictiveWarmQueueStore(conn)
+    retention_review_candidate_store = SQLiteRetentionReviewCandidateStore(conn)
     observation_store = SQLiteObservationStore(conn)
     socratic_session_store = SQLiteSocraticSessionStore(conn)
     remediation_session_store = SQLiteRemediationSessionStore(conn)
@@ -457,10 +465,14 @@ def build_application_services(
         ),
         ordinary_mastery_signal_service=ordinary_mastery_signal_service,
     )
+    retention_scheduler_service = RetentionSchedulerService(
+        candidate_store=retention_review_candidate_store
+    )
     learner_profile_harness = LearnerProfileHarness(
         profile_store=profile_store,
         observation_profile_updater=observation_profile_updater,
         socratic_profile_updater=socratic_profile_updater,
+        retention_scheduler=retention_scheduler_service,
     )
     progression_ownership_service = ProgressionOwnershipService(
         knowledge_component_store=knowledge_component_store,
@@ -548,6 +560,7 @@ def build_application_services(
         learner_flow_service=learner_flow_service,
         ordinary_mastery_signal_service=ordinary_mastery_signal_service,
         quality_gate_signal_service=mastery_quality_gate_signal_service,
+        retention_scheduler_service=retention_scheduler_service,
     )
     curriculum_intake_harness = CurriculumIntakeHarness(
         framework_store=curriculum_framework_store,
@@ -578,6 +591,7 @@ def build_application_services(
             prior_store=modality_routing_prior_store,
             strategy_signal_service=learner_strategy_signal_service,
             state_signal_service=learner_state_signal_service,
+            retention_scheduler_service=retention_scheduler_service,
         ),
     )
     curriculum_evolution_harness = CurriculumEvolutionHarness(
@@ -787,6 +801,8 @@ def build_application_services(
         generation_mode_calibrator=generation_mode_calibrator,
         predictive_content_invalidator=predictive_content_invalidator,
         predictive_warm_scheduler=predictive_warm_scheduler,
+        retention_review_candidate_store=retention_review_candidate_store,
+        retention_scheduler_service=retention_scheduler_service,
         mastery_snapshot_service=mastery_snapshot_service,
         progression_outcome_tracker=progression_outcome_tracker,
         outcome_state_transition_tracker=outcome_state_transition_tracker,

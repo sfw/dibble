@@ -39,10 +39,42 @@ def test_ready_reports_setup_required_for_first_run(tmp_path: Path) -> None:
     assert data["configured"] is False
     assert data["has_admin_user"] is False
     assert any(check["key"] == "database" for check in data["checks"])
+    assert any(check["key"] == "embedder" for check in data["checks"])
     assert (
         "Configure a real LLM provider before running pilot learners."
         in data["next_steps"]
     )
+    assert readiness_is_acceptable(data) is False
+
+
+def test_ready_reports_not_ready_when_household_runtime_uses_local_hash_embeddings(
+    tmp_path: Path,
+) -> None:
+    dist = _frontend_dist(tmp_path)
+    client = TestClient(
+        create_app(
+            Settings(
+                database_path=str(tmp_path / "data" / "dibble.db"),
+                deployment_mode="household_container",
+                frontend_dist_path=str(dist),
+                llm_api_key="sk-real",
+                llm_model="gpt-4o",
+                auth_enabled=True,
+                auth_token_secret="secret",
+                telemetry_level="normal",
+            )
+        )
+    )
+    client.post("/api/setup/admin", json={"display_name": "Operator"})
+
+    response = client.get("/ready")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "not_ready"
+    embedder_check = next(check for check in data["checks"] if check["key"] == "embedder")
+    assert embedder_check["status"] == "fail"
+    assert "Configure a real embedding provider" in " ".join(data["next_steps"])
     assert readiness_is_acceptable(data) is False
 
 
@@ -56,6 +88,8 @@ def test_ready_reports_ready_for_configured_household_runtime(tmp_path: Path) ->
                 frontend_dist_path=str(dist),
                 llm_api_key="sk-real",
                 llm_model="gpt-4o",
+                embedding_api_key="sk-embed",
+                embedding_model="text-embedding-3-small",
                 auth_enabled=True,
                 auth_token_secret="secret",
                 telemetry_level="normal",

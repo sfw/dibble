@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Protocol
+from xml.etree import ElementTree
+
+from xml.etree.ElementTree import ParseError
 
 from dibble.models.generation import GeneratedBlock, GroundingReference
 from dibble.services.validation.math import find_equation_checks
@@ -18,6 +22,46 @@ class ValidationRule(Protocol):
     def validate(
         self, blocks: list[GeneratedBlock], grounding: list[GroundingReference]
     ) -> list[str]: ...
+
+
+DIAGRAM_BLOCK_KINDS = {"diagram", "visual_representation"}
+SUPPORTED_DIAGRAM_SHAPES = {
+    "compare_invariant",
+    "target_invariant",
+    "step_relationship",
+}
+ALLOWED_SVG_ELEMENTS = {
+    "svg",
+    "title",
+    "desc",
+    "rect",
+    "line",
+    "path",
+    "text",
+    "g",
+    "defs",
+    "marker",
+}
+BANNED_SVG_ATTRIBUTES = {
+    "class",
+    "style",
+    "href",
+    "src",
+    "xlink:href",
+}
+GENERIC_LABEL_TOKENS = {
+    "and",
+    "caption",
+    "concept",
+    "diagram",
+    "for",
+    "img",
+    "model",
+    "see",
+    "the",
+    "this",
+    "visual",
+}
 
 
 @dataclass(slots=True)
@@ -194,27 +238,118 @@ class NarrativeCoherenceRule:
 
 @dataclass(slots=True)
 class DiagramAccessibilityRule:
+    max_svg_characters: int = 2500
+    max_svg_elements: int = 24
+    max_text_elements: int = 8
+
     def validate(
         self, blocks: list[GeneratedBlock], grounding: list[GroundingReference]
     ) -> list[str]:
         diagram_blocks = [
-            block for block in blocks if block.kind in {"diagram", "visual_representation"}
+            block for block in blocks if block.kind in DIAGRAM_BLOCK_KINDS
         ]
         if not diagram_blocks:
             return []
         issues: list[str] = []
-        if not any(block.kind == "instruction" for block in blocks):
+        if not any(
+            block.kind == "instruction" and _display_text(block).strip()
+            for block in blocks
+        ):
             issues.append(
                 "Diagram modality content should include an instructional companion block."
             )
         for block in diagram_blocks:
             body = block.body.strip()
-            if body.startswith("<svg") and "aria-label=" not in body:
-                issues.append(
-                    "Diagram modality content is missing accessible SVG labeling."
-                )
-                break
+            issues.extend(self._validate_svg_body(body))
         return issues
+
+    def _validate_svg_body(self, body: str) -> list[str]:
+        if not body.startswith("<svg"):
+            return ["Diagram modality content body must be inline SVG."]
+
+        issues: list[str] = []
+        if len(body) > self.max_svg_characters:
+            issues.append(
+                "Diagram modality SVG exceeds the supported complexity limit."
+            )
+        lowered = body.lower()
+        if "<!doctype" in lowered or "<!entity" in lowered or "<?xml" in lowered:
+            issues.append(
+                "Diagram modality SVG includes unsupported document-level markup."
+            )
+            return issues
+
+        try:
+            root = ElementTree.fromstring(body)
+        except ParseError:
+            return ["Diagram modality SVG is malformed and could not be parsed."]
+
+        if _local_name(root.tag) != "svg":
+            issues.append("Diagram modality content body must be inline SVG.")
+            return issues
+
+        elements = list(root.iter())
+        if len(elements) > self.max_svg_elements:
+            issues.append(
+                "Diagram modality SVG exceeds the supported complexity limit."
+            )
+        text_elements = [
+            element for element in elements if _local_name(element.tag) == "text"
+        ]
+        if len(text_elements) > self.max_text_elements:
+            issues.append(
+                "Diagram modality SVG exceeds the supported text-label limit."
+            )
+
+        unsupported_tags = sorted(
+            {
+                _local_name(element.tag)
+                for element in elements
+                if _local_name(element.tag) not in ALLOWED_SVG_ELEMENTS
+            }
+        )
+        if unsupported_tags:
+            issues.append(
+                "Diagram modality SVG includes unsupported SVG constructs."
+            )
+
+        if any(_has_unsupported_svg_attribute(element) for element in elements):
+            issues.append(
+                "Diagram modality SVG includes unsupported SVG constructs."
+            )
+
+        aria_label = _attribute(root, "aria-label").strip()
+        if not aria_label:
+            issues.append("Diagram modality content is missing accessible SVG labeling.")
+
+        if _attribute(root, "role").strip().lower() != "img":
+            issues.append("Diagram modality SVG must declare role='img'.")
+
+        if not _attribute(root, "viewBox").strip():
+            issues.append("Diagram modality SVG must include a viewBox.")
+
+        diagram_shape = _attribute(root, "data-diagram-shape").strip()
+        if diagram_shape not in SUPPORTED_DIAGRAM_SHAPES:
+            issues.append(
+                "Diagram modality SVG uses an unsupported diagram shape."
+            )
+
+        title_text = _first_child_text(root, "title")
+        desc_text = _first_child_text(root, "desc")
+        caption_text = _caption_text(root)
+        if not title_text or not desc_text or not caption_text:
+            issues.append(
+                "Diagram modality SVG is missing required title, description, or caption structure."
+            )
+
+        if aria_label and title_text and not _shares_label_token(
+            aria_label, title_text
+        ):
+            issues.append(
+                "Diagram modality SVG title and accessible label should describe the same concept."
+            )
+
+        return _deduplicate_issues(issues)
 
 
 @dataclass(slots=True)
@@ -227,8 +362,10 @@ class ModalityCompositionRule:
             return [
                 "Narrative composition should include a follow-through instructional block."
             ]
-        if block_kinds.intersection({"diagram", "visual_representation"}) and not block_kinds.intersection(
-            {"summary", "instruction", "worked_example"}
+        if block_kinds.intersection(DIAGRAM_BLOCK_KINDS) and not any(
+            block.kind in {"summary", "instruction", "worked_example"}
+            and _display_text(block).strip()
+            for block in blocks
         ):
             return [
                 "Diagram composition should include text guidance alongside the visual."
@@ -270,7 +407,7 @@ class MathSanityRule:
         ]
         if invalid_equations:
             return [
-                "Generated content includes a math statement that failed a basic arithmetic check."
+                "Generated content includes a math statement that failed an arithmetic or symbolic consistency check."
             ]
         return []
 
@@ -289,10 +426,80 @@ def _block_text(block: GeneratedBlock) -> str:
 
 def _display_text(block: GeneratedBlock) -> str:
     body = block.body or ""
-    if block.kind in {"diagram", "visual_representation"} and body.strip().startswith("<svg"):
+    if block.kind in DIAGRAM_BLOCK_KINDS and body.strip().startswith("<svg"):
         return ""
     return body
 
 
 def _guardrail_body_length(block: GeneratedBlock) -> int:
     return len(_display_text(block))
+
+
+def _local_name(tag: str) -> str:
+    if "}" in tag:
+        return tag.rsplit("}", 1)[1]
+    return tag
+
+
+def _attribute(element: ElementTree.Element, name: str) -> str:
+    for attribute_name, value in element.attrib.items():
+        if _local_name(attribute_name).lower() == name.lower():
+            return value
+    return ""
+
+
+def _first_child_text(root: ElementTree.Element, tag_name: str) -> str:
+    for child in root:
+        if _local_name(child.tag) == tag_name:
+            return "".join(child.itertext()).strip()
+    return ""
+
+
+def _caption_text(root: ElementTree.Element) -> str:
+    for element in root.iter():
+        if _local_name(element.tag) != "text":
+            continue
+        if _attribute(element, "data-role").strip().lower() != "caption":
+            continue
+        return "".join(element.itertext()).strip()
+    return ""
+
+
+def _has_unsupported_svg_attribute(element: ElementTree.Element) -> bool:
+    for attribute_name, value in element.attrib.items():
+        name = _local_name(attribute_name).lower()
+        normalized_value = value.strip().lower()
+        if name.startswith("on") or name in BANNED_SVG_ATTRIBUTES:
+            return True
+        if name.startswith("data-") and name not in {
+            "data-diagram-shape",
+            "data-role",
+        }:
+            return True
+        if "javascript:" in normalized_value or normalized_value.startswith("data:"):
+            return True
+    return False
+
+
+def _shares_label_token(left: str, right: str) -> bool:
+    left_tokens = _label_tokens(left)
+    right_tokens = _label_tokens(right)
+    if not left_tokens or not right_tokens:
+        return True
+    return bool(left_tokens.intersection(right_tokens))
+
+
+def _label_tokens(value: str) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"[a-z0-9]+", value.lower())
+        if len(token) >= 3 and token not in GENERIC_LABEL_TOKENS
+    }
+
+
+def _deduplicate_issues(issues: list[str]) -> list[str]:
+    deduplicated: list[str] = []
+    for issue in issues:
+        if issue not in deduplicated:
+            deduplicated.append(issue)
+    return deduplicated

@@ -57,13 +57,30 @@ The script:
   multi-session timeline starts from clean planning state
 - runs the `longitudinal_fraction_recovery` timeline against that same live
   container deployment
+- seeds an additional varied operator-review household by default and exercises
+  onboarding, adaptive modality, shared-library reuse, and privacy-audit checks
+  through public API paths
 - restarts the Compose service and verifies household state is still present
 - stops the service, copies `/data/dibble.db` to the artifact directory, copies
   it back, restarts the service, fixes restored database ownership for the
-  non-root `dibble` runtime user, and verifies household state again
+  non-root `dibble` runtime user, and verifies every proof household label still
+  has the same overview signature
 - writes JSON and Markdown proof reports under `proof-artifacts/`
 
 Use `--artifact-dir PATH` to choose a specific handoff directory.
+
+Use `--skip-multi-household-evidence` only when debugging. A final proof package
+should leave the additional operator household enabled. To exercise more varied
+households, repeat:
+
+```bash
+uv run python scripts/live_household_proof.py \
+  --base-url http://localhost:8000 \
+  --compose-dir deploy/household \
+  --request-timeout-seconds 720 \
+  --require-real-provider \
+  --multi-household-seed-file proof/fixtures/operator_household_seed.json
+```
 
 ## Artifacts
 
@@ -75,8 +92,16 @@ Each run writes:
 
 The Markdown report is the review artifact. It summarizes readiness, provider
 posture, scenario results, longitudinal checkpoints, generated sample metadata,
-privacy-audit results, restart preservation, backup checksum, and restore
-verification.
+multi-household evidence, privacy-audit results, restart preservation, backup
+checksum, and restore verification.
+
+Read pending approvals as a governance signal. In guided mode, pending approvals
+are expected; they become a problem only if the preview is unclear, the blocked
+action proceeds anyway, or the operator cannot tell what to do next.
+
+Review content samples with `docs/proof/content-quality-review.md`. The report
+lists the generated sample ids and review categories; the operator records
+`pass`, `watch`, or `fail` notes outside the machine-readable proof report.
 
 ## Dry Run
 

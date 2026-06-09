@@ -8,6 +8,7 @@ import pytest
 from scripts.rehearse_proof_scenarios import (
     RehearsalError,
     assert_reuse_hit,
+    content_quality_sample,
     operator_markdown_report,
     require_real_provider,
     run_longitudinal_fraction_recovery,
@@ -112,6 +113,21 @@ def test_operator_markdown_report_summarizes_live_evidence() -> None:
                 "result": "overview shows 2 learners",
             }
         ],
+        "multi_household_evidence": [
+            {
+                "label": "operator_household_1",
+                "household_name": "Operator Review Household",
+                "learner_count": 4,
+                "readiness": {"status": "ready"},
+                "privacy_audit": {"entry_count": 2, "forbidden_hit_count": 0},
+                "scenario_results": [
+                    {
+                        "scenario_id": "adaptive_modality_change",
+                        "result": "text -> diagram",
+                    }
+                ],
+            }
+        ],
         "timelines": [
             {
                 "timeline_id": "longitudinal_fraction_recovery",
@@ -135,13 +151,22 @@ def test_operator_markdown_report_summarizes_live_evidence() -> None:
                         "generation_id": "gen-1",
                         "modality": "diagram",
                         "cache_hit": True,
+                        "review_checklist": {
+                            "curriculum_fit": "Does it teach the target?"
+                        },
                     }
                 ],
                 "privacy_audit": {"entry_count": 1, "forbidden_field_hits": []},
             }
         ],
         "live_container_evidence": {
-            "restart": {"persistence_preserved": True},
+            "restart": {
+                "persistence_preserved": True,
+                "pre_restart_signature": {
+                    "canonical": {"household_id": "household-1"},
+                    "operator_household_1": {"household_id": "household-2"},
+                },
+            },
             "backup": {"path": "backup.db", "size_bytes": 4096, "sha256": "abc"},
             "restore": {
                 "restore_preserved_state": True,
@@ -153,8 +178,36 @@ def test_operator_markdown_report_summarizes_live_evidence() -> None:
     markdown = operator_markdown_report(report)
 
     assert "Live Household Proof Report" in markdown
+    assert "How To Read This Report" in markdown
+    assert "Multi-Household Evidence" in markdown
+    assert "operator_household_1" in markdown
+    assert "curriculum_fit" in markdown
     assert "Restart preserved household state: True" in markdown
     assert "Privacy audit: entries=1, forbidden_hits=0" in markdown
+
+
+def test_content_quality_sample_includes_review_checklist() -> None:
+    sample = content_quality_sample(
+        phase_id="session-1",
+        learner_alias="avery",
+        generation={
+            "generation_id": "gen-1",
+            "content_type": "worked_example",
+            "quality": {"cache_hit": False},
+            "workflow_summary": {"learning_session_id": "session-1"},
+            "request_context": {"modality_plugin_id": "diagram"},
+        },
+        review_note="Review this sample.",
+    )
+
+    assert sample["modality"] == "diagram"
+    assert set(sample["review_checklist"]) == {
+        "curriculum_fit",
+        "misconception_targeting",
+        "age_fit",
+        "privacy",
+        "actionability",
+    }
 
 
 def test_live_proof_helpers_capture_stable_evidence(tmp_path: Path) -> None:

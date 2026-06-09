@@ -1,0 +1,318 @@
+{
+  "version": "1.0",
+  "cases": [
+    {
+      "case_id": "fractions_text_micro_explanation_pass",
+      "title": "Text micro explanation stays grounded and provider-safe",
+      "target_kc_id": "KC-FRAC-EQ-1",
+      "grade_level": "5",
+      "intervention_type": "step_back",
+      "modality": "text",
+      "request": {
+        "grade_level": "5",
+        "intent": "explanation",
+        "content_type": "micro_explanation",
+        "target_kc_ids": ["KC-FRAC-EQ-1"],
+        "curriculum_context": ["Equivalent fractions", "Area models"],
+        "delivery_tone": "Keep the tone calm, specific, and encouraging.",
+        "prompt_guidance": "Use area models before symbolic comparison.",
+        "generation_constraints": {},
+        "adaptive_variant_hint": "baseline"
+      },
+      "route": {
+        "intervention_type": "step_back",
+        "delivery_mode": "generated",
+        "scaffolding_level": "high",
+        "reasons": ["Regression corpus fixture."]
+      },
+      "grounding": [
+        {
+          "outcome_id": "CURR-1",
+          "title": "Equivalent Fractions Foundations",
+          "grade_level": "5",
+          "subject": "math",
+          "score": 2.0,
+          "matched_terms": ["equivalent fractions", "area models"],
+          "excerpt": "Use area models to explain why equivalent fractions name the same amount."
+        }
+      ],
+      "blocks": [
+        {
+          "kind": "summary",
+          "title": "Same amount",
+          "body": "Equivalent fractions show the same amount even when the pieces look different."
+        },
+        {
+          "kind": "instruction",
+          "title": "Check the model",
+          "body": "Shade one half and two fourths. Compare the covered area before writing symbols."
+        }
+      ],
+      "expectations": {
+        "forbidden_issue_substrings": [
+          "missing",
+          "failed",
+          "accessibility",
+          "safety review"
+        ],
+        "required_prompt_substrings": [
+          "Equivalent Fractions Foundations",
+          "Curriculum grade level: 5",
+          "Use area models before symbolic comparison."
+        ],
+        "forbidden_prompt_substrings": [
+          "Frustration signal:",
+          "learner said they were confused"
+        ],
+        "expected_template_name_prefix": "micro_explanation."
+      }
+    },
+    {
+      "case_id": "fractions_practice_problem_math_fail",
+      "title": "Practice problem catches wrong fraction arithmetic",
+      "target_kc_id": "KC-FRAC-ADD-1",
+      "grade_level": "5",
+      "intervention_type": "targeted_practice",
+      "modality": "text",
+      "request": {
+        "grade_level": "5",
+        "intent": "practice",
+        "content_type": "practice_problem",
+        "target_kc_ids": ["KC-FRAC-ADD-1"],
+        "curriculum_context": ["Adding fractions with like denominators"],
+        "delivery_tone": "Keep the tone calm, specific, and encouraging.",
+        "prompt_guidance": "Use a short check before releasing the learner.",
+        "generation_constraints": {},
+        "adaptive_variant_hint": "baseline"
+      },
+      "route": {
+        "intervention_type": "targeted_practice",
+        "delivery_mode": "generated",
+        "scaffolding_level": "medium",
+        "reasons": ["Regression corpus fixture."]
+      },
+      "grounding": [
+        {
+          "outcome_id": "CURR-2",
+          "title": "Add Fractions With Like Denominators",
+          "grade_level": "5",
+          "subject": "math",
+          "score": 2.0,
+          "matched_terms": ["fractions", "like denominators"],
+          "excerpt": "When denominators match, add the numerators and keep the denominator."
+        }
+      ],
+      "blocks": [
+        {
+          "kind": "summary",
+          "title": "Quick reminder",
+          "body": "When denominators are the same, combine the numerators."
+        },
+        {
+          "kind": "practice_problem",
+          "title": "Find the sum",
+          "body": "A student claims that 1/3 + 1/3 = 3/3.",
+          "interaction": {
+            "type": "multiple_choice",
+            "prompt": "Which answer is correct?",
+            "options": [
+              {
+                "option_id": "A",
+                "label": "Option A",
+                "body": "The student added the numerators but kept the denominator wrong."
+              },
+              {
+                "option_id": "B",
+                "label": "Option B",
+                "body": "The student correctly added the numerators and kept the denominator."
+              }
+            ],
+            "correct_option_id": "A",
+            "reveal": {
+              "trigger": "after_selection",
+              "prompt": "Compare the model again.",
+              "support": "Two thirds is larger than one whole third but less than one whole.",
+              "placeholder": "Think about the common denominator."
+            }
+          }
+        }
+      ],
+      "expectations": {
+        "expected_issue_substrings": [
+          "arithmetic or symbolic consistency check"
+        ],
+        "required_prompt_substrings": [
+          "Add Fractions With Like Denominators"
+        ],
+        "expected_template_name_prefix": "practice_problem."
+      }
+    },
+    {
+      "case_id": "algebra_symbolic_identity_pass",
+      "title": "Worked example accepts valid symbolic identity",
+      "target_kc_id": "KC-ALG-DIST-1",
+      "grade_level": "7",
+      "intervention_type": "stretch",
+      "modality": "text",
+      "request": {
+        "grade_level": "7",
+        "intent": "explanation",
+        "content_type": "worked_example",
+        "target_kc_ids": ["KC-ALG-DIST-1"],
+        "curriculum_context": ["Distributive property", "Equivalent expressions"],
+        "delivery_tone": "Keep the tone calm, specific, and encouraging.",
+        "prompt_guidance": "Use one symbolic identity and explain the preserved structure.",
+        "generation_constraints": {},
+        "adaptive_variant_hint": "baseline"
+      },
+      "route": {
+        "intervention_type": "stretch",
+        "delivery_mode": "generated",
+        "scaffolding_level": "medium",
+        "reasons": ["Regression corpus fixture."]
+      },
+      "grounding": [
+        {
+          "outcome_id": "CURR-3",
+          "title": "Equivalent Expressions and Distributive Property",
+          "grade_level": "7",
+          "subject": "math",
+          "score": 2.0,
+          "matched_terms": ["equivalent expressions", "distributive property"],
+          "excerpt": "Use the distributive property to rewrite expressions without changing their value."
+        }
+      ],
+      "blocks": [
+        {
+          "kind": "summary",
+          "title": "Same value, new form",
+          "body": "Equivalent expressions keep the same value while showing structure in a different way."
+        },
+        {
+          "kind": "instruction",
+          "title": "Check the identity",
+          "body": "Notice that 2*x + 6 = 2*(x + 3), so the factor of 2 is preserved in both forms."
+        }
+      ],
+      "expectations": {
+        "forbidden_issue_substrings": [
+          "arithmetic or symbolic consistency check"
+        ],
+        "required_prompt_substrings": [
+          "Equivalent Expressions and Distributive Property"
+        ],
+        "expected_template_name_prefix": "worked_example."
+      }
+    },
+    {
+      "case_id": "narrative_reflective_pass",
+      "title": "Narrative case keeps teacher and learner perspectives",
+      "target_kc_id": "KC-FRAC-COMPARE-1",
+      "grade_level": "5",
+      "intervention_type": "reteach",
+      "modality": "narrative",
+      "request": {
+        "grade_level": "5",
+        "intent": "remediation",
+        "content_type": "remedial_micro_module",
+        "target_kc_ids": ["KC-FRAC-COMPARE-1"],
+        "curriculum_context": ["Compare equivalent fractions"],
+        "delivery_tone": "Keep the tone calm, specific, and encouraging.",
+        "prompt_guidance": "End with a reflective teaching move.",
+        "generation_constraints": {},
+        "adaptive_variant_hint": "baseline"
+      },
+      "route": {
+        "intervention_type": "reteach",
+        "delivery_mode": "generated",
+        "scaffolding_level": "high",
+        "reasons": ["Regression corpus fixture."]
+      },
+      "grounding": [
+        {
+          "outcome_id": "CURR-4",
+          "title": "Compare Equivalent Fraction Families",
+          "grade_level": "5",
+          "subject": "math",
+          "score": 2.0,
+          "matched_terms": ["equivalent fractions", "compare"],
+          "excerpt": "Compare models and explain what stays the same when numerator and denominator scale together."
+        }
+      ],
+      "blocks": [
+        {
+          "kind": "narrative",
+          "title": "A quick reteach",
+          "body": "The learner studies two shaded bars while the teacher asks what stays the same. The learner notices both bars cover equal space and asks whether the pieces were just renamed."
+        },
+        {
+          "kind": "instruction",
+          "title": "Reflect",
+          "body": "What stays the same when both the numerator and denominator double?"
+        }
+      ],
+      "expectations": {
+        "forbidden_issue_substrings": [
+          "Narrative modality content"
+        ],
+        "required_prompt_substrings": [
+          "Compare Equivalent Fraction Families"
+        ],
+        "expected_template_name_prefix": "remedial_micro_module."
+      }
+    },
+    {
+      "case_id": "diagram_accessibility_fail",
+      "title": "Diagram case catches missing accessibility and companion text",
+      "target_kc_id": "KC-FRAC-MODEL-1",
+      "grade_level": "5",
+      "intervention_type": "step_back",
+      "modality": "diagram",
+      "request": {
+        "grade_level": "5",
+        "intent": "explanation",
+        "content_type": "micro_explanation",
+        "target_kc_ids": ["KC-FRAC-MODEL-1"],
+        "curriculum_context": ["Fraction strip models"],
+        "delivery_tone": "Keep the tone calm, specific, and encouraging.",
+        "prompt_guidance": "Use a simple strip model.",
+        "generation_constraints": {},
+        "adaptive_variant_hint": "baseline"
+      },
+      "route": {
+        "intervention_type": "step_back",
+        "delivery_mode": "generated",
+        "scaffolding_level": "high",
+        "reasons": ["Regression corpus fixture."]
+      },
+      "grounding": [
+        {
+          "outcome_id": "CURR-5",
+          "title": "Represent Fractions With Strip Models",
+          "grade_level": "5",
+          "subject": "math",
+          "score": 2.0,
+          "matched_terms": ["fraction strip", "model"],
+          "excerpt": "Use labeled strip models so learners can compare shaded parts visually."
+        }
+      ],
+      "blocks": [
+        {
+          "kind": "diagram",
+          "title": "Fraction strip",
+          "body": "<svg viewBox='0 0 100 20'><rect width='50' height='20'/></svg>"
+        }
+      ],
+      "expectations": {
+        "expected_issue_substrings": [
+          "instructional companion block",
+          "accessible SVG labeling"
+        ],
+        "required_prompt_substrings": [
+          "Represent Fractions With Strip Models"
+        ],
+        "expected_template_name_prefix": "micro_explanation."
+      }
+    }
+  ]
+}

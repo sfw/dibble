@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
@@ -51,6 +52,7 @@ from dibble.models.planning import LearnerGoal, TrajectoryPlan
 from dibble.models.profile import LearnerProfile
 from dibble.models.rollout import RolloutPolicy
 from dibble.models.remediation import RemediationWorkflowSession
+from dibble.models.retention import RetentionReviewCandidate, RetentionReviewStatus
 from dibble.models.session_control import SessionControlState
 from dibble.models.session_adaptation import WithinSessionControllerState
 from dibble.models.telemetry import (
@@ -368,6 +370,49 @@ class PredictiveWarmTaskStore(Protocol):
         learning_session_id: str | None = None,
     ) -> int: ...
     def stats(self) -> dict[str, int | None]: ...
+
+
+class RetentionReviewCandidateStore(Protocol):
+    def upsert(
+        self, candidate: RetentionReviewCandidate
+    ) -> RetentionReviewCandidate: ...
+    def upsert_many(
+        self, candidates: list[RetentionReviewCandidate]
+    ) -> list[RetentionReviewCandidate]: ...
+    def get(self, candidate_id: str) -> RetentionReviewCandidate | None: ...
+    def active_for_cluster(
+        self, *, learner_id: str, cluster_key: str
+    ) -> RetentionReviewCandidate | None: ...
+    def list_for_student(
+        self,
+        *,
+        learner_id: str,
+        statuses: list[RetentionReviewStatus] | None = None,
+        limit: int = 50,
+    ) -> list[RetentionReviewCandidate]: ...
+    def due_reviews_for_student(
+        self,
+        *,
+        learner_id: str,
+        now: datetime | None = None,
+        limit: int = 20,
+    ) -> list[RetentionReviewCandidate]: ...
+    def scheduled_reviews_for_student(
+        self,
+        *,
+        learner_id: str,
+        now: datetime | None = None,
+        limit: int = 20,
+    ) -> list[RetentionReviewCandidate]: ...
+    def record_review(
+        self,
+        *,
+        candidate_id: str,
+        reviewed_at: datetime | None = None,
+        successful: bool = False,
+        outcome_score: float | None = None,
+        status: RetentionReviewStatus = RetentionReviewStatus.completed,
+    ) -> RetentionReviewCandidate | None: ...
 
 
 class EmbeddingStore(Protocol):

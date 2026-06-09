@@ -13,8 +13,10 @@ from dibble.services.outcome_store import SQLiteOutcomeStore
 from dibble.services.rag_retriever import RAGRetriever
 from dibble.services.retrieval.embedding_store import SQLiteEmbeddingStore
 from dibble.services.retrieval.embeddings import (
+    EmbeddingError,
     LocalHashEmbedder,
     OpenAICompatibleEmbedder,
+    UnavailableEmbedder,
     build_embedder,
 )
 from dibble.services.sqlite_connection import create_connection
@@ -61,6 +63,24 @@ def test_build_embedder_uses_openai_compatible_embedder_when_configured():
     )
 
     assert isinstance(embedder, OpenAICompatibleEmbedder)
+
+
+def test_build_embedder_blocks_local_hash_for_real_provider_household_runtime():
+    embedder = build_embedder(
+        Settings(
+            deployment_mode="household_container",
+            llm_api_key="sk-real",
+            llm_model="gpt-4o",
+        )
+    )
+
+    assert isinstance(embedder, UnavailableEmbedder)
+    try:
+        embedder.embed("equivalent fractions")
+    except EmbeddingError as exc:
+        assert "Local hash embeddings are not allowed" in str(exc)
+    else:  # pragma: no cover - defensive
+        raise AssertionError("Expected managed household runtime embedder to fail closed.")
 
 
 def test_retriever_reuses_persisted_resource_embeddings(tmp_path):

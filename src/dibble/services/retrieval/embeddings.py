@@ -8,6 +8,10 @@ from dibble.config import Settings
 from dibble.services.llm_client import LLMClientError, post_json
 from dibble.services.retrieval.text import char_ngrams, salient_tokens
 
+_STRICT_EMBEDDER_DEPLOYMENT_MODES = frozenset(
+    {"household_container", "managed", "production"}
+)
+
 
 class EmbeddingError(RuntimeError):
     """Raised when embedding generation fails."""
@@ -56,6 +60,14 @@ class LocalHashEmbedder:
 
 
 @dataclass(slots=True)
+class UnavailableEmbedder:
+    reason: str
+
+    def embed(self, text: str) -> list[float]:
+        raise EmbeddingError(self.reason)
+
+
+@dataclass(slots=True)
 class OpenAICompatibleEmbedder:
     api_base: str
     api_key: str
@@ -91,8 +103,44 @@ class OpenAICompatibleEmbedder:
         return [float(value) for value in embedding]
 
 
+def has_real_embedder_config(settings: Settings) -> bool:
+    return bool(settings.embedding_api_key and settings.embedding_model)
+
+
+def has_real_llm_config(settings: Settings) -> bool:
+    return bool(
+        (settings.llm_api_key and settings.llm_model)
+        or (settings.llm_secondary_api_key and settings.llm_secondary_model)
+    )
+
+
+def embedder_kind(settings: Settings) -> str:
+    if has_real_embedder_config(settings):
+        return "openai_compatible"
+    if settings.embedding_allow_local_fallback:
+        return "local_hash"
+    return "unconfigured"
+
+
+def embedder_detail(settings: Settings) -> str:
+    kind = embedder_kind(settings)
+    if kind == "openai_compatible":
+        return settings.embedding_model or "configured"
+    if kind == "local_hash":
+        return f"{settings.embedding_dimensions}-dimension local hash fallback"
+    return "No embedding provider is configured."
+
+
+def local_hash_embedder_disallowed(settings: Settings) -> bool:
+    return (
+        embedder_kind(settings) == "local_hash"
+        and settings.deployment_mode in _STRICT_EMBEDDER_DEPLOYMENT_MODES
+        and has_real_llm_config(settings)
+    )
+
+
 def build_embedder(settings: Settings) -> Embedder:
-    if settings.embedding_api_key and settings.embedding_model:
+    if has_real_embedder_config(settings):
         return OpenAICompatibleEmbedder(
             api_base=settings.embedding_api_base,
             api_key=settings.embedding_api_key,
@@ -101,6 +149,12 @@ def build_embedder(settings: Settings) -> Embedder:
         )
 
     if settings.embedding_allow_local_fallback:
+        if local_hash_embedder_disallowed(settings):
+            return UnavailableEmbedder(
+                "Local hash embeddings are not allowed for a real-provider "
+                f"{settings.deployment_mode} runtime. Configure "
+                "DIBBLE_EMBEDDING_API_KEY and DIBBLE_EMBEDDING_MODEL."
+            )
         return LocalHashEmbedder(dimensions=settings.embedding_dimensions)
 
     raise EmbeddingError(

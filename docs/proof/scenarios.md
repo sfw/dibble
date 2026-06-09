@@ -64,6 +64,14 @@ in the same operator report. See `docs/proof/live-household-proof.md`.
 
 Shared seed asset: `proof/fixtures/scenario_household_seed.json`.
 
+Additional multi-household proof seed:
+`proof/fixtures/operator_household_seed.json`. The live proof runner uses this
+by default to exercise a varied operator-review household after the canonical
+and longitudinal households. It keeps the same proof curriculum so scenario
+assertions remain comparable, but varies names, learner profiles, grade mix,
+household cadence, and preference posture enough to show the proof is not only
+the first household's exact state path.
+
 Seeded participants:
 
 - Parent: Morgan Proof Parent
@@ -230,6 +238,7 @@ The timeline report captures, per phase:
 - content-quality sample metadata
 - Quinn cache/library hit status for the reused sample
 - library privacy audit summary
+- structured content-review categories for each captured sample
 
 Longitudinal proof passes only when the timeline can be rehearsed without
 database edits, the review surfaces remain understandable across repeated
@@ -237,6 +246,11 @@ sessions, planning/adaptation evidence changes over time, parent approval
 decisions remain enforceable, Quinn's reused sample reports a cache/library hit,
 captured content samples are reviewable, and the privacy audit remains clean
 after cross-learner reuse.
+
+Use `docs/proof/content-quality-review.md` to turn sample capture into repeatable
+human review notes. Capturing samples alone is not enough for the final proof
+package; an operator should record what looked acceptable, questionable, or
+blocking.
 
 This is still not full controlled-pilot confidence. Before calling the POC fully
 proven, we still need non-scripted parent comprehension checks, more than one

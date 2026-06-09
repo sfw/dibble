@@ -157,10 +157,17 @@ Artifacts are written under `proof-artifacts/live-household-*` unless
 The script creates proof households, proof learners, fraction-equivalence
 curriculum, guided household preferences, and explicit goals/trajectories. It
 rehearses the five canonical scenarios from `docs/proof/scenarios.md`, runs the
-longitudinal timeline from a clean proof household in the same container,
-restarts the container, copies the SQLite database backup, restores it, fixes
-database file ownership for the non-root runtime user, and verifies the
-household overview still matches after restart and restore.
+longitudinal timeline from a clean proof household in the same container, seeds
+an additional varied operator-review household by default, restarts the
+container, copies the SQLite database backup, restores it, fixes database file
+ownership for the non-root runtime user, and verifies every proof household
+overview signature still matches after restart and restore.
+
+The Markdown report includes a short "How To Read This Report" section for
+non-core operators. Use it before deciding whether a warning is a blocker:
+pending approvals are expected in guided mode, while provider failures,
+privacy-audit hits, persistence failures, or unclear parent actions require
+follow-up.
 
 For API-only debugging, use the lower-level rehearsal runner:
 

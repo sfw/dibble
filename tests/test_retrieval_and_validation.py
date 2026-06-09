@@ -2,14 +2,18 @@ from uuid import uuid4
 
 from dibble.models.curriculum import OutcomeUpsert
 from dibble.models.generation import (
+    AdaptiveRouteDecision,
     ContentIntent,
     CurriculumContentRequest,
+    DeliveryMode,
     GeneratedBlock,
     GenerationRequest,
     GroundingReference,
+    InterventionType,
     RequestedContentType,
 )
 from dibble.models.profile import LearnerProfile
+from dibble.services.content_provider import MockLLMProvider
 from dibble.services.content_validator import ContentValidator
 from dibble.services.outcome_store import SQLiteOutcomeStore
 from dibble.services.rag_retriever import RAGRetriever
@@ -359,6 +363,81 @@ def test_validator_reports_instruction_grounding_gap_when_only_summary_is_ground
     ]
 
 
+def test_validator_accepts_valid_simple_diagram_with_companion_text():
+    issues = ContentValidator().validate(
+        blocks=[
+            GeneratedBlock(
+                kind="visual_representation",
+                title="Equivalent fractions comparison",
+                body=(
+                    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 90' "
+                    "role='img' aria-label='Equivalent fractions comparison diagram' "
+                    "data-diagram-shape='compare_invariant'>"
+                    "<title>Equivalent fractions comparison</title>"
+                    "<desc>Two bars show the same amount with different piece sizes.</desc>"
+                    "<rect x='10' y='20' width='60' height='20' fill='#dbeafe'/>"
+                    "<rect x='90' y='20' width='60' height='20' fill='#dcfce7'/>"
+                    "<text x='10' y='55' font-size='12'>one half</text>"
+                    "<text x='90' y='55' font-size='12'>two fourths</text>"
+                    "<text x='10' y='78' font-size='12' data-role='caption'>"
+                    "Equivalent fractions can show the same amount."
+                    "</text></svg>"
+                ),
+            ),
+            GeneratedBlock(
+                kind="instruction",
+                title="Read the model",
+                body=(
+                    "Use equivalent fractions and fraction models to explain how the "
+                    "covered amount stays the same."
+                ),
+            ),
+        ],
+        grounding=[
+            GroundingReference(
+                outcome_id="CURR-1",
+                title="Equivalent Fractions Foundations",
+                grade_level="5",
+                score=2.0,
+                matched_terms=["equivalent fractions", "fraction models"],
+            )
+        ],
+    )
+
+    assert issues == []
+
+
+def test_validator_accepts_short_title_fallback_diagram():
+    request = CurriculumContentRequest(
+        grade_level="5",
+        intent=ContentIntent.explanation,
+        content_type=RequestedContentType.micro_explanation,
+        target_kc_ids=["KC-1"],
+        generation_constraints={"modality_plugin_id": "diagram"},
+    )
+    route = AdaptiveRouteDecision(
+        intervention_type=InterventionType.reteach,
+        delivery_mode=DeliveryMode.generated,
+        scaffolding_level="medium",
+        reasons=["test"],
+    )
+    grounding = [
+        GroundingReference(
+            outcome_id="CURR-1",
+            title="Equivalent Fractions Foundations",
+            grade_level="5",
+            score=2.0,
+            matched_terms=["equivalent fractions", "fraction models"],
+            excerpt="Use fraction models to compare equivalent fractions.",
+        )
+    ]
+
+    blocks = MockLLMProvider().generate(request, route, grounding)
+    issues = ContentValidator().validate(blocks=blocks, grounding=grounding)
+
+    assert issues == []
+
+
 def test_validator_requires_accessible_diagram_with_text_companion():
     issues = ContentValidator().validate(
         blocks=[
@@ -381,6 +460,122 @@ def test_validator_requires_accessible_diagram_with_text_companion():
 
     assert "Diagram modality content should include an instructional companion block." in issues
     assert "Diagram modality content is missing accessible SVG labeling." in issues
+
+
+def test_validator_rejects_diagram_missing_accessible_label():
+    issues = ContentValidator().validate(
+        blocks=[
+            GeneratedBlock(
+                kind="visual_representation",
+                title="Equivalent fractions comparison",
+                body=(
+                    "<svg viewBox='0 0 160 90' role='img' "
+                    "data-diagram-shape='compare_invariant'>"
+                    "<title>Equivalent fractions comparison</title>"
+                    "<desc>Two bars show the same amount.</desc>"
+                    "<rect x='10' y='20' width='60' height='20'/>"
+                    "<text x='10' y='78' data-role='caption'>"
+                    "Equivalent fractions show the same amount."
+                    "</text></svg>"
+                ),
+            ),
+            GeneratedBlock(
+                kind="instruction",
+                title="Read the model",
+                body="Use equivalent fractions to explain what stays the same.",
+            ),
+        ],
+        grounding=[
+            GroundingReference(
+                outcome_id="CURR-1",
+                title="Equivalent Fractions Foundations",
+                grade_level="5",
+                score=2.0,
+                matched_terms=["equivalent fractions"],
+            )
+        ],
+    )
+
+    assert "Diagram modality content is missing accessible SVG labeling." in issues
+
+
+def test_validator_rejects_diagram_missing_companion_text():
+    issues = ContentValidator().validate(
+        blocks=[
+            GeneratedBlock(
+                kind="visual_representation",
+                title="Equivalent fractions comparison",
+                body=(
+                    "<svg viewBox='0 0 160 90' role='img' "
+                    "aria-label='Equivalent fractions comparison diagram' "
+                    "data-diagram-shape='compare_invariant'>"
+                    "<title>Equivalent fractions comparison</title>"
+                    "<desc>Two bars show the same amount.</desc>"
+                    "<rect x='10' y='20' width='60' height='20'/>"
+                    "<text x='10' y='78' data-role='caption'>"
+                    "Equivalent fractions show the same amount."
+                    "</text></svg>"
+                ),
+            ),
+            GeneratedBlock(kind="instruction", title="Read the model", body=""),
+        ],
+        grounding=[
+            GroundingReference(
+                outcome_id="CURR-1",
+                title="Equivalent Fractions Foundations",
+                grade_level="5",
+                score=2.0,
+                matched_terms=["equivalent fractions"],
+            )
+        ],
+    )
+
+    assert "Diagram modality content should include an instructional companion block." in issues
+    assert "Diagram composition should include text guidance alongside the visual." in issues
+
+
+def test_validator_rejects_unsupported_svg_constructs_or_excessive_complexity():
+    repeated_labels = "".join(
+        f"<text x='1' y='{index}'>{index}</text>" for index in range(10)
+    )
+    issues = ContentValidator().validate(
+        blocks=[
+            GeneratedBlock(
+                kind="visual_representation",
+                title="Equivalent fractions comparison",
+                body=(
+                    "<svg viewBox='0 0 160 90' role='img' "
+                    "aria-label='Equivalent fractions comparison diagram' "
+                    "data-diagram-shape='freeform_chart'>"
+                    "<title>Equivalent fractions comparison</title>"
+                    "<desc>Two bars show the same amount.</desc>"
+                    "<script>alert(1)</script>"
+                    f"{repeated_labels}"
+                    "<text x='10' y='78' data-role='caption'>"
+                    "Equivalent fractions show the same amount."
+                    "</text></svg>"
+                ),
+            ),
+            GeneratedBlock(
+                kind="instruction",
+                title="Read the model",
+                body="Use equivalent fractions to explain what stays the same.",
+            ),
+        ],
+        grounding=[
+            GroundingReference(
+                outcome_id="CURR-1",
+                title="Equivalent Fractions Foundations",
+                grade_level="5",
+                score=2.0,
+                matched_terms=["equivalent fractions"],
+            )
+        ],
+    )
+
+    assert "Diagram modality SVG includes unsupported SVG constructs." in issues
+    assert "Diagram modality SVG uses an unsupported diagram shape." in issues
+    assert "Diagram modality SVG exceeds the supported text-label limit." in issues
 
 
 def test_validator_flags_weak_narrative_without_teacher_and_reflection():
@@ -459,6 +654,32 @@ def test_validator_reports_reading_level_accessibility_safety_and_math_issues():
         in issues
     )
     assert (
-        "Generated content includes a math statement that failed a basic arithmetic check."
+        "Generated content includes a math statement that failed an arithmetic or symbolic consistency check."
+        in issues
+    )
+
+
+def test_validator_reports_fraction_math_inconsistency():
+    issues = ContentValidator().validate(
+        blocks=[
+            GeneratedBlock(
+                kind="instruction",
+                title="Check the fraction sum",
+                body="If (3/4) + (1/4) = 2, revisit the fraction model.",
+            )
+        ],
+        grounding=[
+            GroundingReference(
+                outcome_id="CURR-1",
+                title="Equivalent Fractions",
+                grade_level="7",
+                score=2.0,
+                matched_terms=["equivalent fractions"],
+            )
+        ],
+    )
+
+    assert (
+        "Generated content includes a math statement that failed an arithmetic or symbolic consistency check."
         in issues
     )
