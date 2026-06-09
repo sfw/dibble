@@ -10,7 +10,7 @@ This runbook defines the first supported pilot state: a small operator-managed h
 - Telemetry: `normal`.
 - Cloud-library remote read: off.
 - Cloud-library remote publish: off.
-- Parent approval: guided, with modality introduction and trajectory revision approval enabled.
+- Parent approval: guided, with modality introduction, trajectory revision, and high-autonomy session approval enabled.
 - Non-text modalities: available through rollout policy, with parent approval and kill-switch fallback.
 - Outcome-driven adaptation: conservative.
 - Curriculum migration execution: manual only.

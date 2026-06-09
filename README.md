@@ -44,6 +44,12 @@ The backend owns all pedagogical decisions. The frontend renders backend state
 and backend decisions; it does not interpret raw learner signals or compute its
 own adaptation logic.
 
+Human roles are supervisory, not required for normal instruction flow:
+teachers, parents, and admins can inspect, assign, approve selected
+higher-autonomy actions, and override when needed, but the runtime does not
+depend on teacher approval for ordinary learner progression or content
+generation.
+
 Core loop:
 
 1. Observe learner signals such as correctness, timing, confidence, hints, and
@@ -214,6 +220,13 @@ Privacy boundary:
 - learner-private dialogue and learner-state rationale stay inside Dibble-owned
   runtime paths
 - provider/cloud-library paths are constrained to curriculum-shaped payloads
+
+Governance boundary:
+
+- normal learner progression and content generation are backend-directed
+- in household mode, selected higher-autonomy actions can be parent-gated
+- teacher and admin roles are for review, assignment, audit, and override, not
+  as required drivers of every learning decision
 
 ## Current Risk-Reduction Roadmap
 

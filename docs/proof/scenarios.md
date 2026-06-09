@@ -51,8 +51,9 @@ uv run python scripts/rehearse_proof_scenarios.py \
 ```
 
 The script seeds the runtime through public API paths only. It creates a parent,
-two learners, proof curriculum, learner profiles, household preferences, and an
-explicit first goal/trajectory. It does not require database edits.
+multiple proof learners, proof curriculum, learner profiles, household
+preferences, and an explicit first goal/trajectory. It does not require
+database edits.
 
 For the live household proof milestone, use
 `scripts/live_household_proof.py` instead of the lower-level rehearsal command.
