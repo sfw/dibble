@@ -1,121 +1,250 @@
 ![dibble hero](docs/images/dibble.png)
 # Dibble
 
-A dibble is a pointed tool for making holes in the ground to plant seeds. Dibble the platform does something similar: it uses generative AI to figure out what a learner needs and then makes it for them.
+Dibble is an adaptive LMS that generates learner-specific instruction on demand.
+Instead of selecting from a fixed content bank, it decides what the learner
+needs next and generates it inside a backend-owned pedagogical loop.
 
-It's an adaptive LMS. It generates explanations, worked examples, practice problems, and Socratic assessments on the fly, all grounded in real curriculum. It tracks mastery, estimates cognitive load and affect, and adjusts what it serves based on how the learner is actually doing. When its decisions don't help, it notices and changes course.
+Today Dibble can:
 
-## What learners experience
+- generate explanations, worked examples, practice, and Socratic assessments
+- ground generation in curriculum and retrieval context
+- adapt by mastery, misconception, cognitive load, affect, and recent outcomes
+- reuse curriculum-safe shared artifacts across learners without leaking
+  learner-private data
+- run inside a household-scoped container with persistent local state and
+  operator-facing readiness/proof workflows
 
-Say a learner gets a fraction addition problem wrong. Instead of just throwing another problem at them, Dibble looks at the error pattern and their history, figures out they probably have a place-value misconception, steps back to the prerequisite, generates a worked example with fading support, and then bridges back to the original topic. This all happens in one session, and the system adjusts as the learner responds.
+## What Is Proven Today
 
-If the learner is frustrated, it eases off. If they're breezing through scaffolded problems without really understanding, it holds them there instead of letting inflated scores push them forward.
+Dibble is not just a prototype UI. It now has:
 
-## What teachers experience
+- a real household container deployment path
+- a live proof workflow against Dockerized household runtime
+- privacy-safe shared-library reuse
+- restart, backup, restore, and post-restore verification
+- readiness, observability, rollout, and approval-governance surfaces
+- an offline content-quality eval harness
 
-Teachers see their classroom in three buckets: **needs action**, **needs attention**, and **on track**. These are computed server-side from each learner's mastery trajectory and intervention history. Teachers can drill into any learner to see what the system is doing and why: why it's holding someone on repair practice, why it sent them back to a prerequisite, why it thinks they're ready for transfer.
+The clearest current proof posture is:
 
-Every decision the system makes is a proposal. Teachers can approve it, pick from alternatives (labeled by stage: repair, bridge, target, transfer), defer, or escalate. Trend lines show per-learner and classroom-level mastery over time so you can tell if interventions are actually working.
+- internally proven
+- credibly proven for a small operator-managed pilot rehearsal
+- not yet claimed as fully proven for unsupervised real-world parent use
 
-## How it works
+See:
 
-**The backend owns all learning decisions.** Mastery gates, progression sequencing, remediation, misconception detection, content-mode selection: all backend services. The frontend renders what the backend tells it to. No pedagogical logic lives client-side.
+- [Final Proof Status](/Users/sfw/Development/dibble/docs/proof/final-proof-status.md)
+- [Live Household Proof Procedure](/Users/sfw/Development/dibble/docs/proof/live-household-proof.md)
+- [Pilot Readiness Runbook](/Users/sfw/Development/dibble/docs/runbooks/pilot-readiness.md)
 
-The core loop:
+## How Dibble Works
 
-1. **Observe**: ingest learner signals (time on task, correctness, help-seeking, confidence) and infer affective state, cognitive load, and metacognitive readiness
-2. **Route**: pick the next move. Teach, reteach, step back to a prerequisite, stretch toward transfer, or trigger remediation
-3. **Generate**: produce curriculum-aligned content through an LLM with retrieval grounding, moderation, validation, and deterministic fallbacks
-4. **Assess**: run multi-turn Socratic probes that evaluate understanding through conversational evidence scoring, then feed mastery and metacognitive updates back into the loop
-5. **Calibrate**: evaluate past decisions against what actually happened. Holds that helped get reinforced; holds that stalled get relaxed. Remediation that worked is noted; remediation that kept failing gets flagged for teacher review. This runs per-learner, per-concept, not as global tuning
+The backend owns all pedagogical decisions. The frontend renders backend state
+and backend decisions; it does not interpret raw learner signals or compute its
+own adaptation logic.
 
-## Repository layout
+Core loop:
 
+1. Observe learner signals such as correctness, timing, confidence, hints, and
+   conversation evidence.
+2. Infer learner state including mastery posture, load, affect, and support
+   need.
+3. Plan the next move: target practice, prerequisite repair, bridge work,
+   transfer, remediation, or conversational assessment.
+4. Generate curriculum-aligned content through a provider path with grounding,
+   moderation, validation, and safe fallbacks.
+5. Record outcomes and revise future routing, planning, modality choice, and
+   retention candidates based on what actually helped.
+
+## Repository Layout
+
+```text
+src/dibble/          FastAPI backend: models, services, plugins, routes
+frontend/            React + Vite + TypeScript frontend
+docs/                Deployment, proof, runbooks, and technical notes
+planning/            Roadmaps, risk plans, design notes, implementation plans
+deploy/household/    Household container deployment files
+proof/               Proof fixtures and proof support assets
+evals/               Offline evaluation corpora
+scripts/             Proof, eval, and operational helper scripts
 ```
-src/dibble/          FastAPI backend — services, models, plugins, routes
-frontend/            React + Vite + TypeScript — learner, teacher, and classroom UI
-planning/            Spec, gap analysis, and work plans
-docs/                Extended technical documentation
-```
 
-## Quick start
-
-For the proof household container path, see [`docs/deployment/household-container.md`](docs/deployment/household-container.md).
+## Local Development
 
 ### Backend
 
 ```bash
-uv sync --group dev                                  # install dependencies
+uv sync --group dev
 uv run python -m uvicorn --app-dir src dibble.main:app --reload --port 8000
-uv run pytest                                        # run tests
-uv run ruff check src/ tests/ && uv run ruff format src/ tests/  # lint + format
+```
+
+Common backend checks:
+
+```bash
+uv run pytest
+uv run ruff check src/dibble tests scripts
+uv run ruff format src/dibble tests scripts
 ```
 
 ### Frontend
 
 ```bash
 cd frontend
-npm ci           # install dependencies
-npm run dev      # start dev server
-npm test         # run tests
-npm run lint     # eslint
-npm run build    # type-check + production build
+npm ci
+npm run dev
 ```
 
-### Git hooks
+Frontend verification:
 
 ```bash
-pre-commit install   # installs trufflehog secret scanning hook
+cd frontend
+npm test
+npm run lint
+npm run build
 ```
+
+### Local Runtime Defaults
+
+By default Dibble uses:
+
+- SQLite for persistence
+- a mock LLM fallback if no real LLM credentials are configured
+- a local hash embedder unless a real embedding provider is configured
+
+That is fine for local development and dry-run rehearsal. It is not the target
+posture for a real pilot-proof run.
+
+## Household Container Deployment
+
+Dibble now has a first-class household container path: one household runtime,
+local persistent state, proof-ready readiness checks, and operator-facing setup.
+
+Start here:
+
+- [Household Container Deployment](/Users/sfw/Development/dibble/docs/deployment/household-container.md)
+
+Typical flow:
+
+1. Copy `deploy/household/.env.example` to `deploy/household/.env`
+2. Configure real provider settings and auth secret
+3. Run `docker compose up --build` from `deploy/household/`
+4. Check `http://localhost:8000/health` for liveness
+5. Check `http://localhost:8000/ready` for actual deployment readiness
+6. Create the initial operator and household
+7. Run the live proof workflow before treating the container as pilot-ready
+
+Important distinction:
+
+- `/health` means the process is alive
+- `/ready` means the household runtime is actually ready for use
+
+Docker health is wired to `/ready`, not just HTTP 200.
+
+## Live Proof Workflow
+
+The proof path now exercises real runtime behavior, not just static fixtures.
+
+The main operator workflow is:
+
+```bash
+uv run python scripts/live_household_proof.py \
+  --base-url http://localhost:8000 \
+  --compose-dir deploy/household \
+  --require-real-provider
+```
+
+That proof run exercises:
+
+- canonical proof scenarios
+- a longitudinal repeated-session timeline
+- privacy-safe shared-library reuse
+- multi-household evidence
+- container restart persistence
+- SQLite backup and restore
+- post-restore readiness and household verification
+
+Related docs:
+
+- [Live Household Proof Procedure](/Users/sfw/Development/dibble/docs/proof/live-household-proof.md)
+- [Scenario Definitions](/Users/sfw/Development/dibble/docs/proof/scenarios.md)
+- [Content Quality Review Method](/Users/sfw/Development/dibble/docs/proof/content-quality-review.md)
 
 ## Configuration
 
-Dibble runs on SQLite by default (`dibble.db`). No external services needed for local dev. If you don't configure API keys, it falls back to a deterministic mock LLM provider and a local embedder.
-
-### Core settings
+Core runtime settings include:
 
 | Variable | Purpose |
-|---|---|
-| `DIBBLE_DATABASE_PATH` | SQLite database location (default: `dibble.db`) |
-| `DIBBLE_DEPLOYMENT_MODE` | Operator-readable deployment posture (`local_dev` or `household_container`) |
-| `DIBBLE_FRONTEND_DIST_PATH` | Optional built React frontend served by FastAPI |
-| `DIBBLE_AUTH_ENABLED` | Enable API key + bearer token auth |
-| `DIBBLE_AUTH_TOKEN_SECRET` | Secret for signing bearer tokens |
+| --- | --- |
+| `DIBBLE_DATABASE_PATH` | SQLite database location |
+| `DIBBLE_DEPLOYMENT_MODE` | Deployment posture such as `local_dev` or `household_container` |
+| `DIBBLE_FRONTEND_DIST_PATH` | Built frontend path served by FastAPI |
+| `DIBBLE_AUTH_ENABLED` | Enables auth |
+| `DIBBLE_AUTH_TOKEN_SECRET` | Bearer token signing secret |
+| `DIBBLE_LLM_API_BASE` | OpenAI-compatible API base |
+| `DIBBLE_LLM_API_KEY` | LLM API key |
+| `DIBBLE_LLM_MODEL` | LLM model name |
+| `DIBBLE_LLM_ALLOW_MOCK_FALLBACK` | Mock fallback switch |
+| `DIBBLE_EMBEDDING_API_KEY` | Embedding provider key |
+| `DIBBLE_EMBEDDING_MODEL` | Embedding model |
+| `DIBBLE_CLOUD_LIBRARY_ENABLED` | Enables remote cloud-library path |
 
-### LLM provider
+For household proof and pilot rehearsal, use the deployment doc rather than
+guessing config combinations:
 
-| Variable | Purpose |
-|---|---|
-| `DIBBLE_LLM_API_BASE` | OpenAI-compatible endpoint |
-| `DIBBLE_LLM_API_KEY` | API key |
-| `DIBBLE_LLM_MODEL` | Model name |
-| `DIBBLE_LLM_SELECTION_STRATEGY` | `ordered`, `round_robin`, or `latency_aware` |
-| `DIBBLE_LLM_ALLOW_MOCK_FALLBACK` | Fall back to deterministic mock (default: `true`) |
+- [Household Container Deployment](/Users/sfw/Development/dibble/docs/deployment/household-container.md)
 
-Secondary provider, circuit breaker, embedding, prompt experiment, and auth settings are documented in [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
+## Architecture Notes
 
-### Plugins
+Backend:
 
-The router, retriever, provider, and validator are pluggable:
+- FastAPI + Pydantic + SQLite
+- dependency injection through `bootstrap.py`
+- plugin seams for router, retriever, provider, validator, and modalities
+- single-responsibility services under `src/dibble/services/`
 
-```bash
-export DIBBLE_ROUTER_PLUGIN=dibble.plugins.defaults.router:build
-export DIBBLE_RETRIEVER_PLUGIN=dibble.plugins.defaults.retriever:build
-export DIBBLE_PROVIDER_PLUGIN=dibble.plugins.defaults.provider:build
-export DIBBLE_VALIDATOR_PLUGIN=dibble.plugins.defaults.validator:build
-```
+Frontend:
 
-## API
+- React + Vite + TypeScript
+- shadcn/ui + Tailwind CSS
+- presentation-only relative to pedagogical logic
 
-Start the server and hit `/docs` for the interactive OpenAPI reference. Endpoints cover learners, teachers, content generation, curriculum, and platform operations.
+Privacy boundary:
 
-## Architecture
+- learner-private dialogue and learner-state rationale stay inside Dibble-owned
+  runtime paths
+- provider/cloud-library paths are constrained to curriculum-shaped payloads
 
-Backend is **FastAPI + Pydantic + SQLite** with dependency injection (`bootstrap.py`) and a plugin system. Services are single-responsibility and talk to each other through typed Pydantic models.
+## Current Risk-Reduction Roadmap
 
-Frontend is **React + Vite + TypeScript** with **shadcn/ui + Tailwind CSS**. It renders backend decisions. That's it.
+The current risk-reduction execution moved from planning into implementation.
 
-Full technical changelog (calibration, misconception detection, mastery decay, feedback loops, content moderation, etc.) is in [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
+Completed:
+
+- diagram hardening
+- retention scheduler stage 1
+- stronger readiness and embedder posture
+- offline content-quality eval harness
+- proof/pilot operational hardening
+
+Next:
+
+- context-preserving modality summaries
+- mastery/progression measurement pass
+- retention scheduler stage 2
+
+See:
+
+- [Risk Reduction Implementation Plan](/Users/sfw/Development/dibble/planning/2026-06-08-risk-reduction-implementation-plan.md)
+- [Risk Register](/Users/sfw/Development/dibble/planning/2026-05-05-risk-register.md)
+
+## Useful Entry Points
+
+- API docs: `http://localhost:8000/docs`
+- Setup and readiness: [household-container.md](/Users/sfw/Development/dibble/docs/deployment/household-container.md)
+- Proof posture: [final-proof-status.md](/Users/sfw/Development/dibble/docs/proof/final-proof-status.md)
+- Pilot operations: [pilot-readiness.md](/Users/sfw/Development/dibble/docs/runbooks/pilot-readiness.md)
+- Implementation roadmap: [2026-06-08-risk-reduction-implementation-plan.md](/Users/sfw/Development/dibble/planning/2026-06-08-risk-reduction-implementation-plan.md)
 
 ## License
 
