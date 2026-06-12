@@ -12,6 +12,7 @@ import { learnerContentType, learnerContinueAction, learnerStage } from '../../l
 import { useGenerationWorkspace } from '../../hooks/useGenerationWorkspace'
 import type { DataSource } from '../../app/workspace'
 import { recordLearnerObservation } from '../../api'
+import { DefectReportButton } from '../../components/app/DefectReportButton'
 import { parseList } from '../../lib/forms'
 import type { PracticeInteractionSubmission } from '../../components/content/InteractivePracticeBlock'
 
@@ -73,6 +74,8 @@ export function ContinueLearning() {
   const masteryPercent = Math.round(
     (progression.mastered_outcome_count / Math.max(progression.outcome_count, 1)) * 100,
   )
+  const defectGenerationId =
+    generation.result?.generation_id ?? workspace.generated_content?.generation_id ?? null
 
   function handleContinue() {
     if (hasPracticePrompt && learnerResponse.trim()) {
@@ -183,11 +186,21 @@ export function ContinueLearning() {
       )}
 
       {(hasContent || isStreaming) && (
-        <StreamingContent
-          blocks={displayBlocks}
-          streaming={isStreaming}
-          onPracticeSubmit={interactivePracticeBlock ? handlePracticeSubmit : undefined}
-        />
+        <>
+          <StreamingContent
+            blocks={displayBlocks}
+            streaming={isStreaming}
+            onPracticeSubmit={interactivePracticeBlock ? handlePracticeSubmit : undefined}
+          />
+          {!isStreaming && defectGenerationId && (
+            <DefectReportButton
+              config={config}
+              studentId={workspace.student_id}
+              generationId={defectGenerationId}
+              learningSessionId={flow.learning_session_id}
+            />
+          )}
+        </>
       )}
 
       {(generation.error || interactionError) && (

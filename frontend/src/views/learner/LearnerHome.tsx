@@ -2,6 +2,8 @@ import { useNavigate, useOutletContext } from 'react-router'
 import { ArrowRight, BookOpen, Sparkles, Target } from 'lucide-react'
 import type { LearnerContext } from '../../shells/LearnerShell'
 import { PageContainer } from '../../components/shell/PageContainer'
+import { ProgressStrip } from '../../components/app/ProgressStrip'
+import { SessionBookends } from '../../components/app/SessionBookends'
 import { PageSkeleton } from '@/components/ui/skeleton'
 import { ErrorBanner } from '@/components/ui/error-banner'
 import { Button } from '@/components/ui/button'
@@ -15,7 +17,8 @@ import {
 } from '../../lib/copy'
 
 export function LearnerHome() {
-  const { workspace, flow, progression, summary, loading, error } = useOutletContext<LearnerContext>()
+  const { workspace, flow, progression, summary, loading, error, config } =
+    useOutletContext<LearnerContext>()
   const navigate = useNavigate()
 
   if (loading && !workspace.student_id) {
@@ -58,6 +61,14 @@ export function LearnerHome() {
               : `You have a ${learnerFlowType(flow.flow_type).toLowerCase()} ready to continue.`}
         </p>
       </section>
+
+      {/* Session bookends */}
+      {workspace.student_id && (
+        <SessionBookends config={config} studentId={workspace.student_id} />
+      )}
+
+      {/* Progress strip */}
+      <ProgressStrip progression={progression} />
 
       {/* Current lesson card */}
       {!isIdle && (

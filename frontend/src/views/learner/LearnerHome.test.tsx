@@ -89,8 +89,8 @@ describe('LearnerHome', () => {
     renderHome()
     expect(screen.getByText("Today's focus")).toBeInTheDocument()
     expect(screen.getByText('Current stage')).toBeInTheDocument()
-    expect(screen.getByText('Working on')).toBeInTheDocument()
-    expect(screen.getByText('Equivalent Fraction Practice')).toBeInTheDocument()
+    expect(screen.getAllByText('Working on').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Equivalent Fraction Practice').length).toBeGreaterThan(0)
   })
 
   it('renders the progress summary section', () => {
