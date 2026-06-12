@@ -47,7 +47,7 @@ export function RoleSwitcher() {
   if (auth.authenticated && auth.identity) {
     if (auth.identity.role === 'learner') return <Navigate to="/learn" replace />
     if (auth.identity.role === 'household_admin' || auth.identity.role === 'parent') return <Navigate to="/parent" replace />
-    if (auth.identity.role === 'teacher') return <Navigate to="/teacher" replace />
+    if (auth.identity.role === 'teacher' || auth.identity.role === 'guardian') return <Navigate to="/teacher" replace />
     return <Navigate to="/staff" replace />
   }
 

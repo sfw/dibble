@@ -22,11 +22,19 @@ export interface TeacherContext {
   loadSection: (sectionId: string) => Promise<void>
 }
 
-const navItems = [
+const teacherNavItems = [
   { to: '/teacher', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/teacher/sections', icon: School, label: 'Sections' },
   { to: '/teacher/assignments', icon: ClipboardList, label: 'Assignments' },
   { to: '/teacher/reports', icon: BarChart3, label: 'Reports' },
+]
+
+// Guardians see the same surfaces with family language.
+const guardianNavItems = [
+  { to: '/teacher', icon: LayoutDashboard, label: 'Home', end: true },
+  { to: '/teacher/sections', icon: School, label: 'My Family' },
+  { to: '/teacher/assignments', icon: ClipboardList, label: 'Assignments' },
+  { to: '/teacher/reports', icon: BarChart3, label: 'Progress' },
 ]
 
 export function TeacherShell() {
@@ -58,12 +66,15 @@ export function TeacherShell() {
     loadSection: tc.loadSection,
   }
 
+  const isGuardian = auth.identity?.role === 'guardian'
+  const navItems = isGuardian ? guardianNavItems : teacherNavItems
+
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
       <header className="flex items-center gap-6 border-b bg-white px-6 py-3 shadow-sm">
         <NavLink to="/teacher" className="flex items-center gap-2 text-lg font-semibold tracking-tight text-emerald-700">
           <GraduationCap className="h-5 w-5" />
-          Dibble
+          {isGuardian ? 'Dibble Family' : 'Dibble'}
         </NavLink>
         <nav className="flex items-center gap-1">
           {navItems.map(({ to, icon: Icon, label, end }) => (
