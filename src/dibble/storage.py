@@ -255,6 +255,23 @@ CREATE TABLE IF NOT EXISTS socratic_assessment_sessions (
 );
 """
 
+GUARDIAN_INVITE_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS guardian_invites (
+    code TEXT PRIMARY KEY,
+    payload TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+"""
+
+PLACEMENT_SESSION_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS placement_sessions (
+    session_id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+"""
+
 REMEDIATION_SESSION_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS remediation_workflow_sessions (
     session_id TEXT PRIMARY KEY,
@@ -485,6 +502,8 @@ def ensure_database(database_path: str) -> None:
         connection.execute(CURRICULUM_CONTENT_LIBRARY_TABLE_SQL)
         connection.execute(OBSERVATION_TABLE_SQL)
         connection.execute(SOCRATIC_SESSION_TABLE_SQL)
+        connection.execute(PLACEMENT_SESSION_TABLE_SQL)
+        connection.execute(GUARDIAN_INVITE_TABLE_SQL)
         connection.execute(REMEDIATION_SESSION_TABLE_SQL)
         connection.execute(WITHIN_SESSION_CONTROLLER_TABLE_SQL)
         connection.execute(LEARNER_GOAL_TABLE_SQL)
