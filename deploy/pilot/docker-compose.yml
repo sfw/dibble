@@ -1,0 +1,76 @@
+# Pilot deployment: single hosted instance behind Caddy (automatic TLS),
+# volume-mounted SQLite in WAL mode, nightly backups, production guards on.
+#
+# Production guards (set in .env, validated by GET /ready):
+#   DIBBLE_AUTH_ENABLED=true
+#   DIBBLE_AUTH_TOKEN_SECRET=<real secret>
+#   DIBBLE_LLM_API_KEY=<real key>
+#   DIBBLE_LLM_ALLOW_MOCK_FALLBACK=false   # a silent mock fallback mid-pilot
+#                                          # corrupts data while looking like uptime
+services:
+  dibble:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    image: dibble-pilot:local
+    env_file:
+      - .env
+    environment:
+      DIBBLE_DEPLOYMENT_MODE: pilot
+      DIBBLE_DATABASE_PATH: /data/dibble.db
+      DIBBLE_FRONTEND_DIST_PATH: /app/frontend/dist
+      DIBBLE_AUTH_ENABLED: "true"
+      DIBBLE_LLM_ALLOW_MOCK_FALLBACK: "false"
+    expose:
+      - "8000"
+    volumes:
+      - dibble-pilot-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - /app/.venv/bin/python
+        - scripts/container_healthcheck.py
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DIBBLE_DOMAIN: ${DIBBLE_DOMAIN:?set DIBBLE_DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - dibble
+    restart: unless-stopped
+
+  backup:
+    image: alpine:3.20
+    volumes:
+      - dibble-pilot-data:/data:ro
+      - dibble-pilot-backups:/backups
+      - ../../scripts/backup_database.sh:/usr/local/bin/backup_database.sh:ro
+    environment:
+      DIBBLE_DATABASE_PATH: /data/dibble.db
+      DIBBLE_BACKUP_DIR: /backups
+      DIBBLE_BACKUP_RETAIN: "14"
+    # Nightly at 02:15 UTC. Ship off-host by setting DIBBLE_BACKUP_REMOTE
+    # and adding an ssh key, or sync the dibble-pilot-backups volume.
+    command: >
+      sh -c "apk add --no-cache sqlite rsync openssh-client >/dev/null &&
+             echo '15 2 * * * sh /usr/local/bin/backup_database.sh' | crontab - &&
+             crond -f -l 8"
+    restart: unless-stopped
+
+volumes:
+  dibble-pilot-data:
+  dibble-pilot-backups:
+  caddy-data:
+  caddy-config:

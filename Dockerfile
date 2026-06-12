@@ -25,6 +25,8 @@ RUN python -m pip install --no-cache-dir uv==0.8.14
 COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
 COPY scripts/container_healthcheck.py ./scripts/container_healthcheck.py
+COPY scripts/ingest_curriculum.py ./scripts/ingest_curriculum.py
+COPY data/curriculum ./data/curriculum
 RUN uv sync --frozen --no-dev --no-cache
 
 COPY --from=frontend-build /app/frontend/dist ./frontend/dist
