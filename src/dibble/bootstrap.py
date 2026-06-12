@@ -22,7 +22,15 @@ from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.auth import AuthService
 from dibble.services.auth_sessions import SQLiteAuthSessionStore
 from dibble.services.user_store import SQLiteUserStore
+from dibble.services.baseline_policy import (
+    BaselinePolicyService,
+    BaselineShadowedProgressionOwnership,
+    BaselineShadowedRouter,
+)
 from dibble.services.calibrated_router import CalibratedRouter
+from dibble.services.content_moderation import ContentModerationService
+from dibble.services.llm_client import OpenAICompatibleChatClient
+from dibble.services.llm_safety_check import LLMSafetyChecker
 from dibble.services.content_warmer import ContentWarmer
 from dibble.services.cross_signal_consistency import CrossSignalConsistencyService
 from dibble.services.content_workflow import ContentWorkflowService
@@ -99,7 +107,18 @@ from dibble.services.mastery_quality_gate_signals import (
     MasteryQualityGateSignalService,
 )
 from dibble.services.mastery_snapshot_service import MasterySnapshotService
+from dibble.services.math_verification import MathVerificationService
+from dibble.services.data_rights import LearnerDataRightsService
+from dibble.services.guardian_invite_store import SQLiteGuardianInviteStore
+from dibble.services.guardian_onboarding import GuardianOnboardingService
+from dibble.services.pilot_metrics import PilotMetricsService
+from dibble.services.placement import PlacementService
+from dibble.services.placement_session_store import SQLitePlacementSessionStore
+from dibble.services.session_bookends import SessionBookendService
 from dibble.services.mastery_snapshot_store import SQLiteMasterySnapshotStore
+from dibble.services.mastery_progression_measurement import (
+    MasteryProgressionMeasurementService,
+)
 from dibble.services.learner_flow_service import LearnerFlowService
 from dibble.services.learner_goal_store import SQLiteLearnerGoalStore
 from dibble.services.learner_history_service import LearnerHistoryService
@@ -217,6 +236,7 @@ class ApplicationServices:
     strand_store: StrandStore
     knowledge_component_store: KnowledgeComponentStore
     audit_store: AuditStore
+    baseline_policy_service: BaselinePolicyService
     generated_content_store: GeneratedContentStore
     curriculum_content_library_store: SQLiteCurriculumContentLibraryStore
     modality_routing_prior_store: ModalityRoutingPriorStore
@@ -273,6 +293,12 @@ class ApplicationServices:
     retention_review_candidate_store: RetentionReviewCandidateStore
     retention_scheduler_service: RetentionSchedulerService
     mastery_snapshot_service: MasterySnapshotService
+    pilot_metrics_service: PilotMetricsService
+    placement_service: PlacementService
+    guardian_onboarding_service: GuardianOnboardingService
+    session_bookend_service: SessionBookendService
+    learner_data_rights_service: LearnerDataRightsService
+    mastery_progression_measurement_service: MasteryProgressionMeasurementService
     progression_outcome_tracker: ProgressionOutcomeTracker
     misconception_remediation_outcome_tracker: MisconceptionRemediationOutcomeTracker
     outcome_state_transition_tracker: OutcomeStateTransitionTracker
@@ -374,13 +400,21 @@ def build_application_services(
         audit_store=audit_store,
         controller_store=within_session_controller_store,
     )
-    router_plugin = CalibratedRouter(
-        base_router=plugins.router,
-        calibration_signal_service=RouterCalibrationSignalService(
-            audit_store=audit_store
+    baseline_policy_service = BaselinePolicyService(
+        audit_store=audit_store,
+        knowledge_component_store=knowledge_component_store,
+        profile_store=profile_store,
+    )
+    router_plugin = BaselineShadowedRouter(
+        inner=CalibratedRouter(
+            base_router=plugins.router,
+            calibration_signal_service=RouterCalibrationSignalService(
+                audit_store=audit_store
+            ),
+            strategy_signal_service=learner_strategy_signal_service,
+            within_session_adaptation_service=within_session_adaptation_service,
         ),
-        strategy_signal_service=learner_strategy_signal_service,
-        within_session_adaptation_service=within_session_adaptation_service,
+        baseline_policy=baseline_policy_service,
     )
     surplus_practice_cache = SurplusPracticeCache(
         generated_content_store=generated_content_store,
@@ -396,15 +430,36 @@ def build_application_services(
             retry_attempts=settings.cloud_library_retry_attempts,
         ),
     )
+    llm_safety_checker = None
+    if (
+        settings.moderation_llm_enabled
+        and settings.llm_secondary_api_key
+        and settings.llm_secondary_model
+    ):
+        llm_safety_checker = LLMSafetyChecker(
+            client=OpenAICompatibleChatClient(
+                api_base=settings.llm_secondary_api_base or settings.llm_api_base,
+                api_key=settings.llm_secondary_api_key,
+                model=settings.llm_secondary_model,
+                timeout_seconds=settings.llm_secondary_timeout_seconds
+                or settings.llm_timeout_seconds,
+                response_format_json=True,
+            )
+        )
     generation_engine = GenerationEngine(
         retriever=plugins.retriever,
         router=router_plugin,
         provider=plugins.provider,
         validator=plugins.validator,
+        moderation_service=ContentModerationService(
+            llm_safety_checker=llm_safety_checker
+        ),
         generated_content_store=generated_content_store,
         content_library=local_curriculum_content_library,
         surplus_practice_cache=surplus_practice_cache,
         cache_ttl_seconds=settings.generation_cache_ttl_seconds,
+        math_verification_service=MathVerificationService(),
+        audit_store=audit_store,
     )
     modality_routing_harness = ModalityRoutingHarness(
         router=router_plugin,
@@ -474,15 +529,18 @@ def build_application_services(
         socratic_profile_updater=socratic_profile_updater,
         retention_scheduler=retention_scheduler_service,
     )
-    progression_ownership_service = ProgressionOwnershipService(
-        knowledge_component_store=knowledge_component_store,
-        strategy_signal_service=learner_strategy_signal_service,
-        within_session_adaptation_service=within_session_adaptation_service,
-        observation_store=observation_store,
-        audit_store=audit_store,
-        observation_profile_updater=observation_profile_updater,
-        ordinary_mastery_signal_service=ordinary_mastery_signal_service,
-        progression_outcome_signal_service=progression_outcome_signal_service,
+    progression_ownership_service = BaselineShadowedProgressionOwnership(
+        inner=ProgressionOwnershipService(
+            knowledge_component_store=knowledge_component_store,
+            strategy_signal_service=learner_strategy_signal_service,
+            within_session_adaptation_service=within_session_adaptation_service,
+            observation_store=observation_store,
+            audit_store=audit_store,
+            observation_profile_updater=observation_profile_updater,
+            ordinary_mastery_signal_service=ordinary_mastery_signal_service,
+            progression_outcome_signal_service=progression_outcome_signal_service,
+        ),
+        baseline_policy=baseline_policy_service,
     )
     state_inference_service = LearnerStateInferenceService(
         state_profile_signal_service=learner_state_signal_service
@@ -540,6 +598,31 @@ def build_application_services(
     mastery_snapshot_service = MasterySnapshotService(
         snapshot_store=mastery_snapshot_store
     )
+    mastery_progression_measurement_service = MasteryProgressionMeasurementService(
+        audit_store=audit_store
+    )
+    pilot_metrics_service = PilotMetricsService(
+        audit_store=audit_store,
+        profile_store=profile_store,
+        mastery_snapshot_service=mastery_snapshot_service,
+        baseline_policy_service=baseline_policy_service,
+    )
+    placement_service = PlacementService(
+        knowledge_component_store=knowledge_component_store,
+        profile_store=profile_store,
+        generation_engine=generation_engine,
+        session_store=SQLitePlacementSessionStore(conn),
+        audit_store=audit_store,
+    )
+    learner_data_rights_service = LearnerDataRightsService(connection=conn)
+    guardian_onboarding_service = GuardianOnboardingService(
+        user_store=user_store,
+        classroom_store=classroom_store,
+        classroom_membership_store=classroom_membership_store,
+        profile_store=profile_store,
+        invite_store=SQLiteGuardianInviteStore(conn),
+        audit_store=audit_store,
+    )
     learner_flow_service = LearnerFlowService(
         audit_store=audit_store,
         generated_content_store=generated_content_store,
@@ -561,6 +644,11 @@ def build_application_services(
         ordinary_mastery_signal_service=ordinary_mastery_signal_service,
         quality_gate_signal_service=mastery_quality_gate_signal_service,
         retention_scheduler_service=retention_scheduler_service,
+    )
+    session_bookend_service = SessionBookendService(
+        audit_store=audit_store,
+        learner_progression_service=learner_progression_service,
+        observation_store=observation_store,
     )
     curriculum_intake_harness = CurriculumIntakeHarness(
         framework_store=curriculum_framework_store,
@@ -804,6 +892,12 @@ def build_application_services(
         retention_review_candidate_store=retention_review_candidate_store,
         retention_scheduler_service=retention_scheduler_service,
         mastery_snapshot_service=mastery_snapshot_service,
+        pilot_metrics_service=pilot_metrics_service,
+        placement_service=placement_service,
+        guardian_onboarding_service=guardian_onboarding_service,
+        session_bookend_service=session_bookend_service,
+        learner_data_rights_service=learner_data_rights_service,
+        mastery_progression_measurement_service=mastery_progression_measurement_service,
         progression_outcome_tracker=progression_outcome_tracker,
         outcome_state_transition_tracker=outcome_state_transition_tracker,
         mastery_quality_gate_outcome_tracker=mastery_quality_gate_outcome_tracker,
@@ -812,6 +906,7 @@ def build_application_services(
         learner_state_prediction_signal_service=learner_state_prediction_signal_service,
         within_session_adaptation_service=within_session_adaptation_service,
         router_plugin=router_plugin,
+        baseline_policy_service=baseline_policy_service,
         user_store=user_store,
         learner_relationship_state_store=learner_relationship_state_store,
         parent_notification_store=parent_notification_store,
