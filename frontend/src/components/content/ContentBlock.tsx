@@ -4,6 +4,7 @@ import {
   InteractivePracticeBlock,
   type PracticeInteractionSubmission,
 } from './InteractivePracticeBlock'
+import { MathText } from './MathText'
 
 /**
  * Renders a GeneratedBlock according to its `kind`.
@@ -133,7 +134,9 @@ const blockRenderers: Record<string, (block: GeneratedBlock, context: RendererCo
           .split('\n')
           .filter((line) => line.trim())
           .map((step, i) => (
-            <li key={i}>{step.replace(/^\d+[.)]\s*/, '')}</li>
+            <li key={i}>
+              <MathText text={step.replace(/^\d+[.)]\s*/, '')} />
+            </li>
           ))}
       </ol>
     </article>
@@ -177,5 +180,9 @@ function renderParagraphs(text: string) {
   return text
     .split('\n')
     .filter((p) => p.trim())
-    .map((paragraph, i) => <p key={i} className="mb-2 last:mb-0">{paragraph}</p>)
+    .map((paragraph, i) => (
+      <p key={i} className="mb-2 last:mb-0">
+        <MathText text={paragraph} />
+      </p>
+    ))
 }

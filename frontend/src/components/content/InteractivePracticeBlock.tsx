@@ -4,6 +4,7 @@ import { CheckCircle2, Circle, XCircle, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import type { GeneratedBlock } from '../../types'
+import { MathText } from './MathText'
 
 export interface PracticeInteractionSubmission {
   blockId: string
@@ -42,10 +43,16 @@ export function InteractivePracticeBlock({
   return (
     <article className="rounded-xl border-l-4 border-l-emerald-400 bg-white p-6 shadow-sm">
       {block.title && <h2 className="mb-3 text-lg font-semibold">{block.title}</h2>}
-      {block.body && <p className="mb-4 text-sm leading-6 text-slate-600">{block.body}</p>}
+      {block.body && (
+        <p className="mb-4 text-sm leading-6 text-slate-600">
+          <MathText text={block.body} />
+        </p>
+      )}
 
       <div className="space-y-3">
-        <p className="text-base font-medium leading-7 text-slate-900">{interaction.prompt}</p>
+        <p className="text-base font-medium leading-7 text-slate-900">
+          <MathText text={interaction.prompt} />
+        </p>
         {interaction.options.map((option) => {
           const selected = option.option_id === selectedOptionId
           const isCorrectOption = option.option_id === interaction.correct_option_id
@@ -85,10 +92,12 @@ export function InteractivePracticeBlock({
                   <Circle className="mt-0.5 h-5 w-5 shrink-0 text-slate-400" />
                 )}
                 <div className="space-y-1">
-                  <p className="text-sm font-semibold text-slate-900">{option.label}</p>
+                  <p className="text-sm font-semibold text-slate-900">
+                    <MathText text={option.label} />
+                  </p>
                   {submitted && option.body && (
                     <p className="whitespace-pre-line text-sm leading-6 text-slate-700">
-                      {option.body}
+                      <MathText text={option.body} />
                     </p>
                   )}
                 </div>
@@ -101,9 +110,13 @@ export function InteractivePracticeBlock({
       {selectedOption && reveal && (
         <div className="mt-5 rounded-xl border bg-emerald-50/60 p-4">
           <p className="text-sm font-semibold text-emerald-900">Verify your reasoning</p>
-          <p className="mt-2 text-sm leading-6 text-emerald-950">{reveal.prompt}</p>
+          <p className="mt-2 text-sm leading-6 text-emerald-950">
+            <MathText text={reveal.prompt} />
+          </p>
           {reveal.support && (
-            <p className="mt-3 text-xs leading-5 text-emerald-800">{reveal.support}</p>
+            <p className="mt-3 text-xs leading-5 text-emerald-800">
+              <MathText text={reveal.support} />
+            </p>
           )}
           <Textarea
             value={responseText}
