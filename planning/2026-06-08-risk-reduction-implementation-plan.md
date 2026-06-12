@@ -28,10 +28,11 @@ Completed:
 
 - **Milestone A / Slice 1:** diagram hardening
 - **Milestone B / Slice 2:** retention scheduler stage 1
-
-Next:
-
 - **Milestone C / Slice 3:** context-preserving modality summaries
+
+Active next step:
+
+- **Milestone D / Slice 4:** mastery/progression measurement pass
 
 ## Recommended order
 
@@ -151,6 +152,8 @@ Add durable review candidates and due-review state without yet wiring review int
 
 ## Slice 3 — Context-preserving modality summaries
 
+**Status:** Complete
+
 ### Objective
 
 Stop collapsing rich modality-routing evidence into one overly global preferred modality.
@@ -183,7 +186,15 @@ Stop collapsing rich modality-routing evidence into one overly global preferred 
 - autonomous-teacher suggestions remain simple but less globally flattened
 - no regression in rollout/approval behavior
 
+### Implemented outcome
+
+- planning and household adaptation summaries now preserve contextual modality preferences instead of collapsing to one global preference
+- TrajectoryPlanner now receives contextual modality preferences for planning decisions
+- autonomous-teacher suggestions remain evidence-thresholded and approval-safe
+
 ## Slice 4 — Mastery/progression measurement pass
+
+**Status:** Active
 
 ### Objective
 

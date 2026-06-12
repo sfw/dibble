@@ -98,6 +98,34 @@ class PlanningRecoveryPattern(BaseModel):
     last_observed_at: datetime | None = None
 
 
+class PlanningModalityPreferenceEntry(BaseModel):
+    preference_key: str
+    context_label: str
+    preferred_modality: str
+    evidence_strength: PlanningEvidenceStrength = PlanningEvidenceStrength.weak
+    sample_count: int = Field(default=0, ge=0)
+    average_outcome_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    positive_outcome_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    recovery_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    source_context_keys: list[str] = Field(default_factory=list)
+    rationale: str | None = None
+    last_observed_at: datetime | None = None
+
+
+class PlanningModalityPreferenceSummary(BaseModel):
+    global_preferred_modality: str | None = None
+    preferred_by_content_family: list[PlanningModalityPreferenceEntry] = Field(
+        default_factory=list
+    )
+    preferred_by_risk_bucket: list[PlanningModalityPreferenceEntry] = Field(
+        default_factory=list
+    )
+    preferred_by_recovery_pattern: list[PlanningModalityPreferenceEntry] = Field(
+        default_factory=list
+    )
+    rationale: str | None = None
+
+
 class PlanningConceptClusterMarker(BaseModel):
     cluster_key: str
     label: str
@@ -148,6 +176,9 @@ class PlanningAdaptationState(BaseModel):
     active_revisit_density: int = Field(default=1, ge=1, le=3)
     preferred_scaffolding_pattern: str | None = None
     preferred_modality: str | None = None
+    modality_preferences: PlanningModalityPreferenceSummary = Field(
+        default_factory=PlanningModalityPreferenceSummary
+    )
     recent_signals: list[PlanningAdaptationSignal] = Field(default_factory=list)
     concept_cluster_markers: list[PlanningConceptClusterMarker] = Field(
         default_factory=list

@@ -1,15 +1,20 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass
+import json
 from uuid import UUID, uuid4
 
+from dibble.models.generation import ModalityRoutingPrior
 from dibble.models.planning import (
     PlanningAdaptationSignal,
     PlanningAdaptationState,
     PlanningConceptClusterMarker,
     PlanningEffectivenessProfile,
     PlanningEvidenceStrength,
+    PlanningModalityPreferenceEntry,
+    PlanningModalityPreferenceSummary,
     PlanningRecoveryPattern,
     PlanningSignalKind,
     TrajectoryRevisionActionType,
@@ -77,7 +82,12 @@ class PlanningAdaptationService:
             summary_events=summary_events,
             generation_events=generation_events,
         )
-        preferred_modality = self._preferred_modality(student_id=student_id)
+        modality_preferences = self._modality_preference_summary(
+            student_id=student_id,
+            cluster_markers=cluster_markers,
+            recovery_patterns=recovery_patterns,
+        )
+        preferred_modality = modality_preferences.global_preferred_modality
         cluster_markers = [
             marker.model_copy(
                 update={
@@ -85,10 +95,10 @@ class PlanningAdaptationService:
                         cluster_key=marker.cluster_key,
                         recovery_patterns=recovery_patterns,
                     ),
-                    "preferred_modality": preferred_modality
-                    if preferred_modality is not None
-                    and marker.risk_level != TrajectoryRiskLevel.low
-                    else marker.preferred_modality,
+                    "preferred_modality": self._preferred_modality_for_cluster(
+                        marker=marker,
+                        modality_preferences=modality_preferences,
+                    ),
                 }
             )
             for marker in cluster_markers
@@ -105,7 +115,7 @@ class PlanningAdaptationService:
             cluster_markers=cluster_markers,
             recovery_patterns=recovery_patterns,
             effectiveness_profiles=effectiveness_profiles,
-            preferred_modality=preferred_modality,
+            modality_preferences=modality_preferences,
         )
         active_adjustments = self._active_adjustments(
             strategy=strategy,
@@ -139,6 +149,7 @@ class PlanningAdaptationService:
             ),
             preferred_modality=preferred_modality
             or (existing_state.preferred_modality if existing_state is not None else None),
+            modality_preferences=modality_preferences,
             recent_signals=recent_signals,
             concept_cluster_markers=cluster_markers,
             recovery_patterns=recovery_patterns,
@@ -444,7 +455,7 @@ class PlanningAdaptationService:
         cluster_markers: list[PlanningConceptClusterMarker],
         recovery_patterns: list[PlanningRecoveryPattern],
         effectiveness_profiles: list[PlanningEffectivenessProfile],
-        preferred_modality: str | None,
+        modality_preferences: PlanningModalityPreferenceSummary,
     ) -> list[PlanningAdaptationSignal]:
         signals: list[PlanningAdaptationSignal] = []
         session_signal = self._session_effectiveness_signal(
@@ -524,37 +535,63 @@ class PlanningAdaptationService:
                     observed_at=profile.updated_at,
                 )
             )
-        if preferred_modality is not None and self.prior_store is not None:
-            prior = next(
-                (
-                    item
-                    for item in self.prior_store.list_for_learner(learner_id=summary_events[0].student_id)
-                    if item.scope == "plugin"
-                    and item.context_key == _GLOBAL_CONTEXT_KEY
-                    and item.prior_key == preferred_modality
-                ),
-                None,
+        modality_entries = (
+            modality_preferences.preferred_by_content_family[:1]
+            + modality_preferences.preferred_by_risk_bucket[:1]
+            + modality_preferences.preferred_by_recovery_pattern[:1]
+        )
+        if (
+            not modality_entries
+            and modality_preferences.global_preferred_modality is not None
+            and self.prior_store is not None
+        ):
+            prior = self._global_prior_for(
+                student_id=summary_events[0].student_id,
+                modality=modality_preferences.global_preferred_modality,
             )
-            if prior is not None and prior.evidence_count >= 2:
-                signals.append(
-                    PlanningAdaptationSignal(
-                        signal_id=str(uuid4()),
-                        kind=PlanningSignalKind.modality_effectiveness,
+            if prior is not None:
+                modality_entries = [
+                    PlanningModalityPreferenceEntry(
+                        preference_key="global",
+                        context_label="global routing history",
+                        preferred_modality=prior.prior_key,
                         evidence_strength=self._evidence_strength(
                             sample_count=prior.evidence_count
                         ),
-                        direction="positive",
                         sample_count=prior.evidence_count,
                         average_outcome_score=prior.average_outcome_score,
-                        success_rate=prior.positive_outcome_rate,
-                        modality=preferred_modality,
+                        positive_outcome_rate=prior.positive_outcome_rate,
+                        recovery_rate=prior.recovery_rate,
+                        source_context_keys=[prior.context_key],
                         rationale=(
-                            f"Recent {preferred_modality} selections averaged "
-                            f"{prior.average_outcome_score:.2f} over {prior.evidence_count} run(s)."
+                            f"Global routing history favors {prior.prior_key} "
+                            f"over {prior.evidence_count} run(s)."
                         ),
-                        observed_at=prior.updated_at,
+                        last_observed_at=prior.last_outcome_at or prior.updated_at,
                     )
+                ]
+        for entry in modality_entries[:3]:
+            if entry.sample_count < 2:
+                continue
+            signals.append(
+                PlanningAdaptationSignal(
+                    signal_id=str(uuid4()),
+                    kind=PlanningSignalKind.modality_effectiveness,
+                    evidence_strength=entry.evidence_strength,
+                    direction=(
+                        "positive"
+                        if entry.average_outcome_score >= 0.68
+                        and entry.positive_outcome_rate >= 0.5
+                        else "mixed"
+                    ),
+                    sample_count=entry.sample_count,
+                    average_outcome_score=entry.average_outcome_score,
+                    success_rate=entry.positive_outcome_rate,
+                    modality=entry.preferred_modality,
+                    rationale=entry.rationale,
+                    observed_at=entry.last_observed_at or summary_events[0].created_at,
                 )
+            )
         signals.sort(
             key=lambda item: (
                 item.evidence_strength == PlanningEvidenceStrength.strong,
@@ -819,19 +856,81 @@ class PlanningAdaptationService:
             fallback,
         )
 
-    def _preferred_modality(self, *, student_id: UUID) -> str | None:
+    def _modality_preference_summary(
+        self,
+        *,
+        student_id: UUID,
+        cluster_markers: list[PlanningConceptClusterMarker],
+        recovery_patterns: list[PlanningRecoveryPattern],
+    ) -> PlanningModalityPreferenceSummary:
         if self.prior_store is None:
-            return None
+            return PlanningModalityPreferenceSummary()
         priors = [
             prior
             for prior in self.prior_store.list_for_learner(learner_id=student_id)
-            if prior.scope == "plugin"
-            and prior.context_key == _GLOBAL_CONTEXT_KEY
-            and prior.evidence_count >= 2
+            if prior.scope == "plugin" and prior.evidence_count >= 2
         ]
-        if not priors:
+        global_preferred_modality = self._preferred_modality_from_priors(
+            prior
+            for prior in priors
+            if prior.context_key == _GLOBAL_CONTEXT_KEY
+        )
+        contextual_priors = [
+            prior for prior in priors if prior.context_key != _GLOBAL_CONTEXT_KEY
+        ]
+        preferred_by_content_family = self._ranked_modality_entries(
+            grouped=self._group_priors_by_content_family(priors=contextual_priors),
+            rationale_template=(
+                "{modality} has the strongest routing prior for {label} "
+                "({average:.2f} average outcome across {count} sample(s))."
+            ),
+        )
+        preferred_by_risk_bucket = self._ranked_modality_entries(
+            grouped=self._group_priors_by_risk_bucket(
+                priors=contextual_priors,
+                cluster_markers=cluster_markers,
+            ),
+            rationale_template=(
+                "{modality} has the strongest routing prior for {label} concept "
+                "clusters ({average:.2f} average outcome across {count} sample(s))."
+            ),
+        )
+        preferred_by_recovery_pattern = self._ranked_modality_entries(
+            grouped=self._group_priors_by_recovery_pattern(
+                priors=contextual_priors,
+                recovery_patterns=recovery_patterns,
+            ),
+            rationale_template=(
+                "{modality} has the strongest recovery-linked routing prior for "
+                "{label} ({average:.2f} average outcome across {count} sample(s))."
+            ),
+        )
+        contextual_count = (
+            len(preferred_by_content_family)
+            + len(preferred_by_risk_bucket)
+            + len(preferred_by_recovery_pattern)
+        )
+        return PlanningModalityPreferenceSummary(
+            global_preferred_modality=global_preferred_modality,
+            preferred_by_content_family=preferred_by_content_family,
+            preferred_by_risk_bucket=preferred_by_risk_bucket,
+            preferred_by_recovery_pattern=preferred_by_recovery_pattern,
+            rationale=(
+                f"{contextual_count} contextual modality preference(s) preserved from "
+                "routing priors; global preference remains a fallback."
+                if contextual_count
+                else "No contextual modality preference has enough routing evidence yet."
+            ),
+        )
+
+    def _preferred_modality_from_priors(
+        self,
+        priors: Iterable[ModalityRoutingPrior],
+    ) -> str | None:
+        ranked = [prior for prior in priors if prior.evidence_count >= 2]
+        if not ranked:
             return None
-        priors.sort(
+        ranked.sort(
             key=lambda prior: (
                 prior.average_outcome_score,
                 prior.positive_outcome_rate,
@@ -839,7 +938,152 @@ class PlanningAdaptationService:
             ),
             reverse=True,
         )
-        return priors[0].prior_key
+        return ranked[0].prior_key
+
+    def _preferred_modality_for_cluster(
+        self,
+        *,
+        marker: PlanningConceptClusterMarker,
+        modality_preferences: PlanningModalityPreferenceSummary,
+    ) -> str | None:
+        if marker.risk_level == TrajectoryRiskLevel.low:
+            return marker.preferred_modality
+        matching_cluster_entry = next(
+            (
+                entry
+                for entry in modality_preferences.preferred_by_risk_bucket
+                if entry.preference_key == marker.risk_level.value
+            ),
+            None,
+        )
+        if matching_cluster_entry is not None:
+            return matching_cluster_entry.preferred_modality
+        return marker.preferred_modality
+
+    def _global_prior_for(
+        self,
+        *,
+        student_id: UUID,
+        modality: str,
+    ) -> ModalityRoutingPrior | None:
+        if self.prior_store is None:
+            return None
+        return next(
+            (
+                prior
+                for prior in self.prior_store.list_for_learner(learner_id=student_id)
+                if prior.scope == "plugin"
+                and prior.context_key == _GLOBAL_CONTEXT_KEY
+                and prior.prior_key == modality
+                and prior.evidence_count >= 2
+            ),
+            None,
+        )
+
+    def _group_priors_by_content_family(
+        self,
+        *,
+        priors: list[ModalityRoutingPrior],
+    ) -> dict[tuple[str, str, str], list[ModalityRoutingPrior]]:
+        grouped: dict[tuple[str, str, str], list[ModalityRoutingPrior]] = defaultdict(list)
+        for prior in priors:
+            context = _parse_context_key(prior.context_key)
+            family = _content_family_from_context(context)
+            if family is None:
+                continue
+            grouped[(family, f"content family {family}", prior.prior_key)].append(prior)
+        return grouped
+
+    def _group_priors_by_risk_bucket(
+        self,
+        *,
+        priors: list[ModalityRoutingPrior],
+        cluster_markers: list[PlanningConceptClusterMarker],
+    ) -> dict[tuple[str, str, str], list[ModalityRoutingPrior]]:
+        markers_by_cluster = {marker.cluster_key: marker for marker in cluster_markers}
+        grouped: dict[tuple[str, str, str], list[ModalityRoutingPrior]] = defaultdict(list)
+        for prior in priors:
+            context = _parse_context_key(prior.context_key)
+            cluster_key = self._cluster_key(context.get("target_kc_ids"))
+            if cluster_key is None:
+                continue
+            marker = markers_by_cluster.get(cluster_key)
+            if marker is None or marker.risk_level == TrajectoryRiskLevel.low:
+                continue
+            risk_key = marker.risk_level.value
+            grouped[(risk_key, f"{risk_key} risk", prior.prior_key)].append(prior)
+        return grouped
+
+    def _group_priors_by_recovery_pattern(
+        self,
+        *,
+        priors: list[ModalityRoutingPrior],
+        recovery_patterns: list[PlanningRecoveryPattern],
+    ) -> dict[tuple[str, str, str], list[ModalityRoutingPrior]]:
+        patterns_by_cluster = defaultdict(list)
+        for pattern in recovery_patterns:
+            if pattern.sample_count < 2 or pattern.success_rate < 0.5:
+                continue
+            patterns_by_cluster[pattern.cluster_key].append(pattern)
+        grouped: dict[tuple[str, str, str], list[ModalityRoutingPrior]] = defaultdict(list)
+        priors = [
+            prior
+            for prior in priors
+            if prior.recovery_attempt_count > 0 and prior.recovery_success_count > 0
+        ]
+        for prior in priors:
+            context = _parse_context_key(prior.context_key)
+            cluster_key = self._cluster_key(context.get("target_kc_ids"))
+            matches = patterns_by_cluster.get(cluster_key, [])
+            if not matches:
+                grouped[("recovery_after_stall", "recovery after stall", prior.prior_key)].append(
+                    prior
+                )
+                continue
+            for pattern in matches:
+                if pattern.modality is not None and pattern.modality != prior.prior_key:
+                    continue
+                grouped[(pattern.pattern_key, pattern.label, prior.prior_key)].append(prior)
+        return grouped
+
+    def _ranked_modality_entries(
+        self,
+        *,
+        grouped: dict[tuple[str, str, str], list[ModalityRoutingPrior]],
+        rationale_template: str,
+    ) -> list[PlanningModalityPreferenceEntry]:
+        entries_by_preference: dict[str, list[PlanningModalityPreferenceEntry]] = defaultdict(list)
+        for (preference_key, context_label, modality), priors in grouped.items():
+            aggregate = _aggregate_priors(priors=priors)
+            if aggregate["sample_count"] < 2:
+                continue
+            entry = PlanningModalityPreferenceEntry(
+                preference_key=preference_key,
+                context_label=context_label,
+                preferred_modality=modality,
+                evidence_strength=self._evidence_strength(
+                    sample_count=int(aggregate["sample_count"])
+                ),
+                sample_count=int(aggregate["sample_count"]),
+                average_outcome_score=float(aggregate["average_outcome_score"]),
+                positive_outcome_rate=float(aggregate["positive_outcome_rate"]),
+                recovery_rate=float(aggregate["recovery_rate"]),
+                source_context_keys=list(aggregate["source_context_keys"]),
+                rationale=rationale_template.format(
+                    modality=modality,
+                    label=context_label,
+                    average=float(aggregate["average_outcome_score"]),
+                    count=int(aggregate["sample_count"]),
+                ),
+                last_observed_at=aggregate["last_observed_at"],
+            )
+            entries_by_preference[preference_key].append(entry)
+        selected: list[PlanningModalityPreferenceEntry] = []
+        for entries in entries_by_preference.values():
+            entries.sort(key=_modality_entry_rank, reverse=True)
+            selected.append(entries[0])
+        selected.sort(key=_modality_entry_rank, reverse=True)
+        return selected[:5]
 
     def _preferred_recovery_pattern_for(
         self,
@@ -939,3 +1183,67 @@ class PlanningAdaptationService:
         if sample_count >= 2:
             return PlanningEvidenceStrength.emerging
         return PlanningEvidenceStrength.weak
+
+
+def _parse_context_key(context_key: str) -> dict[str, object]:
+    if context_key == _GLOBAL_CONTEXT_KEY:
+        return {}
+    try:
+        parsed = json.loads(context_key)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _content_family_from_context(context: dict[str, object]) -> str | None:
+    requested_content_type = context.get("requested_content_type")
+    if requested_content_type:
+        return str(requested_content_type)
+    intent = context.get("intent")
+    if intent:
+        return str(intent)
+    return None
+
+
+def _aggregate_priors(
+    *,
+    priors: list[ModalityRoutingPrior],
+) -> dict[str, object]:
+    total_samples = sum(prior.evidence_count for prior in priors)
+    if total_samples <= 0:
+        total_samples = len(priors)
+    average_outcome = sum(
+        prior.average_outcome_score * prior.evidence_count for prior in priors
+    ) / max(1, total_samples)
+    positive_rate = sum(
+        prior.positive_outcome_rate * prior.evidence_count for prior in priors
+    ) / max(1, total_samples)
+    recovery_rate = sum(
+        prior.recovery_rate * prior.evidence_count for prior in priors
+    ) / max(1, total_samples)
+    observed_times = [
+        observed_at
+        for prior in priors
+        for observed_at in [prior.last_outcome_at or prior.updated_at]
+        if observed_at is not None
+    ]
+    return {
+        "sample_count": total_samples,
+        "average_outcome_score": round(average_outcome, 2),
+        "positive_outcome_rate": round(positive_rate, 2),
+        "recovery_rate": round(recovery_rate, 2),
+        "source_context_keys": sorted({prior.context_key for prior in priors})[:5],
+        "last_observed_at": max(observed_times) if observed_times else None,
+    }
+
+
+def _modality_entry_rank(
+    entry: PlanningModalityPreferenceEntry,
+) -> tuple[float, float, float, int, str]:
+    return (
+        entry.average_outcome_score,
+        entry.positive_outcome_rate,
+        entry.recovery_rate,
+        entry.sample_count,
+        entry.preferred_modality,
+    )

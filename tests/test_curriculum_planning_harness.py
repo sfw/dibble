@@ -8,6 +8,18 @@ from dibble.models.curriculum import (
     OutcomeUpsert,
 )
 from dibble.models.profile import LearnerProfile
+from dibble.models.profile import (
+    LearnerCurriculumProgressionSummary,
+    OutcomeProgressSummary,
+)
+from dibble.models.planning import (
+    LearnerGoal,
+    PlanningAdaptationState,
+    PlanningConceptClusterMarker,
+    PlanningModalityPreferenceEntry,
+    PlanningModalityPreferenceSummary,
+    TrajectoryRiskLevel,
+)
 from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.generated_content_store import SQLiteGeneratedContentStore
 from dibble.services.kc_sequence_planner import KcSequencePlanner
@@ -177,6 +189,148 @@ def _record_run_summary(
             "run_calibration_confidence": 0.8,
         },
     )
+
+
+def test_trajectory_planner_uses_content_family_modality_before_risk_bucket():
+    student_id = uuid4()
+    planner = TrajectoryPlanner(kc_sequence_planner=KcSequencePlanner())
+    goal = LearnerGoal(
+        goal_id="goal-1",
+        student_id=student_id,
+        title="Equivalent Fraction Practice",
+        target_kc_ids=["KC-2"],
+    )
+    adaptation_state = PlanningAdaptationState(
+        preferred_modality="narrative",
+        concept_cluster_markers=[
+            PlanningConceptClusterMarker(
+                cluster_key="KC-2",
+                label="KC KC-2",
+                target_kc_ids=["KC-2"],
+                risk_level=TrajectoryRiskLevel.moderate,
+                sample_count=3,
+            )
+        ],
+        modality_preferences=PlanningModalityPreferenceSummary(
+            preferred_by_content_family=[
+                PlanningModalityPreferenceEntry(
+                    preference_key="practice_problem",
+                    context_label="content family practice_problem",
+                    preferred_modality="diagram",
+                    sample_count=3,
+                    average_outcome_score=0.78,
+                    positive_outcome_rate=0.67,
+                )
+            ],
+            preferred_by_risk_bucket=[
+                PlanningModalityPreferenceEntry(
+                    preference_key="moderate",
+                    context_label="moderate risk",
+                    preferred_modality="text",
+                    sample_count=4,
+                    average_outcome_score=0.81,
+                    positive_outcome_rate=0.75,
+                )
+            ],
+        ),
+    )
+
+    plan = planner.build_plan(
+        student_id=student_id,
+        goal=goal,
+        progression=LearnerCurriculumProgressionSummary(
+            current_stage="target",
+            current_outcome=OutcomeProgressSummary(
+                outcome_id="CURR-2",
+                title="Equivalent Fraction Practice",
+                state="active",
+                knowledge_component_ids=["KC-2"],
+                target_stage="target",
+            ),
+        ),
+        adaptation_state=adaptation_state,
+    )
+
+    assert plan.nodes[0].adaptation is not None
+    assert plan.nodes[0].adaptation.recommended_modality == "diagram"
+
+
+def test_trajectory_planner_uses_recovery_pattern_modality_for_repair_scaffold():
+    student_id = uuid4()
+    planner = TrajectoryPlanner(kc_sequence_planner=KcSequencePlanner())
+    goal = LearnerGoal(
+        goal_id="goal-1",
+        student_id=student_id,
+        title="Rebuild Equivalent Fractions",
+        target_kc_ids=["KC-2"],
+    )
+    adaptation_state = PlanningAdaptationState(
+        active_pacing_adjustment="slower",
+        preferred_scaffolding_pattern="guided rebuild",
+        concept_cluster_markers=[
+            PlanningConceptClusterMarker(
+                cluster_key="KC-2",
+                label="KC KC-2",
+                target_kc_ids=["KC-2"],
+                risk_level=TrajectoryRiskLevel.high,
+                sample_count=4,
+                preferred_recovery_pattern="guided rebuild",
+            )
+        ],
+        modality_preferences=PlanningModalityPreferenceSummary(
+            preferred_by_content_family=[
+                PlanningModalityPreferenceEntry(
+                    preference_key="remedial_micro_module",
+                    context_label="content family remedial_micro_module",
+                    preferred_modality="diagram",
+                    sample_count=3,
+                    average_outcome_score=0.78,
+                    positive_outcome_rate=0.67,
+                )
+            ],
+            preferred_by_risk_bucket=[
+                PlanningModalityPreferenceEntry(
+                    preference_key="high",
+                    context_label="high risk",
+                    preferred_modality="text",
+                    sample_count=4,
+                    average_outcome_score=0.81,
+                    positive_outcome_rate=0.75,
+                )
+            ],
+            preferred_by_recovery_pattern=[
+                PlanningModalityPreferenceEntry(
+                    preference_key="guided rebuild",
+                    context_label="guided rebuild",
+                    preferred_modality="narrative",
+                    sample_count=3,
+                    average_outcome_score=0.84,
+                    positive_outcome_rate=0.67,
+                    recovery_rate=0.67,
+                )
+            ],
+        ),
+    )
+
+    plan = planner.build_plan(
+        student_id=student_id,
+        goal=goal,
+        progression=LearnerCurriculumProgressionSummary(
+            current_stage="repair",
+            current_outcome=OutcomeProgressSummary(
+                outcome_id="CURR-2",
+                title="Rebuild Equivalent Fractions",
+                state="active",
+                knowledge_component_ids=["KC-2"],
+                target_stage="repair",
+            ),
+        ),
+        adaptation_state=adaptation_state,
+    )
+
+    assert plan.nodes[0].node_kind == "recovery_scaffold"
+    assert plan.nodes[0].adaptation is not None
+    assert plan.nodes[0].adaptation.recommended_modality == "narrative"
 
 
 def test_curriculum_planning_harness_creates_goal_and_trajectory(tmp_path):

@@ -18,6 +18,7 @@ from dibble.models.household import LearnerRelationshipState
 from dibble.models.observability import (
     AutonomousTeacherExplanationBundle,
     HarnessBoundary,
+    MasteryProgressionMeasurementSummary,
     ModalityDecisionExplanationBundle,
     OperationalTrace,
     ReleaseReadinessSnapshot,
@@ -234,6 +235,22 @@ def build_observability_router(context: ApiContext) -> APIRouter:
         return services.retention_scheduler_service.scheduled_reviews_for_student(
             learner_id=student_id,
             limit=max(1, min(limit, 100)),
+        )
+
+    @router.get(
+        "/observability/adaptation/mastery-progression/metrics",
+        response_model=MasteryProgressionMeasurementSummary,
+        dependencies=context.deps("admin"),
+    )
+    def get_mastery_progression_metrics(
+        student_id: UUID | None = None,
+        limit: int = 500,
+        lookback_days: int | None = 90,
+    ) -> MasteryProgressionMeasurementSummary:
+        return services.mastery_progression_measurement_service.summarize(
+            learner_id=student_id,
+            limit=max(1, min(limit, 2000)),
+            lookback_days=lookback_days,
         )
 
     @router.get(

@@ -173,3 +173,29 @@ class ReleaseReadinessSnapshot(BaseModel):
     active_kill_switches: list[KillSwitchState] = Field(default_factory=list)
     recent_degraded_operations: list[OperationalTrace] = Field(default_factory=list)
     blocked_review_previews: list[BlockedReviewPreview] = Field(default_factory=list)
+
+
+class MasteryProgressionMetric(BaseModel):
+    numerator: int = Field(default=0, ge=0)
+    denominator: int = Field(default=0, ge=0)
+    rate: float | None = Field(default=None, ge=0.0, le=1.0)
+    rationale: str
+
+
+class MasteryProgressionMeasurementSummary(BaseModel):
+    scope: str
+    learner_id: str | None = None
+    generated_at: datetime = Field(default_factory=utc_now)
+    lookback_event_limit: int = Field(default=500, ge=1)
+    lookback_days: int | None = Field(default=90, ge=1)
+    source_event_count: int = Field(default=0, ge=0)
+    progression_outcome_event_count: int = Field(default=0, ge=0)
+    outcome_transition_event_count: int = Field(default=0, ge=0)
+    hold_positive_rate: MasteryProgressionMetric
+    transfer_positive_rate: MasteryProgressionMetric
+    prerequisite_rebuild_positive_rate: MasteryProgressionMetric
+    false_positive_mastery_rate: MasteryProgressionMetric
+    release_regret_rate: MasteryProgressionMetric
+    over_hold_rate: MasteryProgressionMetric
+    outcome_mastery_stability: MasteryProgressionMetric
+    assumptions: list[str] = Field(default_factory=list)

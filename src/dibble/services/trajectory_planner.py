@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
@@ -7,7 +8,9 @@ from dibble.models.generation import ContentIntent, GenerationRequest
 from dibble.models.planning import (
     LearnerGoal,
     PlanningAdaptationState,
+    PlanningConceptClusterMarker,
     PlanningEvidenceStrength,
+    PlanningModalityPreferenceEntry,
     PlanningSignalKind,
     TrajectoryCheckpoint,
     TrajectoryNode,
@@ -162,8 +165,22 @@ class TrajectoryPlanner:
                     marker.risk_level.value,
                     marker.sample_count,
                     marker.preferred_recovery_pattern,
+                    marker.preferred_modality,
                 )
                 for marker in adaptation.concept_cluster_markers
+            ),
+            tuple(
+                (
+                    entry.preference_key,
+                    entry.preferred_modality,
+                    entry.sample_count,
+                    entry.average_outcome_score,
+                )
+                for entry in (
+                    adaptation.modality_preferences.preferred_by_content_family
+                    + adaptation.modality_preferences.preferred_by_risk_bucket
+                    + adaptation.modality_preferences.preferred_by_recovery_pattern
+                )
             ),
             tuple(
                 (
@@ -216,6 +233,9 @@ class TrajectoryPlanner:
                     rationale=goal.rationale,
                     adaptation=self._node_adaptation(
                         target_kc_ids=list(goal.target_kc_ids),
+                        content_family="practice_problem",
+                        target_stage="target",
+                        sequence_action="stay_on_requested_target",
                         adaptation_state=adaptation_state,
                     ),
                 )
@@ -327,6 +347,10 @@ class TrajectoryPlanner:
             deferred_target_kc_ids = list(sequence.deferred_kc_ids)
             bridge_kc_ids = list(sequence.bridge_kc_ids)
 
+        content_family = self._content_family_for_node(
+            target_stage=target_stage,
+            sequence_action=sequence_action,
+        )
         node_id = str(uuid4())
         checkpoint_id = str(uuid4())
         node = TrajectoryNode(
@@ -354,11 +378,17 @@ class TrajectoryPlanner:
                 rationale,
                 self._adaptation_rationale(
                     target_kc_ids=list(applied_target_kc_ids or requested_kc_ids),
+                    content_family=content_family,
+                    target_stage=target_stage,
+                    sequence_action=sequence_action,
                     adaptation_state=adaptation_state,
                 ),
             ),
             adaptation=self._node_adaptation(
                 target_kc_ids=list(applied_target_kc_ids or requested_kc_ids),
+                content_family=content_family,
+                target_stage=target_stage,
+                sequence_action=sequence_action,
                 adaptation_state=adaptation_state,
             ),
         )
@@ -405,6 +435,12 @@ class TrajectoryPlanner:
             return baseline
         node_adaptation = self._node_adaptation(
             target_kc_ids=target_kc_ids,
+            content_family=self._content_family_for_node(
+                target_stage=summary.target_stage,
+                sequence_action=summary.state,
+            ),
+            target_stage=summary.target_stage,
+            sequence_action=summary.state,
             adaptation_state=adaptation_state,
         )
         adjustment = 0
@@ -476,7 +512,8 @@ class TrajectoryPlanner:
                 pacing_adjustment=adaptation_state.active_pacing_adjustment,
                 revisit_priority="high",
                 recommended_scaffolding_pattern=recovery_label,
-                recommended_modality=adaptation_state.preferred_modality,
+                recommended_modality=first_node.adaptation.recommended_modality
+                or adaptation_state.preferred_modality,
                 signal_ids=[
                     signal.signal_id
                     for signal in adaptation_state.recent_signals
@@ -557,6 +594,9 @@ class TrajectoryPlanner:
         self,
         *,
         target_kc_ids: list[str],
+        content_family: str | None,
+        target_stage: str,
+        sequence_action: str,
         adaptation_state: PlanningAdaptationState | None,
     ) -> TrajectoryNodeAdaptation | None:
         if adaptation_state is None:
@@ -602,23 +642,110 @@ class TrajectoryPlanner:
                 if marker is not None
                 else adaptation_state.preferred_scaffolding_pattern
             ),
-            recommended_modality=(
-                marker.preferred_modality
-                if marker is not None
-                else adaptation_state.preferred_modality
+            recommended_modality=self._recommended_modality_for_node(
+                marker=marker,
+                content_family=content_family,
+                target_stage=target_stage,
+                sequence_action=sequence_action,
+                adaptation_state=adaptation_state,
             ),
             signal_ids=signal_ids,
             rationale=marker.rationale if marker is not None else None,
         )
 
+    def _recommended_modality_for_node(
+        self,
+        *,
+        marker: PlanningConceptClusterMarker | None,
+        content_family: str | None,
+        target_stage: str,
+        sequence_action: str,
+        adaptation_state: PlanningAdaptationState,
+    ) -> str | None:
+        preferences = adaptation_state.modality_preferences
+        recovery_label = (
+            marker.preferred_recovery_pattern
+            if marker is not None and marker.preferred_recovery_pattern is not None
+            else adaptation_state.preferred_scaffolding_pattern
+        )
+        recovery_entry = self._best_modality_entry(
+            entry
+            for entry in preferences.preferred_by_recovery_pattern
+            if recovery_label is not None
+            and (
+                entry.preference_key == recovery_label
+                or entry.context_label == recovery_label
+            )
+        )
+        if recovery_entry is not None and target_stage == "repair":
+            return recovery_entry.preferred_modality
+        content_entry = self._best_modality_entry(
+            entry
+            for entry in preferences.preferred_by_content_family
+            if content_family is not None and entry.preference_key == content_family
+        )
+        if content_entry is not None:
+            return content_entry.preferred_modality
+        if recovery_entry is not None and sequence_action == "rebuild_prerequisite":
+            return recovery_entry.preferred_modality
+        risk_entry = self._best_modality_entry(
+            entry
+            for entry in preferences.preferred_by_risk_bucket
+            if marker is not None and entry.preference_key == marker.risk_level.value
+        )
+        if risk_entry is not None:
+            return risk_entry.preferred_modality
+        if marker is not None and marker.preferred_modality is not None:
+            return marker.preferred_modality
+        return adaptation_state.preferred_modality
+
+    def _best_modality_entry(
+        self,
+        entries: Iterable[PlanningModalityPreferenceEntry],
+    ) -> PlanningModalityPreferenceEntry | None:
+        ranked = [entry for entry in entries if entry.sample_count >= 2]
+        if not ranked:
+            return None
+        ranked.sort(
+            key=lambda entry: (
+                entry.average_outcome_score,
+                entry.positive_outcome_rate,
+                entry.recovery_rate,
+                entry.sample_count,
+                entry.preferred_modality,
+            ),
+            reverse=True,
+        )
+        return ranked[0]
+
+    def _content_family_for_node(
+        self,
+        *,
+        target_stage: str,
+        sequence_action: str,
+    ) -> str:
+        if target_stage == "repair" or sequence_action == "rebuild_prerequisite":
+            return "remedial_micro_module"
+        if target_stage == "bridge":
+            return "micro_explanation"
+        if target_stage == "transfer" or sequence_action == "attempt_transfer":
+            return "practice_problem"
+        return "practice_problem"
+
     def _adaptation_rationale(
         self,
         *,
         target_kc_ids: list[str],
+        content_family: str | None,
+        target_stage: str,
+        sequence_action: str,
         adaptation_state: PlanningAdaptationState | None,
     ) -> str | None:
         node_adaptation = self._node_adaptation(
             target_kc_ids=target_kc_ids,
+            content_family=content_family,
+            target_stage=target_stage,
+            sequence_action=sequence_action,
             adaptation_state=adaptation_state,
         )
         if node_adaptation is None:

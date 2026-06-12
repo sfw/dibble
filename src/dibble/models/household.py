@@ -5,6 +5,8 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
+from dibble.models.planning import PlanningModalityPreferenceSummary
+
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -106,6 +108,9 @@ class LearnerRelationshipAdaptationState(BaseModel):
     modality_outcomes: list[AutonomousTeacherModalityOutcome] = Field(
         default_factory=list
     )
+    modality_preferences: PlanningModalityPreferenceSummary = Field(
+        default_factory=PlanningModalityPreferenceSummary
+    )
     updated_at: datetime = Field(default_factory=utc_now)
 
     @property
@@ -154,6 +159,9 @@ class AutonomousTeacherDecisionFactor(BaseModel):
 class AutonomousTeacherDecisionTrace(BaseModel):
     cadence_decision: str
     suggested_modality: str | None = None
+    modality_preferences: PlanningModalityPreferenceSummary = Field(
+        default_factory=PlanningModalityPreferenceSummary
+    )
     blocking_approval_types: list[str] = Field(default_factory=list)
     average_session_outcome_score: float = Field(default=0.5, ge=0.0, le=1.0)
     suggestion_completion_rate: float = Field(default=0.0, ge=0.0, le=1.0)

@@ -23,6 +23,10 @@ from dibble.models.household import (
     ParentNotification,
 )
 from dibble.models.observability import HarnessBoundary, OperationalTraceStatus
+from dibble.models.planning import (
+    PlanningModalityPreferenceEntry,
+    PlanningModalityPreferenceSummary,
+)
 from dibble.models.rollout import (
     AutonomousOutboundMode,
     AutonomousSessionSuggestionMode,
@@ -306,6 +310,7 @@ class AutonomousTeacherHarness:
                 "latest_decision_trace": self._decision_trace(
                     cadence_decision=cadence_decision,
                     suggested_modality=relationship_state.suggested_modality,
+                    modality_preferences=relationship_state.adaptation_state.modality_preferences,
                     blocking_approvals=blocking_approvals,
                     adaptation_state=relationship_state.adaptation_state,
                     session_stuck_loop_risk=summary.current_flow.session_stuck_loop_risk,
@@ -596,6 +601,11 @@ class AutonomousTeacherHarness:
                     else base.active_recovery_pattern
                 ),
                 "modality_outcomes": modality_outcomes,
+                "modality_preferences": (
+                    planning_adaptation.modality_preferences
+                    if planning_adaptation is not None
+                    else base.modality_preferences
+                ),
                 "updated_at": now,
             }
         )
@@ -658,6 +668,7 @@ class AutonomousTeacherHarness:
         *,
         cadence_decision: str,
         suggested_modality: str | None,
+        modality_preferences: PlanningModalityPreferenceSummary,
         blocking_approvals: list[ParentApprovalRequest],
         adaptation_state: LearnerRelationshipAdaptationState,
         session_stuck_loop_risk: str,
@@ -673,6 +684,7 @@ class AutonomousTeacherHarness:
         return AutonomousTeacherDecisionTrace(
             cadence_decision=cadence_decision,
             suggested_modality=suggested_modality,
+            modality_preferences=modality_preferences,
             blocking_approval_types=[
                 approval.approval_type.value for approval in blocking_approvals
             ],
@@ -1009,6 +1021,12 @@ class AutonomousTeacherHarness:
             default = "narrative"
         else:
             default = "text"
+        contextual = self._contextual_modality_for_suggestion(
+            content_type=content_type,
+            adaptation_state=adaptation_state,
+        )
+        if contextual is not None:
+            return contextual
         outcomes = {item.modality: item for item in adaptation_state.modality_outcomes}
         default_outcome = outcomes.get(default)
         text_outcome = outcomes.get("text")
@@ -1040,6 +1058,54 @@ class AutonomousTeacherHarness:
             if best.average_outcome_score >= 0.68:
                 return best.modality
         return default
+
+    def _contextual_modality_for_suggestion(
+        self,
+        *,
+        content_type: str | None,
+        adaptation_state: LearnerRelationshipAdaptationState,
+    ) -> str | None:
+        preferences = adaptation_state.modality_preferences
+        candidates: list[PlanningModalityPreferenceEntry] = []
+        if content_type is not None:
+            candidates.extend(
+                entry
+                for entry in preferences.preferred_by_content_family
+                if entry.preference_key == content_type
+            )
+        if adaptation_state.trajectory_risk_level in {"moderate", "high"}:
+            candidates.extend(
+                entry
+                for entry in preferences.preferred_by_risk_bucket
+                if entry.preference_key == adaptation_state.trajectory_risk_level
+            )
+        if adaptation_state.active_recovery_pattern is not None:
+            candidates.extend(
+                entry
+                for entry in preferences.preferred_by_recovery_pattern
+                if entry.context_label == adaptation_state.active_recovery_pattern
+                or entry.preference_key == adaptation_state.active_recovery_pattern
+            )
+        conservative = [
+            entry
+            for entry in candidates
+            if entry.sample_count >= 2
+            and entry.average_outcome_score >= 0.68
+            and entry.positive_outcome_rate >= 0.5
+        ]
+        if not conservative:
+            return None
+        conservative.sort(
+            key=lambda entry: (
+                entry.average_outcome_score,
+                entry.positive_outcome_rate,
+                entry.recovery_rate,
+                entry.sample_count,
+                entry.preferred_modality,
+            ),
+            reverse=True,
+        )
+        return conservative[0].preferred_modality
 
     def _weekday_name(self, *, now: datetime) -> str:
         return now.strftime("%A").lower()

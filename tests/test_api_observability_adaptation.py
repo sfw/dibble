@@ -17,6 +17,7 @@ from dibble.models.retention import (
     RetentionStrengthTier,
 )
 from dibble.services.auth import hash_credential
+from dibble.services.audit_store import SQLiteAuditStore
 from dibble.services.knowledge_component_store import SQLiteKnowledgeComponentStore
 from dibble.services.outcome_store import SQLiteOutcomeStore
 from dibble.services.profile_store import SQLiteProfileStore
@@ -178,8 +179,10 @@ def test_adaptation_observability_routes_expose_modality_and_autonomous_teacher_
     )
     assert planning_payload["trajectory"]["adaptation_state"] is not None
     assert "recent_signals" in planning_payload["trajectory"]["adaptation_state"]
+    assert "modality_preferences" in planning_payload["trajectory"]["adaptation_state"]
     assert "adaptation_state" in relationship_payload
     assert "latest_decision_trace" in relationship_payload
+    assert "modality_preferences" in relationship_payload["latest_decision_trace"]
     assert autonomous_explain_payload["rollout_effects"]
     assert autonomous_explain_payload["next_expected_consequence"]
 
@@ -234,6 +237,62 @@ def test_retention_observability_routes_expose_due_and_scheduled_candidates(tmp_
     assert [item["candidate_id"] for item in scheduled_payload] == [
         "scheduled-retention"
     ]
+
+
+def test_mastery_progression_observability_route_exposes_bounded_metrics(tmp_path):
+    db_path = str(tmp_path / "dibble-mastery-progression-observability.db")
+    ensure_database(db_path)
+    settings = Settings(database_path=db_path, auth_enabled=True)
+    app = create_app(settings)
+    student_id = uuid4()
+
+    _seed_user(db_path, api_key="admin-key", role="admin", user_id="admin-1")
+    audit_store = SQLiteAuditStore(create_connection(db_path))
+    audit_store.append(
+        event_type="progression.outcome",
+        status="positive",
+        student_id=str(student_id),
+        payload={
+            "decision_action": "attempt_transfer",
+            "outcome": "positive",
+        },
+    )
+    audit_store.append(
+        event_type="progression.outcome",
+        status="negative",
+        student_id=str(student_id),
+        payload={
+            "decision_action": "attempt_transfer",
+            "outcome": "negative",
+        },
+    )
+    audit_store.append(
+        event_type="curriculum.outcome.transition",
+        status="mastered",
+        student_id=str(student_id),
+        payload={
+            "outcome_id": "OUT-1",
+            "from_state": "ready",
+            "to_state": "mastered",
+        },
+    )
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/observability/adaptation/mastery-progression/metrics",
+            headers={"X-API-Key": "admin-key"},
+            params={"student_id": str(student_id), "limit": 50},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["scope"] == "learner"
+    assert payload["learner_id"] == str(student_id)
+    assert payload["transfer_positive_rate"]["numerator"] == 1
+    assert payload["transfer_positive_rate"]["denominator"] == 2
+    assert payload["release_regret_rate"]["rate"] == 0.5
+    assert payload["outcome_mastery_stability"]["rate"] == 1.0
+    assert payload["assumptions"]
 
 
 def test_observability_readiness_and_traces_surface_parent_approval_audit(tmp_path):

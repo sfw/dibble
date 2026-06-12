@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -19,6 +20,8 @@ from dibble.models.generation import (
     GroundingReference,
     InterventionType,
     RequestedContentType,
+    ModalityRoutingPrior,
+    RoutingPriorScope,
 )
 from dibble.models.profile import LearnerProfile
 from dibble.plugins.loader import build_modality_plugins
@@ -33,6 +36,7 @@ from dibble.services.harness.content_library import (
 from dibble.services.harness.modality_routing import ModalityRoutingHarness
 from dibble.services.modality_routing_prior_store import SQLiteModalityRoutingPriorStore
 from dibble.services.outcome_driven_adaptation import OutcomeDrivenAdaptationService
+from dibble.services.planning_adaptation import PlanningAdaptationService
 from dibble.services.sqlite_connection import create_connection
 from dibble.storage import ensure_database
 from tests.support import build_profile
@@ -46,6 +50,21 @@ class _StubRouter:
             scaffolding_level="medium",
             reasons=["test"],
         )
+
+
+def _routing_context(*, content_type: str, target_kc_ids: list[str]) -> str:
+    return json.dumps(
+        {
+            "intent": "explanation",
+            "requested_content_type": content_type,
+            "target_kc_ids": sorted(target_kc_ids),
+            "target_lo_ids": [],
+            "intervention_type": "reteach",
+            "scaffolding_level": "medium",
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
 
 
 def _generated_content(
@@ -146,6 +165,108 @@ def test_outcome_history_shifts_modality_routing_toward_successful_plugin(tmp_pa
         if score.plugin_id == "narrative"
         for component in score.score_components
     )
+
+
+def test_planning_modality_summary_preserves_contextual_preferences(tmp_path):
+    db_path = str(tmp_path / "planning-modality-context.db")
+    ensure_database(db_path)
+    conn = create_connection(db_path)
+    audit_store = SQLiteAuditStore(conn)
+    prior_store = SQLiteModalityRoutingPriorStore(conn)
+    student_id = uuid4()
+    now = datetime(2026, 6, 8, 12, 0, tzinfo=timezone.utc)
+
+    for index, score in enumerate([0.42, 0.48, 0.44, 0.7]):
+        audit_store.append(
+            event_type="learning.run.summary",
+            status="success",
+            student_id=str(student_id),
+            payload={
+                "target_kc_ids": ["KC-VISUAL"],
+                "run_summary_score": score,
+                "learning_session_id": f"visual-{index}",
+            },
+        )
+    for index, score in enumerate([0.45, 0.67]):
+        audit_store.append(
+            event_type="learning.run.summary",
+            status="success",
+            student_id=str(student_id),
+            payload={
+                "target_kc_ids": ["KC-TEXT"],
+                "run_summary_score": score,
+                "learning_session_id": f"text-{index}",
+            },
+        )
+
+    visual_context = _routing_context(
+        content_type="worked_example",
+        target_kc_ids=["KC-VISUAL"],
+    )
+    text_context = _routing_context(
+        content_type="practice_problem",
+        target_kc_ids=["KC-TEXT"],
+    )
+    for prior in [
+        ModalityRoutingPrior(
+            learner_id=student_id,
+            scope=RoutingPriorScope.plugin,
+            prior_key="narrative",
+            context_key="__global__",
+            evidence_count=5,
+            average_outcome_score=0.92,
+            positive_outcome_rate=0.8,
+            updated_at=now,
+        ),
+        ModalityRoutingPrior(
+            learner_id=student_id,
+            scope=RoutingPriorScope.plugin,
+            prior_key="diagram",
+            context_key=visual_context,
+            evidence_count=3,
+            average_outcome_score=0.82,
+            positive_outcome_rate=0.67,
+            updated_at=now,
+        ),
+        ModalityRoutingPrior(
+            learner_id=student_id,
+            scope=RoutingPriorScope.plugin,
+            prior_key="text",
+            context_key=text_context,
+            evidence_count=3,
+            average_outcome_score=0.79,
+            positive_outcome_rate=0.67,
+            updated_at=now,
+        ),
+    ]:
+        prior_store.upsert(prior)
+
+    state = PlanningAdaptationService(
+        audit_store=audit_store,
+        prior_store=prior_store,
+    ).build_state(student_id=student_id)
+
+    assert state.preferred_modality == "narrative"
+    content_preferences = {
+        entry.preference_key: entry.preferred_modality
+        for entry in state.modality_preferences.preferred_by_content_family
+    }
+    assert content_preferences == {
+        "worked_example": "diagram",
+        "practice_problem": "text",
+    }
+    risk_preferences = {
+        entry.preference_key: entry.preferred_modality
+        for entry in state.modality_preferences.preferred_by_risk_bucket
+    }
+    assert risk_preferences["high"] == "diagram"
+    assert risk_preferences["moderate"] == "text"
+    marker_preferences = {
+        marker.cluster_key: marker.preferred_modality
+        for marker in state.concept_cluster_markers
+    }
+    assert marker_preferences["KC-VISUAL"] == "diagram"
+    assert marker_preferences["KC-TEXT"] == "text"
 
 
 def test_library_ranking_prefers_stronger_outcome_history_over_newer_candidate(tmp_path):

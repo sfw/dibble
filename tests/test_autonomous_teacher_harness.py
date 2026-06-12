@@ -15,6 +15,8 @@ from dibble.models.planning import (
     LearnerGoal,
     PlanningAdaptationState,
     PlanningConceptClusterMarker,
+    PlanningModalityPreferenceEntry,
+    PlanningModalityPreferenceSummary,
     TrajectoryNode,
     TrajectoryPlan,
     TrajectoryRiskLevel,
@@ -38,8 +40,13 @@ class _LearnerSummaryService:
 
 
 class _CurriculumPlanningHarness:
-    def __init__(self, learner_id: str) -> None:
+    def __init__(
+        self,
+        learner_id: str,
+        adaptation_state: PlanningAdaptationState | None = None,
+    ) -> None:
         self.learner_id = learner_id
+        self.adaptation_state = adaptation_state
 
     def ensure_active_trajectory(self, command):
         now = datetime.now(timezone.utc)
@@ -62,7 +69,8 @@ class _CurriculumPlanningHarness:
                     target_kc_ids=["KC-1"],
                 )
             ],
-            adaptation_state=PlanningAdaptationState(
+            adaptation_state=self.adaptation_state
+            or PlanningAdaptationState(
                 active_pacing_adjustment="slower",
                 preferred_scaffolding_pattern="repair -> remediation",
                 concept_cluster_markers=[
@@ -82,6 +90,9 @@ class _CurriculumPlanningHarness:
 
 
 class _WithinSessionControlHarness:
+    def __init__(self, content_type: str = "worked_example") -> None:
+        self.content_type = content_type
+
     def ensure_session(self, command):
         return SessionControlState(
             learning_session_id="session-1",
@@ -95,13 +106,13 @@ class _WithinSessionControlHarness:
             transfer_target_kc_ids=["KC-1"],
             next_step=LearnerFlowNextStep(
                 action="stay_on_requested_target",
-                content_type="worked_example",
+                content_type=self.content_type,
                 target_stage="target",
                 target_kc_ids=["KC-1"],
             ),
             continue_action=LearnerContinueAction.generate_follow_up(
                 learning_session_id="session-1",
-                content_type="worked_example",
+                content_type=self.content_type,
                 target_stage="target",
                 target_kc_ids=["KC-1"],
                 request_payload={"student_id": str(command.student_id)},
@@ -144,6 +155,50 @@ class _UserStore:
         return [
             type("User", (), {"learner_id": "learner-1", "user_id": "learner-user-1", "display_name": "Avery", "role": "learner"})()
         ]
+
+
+def _profile_summary(
+    *,
+    learner_id: str,
+    now: datetime,
+    content_type: str = "micro_explanation",
+) -> ProfileSummary:
+    return ProfileSummary.model_validate(
+        {
+            "student_id": learner_id,
+            "grade_level": "5",
+            "profile_version": "v1",
+            "kc_count": 1,
+            "lo_count": 1,
+            "engagement": "medium",
+            "frustration": "low",
+            "total_load": 0.4,
+            "confidence_calibration": 0.4,
+            "help_seeking": "medium",
+            "recent_activity": {"last_event_at": (now - timedelta(days=6)).isoformat()},
+            "current_flow": {
+                "session_stuck_loop_risk": "high",
+                "next_step": {
+                    "action": "stay_on_requested_target",
+                    "content_type": content_type,
+                    "target_stage": "target",
+                    "target_kc_ids": ["KC-1"],
+                },
+                "continue_action": {
+                    "kind": "generate_follow_up",
+                    "target_stage": "target",
+                    "target_kc_ids": ["KC-1"],
+                    "request_payload": {},
+                },
+            },
+            "curriculum_progression": {
+                "mastered_outcome_ratio": 0.25,
+                "mastered_outcome_count": 1,
+                "outcome_count": 4,
+            },
+            "updated_at": now.isoformat(),
+        }
+    )
 
 
 def test_autonomous_teacher_harness_emits_session_suggestion_and_soft_escalation():
@@ -781,4 +836,133 @@ def test_autonomous_teacher_harness_uses_relationship_outcomes_to_shift_modality
     assert any(
         factor.label == "follow_through"
         for factor in plan.relationship_state.latest_decision_trace.factors
+    )
+
+
+def test_autonomous_teacher_ignores_weak_contextual_modality_evidence():
+    learner_id = str(uuid4())
+    now = datetime(2026, 4, 24, 12, 0, tzinfo=timezone.utc)
+    summary = _profile_summary(
+        learner_id=learner_id,
+        now=now,
+        content_type="micro_explanation",
+    )
+    adaptation_state = PlanningAdaptationState(
+        modality_preferences=PlanningModalityPreferenceSummary(
+            preferred_by_content_family=[
+                PlanningModalityPreferenceEntry(
+                    preference_key="micro_explanation",
+                    context_label="content family micro_explanation",
+                    preferred_modality="diagram",
+                    sample_count=1,
+                    average_outcome_score=0.9,
+                    positive_outcome_rate=1.0,
+                )
+            ]
+        )
+    )
+    harness = AutonomousTeacherHarness(
+        learner_summary_service=_LearnerSummaryService(summary),
+        curriculum_planning_harness=_CurriculumPlanningHarness(
+            learner_id,
+            adaptation_state=adaptation_state,
+        ),
+        within_session_control_harness=_WithinSessionControlHarness(
+            content_type="micro_explanation"
+        ),
+        learner_relationship_state_store=_LearnerRelationshipStore(),
+        parent_notification_store=_ParentNotificationStore(),
+        user_store=_UserStore(),
+    )
+    household = Household(
+        household_id="household-1",
+        household_name="Home",
+        parent_profiles=[
+            ParentProfile(
+                parent_user_id="parent-1",
+                preferences={
+                    "modality_introduction_requires_approval": False,
+                    "trajectory_revision_requires_approval": False,
+                    "high_autonomy_session_requires_approval": False,
+                },
+            )
+        ],
+        learner_ids=[learner_id],
+    )
+
+    result = harness.orchestrate_household(household=household, now=now)
+
+    plan = result.learner_plans[0]
+    assert plan.relationship_state.suggested_modality == "narrative"
+    assert plan.relationship_state.latest_decision_trace is not None
+    assert (
+        plan.relationship_state.latest_decision_trace.modality_preferences
+        .preferred_by_content_family[0]
+        .preferred_modality
+        == "diagram"
+    )
+
+
+def test_autonomous_teacher_contextual_modality_still_requires_parent_approval():
+    learner_id = str(uuid4())
+    now = datetime(2026, 4, 24, 12, 0, tzinfo=timezone.utc)
+    summary = _profile_summary(
+        learner_id=learner_id,
+        now=now,
+        content_type="micro_explanation",
+    )
+    adaptation_state = PlanningAdaptationState(
+        modality_preferences=PlanningModalityPreferenceSummary(
+            preferred_by_content_family=[
+                PlanningModalityPreferenceEntry(
+                    preference_key="micro_explanation",
+                    context_label="content family micro_explanation",
+                    preferred_modality="diagram",
+                    sample_count=3,
+                    average_outcome_score=0.76,
+                    positive_outcome_rate=0.67,
+                )
+            ]
+        )
+    )
+    relationship_store = _LearnerRelationshipStore()
+    relationship_store.upsert(
+        LearnerRelationshipState(
+            household_id="household-1",
+            learner_id=learner_id,
+            approved_modalities=["text"],
+        )
+    )
+    harness = AutonomousTeacherHarness(
+        learner_summary_service=_LearnerSummaryService(summary),
+        curriculum_planning_harness=_CurriculumPlanningHarness(
+            learner_id,
+            adaptation_state=adaptation_state,
+        ),
+        within_session_control_harness=_WithinSessionControlHarness(
+            content_type="micro_explanation"
+        ),
+        learner_relationship_state_store=relationship_store,
+        parent_notification_store=_ParentNotificationStore(),
+        user_store=_UserStore(),
+    )
+    household = Household(
+        household_id="household-1",
+        household_name="Home",
+        parent_profiles=[ParentProfile(parent_user_id="parent-1")],
+        learner_ids=[learner_id],
+    )
+
+    result = harness.orchestrate_household(household=household, now=now)
+
+    plan = result.learner_plans[0]
+    assert plan.relationship_state.suggested_modality == "diagram"
+    assert plan.next_session is None
+    approval = plan.relationship_state.approval_requests[0]
+    assert approval.approval_type.value == "modality_introduction"
+    assert approval.proposed_value == "diagram"
+    assert plan.relationship_state.latest_decision_trace is not None
+    assert (
+        "modality_introduction"
+        in plan.relationship_state.latest_decision_trace.blocking_approval_types
     )
