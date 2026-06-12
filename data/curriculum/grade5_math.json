@@ -1,0 +1,441 @@
+{
+  "course": {
+    "course_id": "math-g5",
+    "title": "Mathematics Grade 5",
+    "subject": "mathematics",
+    "grade_band": "5",
+    "tags": ["pilot", "grades-4-6", "starter-corpus"]
+  },
+  "strands": [
+    {
+      "strand_id": "g5-number",
+      "course_id": "math-g5",
+      "title": "Number and Place Value",
+      "description": "Whole numbers to 1 000 000 and decimal place value to thousandths, including powers of ten and multiplicative place-value reasoning.",
+      "sort_order": 1
+    },
+    {
+      "strand_id": "g5-operations",
+      "course_id": "math-g5",
+      "title": "Operations and Algebraic Thinking",
+      "description": "Multi-digit multiplication and division, order of operations, numerical expressions, and the meaning of the equals sign.",
+      "sort_order": 2
+    },
+    {
+      "strand_id": "g5-fractions",
+      "course_id": "math-g5",
+      "title": "Fractions",
+      "description": "Adding and subtracting fractions with unlike denominators, fraction-as-division, and multiplying fractions by whole numbers and fractions.",
+      "sort_order": 3
+    },
+    {
+      "strand_id": "g5-decimals",
+      "course_id": "math-g5",
+      "title": "Decimal Operations",
+      "description": "Comparing, rounding, adding, subtracting, multiplying, and dividing decimals to hundredths using place-value reasoning.",
+      "sort_order": 4
+    },
+    {
+      "strand_id": "g5-geometry",
+      "course_id": "math-g5",
+      "title": "Geometry and Measurement",
+      "description": "Volume of rectangular prisms, coordinate plane basics, and classification of two-dimensional figures in a hierarchy.",
+      "sort_order": 5
+    }
+  ],
+  "outcomes": [
+    {
+      "outcome_id": "g5-lo-place-value-millions",
+      "title": "Extend place value to millions and thousandths",
+      "strand_id": "g5-number",
+      "grade_level": "5",
+      "subject": "mathematics",
+      "description": "The base-ten system is multiplicative in both directions: a digit in one place represents ten times what it represents one place to the right and one tenth of what it represents one place to the left. Students read, write, compare, and round whole numbers to 1 000 000 and decimals to thousandths. Multiplying a number by 10, 100, or 1000 shifts its digits left; dividing shifts them right. Powers of ten provide compact notation for these repeated factors.",
+      "sort_order": 1
+    },
+    {
+      "outcome_id": "g5-lo-multidigit-mult",
+      "title": "Multiply multi-digit whole numbers fluently",
+      "strand_id": "g5-operations",
+      "grade_level": "5",
+      "subject": "mathematics",
+      "description": "Students multiply multi-digit whole numbers using the standard algorithm, understanding each partial product as a place-value piece of the area model. A two-digit by two-digit product decomposes into four partial products: tens times tens, tens times ones, ones times tens, and ones times ones. Estimating first by rounding both factors gives a magnitude check that catches misplaced partial products, the most common multiplication error at this level.",
+      "sort_order": 1
+    },
+    {
+      "outcome_id": "g5-lo-multidigit-div",
+      "title": "Divide multi-digit numbers by two-digit divisors",
+      "strand_id": "g5-operations",
+      "grade_level": "5",
+      "subject": "mathematics",
+      "description": "Division by a two-digit divisor builds on place-value sectioning: students find how many groups of the divisor fit in each place-value chunk of the dividend, recording partial quotients. The relationship dividend equals divisor times quotient plus remainder allows every division answer to be verified by multiplication. Quotients are interpreted in context, deciding whether to round up, drop, or report the remainder as a fraction.",
+      "sort_order": 2
+    },
+    {
+      "outcome_id": "g5-lo-expressions-equality",
+      "title": "Evaluate expressions and reason about equality",
+      "strand_id": "g5-operations",
+      "grade_level": "5",
+      "subject": "mathematics",
+      "description": "The equals sign states that two expressions name the same value; it is not an instruction to compute an answer. Students evaluate numerical expressions using the order of operations with parentheses and brackets, write simple expressions from verbal descriptions, and solve for unknowns in equations like 8 + n = 14 by reasoning about balance rather than by reading left to right. An equation such as 7 = 3 + 4 is just as valid as 3 + 4 = 7.",
+      "sort_order": 3
+    },
+    {
+      "outcome_id": "g5-lo-fraction-add-unlike",
+      "title": "Add and subtract fractions with unlike denominators",
+      "strand_id": "g5-fractions",
+      "grade_level": "5",
+      "subject": "mathematics",
+      "description": "Fractions can only be added or subtracted when they are expressed in the same-sized pieces. Students rewrite fractions with a common denominator — using equivalence, not a memorized rule — and then add or subtract numerators. Benchmark fractions support estimation: 7/12 plus 3/8 must be a little less than 1 because each addend is near 1/2. Students add and subtract mixed numbers and check the reasonableness of answers with number-line models.",
+      "sort_order": 1
+    },
+    {
+      "outcome_id": "g5-lo-fraction-mult",
+      "title": "Multiply fractions and interpret fraction as division",
+      "strand_id": "g5-fractions",
+      "grade_level": "5",
+      "subject": "mathematics",
+      "description": "A fraction is also a division: 3/4 means 3 divided by 4, the size of one share when 3 wholes are split among 4. Multiplying a fraction by a whole number scales copies of a unit fraction; multiplying a fraction by a fraction takes a part of a part, which the area model shows as overlapping shading. Multiplying by a fraction less than one produces a product smaller than the starting number — scaling, not shrinking the operation's validity — which breaks the whole-number intuition that multiplication always makes bigger.",
+      "sort_order": 2
+    },
+    {
+      "outcome_id": "g5-lo-decimal-operations",
+      "title": "Compute with decimals to hundredths",
+      "strand_id": "g5-decimals",
+      "grade_level": "5",
+      "subject": "mathematics",
+      "description": "Decimal addition and subtraction align place values, which means aligning the decimal points; appending zeros to equalize lengths changes nothing because 0.5 and 0.50 are equivalent. Decimal multiplication and division extend whole-number reasoning with powers of ten: 0.3 x 0.4 is 3 tenths of 4 tenths, twelve hundredths, 0.12. Students estimate first so the placement of the decimal point in a product or quotient is justified by magnitude reasoning rather than a digit-counting rule applied blindly.",
+      "sort_order": 1
+    },
+    {
+      "outcome_id": "g5-lo-volume",
+      "title": "Understand and calculate volume of rectangular prisms",
+      "strand_id": "g5-geometry",
+      "grade_level": "5",
+      "subject": "mathematics",
+      "description": "Volume measures the space a solid figure occupies in cubic units. A rectangular prism packed with unit cubes has volume equal to the number of cubes in one layer times the number of layers, which gives the formulas V = l x w x h and V = B x h where B is the base area. Volumes of composite figures made of two non-overlapping prisms add. Students distinguish volume from surface area and choose appropriate cubic units for context.",
+      "sort_order": 1
+    },
+    {
+      "outcome_id": "g5-lo-coordinate-plane",
+      "title": "Graph points in the first quadrant",
+      "strand_id": "g5-geometry",
+      "grade_level": "5",
+      "subject": "mathematics",
+      "description": "The coordinate plane locates points by an ordered pair: the first number gives horizontal distance from the origin along the x-axis and the second gives vertical distance along the y-axis. Order matters — (3, 5) and (5, 3) are different points. Students plot points, read coordinates from graphs, and interpret real-world relationships such as distance over time by reading coordinate values in context.",
+      "sort_order": 2
+    }
+  ],
+  "knowledge_components": [
+    {
+      "kc_id": "g5-kc-pv-millions",
+      "name": "Place value to 1 000 000 and powers of ten",
+      "outcome_id": "g5-lo-place-value-millions",
+      "grade_level": "5",
+      "subject": "mathematics",
+      "difficulty": 0.4,
+      "estimated_time_minutes": 12,
+      "prerequisite_kc_ids": ["g4-kc-pv-read-write", "g4-kc-pv-compare-round"],
+      "taxonomy_cluster_id": "place-value",
+      "concept_family": "base-ten",
+      "tags": ["anchor"],
+      "common_misconceptions": [
+        {
+          "misconception_id": "g5-mc-pv-multiply-add-zero",
+          "label": "Multiplying by ten just adds a zero",
+          "description": "Applies the 'add a zero' rule symbolically, which fails for decimals: claims 0.5 x 10 = 0.50.",
+          "trigger_terms": ["add a zero", "times ten"],
+          "remediation_hint": "Reframe as digit shifting on a place-value chart: every digit moves one place left, the decimal point stays."
+        }
+      ]
+    },
+    {
+      "kc_id": "g5-kc-pv-decimal-thousandths",
+      "name": "Decimal place value to thousandths",
+      "outcome_id": "g5-lo-place-value-millions",
+      "grade_level": "5",
+      "subject": "mathematics",
+      "difficulty": 0.5,
+      "estimated_time_minutes": 12,
+      "prerequisite_kc_ids": ["g4-kc-decimal-tenths-hundredths"],
+      "taxonomy_cluster_id": "decimal-concepts",
+      "concept_family": "decimals",
+      "tags": ["anchor"],
+      "common_misconceptions": [
+        {
+          "misconception_id": "g5-mc-dec-longer-is-larger",
+          "label": "Longer decimal is larger",
+          "description": "Concludes 0.125 is greater than 0.5 because it has more digits, treating the decimal part as a whole number.",
+          "trigger_terms": ["longer decimal", "more digits"],
+          "prerequisite_kc_ids": ["g4-kc-decimal-tenths-hundredths"],
+          "remediation_hint": "Compare place by place on a decimal place-value chart, padding with zeros: 0.500 vs 0.125."
+        },
+        {
+          "misconception_id": "g5-mc-dec-shorter-is-larger",
+          "label": "Shorter decimal is larger",
+          "description": "Overcorrects the longer-is-larger error, concluding 0.3 is always greater than 0.45 because tenths are bigger than hundredths.",
+          "trigger_terms": ["shorter decimal", "tenths bigger"],
+          "remediation_hint": "Place both numbers on the same hundredths grid so the comparison is visual before it is symbolic."
+        }
+      ]
+    },
+    {
+      "kc_id": "g5-kc-mult-multidigit",
+      "name": "Multiply multi-digit whole numbers",
+      "outcome_id": "g5-lo-multidigit-mult",
+      "grade_level": "5",
+      "subject": "mathematics",
+      "difficulty": 0.5,
+      "estimated_time_minutes": 15,
+      "prerequisite_kc_ids": ["g4-kc-mult-multidigit"],
+      "taxonomy_cluster_id": "multiplicative-thinking",
+      "concept_family": "multiplication",
+      "tags": ["anchor"],
+      "common_misconceptions": [
+        {
+          "misconception_id": "g5-mc-mult-partial-misaligned",
+          "label": "Second partial product not shifted",
+          "description": "In the standard algorithm, writes the tens-row partial product without the place shift, e.g. 23 x 14 computed as 92 + 23 instead of 92 + 230.",
+          "trigger_terms": ["partial product", "shift", "placeholder zero"],
+          "prerequisite_kc_ids": ["g5-kc-pv-millions"],
+          "remediation_hint": "Connect each algorithm row to its area-model region so the tens row is visibly ten times larger."
+        }
+      ]
+    },
+    {
+      "kc_id": "g5-kc-div-twodigit",
+      "name": "Divide by two-digit divisors",
+      "outcome_id": "g5-lo-multidigit-div",
+      "grade_level": "5",
+      "subject": "mathematics",
+      "difficulty": 0.6,
+      "estimated_time_minutes": 18,
+      "prerequisite_kc_ids": ["g4-kc-div-remainders", "g5-kc-mult-multidigit"],
+      "taxonomy_cluster_id": "multiplicative-thinking",
+      "concept_family": "division",
+      "common_misconceptions": [
+        {
+          "misconception_id": "g5-mc-div-makes-smaller",
+          "label": "Division always makes smaller",
+          "description": "Assumes every quotient is smaller than the dividend, which later breaks for divisors less than one and blocks estimation checks.",
+          "trigger_terms": ["division makes smaller", "quotient bigger"],
+          "remediation_hint": "Pose sharing problems with divisor 1 and divisors between 0 and 1 informally: how many half-metre ribbons in 3 metres?"
+        },
+        {
+          "misconception_id": "g5-mc-div-quotient-digit-skipped",
+          "label": "Zero skipped inside quotient",
+          "description": "Omits interior zeros in the quotient, e.g. 612 / 6 = 12 instead of 102, because a place with no groups is skipped rather than recorded.",
+          "trigger_terms": ["missing zero", "quotient zero"],
+          "prerequisite_kc_ids": ["g5-kc-pv-millions"],
+          "remediation_hint": "Use partial quotients with an explicit place-value table so every place receives a digit, even zero."
+        }
+      ]
+    },
+    {
+      "kc_id": "g5-kc-order-of-operations",
+      "name": "Order of operations with grouping symbols",
+      "outcome_id": "g5-lo-expressions-equality",
+      "grade_level": "5",
+      "subject": "mathematics",
+      "difficulty": 0.45,
+      "estimated_time_minutes": 12,
+      "prerequisite_kc_ids": ["g4-kc-mult-facts", "g4-kc-addsub-regroup"],
+      "taxonomy_cluster_id": "algebraic-thinking",
+      "concept_family": "expressions",
+      "common_misconceptions": [
+        {
+          "misconception_id": "g5-mc-ooo-left-to-right",
+          "label": "Strict left-to-right evaluation",
+          "description": "Evaluates 3 + 4 x 2 as 14 by working strictly left to right, ignoring operation priority.",
+          "trigger_terms": ["left to right", "order of operations", "pemdas", "bedmas"],
+          "remediation_hint": "Read the expression as a story — 3 plus 4 groups of 2 — so the grouping precedes the rule."
+        }
+      ]
+    },
+    {
+      "kc_id": "g5-kc-equality-meaning",
+      "name": "Equals sign as relational balance",
+      "outcome_id": "g5-lo-expressions-equality",
+      "grade_level": "5",
+      "subject": "mathematics",
+      "difficulty": 0.4,
+      "estimated_time_minutes": 10,
+      "taxonomy_cluster_id": "algebraic-thinking",
+      "concept_family": "expressions",
+      "tags": ["anchor"],
+      "common_misconceptions": [
+        {
+          "misconception_id": "g5-mc-equals-as-operator",
+          "label": "Equals sign means 'write the answer'",
+          "description": "Treats = as a do-something signal: answers 12 for the blank in 8 + 4 = __ + 5 by computing the left side.",
+          "trigger_terms": ["equals means answer", "both sides", "balance"],
+          "remediation_hint": "Use a pan-balance model and true/false equations like 7 = 7 and 6 + 2 = 5 + 3 before solving for blanks."
+        }
+      ]
+    },
+    {
+      "kc_id": "g5-kc-frac-common-denominator",
+      "name": "Rewrite fractions with a common denominator",
+      "outcome_id": "g5-lo-fraction-add-unlike",
+      "grade_level": "5",
+      "subject": "mathematics",
+      "difficulty": 0.55,
+      "estimated_time_minutes": 15,
+      "prerequisite_kc_ids": ["g4-kc-frac-equivalence"],
+      "taxonomy_cluster_id": "fraction-operations",
+      "concept_family": "fractions",
+      "tags": ["anchor"],
+      "common_misconceptions": [
+        {
+          "misconception_id": "g5-mc-frac-numerator-only-scaled",
+          "label": "Only one part of the fraction scaled",
+          "description": "Multiplies the denominator to match the common denominator but forgets to scale the numerator, e.g. rewrites 2/3 as 2/12.",
+          "trigger_terms": ["common denominator", "scale both", "equivalent"],
+          "prerequisite_kc_ids": ["g4-kc-frac-equivalence"],
+          "remediation_hint": "Show the strip being cut: quartering every third cuts the shaded pieces too — both numbers change together."
+        }
+      ]
+    },
+    {
+      "kc_id": "g5-kc-frac-add-unlike",
+      "name": "Add and subtract unlike-denominator fractions",
+      "outcome_id": "g5-lo-fraction-add-unlike",
+      "grade_level": "5",
+      "subject": "mathematics",
+      "difficulty": 0.6,
+      "estimated_time_minutes": 15,
+      "prerequisite_kc_ids": ["g5-kc-frac-common-denominator", "g4-kc-frac-add-like"],
+      "taxonomy_cluster_id": "fraction-operations",
+      "concept_family": "fractions",
+      "common_misconceptions": [
+        {
+          "misconception_id": "g5-mc-frac-add-across",
+          "label": "Adds numerators and denominators across",
+          "description": "Computes 1/2 + 1/3 as 2/5, adding tops and bottoms separately without common pieces.",
+          "trigger_terms": ["add across", "add tops and bottoms"],
+          "prerequisite_kc_ids": ["g5-kc-frac-common-denominator"],
+          "remediation_hint": "Estimate first: both addends are at least 1/3, so the sum cannot be 2/5 which is less than 1/2."
+        }
+      ]
+    },
+    {
+      "kc_id": "g5-kc-frac-mult",
+      "name": "Multiply fractions",
+      "outcome_id": "g5-lo-fraction-mult",
+      "grade_level": "5",
+      "subject": "mathematics",
+      "difficulty": 0.6,
+      "estimated_time_minutes": 15,
+      "prerequisite_kc_ids": ["g4-kc-frac-equivalence", "g4-kc-mult-facts"],
+      "taxonomy_cluster_id": "fraction-operations",
+      "concept_family": "fractions",
+      "common_misconceptions": [
+        {
+          "misconception_id": "g5-mc-mult-makes-bigger",
+          "label": "Multiplication always makes bigger",
+          "description": "Rejects or distrusts products smaller than a factor, e.g. doubts that 1/2 x 6 = 3, because whole-number multiplication always grew.",
+          "trigger_terms": ["multiplication makes bigger", "smaller product"],
+          "remediation_hint": "Reframe multiplication as 'of': 1/2 of 6 is obviously 3 — connect the symbol to the scaling story."
+        }
+      ]
+    },
+    {
+      "kc_id": "g5-kc-frac-as-division",
+      "name": "Interpret a fraction as division",
+      "outcome_id": "g5-lo-fraction-mult",
+      "grade_level": "5",
+      "subject": "mathematics",
+      "difficulty": 0.55,
+      "estimated_time_minutes": 12,
+      "prerequisite_kc_ids": ["g4-kc-div-remainders", "g4-kc-frac-equivalence"],
+      "nearby_kc_ids": ["g5-kc-frac-mult"],
+      "taxonomy_cluster_id": "fraction-concepts",
+      "concept_family": "fractions"
+    },
+    {
+      "kc_id": "g5-kc-dec-add-sub",
+      "name": "Add and subtract decimals",
+      "outcome_id": "g5-lo-decimal-operations",
+      "grade_level": "5",
+      "subject": "mathematics",
+      "difficulty": 0.5,
+      "estimated_time_minutes": 12,
+      "prerequisite_kc_ids": ["g5-kc-pv-decimal-thousandths", "g4-kc-addsub-regroup"],
+      "taxonomy_cluster_id": "decimal-operations",
+      "concept_family": "decimals",
+      "common_misconceptions": [
+        {
+          "misconception_id": "g5-mc-dec-right-aligned",
+          "label": "Decimals right-aligned like whole numbers",
+          "description": "Lines up the rightmost digits instead of the decimal points, computing 3.2 + 0.45 as 0.77.",
+          "trigger_terms": ["line up", "align decimal point"],
+          "prerequisite_kc_ids": ["g5-kc-pv-decimal-thousandths"],
+          "remediation_hint": "Estimate first (3.2 + about a half is about 3.7), then align on the place-value chart."
+        }
+      ]
+    },
+    {
+      "kc_id": "g5-kc-dec-mult-div",
+      "name": "Multiply and divide decimals",
+      "outcome_id": "g5-lo-decimal-operations",
+      "grade_level": "5",
+      "subject": "mathematics",
+      "difficulty": 0.65,
+      "estimated_time_minutes": 18,
+      "prerequisite_kc_ids": ["g5-kc-dec-add-sub", "g5-kc-mult-multidigit"],
+      "taxonomy_cluster_id": "decimal-operations",
+      "concept_family": "decimals",
+      "common_misconceptions": [
+        {
+          "misconception_id": "g5-mc-dec-point-counting-blind",
+          "label": "Decimal point placed by counting without magnitude check",
+          "description": "Applies the count-the-decimal-places rule mechanically and accepts absurd magnitudes, e.g. 0.3 x 0.4 = 1.2.",
+          "trigger_terms": ["count decimal places", "where does the point go"],
+          "remediation_hint": "Anchor with estimation: 0.3 x 0.4 is less than half of 0.4, so the answer must be less than 0.2."
+        }
+      ]
+    },
+    {
+      "kc_id": "g5-kc-volume-prisms",
+      "name": "Volume of rectangular prisms",
+      "outcome_id": "g5-lo-volume",
+      "grade_level": "5",
+      "subject": "mathematics",
+      "difficulty": 0.5,
+      "estimated_time_minutes": 15,
+      "prerequisite_kc_ids": ["g4-kc-area-rectangles", "g5-kc-mult-multidigit"],
+      "taxonomy_cluster_id": "measurement",
+      "concept_family": "geometry-measurement",
+      "common_misconceptions": [
+        {
+          "misconception_id": "g5-mc-volume-adds-dimensions",
+          "label": "Adds dimensions instead of multiplying",
+          "description": "Computes volume as l + w + h, or confuses volume with surface area when a net is shown.",
+          "trigger_terms": ["volume", "surface area", "cubic units"],
+          "prerequisite_kc_ids": ["g4-kc-area-rectangles"],
+          "remediation_hint": "Build the prism from unit cubes layer by layer: one layer holds l x w cubes, and there are h layers."
+        }
+      ]
+    },
+    {
+      "kc_id": "g5-kc-coordinate-first-quadrant",
+      "name": "Plot and read points in the first quadrant",
+      "outcome_id": "g5-lo-coordinate-plane",
+      "grade_level": "5",
+      "subject": "mathematics",
+      "difficulty": 0.4,
+      "estimated_time_minutes": 10,
+      "taxonomy_cluster_id": "coordinate-geometry",
+      "concept_family": "geometry-measurement",
+      "common_misconceptions": [
+        {
+          "misconception_id": "g5-mc-coords-reversed",
+          "label": "Coordinates reversed",
+          "description": "Plots (3, 5) by going up 3 and across 5, treating the ordered pair as (vertical, horizontal).",
+          "trigger_terms": ["ordered pair", "x first", "across then up"],
+          "remediation_hint": "Anchor the convention physically: walk along the hallway (x) before taking the stairs (y)."
+        }
+      ]
+    }
+  ]
+}

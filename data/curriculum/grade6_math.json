@@ -1,0 +1,355 @@
+{
+  "course": {
+    "course_id": "math-g6",
+    "title": "Mathematics Grade 6",
+    "subject": "mathematics",
+    "grade_band": "6",
+    "tags": ["pilot", "grades-4-6", "starter-corpus"]
+  },
+  "strands": [
+    {
+      "strand_id": "g6-ratio",
+      "course_id": "math-g6",
+      "title": "Ratio and Proportional Reasoning",
+      "description": "Ratio language and notation, unit rates, percent as a rate per hundred, and reasoning with equivalent ratios using tables and double number lines.",
+      "sort_order": 1
+    },
+    {
+      "strand_id": "g6-number",
+      "course_id": "math-g6",
+      "title": "The Number System",
+      "description": "Fraction division, multi-digit decimal fluency, negative numbers, opposites, absolute value, and ordering rational numbers on the number line.",
+      "sort_order": 2
+    },
+    {
+      "strand_id": "g6-expressions",
+      "course_id": "math-g6",
+      "title": "Expressions and Equations",
+      "description": "Variables, algebraic expressions, evaluating with substitution, one-step equations, and the distributive property with letters.",
+      "sort_order": 3
+    },
+    {
+      "strand_id": "g6-geometry-data",
+      "course_id": "math-g6",
+      "title": "Geometry and Data",
+      "description": "Areas of triangles and parallelograms by decomposition, volume with fractional edges, and describing data distributions with measures of centre.",
+      "sort_order": 4
+    }
+  ],
+  "outcomes": [
+    {
+      "outcome_id": "g6-lo-ratio-concepts",
+      "title": "Understand ratios and use ratio reasoning",
+      "strand_id": "g6-ratio",
+      "grade_level": "6",
+      "subject": "mathematics",
+      "description": "A ratio is a multiplicative comparison between two quantities: a ratio of 2 cups of juice to 3 cups of soda describes a recipe whose taste is preserved only when both parts are scaled by the same factor. Equivalent ratios come from multiplying both quantities by the same number, never from adding the same number to both. Students build ratio tables, plot ratio pairs, and use double number lines to solve missing-value problems, recognizing that ratio reasoning is scaling, not adding.",
+      "sort_order": 1
+    },
+    {
+      "outcome_id": "g6-lo-unit-rate-percent",
+      "title": "Solve unit rate and percent problems",
+      "strand_id": "g6-ratio",
+      "grade_level": "6",
+      "subject": "mathematics",
+      "description": "A unit rate expresses a ratio as an amount per one: 240 km in 3 hours is 80 km per hour. Percent is a rate per hundred, so 35% of a quantity means 35/100 times that quantity. Finding the whole given a part and the percent reverses that multiplication. Students move flexibly among fractions, decimals, and percents for the same value, using benchmark percents — 10%, 25%, 50% — to estimate before computing exactly.",
+      "sort_order": 2
+    },
+    {
+      "outcome_id": "g6-lo-fraction-division",
+      "title": "Divide fractions by fractions",
+      "strand_id": "g6-number",
+      "grade_level": "6",
+      "subject": "mathematics",
+      "description": "Dividing by a fraction asks a measurement question: 3 divided by 1/2 asks how many half-sized pieces fit in 3 wholes, which is 6. The invert-and-multiply procedure works because dividing by a number is the same as multiplying by its reciprocal — the number that multiplies with it to make 1. Students solve fraction division problems with visual models and equations, and use estimation to confirm that dividing by a number less than one yields a quotient larger than the dividend.",
+      "sort_order": 1
+    },
+    {
+      "outcome_id": "g6-lo-negative-numbers",
+      "title": "Understand negative numbers and absolute value",
+      "strand_id": "g6-number",
+      "grade_level": "6",
+      "subject": "mathematics",
+      "description": "Negative numbers describe quantities with direction: temperatures below zero, depths below sea level, debts. Every number has an opposite the same distance from zero on the other side, and absolute value measures that distance without direction. Ordering negative numbers reverses the intuition from counting: -7 is less than -3 because it lies further left on the number line, even though 7 is greater than 3. Students plot rational numbers on horizontal and vertical number lines and in all four quadrants of the coordinate plane.",
+      "sort_order": 2
+    },
+    {
+      "outcome_id": "g6-lo-expressions",
+      "title": "Write and evaluate algebraic expressions",
+      "strand_id": "g6-expressions",
+      "grade_level": "6",
+      "subject": "mathematics",
+      "description": "A variable is a number whose value is not yet known or can vary — not a label or an object. The expression 3n means 3 times n, and n + n + n is equivalent to 3n for every value of n. Students translate verbal descriptions into expressions, evaluate expressions by substituting values, and use the distributive property to show that expressions like 3(x + 2) and 3x + 6 are equivalent because they produce equal values for every input.",
+      "sort_order": 1
+    },
+    {
+      "outcome_id": "g6-lo-one-step-equations",
+      "title": "Solve one-step equations",
+      "strand_id": "g6-expressions",
+      "grade_level": "6",
+      "subject": "mathematics",
+      "description": "An equation states that two expressions are equal, and solving it means finding every value of the variable that makes the statement true. One-step equations are solved by applying the same inverse operation to both sides, preserving balance: if x + 7 = 12 then subtracting 7 from both sides isolates x. Substituting the solution back into the original equation verifies it. Students solve x + a = b and ax = b for non-negative rational values and represent real situations with such equations.",
+      "sort_order": 2
+    },
+    {
+      "outcome_id": "g6-lo-area-decomposition",
+      "title": "Find areas of triangles and parallelograms",
+      "strand_id": "g6-geometry-data",
+      "grade_level": "6",
+      "subject": "mathematics",
+      "description": "Area formulas are derived, not memorized: a parallelogram decomposes and recomposes into a rectangle with the same base and height, so its area is base times height. A triangle is half of a parallelogram with the same base and height, giving area one half base times height. The height is the perpendicular distance to the base, not a slanted side. Students find areas of triangles, parallelograms, and composite polygons by decomposition and apply the reasoning to real contexts.",
+      "sort_order": 1
+    },
+    {
+      "outcome_id": "g6-lo-data-distributions",
+      "title": "Describe data with measures of centre and spread",
+      "strand_id": "g6-geometry-data",
+      "grade_level": "6",
+      "subject": "mathematics",
+      "description": "A statistical question anticipates variability: 'how tall are the students in my class' has many answers, and the distribution of those answers has a shape, a centre, and a spread. The mean balances the data — it is the value every point would take if the total were shared equally — while the median is the middle value when data are ordered and is robust to outliers. Students choose between mean and median based on the shape of the distribution and justify the choice in context.",
+      "sort_order": 2
+    }
+  ],
+  "knowledge_components": [
+    {
+      "kc_id": "g6-kc-ratio-equivalent",
+      "name": "Generate equivalent ratios",
+      "outcome_id": "g6-lo-ratio-concepts",
+      "grade_level": "6",
+      "subject": "mathematics",
+      "difficulty": 0.5,
+      "estimated_time_minutes": 15,
+      "prerequisite_kc_ids": ["g5-kc-frac-common-denominator", "g4-kc-mult-facts"],
+      "taxonomy_cluster_id": "proportional-reasoning",
+      "concept_family": "ratio",
+      "tags": ["anchor"],
+      "common_misconceptions": [
+        {
+          "misconception_id": "g6-mc-ratio-additive",
+          "label": "Additive thinking in ratio problems",
+          "description": "Preserves a difference instead of a ratio: scales 2:3 to 4:5 by adding 2 to both terms rather than doubling both.",
+          "trigger_terms": ["add to both", "same difference", "scaling"],
+          "prerequisite_kc_ids": ["g4-kc-mult-facts"],
+          "remediation_hint": "Use a recipe-taste argument: adding one cup of each changes the flavour; doubling both keeps it."
+        }
+      ]
+    },
+    {
+      "kc_id": "g6-kc-unit-rate",
+      "name": "Compute and compare unit rates",
+      "outcome_id": "g6-lo-unit-rate-percent",
+      "grade_level": "6",
+      "subject": "mathematics",
+      "difficulty": 0.55,
+      "estimated_time_minutes": 15,
+      "prerequisite_kc_ids": ["g6-kc-ratio-equivalent", "g5-kc-div-twodigit"],
+      "taxonomy_cluster_id": "proportional-reasoning",
+      "concept_family": "ratio",
+      "common_misconceptions": [
+        {
+          "misconception_id": "g6-mc-rate-direction-confused",
+          "label": "Unit rate direction confused",
+          "description": "Divides the wrong way and reports hours per kilometre when asked for kilometres per hour, without noticing the units.",
+          "trigger_terms": ["per", "rate direction", "which divided by which"],
+          "remediation_hint": "Attach units to every number in the division and read the result aloud: the unit after 'per' is the divisor."
+        }
+      ]
+    },
+    {
+      "kc_id": "g6-kc-percent-of-quantity",
+      "name": "Find a percent of a quantity",
+      "outcome_id": "g6-lo-unit-rate-percent",
+      "grade_level": "6",
+      "subject": "mathematics",
+      "difficulty": 0.55,
+      "estimated_time_minutes": 15,
+      "prerequisite_kc_ids": ["g5-kc-frac-mult", "g5-kc-pv-decimal-thousandths"],
+      "nearby_kc_ids": ["g6-kc-unit-rate"],
+      "taxonomy_cluster_id": "proportional-reasoning",
+      "concept_family": "ratio",
+      "tags": ["anchor"],
+      "common_misconceptions": [
+        {
+          "misconception_id": "g6-mc-percent-over-hundred",
+          "label": "Percent treated as an absolute amount",
+          "description": "Treats 25% as the number 25 regardless of the whole, e.g. claims 25% of 60 is 25.",
+          "trigger_terms": ["percent of", "out of one hundred"],
+          "remediation_hint": "Anchor on benchmark percents with a double number line: 50% of 60 is 30, so 25% is half of that."
+        }
+      ]
+    },
+    {
+      "kc_id": "g6-kc-frac-division",
+      "name": "Divide fractions by fractions",
+      "outcome_id": "g6-lo-fraction-division",
+      "grade_level": "6",
+      "subject": "mathematics",
+      "difficulty": 0.65,
+      "estimated_time_minutes": 18,
+      "prerequisite_kc_ids": ["g5-kc-frac-mult", "g5-kc-frac-as-division"],
+      "taxonomy_cluster_id": "fraction-operations",
+      "concept_family": "fractions",
+      "tags": ["anchor"],
+      "common_misconceptions": [
+        {
+          "misconception_id": "g6-mc-frac-div-invert-wrong",
+          "label": "Inverts the dividend instead of the divisor",
+          "description": "Flips the first fraction (or both) when applying invert-and-multiply, e.g. computes 1/2 divided by 3/4 as 2/1 x 3/4.",
+          "trigger_terms": ["flip", "invert", "keep change flip"],
+          "prerequisite_kc_ids": ["g5-kc-frac-mult"],
+          "remediation_hint": "Return to the measurement meaning with simple cases: how many 1/4s in 1/2? The model fixes which number flips."
+        },
+        {
+          "misconception_id": "g6-mc-div-smaller-expected",
+          "label": "Expects quotient smaller than dividend",
+          "description": "Distrusts that 3 divided by 1/2 is 6 because division 'should make smaller'.",
+          "trigger_terms": ["division makes smaller", "quotient too big"],
+          "remediation_hint": "Count physical half-pieces in 3 wholes before any algorithm; the count is visibly larger than 3."
+        }
+      ]
+    },
+    {
+      "kc_id": "g6-kc-negative-ordering",
+      "name": "Order and compare negative numbers",
+      "outcome_id": "g6-lo-negative-numbers",
+      "grade_level": "6",
+      "subject": "mathematics",
+      "difficulty": 0.5,
+      "estimated_time_minutes": 12,
+      "prerequisite_kc_ids": ["g4-kc-pv-compare-round"],
+      "taxonomy_cluster_id": "rational-numbers",
+      "concept_family": "integers",
+      "tags": ["anchor"],
+      "common_misconceptions": [
+        {
+          "misconception_id": "g6-mc-neg-magnitude-ordering",
+          "label": "Orders negatives by magnitude",
+          "description": "Concludes -7 is greater than -3 because 7 is greater than 3, ignoring direction on the number line.",
+          "trigger_terms": ["negative comparison", "less than zero", "number line"],
+          "remediation_hint": "Use temperature: which is colder, -7 or -3 degrees? Colder means less, and further left means less."
+        }
+      ]
+    },
+    {
+      "kc_id": "g6-kc-absolute-value",
+      "name": "Absolute value as distance from zero",
+      "outcome_id": "g6-lo-negative-numbers",
+      "grade_level": "6",
+      "subject": "mathematics",
+      "difficulty": 0.45,
+      "estimated_time_minutes": 10,
+      "prerequisite_kc_ids": ["g6-kc-negative-ordering"],
+      "taxonomy_cluster_id": "rational-numbers",
+      "concept_family": "integers",
+      "common_misconceptions": [
+        {
+          "misconception_id": "g6-mc-abs-just-remove-sign",
+          "label": "Absolute value as sign deletion",
+          "description": "Treats |x| as 'erase the minus sign' without the distance meaning, which later breaks on expressions like |x - 3|.",
+          "trigger_terms": ["absolute value", "distance from zero"],
+          "remediation_hint": "Always read |x| aloud as 'the distance of x from zero' and verify on a drawn number line."
+        }
+      ]
+    },
+    {
+      "kc_id": "g6-kc-expressions-variables",
+      "name": "Write and evaluate expressions with variables",
+      "outcome_id": "g6-lo-expressions",
+      "grade_level": "6",
+      "subject": "mathematics",
+      "difficulty": 0.55,
+      "estimated_time_minutes": 15,
+      "prerequisite_kc_ids": ["g5-kc-order-of-operations", "g5-kc-equality-meaning"],
+      "taxonomy_cluster_id": "algebraic-thinking",
+      "concept_family": "expressions",
+      "common_misconceptions": [
+        {
+          "misconception_id": "g6-mc-variable-as-label",
+          "label": "Variable treated as a label or object",
+          "description": "Reads 3a as '3 apples' rather than 3 times an unknown number, blocking substitution and equivalence reasoning.",
+          "trigger_terms": ["letter stands for", "fruit salad algebra"],
+          "remediation_hint": "Use function-machine tasks where the letter must take many values, never a single object."
+        },
+        {
+          "misconception_id": "g6-mc-concatenation-as-addition",
+          "label": "Juxtaposition read as addition",
+          "description": "Evaluates 3n with n = 4 as 34, reading the expression as digit concatenation rather than multiplication.",
+          "trigger_terms": ["3n means", "substitution"],
+          "prerequisite_kc_ids": ["g5-kc-order-of-operations"],
+          "remediation_hint": "Rewrite 3n as 3 x n before every substitution until the convention is automatic."
+        }
+      ]
+    },
+    {
+      "kc_id": "g6-kc-one-step-equations",
+      "name": "Solve one-step equations with inverse operations",
+      "outcome_id": "g6-lo-one-step-equations",
+      "grade_level": "6",
+      "subject": "mathematics",
+      "difficulty": 0.55,
+      "estimated_time_minutes": 15,
+      "prerequisite_kc_ids": ["g6-kc-expressions-variables", "g5-kc-equality-meaning"],
+      "taxonomy_cluster_id": "algebraic-thinking",
+      "concept_family": "equations",
+      "common_misconceptions": [
+        {
+          "misconception_id": "g6-mc-eq-one-side-only",
+          "label": "Operates on one side only",
+          "description": "Subtracts or divides on the variable side without doing the same to the other side, losing the balance.",
+          "trigger_terms": ["both sides", "balance", "undo"],
+          "prerequisite_kc_ids": ["g5-kc-equality-meaning"],
+          "remediation_hint": "Return to the pan balance: removing weight from one pan visibly tips it."
+        }
+      ]
+    },
+    {
+      "kc_id": "g6-kc-area-triangles",
+      "name": "Area of triangles and parallelograms",
+      "outcome_id": "g6-lo-area-decomposition",
+      "grade_level": "6",
+      "subject": "mathematics",
+      "difficulty": 0.55,
+      "estimated_time_minutes": 15,
+      "prerequisite_kc_ids": ["g4-kc-area-rectangles", "g5-kc-frac-mult"],
+      "taxonomy_cluster_id": "measurement",
+      "concept_family": "geometry-measurement",
+      "common_misconceptions": [
+        {
+          "misconception_id": "g6-mc-height-is-side",
+          "label": "Slant side used as height",
+          "description": "Uses the slanted side length instead of the perpendicular height in area formulas for triangles and parallelograms.",
+          "trigger_terms": ["height", "perpendicular", "slant side"],
+          "remediation_hint": "Drop the height with a set square on multiple orientations, including obtuse triangles where it falls outside."
+        }
+      ]
+    },
+    {
+      "kc_id": "g6-kc-mean-median",
+      "name": "Mean and median of a data set",
+      "outcome_id": "g6-lo-data-distributions",
+      "grade_level": "6",
+      "subject": "mathematics",
+      "difficulty": 0.5,
+      "estimated_time_minutes": 15,
+      "prerequisite_kc_ids": ["g5-kc-div-twodigit", "g5-kc-dec-add-sub"],
+      "taxonomy_cluster_id": "statistics",
+      "concept_family": "data",
+      "common_misconceptions": [
+        {
+          "misconception_id": "g6-mc-median-unsorted",
+          "label": "Median taken without ordering",
+          "description": "Picks the middle value of the data as listed rather than ordering first.",
+          "trigger_terms": ["median", "middle value", "sort first"],
+          "remediation_hint": "Line students or cards up by value physically before finding the middle."
+        },
+        {
+          "misconception_id": "g6-mc-mean-as-mode",
+          "label": "Mean conflated with most common value",
+          "description": "Reports the most frequent value when asked for the mean, conflating measures of centre.",
+          "trigger_terms": ["average", "mean", "most common"],
+          "remediation_hint": "Use the levelling model: stack cubes per data point and redistribute until all stacks are equal."
+        }
+      ]
+    }
+  ]
+}

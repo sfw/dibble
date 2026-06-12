@@ -1,0 +1,373 @@
+{
+  "course": {
+    "course_id": "math-g4",
+    "title": "Mathematics Grade 4",
+    "subject": "mathematics",
+    "grade_band": "4",
+    "tags": ["pilot", "grades-4-6", "starter-corpus"]
+  },
+  "strands": [
+    {
+      "strand_id": "g4-number",
+      "course_id": "math-g4",
+      "title": "Number and Place Value",
+      "description": "Whole numbers to 10 000: reading, writing, comparing, rounding, and understanding the base-ten structure of multi-digit numbers.",
+      "sort_order": 1
+    },
+    {
+      "strand_id": "g4-operations",
+      "course_id": "math-g4",
+      "title": "Operations",
+      "description": "Multi-digit addition and subtraction with regrouping, multiplication facts and strategies, and division with and without remainders.",
+      "sort_order": 2
+    },
+    {
+      "strand_id": "g4-fractions",
+      "course_id": "math-g4",
+      "title": "Fractions and Decimals",
+      "description": "Fraction equivalence and comparison, adding and subtracting fractions with like denominators, and decimal notation for tenths and hundredths.",
+      "sort_order": 3
+    },
+    {
+      "strand_id": "g4-geometry",
+      "course_id": "math-g4",
+      "title": "Geometry and Measurement",
+      "description": "Perimeter and area of rectangles, angle concepts, and classification of two-dimensional shapes by their properties.",
+      "sort_order": 4
+    }
+  ],
+  "outcomes": [
+    {
+      "outcome_id": "g4-lo-place-value",
+      "title": "Understand place value to 10 000",
+      "strand_id": "g4-number",
+      "grade_level": "4",
+      "subject": "mathematics",
+      "description": "A digit in one place represents ten times what it represents in the place to its right. Students read and write multi-digit whole numbers to 10 000 in standard form, word form, and expanded form. They recognize that the value of a digit depends on its position: in 3 482 the digit 4 means 4 hundreds, not 4. Comparing numbers means comparing digits starting from the largest place, and rounding means finding the nearest ten, hundred, or thousand by looking at the digit one place to the right of the rounding place.",
+      "sort_order": 1
+    },
+    {
+      "outcome_id": "g4-lo-add-sub",
+      "title": "Add and subtract multi-digit numbers fluently",
+      "strand_id": "g4-operations",
+      "grade_level": "4",
+      "subject": "mathematics",
+      "description": "Students add and subtract multi-digit whole numbers using the standard algorithm with regrouping. Regrouping trades ten units of one place for one unit of the next larger place when adding, and trades one unit of a larger place for ten units of the next smaller place when subtracting. Estimation by rounding first provides a check that an exact answer is reasonable. Subtraction can be checked with the inverse: the difference plus the number subtracted returns the starting number.",
+      "sort_order": 1
+    },
+    {
+      "outcome_id": "g4-lo-multiplication",
+      "title": "Multiply using strategies and the distributive property",
+      "strand_id": "g4-operations",
+      "grade_level": "4",
+      "subject": "mathematics",
+      "description": "Multiplication represents equal groups: 6 x 4 means 6 groups of 4. Students master multiplication facts to 10 x 10 and multiply a multi-digit number by a one-digit number using area models, partial products, and the standard algorithm. The distributive property splits a hard product into easy ones: 7 x 13 equals 7 x 10 plus 7 x 3. Multiplying by ten shifts every digit one place to the left, which is why 30 x 4 is 12 tens, or 120.",
+      "sort_order": 2
+    },
+    {
+      "outcome_id": "g4-lo-division",
+      "title": "Divide with and without remainders",
+      "strand_id": "g4-operations",
+      "grade_level": "4",
+      "subject": "mathematics",
+      "description": "Division shares a total into equal groups or measures how many equal groups fit. It is the inverse of multiplication: 28 divided by 4 asks what number times 4 makes 28. Students divide multi-digit numbers by one-digit divisors using place-value sections and relate quotients and remainders back to the context: the remainder is what is left after the largest possible whole number of equal groups is made, and it must always be smaller than the divisor.",
+      "sort_order": 3
+    },
+    {
+      "outcome_id": "g4-lo-fraction-equivalence",
+      "title": "Recognize and generate equivalent fractions",
+      "strand_id": "g4-fractions",
+      "grade_level": "4",
+      "subject": "mathematics",
+      "description": "Two fractions are equivalent when they name the same amount of the same whole. Multiplying or dividing both the numerator and denominator by the same number produces an equivalent fraction because it splits every piece into the same number of smaller pieces without changing the shaded amount. Students use visual fraction models — number lines, area models, and fraction strips — to explain why 1/2, 2/4, and 4/8 name the same point, and to compare fractions with different numerators and denominators by rewriting them with a common denominator or comparing to a benchmark like 1/2.",
+      "sort_order": 1
+    },
+    {
+      "outcome_id": "g4-lo-fraction-add-sub",
+      "title": "Add and subtract fractions with like denominators",
+      "strand_id": "g4-fractions",
+      "grade_level": "4",
+      "subject": "mathematics",
+      "description": "A fraction a/b is a copies of the unit fraction 1/b. Adding fractions with the same denominator means joining copies of the same-sized piece, so only the numerators add: 3/8 plus 2/8 is 5 copies of 1/8, or 5/8. The denominator names the size of the piece and does not change when pieces are joined or removed. Students decompose fractions into sums of unit fractions, add and subtract mixed numbers with like denominators, and check answers against visual models.",
+      "sort_order": 2
+    },
+    {
+      "outcome_id": "g4-lo-decimal-notation",
+      "title": "Use decimal notation for tenths and hundredths",
+      "strand_id": "g4-fractions",
+      "grade_level": "4",
+      "subject": "mathematics",
+      "description": "Decimals extend the place-value system to the right of the ones place: the first place after the decimal point counts tenths and the second counts hundredths. The fraction 7/10 is written 0.7 and 43/100 is written 0.43. Because 0.4 equals 0.40, comparing decimals means comparing place by place, not counting digits — 0.5 is greater than 0.43 even though 43 is greater than 5. Students locate tenths and hundredths on a number line and translate between fraction and decimal notation.",
+      "sort_order": 3
+    },
+    {
+      "outcome_id": "g4-lo-perimeter-area",
+      "title": "Distinguish and calculate perimeter and area of rectangles",
+      "strand_id": "g4-geometry",
+      "grade_level": "4",
+      "subject": "mathematics",
+      "description": "Perimeter measures the distance around a shape in length units; area measures the surface a shape covers in square units. For a rectangle, perimeter adds all four side lengths while area multiplies length by width because the rectangle can be tiled by unit squares arranged in equal rows. Two rectangles can share the same perimeter but enclose different areas, and the same area can come from different perimeters, so the two measures must be reasoned about separately.",
+      "sort_order": 1
+    }
+  ],
+  "knowledge_components": [
+    {
+      "kc_id": "g4-kc-pv-read-write",
+      "name": "Read, write, and expand numbers to 10 000",
+      "outcome_id": "g4-lo-place-value",
+      "grade_level": "4",
+      "subject": "mathematics",
+      "difficulty": 0.3,
+      "estimated_time_minutes": 12,
+      "taxonomy_cluster_id": "place-value",
+      "concept_family": "base-ten",
+      "tags": ["anchor"],
+      "common_misconceptions": [
+        {
+          "misconception_id": "g4-mc-pv-digit-face-value",
+          "label": "Digit read at face value",
+          "description": "Treats the digit independently of its position, e.g. says the 4 in 3 482 is worth 4 instead of 400.",
+          "trigger_terms": ["face value", "digit value", "just four"],
+          "remediation_hint": "Rebuild the number with base-ten blocks or expanded form so each digit is tied to its place."
+        },
+        {
+          "misconception_id": "g4-mc-pv-zero-skipped",
+          "label": "Zero treated as nothing",
+          "description": "Omits or misplaces zeros when writing numbers from words, e.g. writes 'four thousand sixty' as 4600 or 460.",
+          "trigger_terms": ["zero placeholder", "missing zero"],
+          "remediation_hint": "Use a place-value chart where every column must be filled before writing the numeral."
+        }
+      ]
+    },
+    {
+      "kc_id": "g4-kc-pv-compare-round",
+      "name": "Compare and round whole numbers",
+      "outcome_id": "g4-lo-place-value",
+      "grade_level": "4",
+      "subject": "mathematics",
+      "difficulty": 0.35,
+      "estimated_time_minutes": 12,
+      "prerequisite_kc_ids": ["g4-kc-pv-read-write"],
+      "taxonomy_cluster_id": "place-value",
+      "concept_family": "base-ten",
+      "common_misconceptions": [
+        {
+          "misconception_id": "g4-mc-round-wrong-digit",
+          "label": "Rounds using the wrong digit",
+          "description": "Looks at the digit in the rounding place rather than the digit to its right when deciding to round up or down.",
+          "trigger_terms": ["round up", "round down", "wrong place"],
+          "remediation_hint": "Mark the rounding place, then circle the digit to its right as the only decision digit."
+        }
+      ]
+    },
+    {
+      "kc_id": "g4-kc-addsub-regroup",
+      "name": "Add and subtract with regrouping",
+      "outcome_id": "g4-lo-add-sub",
+      "grade_level": "4",
+      "subject": "mathematics",
+      "difficulty": 0.4,
+      "estimated_time_minutes": 15,
+      "prerequisite_kc_ids": ["g4-kc-pv-read-write"],
+      "taxonomy_cluster_id": "whole-number-operations",
+      "concept_family": "base-ten",
+      "tags": ["anchor"],
+      "common_misconceptions": [
+        {
+          "misconception_id": "g4-mc-sub-smaller-from-larger",
+          "label": "Always subtracts smaller digit from larger",
+          "description": "In column subtraction, subtracts the smaller digit from the larger regardless of position, e.g. 52 - 38 = 26.",
+          "trigger_terms": ["smaller from larger", "column subtraction", "borrowing"],
+          "prerequisite_kc_ids": ["g4-kc-pv-read-write"],
+          "remediation_hint": "Model the top number with base-ten blocks and physically trade a ten for ten ones before subtracting."
+        },
+        {
+          "misconception_id": "g4-mc-add-carry-dropped",
+          "label": "Carried digit dropped or misplaced",
+          "description": "Forgets to add the regrouped ten, or writes the full two-digit column sum without carrying.",
+          "trigger_terms": ["carrying", "regrouping", "forgot the one"],
+          "remediation_hint": "Use expanded-form addition so the carried ten is written as +10 rather than a small superscript."
+        }
+      ]
+    },
+    {
+      "kc_id": "g4-kc-mult-facts",
+      "name": "Multiplication facts to 10 x 10",
+      "outcome_id": "g4-lo-multiplication",
+      "grade_level": "4",
+      "subject": "mathematics",
+      "difficulty": 0.35,
+      "estimated_time_minutes": 10,
+      "taxonomy_cluster_id": "multiplicative-thinking",
+      "concept_family": "multiplication",
+      "tags": ["anchor"],
+      "common_misconceptions": [
+        {
+          "misconception_id": "g4-mc-mult-as-repeated-add-only",
+          "label": "Multiplication only as repeated addition",
+          "description": "Can only compute facts by counting up in skips, which collapses for larger factors and hides the equal-groups structure.",
+          "trigger_terms": ["skip counting", "counting on fingers"],
+          "remediation_hint": "Connect arrays to known anchor facts (x2, x5, x10) and derive neighbours from them."
+        }
+      ]
+    },
+    {
+      "kc_id": "g4-kc-mult-multidigit",
+      "name": "Multiply multi-digit by one-digit numbers",
+      "outcome_id": "g4-lo-multiplication",
+      "grade_level": "4",
+      "subject": "mathematics",
+      "difficulty": 0.5,
+      "estimated_time_minutes": 15,
+      "prerequisite_kc_ids": ["g4-kc-mult-facts", "g4-kc-pv-read-write"],
+      "nearby_kc_ids": ["g4-kc-addsub-regroup"],
+      "taxonomy_cluster_id": "multiplicative-thinking",
+      "concept_family": "multiplication",
+      "common_misconceptions": [
+        {
+          "misconception_id": "g4-mc-mult-place-ignored",
+          "label": "Partial products lose place value",
+          "description": "Multiplies digits without tracking place, e.g. computes 23 x 4 as 8 plus 12 to get 20.",
+          "trigger_terms": ["partial products", "place value", "area model"],
+          "prerequisite_kc_ids": ["g4-kc-pv-read-write"],
+          "remediation_hint": "Use the area model with the tens piece drawn physically larger so 20 x 4 cannot be confused with 2 x 4."
+        }
+      ]
+    },
+    {
+      "kc_id": "g4-kc-div-remainders",
+      "name": "Divide with remainders",
+      "outcome_id": "g4-lo-division",
+      "grade_level": "4",
+      "subject": "mathematics",
+      "difficulty": 0.55,
+      "estimated_time_minutes": 15,
+      "prerequisite_kc_ids": ["g4-kc-mult-facts"],
+      "taxonomy_cluster_id": "multiplicative-thinking",
+      "concept_family": "division",
+      "common_misconceptions": [
+        {
+          "misconception_id": "g4-mc-div-remainder-ignored",
+          "label": "Remainder dropped or misread",
+          "description": "Drops the remainder or reports it as a decimal digit, e.g. 13 / 4 = 3.1.",
+          "trigger_terms": ["remainder", "left over", "r1"],
+          "remediation_hint": "Return to sharing contexts: 13 cookies among 4 friends — what physically happens to the extra cookie?"
+        },
+        {
+          "misconception_id": "g4-mc-div-remainder-too-big",
+          "label": "Remainder larger than divisor",
+          "description": "Stops dividing too early and reports a remainder bigger than the divisor, e.g. 22 / 4 = 4 r 6.",
+          "trigger_terms": ["remainder bigger", "stopped early"],
+          "remediation_hint": "Check step: can another full group be made? The remainder must always be smaller than the divisor."
+        }
+      ]
+    },
+    {
+      "kc_id": "g4-kc-frac-equivalence",
+      "name": "Generate and recognize equivalent fractions",
+      "outcome_id": "g4-lo-fraction-equivalence",
+      "grade_level": "4",
+      "subject": "mathematics",
+      "difficulty": 0.5,
+      "estimated_time_minutes": 15,
+      "taxonomy_cluster_id": "fraction-concepts",
+      "concept_family": "fractions",
+      "tags": ["anchor"],
+      "common_misconceptions": [
+        {
+          "misconception_id": "g4-mc-frac-bigger-denominator",
+          "label": "Bigger denominator means bigger fraction",
+          "description": "Applies whole-number ordering to denominators, concluding 1/8 is greater than 1/4 because 8 is greater than 4.",
+          "trigger_terms": ["bigger denominator", "whole number thinking", "fraction comparison"],
+          "remediation_hint": "Cut identical paper strips into fourths and eighths so the piece-size inversion is physical, not symbolic."
+        },
+        {
+          "misconception_id": "g4-mc-frac-different-wholes",
+          "label": "Compares fractions of different wholes",
+          "description": "Concludes 1/2 of a small pizza is more than 1/4 of a large one without fixing the whole.",
+          "trigger_terms": ["different wholes", "same whole"],
+          "remediation_hint": "Always state the whole before comparing; redraw both fractions on identical wholes."
+        }
+      ]
+    },
+    {
+      "kc_id": "g4-kc-frac-add-like",
+      "name": "Add and subtract like-denominator fractions",
+      "outcome_id": "g4-lo-fraction-add-sub",
+      "grade_level": "4",
+      "subject": "mathematics",
+      "difficulty": 0.45,
+      "estimated_time_minutes": 12,
+      "prerequisite_kc_ids": ["g4-kc-frac-equivalence"],
+      "taxonomy_cluster_id": "fraction-operations",
+      "concept_family": "fractions",
+      "common_misconceptions": [
+        {
+          "misconception_id": "g4-mc-frac-add-denominators",
+          "label": "Adds denominators as well as numerators",
+          "description": "Computes 3/8 + 2/8 as 5/16, treating numerator and denominator as separate whole-number additions.",
+          "trigger_terms": ["add denominators", "add tops and bottoms"],
+          "prerequisite_kc_ids": ["g4-kc-frac-equivalence"],
+          "remediation_hint": "Name the unit out loud: 3 eighths plus 2 eighths is 5 eighths, just like 3 apples plus 2 apples."
+        }
+      ]
+    },
+    {
+      "kc_id": "g4-kc-decimal-tenths-hundredths",
+      "name": "Decimal notation for tenths and hundredths",
+      "outcome_id": "g4-lo-decimal-notation",
+      "grade_level": "4",
+      "subject": "mathematics",
+      "difficulty": 0.5,
+      "estimated_time_minutes": 12,
+      "prerequisite_kc_ids": ["g4-kc-pv-read-write", "g4-kc-frac-equivalence"],
+      "taxonomy_cluster_id": "decimal-concepts",
+      "concept_family": "decimals",
+      "common_misconceptions": [
+        {
+          "misconception_id": "g4-mc-dec-longer-is-larger",
+          "label": "Longer decimal is larger",
+          "description": "Treats the decimal part as a whole number, concluding 0.43 is greater than 0.5 because 43 is greater than 5.",
+          "trigger_terms": ["longer decimal", "more digits", "decimal comparison"],
+          "prerequisite_kc_ids": ["g4-kc-pv-read-write"],
+          "remediation_hint": "Rewrite both decimals with the same number of places (0.50 vs 0.43) on a hundredths grid."
+        }
+      ]
+    },
+    {
+      "kc_id": "g4-kc-perimeter",
+      "name": "Calculate perimeter of rectangles",
+      "outcome_id": "g4-lo-perimeter-area",
+      "grade_level": "4",
+      "subject": "mathematics",
+      "difficulty": 0.35,
+      "estimated_time_minutes": 10,
+      "prerequisite_kc_ids": ["g4-kc-addsub-regroup"],
+      "nearby_kc_ids": ["g4-kc-area-rectangles"],
+      "taxonomy_cluster_id": "measurement",
+      "concept_family": "geometry-measurement"
+    },
+    {
+      "kc_id": "g4-kc-area-rectangles",
+      "name": "Calculate area of rectangles",
+      "outcome_id": "g4-lo-perimeter-area",
+      "grade_level": "4",
+      "subject": "mathematics",
+      "difficulty": 0.4,
+      "estimated_time_minutes": 12,
+      "prerequisite_kc_ids": ["g4-kc-mult-facts"],
+      "nearby_kc_ids": ["g4-kc-perimeter"],
+      "taxonomy_cluster_id": "measurement",
+      "concept_family": "geometry-measurement",
+      "common_misconceptions": [
+        {
+          "misconception_id": "g4-mc-area-perimeter-confused",
+          "label": "Area and perimeter interchanged",
+          "description": "Adds side lengths when asked for area or multiplies when asked for perimeter; treats the two as one idea.",
+          "trigger_terms": ["area", "perimeter", "around", "inside"],
+          "remediation_hint": "Tile the rectangle with unit squares for area, then walk the border with a string for perimeter — different units, different questions."
+        }
+      ]
+    }
+  ]
+}
