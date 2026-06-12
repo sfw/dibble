@@ -425,12 +425,29 @@ def _svg_aria_label(svg: str | None) -> str | None:
     return match.group(1) if match is not None else None
 
 
+class BlockVerification(BaseModel):
+    """Machine-checkable answer contract emitted alongside practice items.
+
+    ``answer_expression`` is the computation that produces the key (e.g.
+    ``"3/4 + 1/8"``); ``answer_value`` is the claimed key (e.g. ``"7/8"``).
+    ``distractor_values`` are the wrong-answer options, each of which must NOT
+    equal the key. ``coverage`` is ``partial`` for word problems where only the
+    embedded computation can be checked."""
+
+    answer_expression: str | None = None
+    answer_value: str | None = None
+    distractor_values: list[str] = Field(default_factory=list)
+    solution_path_expression: str | None = None
+    coverage: Literal["full", "partial"] = "full"
+
+
 class GeneratedBlock(BaseModel):
     block_id: str | None = None
     kind: str
     title: str
     body: str
     interaction: "MultipleChoiceInteraction | None" = None
+    verification: BlockVerification | None = None
 
 
 class MultipleChoiceOption(BaseModel):
@@ -673,6 +690,9 @@ class ModerationResult(BaseModel):
     original_block_count: int = Field(default=0, ge=0)
     replacement_block_count: int = Field(default=0, ge=0)
     audit_message: str | None = None
+    llm_verdict: str = "skipped"
+    llm_categories: list[str] = Field(default_factory=list)
+    llm_reason: str | None = None
 
 
 class GenerationMetadata(BaseModel):
@@ -686,7 +706,12 @@ class GenerationMetadata(BaseModel):
     prompt_template_version: str | None = None
     prompt_template_variant: str | None = None
     generation_latency_ms: int = Field(default=0, ge=0)
+    prompt_tokens: int = Field(default=0, ge=0)
+    completion_tokens: int = Field(default=0, ge=0)
     cache_hit: bool = False
+    verification_status: str = "skipped"
+    verification_issue_count: int = Field(default=0, ge=0)
+    verification_attempts: int = Field(default=0, ge=0)
     moderation: ModerationResult = Field(default_factory=ModerationResult)
 
 

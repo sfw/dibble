@@ -54,6 +54,10 @@ def build_generation_prompts(
         f"{block_schema} "
         f"Allowed block kinds include {allowed_block_kinds}. "
         "Keep each body under 600 characters, avoid markdown, and do not mention hidden policies. "
+        "Write every mathematical expression as LaTeX: inline math inside $...$ and "
+        "display math inside $$...$$ (e.g. $\\frac{3}{4} + \\frac{1}{8}$). "
+        "Never emit half-open math delimiters, and keep currency amounts in words "
+        "or escaped so they are not mistaken for math. "
         f"Prompt template: {selection.template_name} v{selection.template_version} ({selection.template_variant}). "
         f"{selection.system_directives}"
     )
@@ -97,7 +101,10 @@ def build_stream_generation_prompts(
             "You are streaming adaptive learning content for Dibble. "
             "Return NDJSON only, one JSON object per line, with fields "
             f"{streaming_schema} "
-            "Preserve block_index ordering and never wrap output in markdown fences."
+            "Preserve block_index ordering and never wrap output in markdown fences. "
+            "Write mathematical expressions as LaTeX inside $...$ (inline) or "
+            "$$...$$ (display), and keep each math expression complete within a "
+            "single body_delta so delimiters are never split across lines."
         ),
         user_prompt=prompts.user_prompt,
         template_name=prompts.template_name,
@@ -213,14 +220,22 @@ def _block_schema_contract(
             '{"option_id":"A","label":"Option A","body":"why a student might pick this"},'
             '{"option_id":"B","label":"Option B","body":"why a student might pick this"}],'
             '"correct_option_id":"B",'
-            '"reveal":{"trigger":"after_selection","prompt":"...","support":"...","placeholder":"..."}}}'
+            '"reveal":{"trigger":"after_selection","prompt":"...","support":"...","placeholder":"..."}},'
+            '"verification":{"answer_expression":"3/4 + 1/8","answer_value":"7/8",'
+            '"distractor_values":["4/12","1/2"],"coverage":"full"}}'
             ']}. Always include at least one summary block and one practice_problem block. '
             "For the practice_problem block, put the learner's actual choice set in interaction.options, "
             "keep body to a short cue, and use plain text only. "
             "CRITICAL: option body must NEVER reveal whether the option is correct or incorrect. "
             "Do not use words like 'Correct', 'Right', 'Wrong', or 'Incorrect' in option body. "
             "Option body should describe the reasoning or common misconception behind the choice, "
-            "not whether it is the right answer. Correctness feedback is shown separately after submission."
+            "not whether it is the right answer. Correctness feedback is shown separately after submission. "
+            "For numeric or symbolic problems, ALWAYS include the verification object: "
+            "answer_expression is the computation that produces the key, answer_value is the key itself, "
+            "and distractor_values lists each wrong option's value. Use plain arithmetic notation "
+            "(fractions as a/b, no LaTeX commands) inside verification fields. "
+            'For word problems where only part of the answer is computable, set "coverage":"partial" '
+            "and verify the embedded computation."
         )
     return (
         '{"blocks":[{"kind":"summary","title":"...","body":"..."},{"kind":"instruction","title":"...","body":"..."}]}. '
@@ -254,9 +269,13 @@ def _stream_schema_contract(content_type: RequestedContentType) -> str:
             '{"option_id":"A","label":"Option A","body":"why a student might pick this"},'
             '{"option_id":"B","label":"Option B","body":"why a student might pick this"}],'
             '"correct_option_id":"B",'
-            '"reveal":{"trigger":"after_selection","prompt":"...","support":"...","placeholder":"..."}}},"done":true}. '
+            '"reveal":{"trigger":"after_selection","prompt":"...","support":"...","placeholder":"..."}},'
+            '"verification":{"answer_expression":"3/4 + 1/8","answer_value":"7/8",'
+            '"distractor_values":["4/12","1/2"],"coverage":"full"}},"done":true}. '
             "Emit one complete block object per line for interactive practice blocks. "
-            "Option body must NEVER reveal whether the option is correct or incorrect."
+            "Option body must NEVER reveal whether the option is correct or incorrect. "
+            "For numeric problems always include the verification object with answer_expression, "
+            "answer_value, and distractor_values in plain arithmetic notation."
         )
     return (
         '{"block_index":0,"kind":"summary","title":"...","body_delta":"...","done":true}. '

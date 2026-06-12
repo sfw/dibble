@@ -9,6 +9,7 @@ from dibble.services.validation.rules import (
     GroundingRule,
     InstructionGroundingCoverageRule,
     InstructionBlockRule,
+    LatexWellFormednessRule,
     LengthGuardrailRule,
     MathSanityRule,
     ModalityCompositionRule,
@@ -33,6 +34,7 @@ class ContentValidator:
             ModalityCompositionRule(),
             SafetyLanguageRule(),
             MathSanityRule(),
+            LatexWellFormednessRule(),
         ]
 
     def validate(

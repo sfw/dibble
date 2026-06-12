@@ -24,6 +24,7 @@ class ModerationRule:
 class ContentModerationService:
     request_term_categories: dict[str, ModerationRule] | None = None
     response_term_categories: dict[str, ModerationRule] | None = None
+    llm_safety_checker: object | None = None  # LLMSafetyChecker when configured
 
     def __post_init__(self) -> None:
         if self.request_term_categories is None:
@@ -312,11 +313,45 @@ class ContentModerationService:
                 if block.interaction.reveal.support:
                     fragments.append(block.interaction.reveal.support)
         text = " ".join(fragment for fragment in fragments if fragment)
-        return self._moderate_text(
+        result = self._moderate_text(
             text=text,
             stage="response",
             term_categories=self.response_term_categories or {},
         )
+        return self._apply_llm_safety_check(result=result, text=text)
+
+    def _apply_llm_safety_check(
+        self, *, result: ModerationResult, text: str
+    ) -> ModerationResult:
+        """Second moderation layer: an LLM verdict recorded alongside the local
+        matcher's. A flagged LLM verdict escalates a locally-clear result; an
+        unavailable LLM fails open to the local verdict."""
+        if self.llm_safety_checker is None:
+            return result
+        verdict = self.llm_safety_checker.check_text(text)  # type: ignore[attr-defined]
+        updates: dict[str, object] = {
+            "llm_verdict": verdict.status,
+            "llm_categories": list(verdict.categories),
+            "llm_reason": verdict.reason,
+        }
+        if verdict.status == "flagged" and result.status != "flagged":
+            updates.update(
+                {
+                    "status": "flagged",
+                    "stage": "response",
+                    "severity": "block",
+                    "decision": "review",
+                    "categories": list(
+                        dict.fromkeys([*result.categories, *verdict.categories])
+                    ),
+                    "reasons": [
+                        *result.reasons,
+                        verdict.reason
+                        or "LLM safety check flagged learner-facing content.",
+                    ],
+                }
+            )
+        return result.model_copy(update=updates)
 
     def build_fallback_blocks(
         self,

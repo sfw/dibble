@@ -41,6 +41,7 @@ class Settings:
     llm_secondary_api_key: str | None = None
     llm_secondary_model: str | None = None
     llm_secondary_timeout_seconds: float | None = None
+    moderation_llm_enabled: bool = False
     llm_circuit_breaker_threshold: int = 2
     llm_circuit_breaker_cooldown_seconds: float = 30.0
     llm_retry_backoff_seconds: float = 0.0

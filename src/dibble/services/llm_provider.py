@@ -292,7 +292,13 @@ class LLMOrchestrationProvider:
                                 raw_response=completion.raw_response,
                             )
                         raise
-                    self._set_last_used_descriptor(name, prompts)
+                    self._set_last_used_descriptor(
+                        name,
+                        prompts,
+                        usage=self._extract_usage(
+                            getattr(completion, "raw_response", None)
+                        ),
+                    )
                     self._record_success(
                         name, latency_ms=(self.time_provider() - started_at) * 1000.0
                     )
@@ -595,14 +601,32 @@ class LLMOrchestrationProvider:
             prompts.user_prompt,
         )
 
-    def _set_last_used_descriptor(self, name: str, prompts) -> None:
+    def _set_last_used_descriptor(
+        self, name: str, prompts, usage: dict[str, int] | None = None
+    ) -> None:
         self.last_used_descriptor = {
             "provider_name": name,
             "model_used": self.client_models.get(name),
             "prompt_template_name": prompts.template_name,
             "prompt_template_version": prompts.template_version,
             "prompt_template_variant": prompts.template_variant,
+            "prompt_tokens": (usage or {}).get("prompt_tokens", 0),
+            "completion_tokens": (usage or {}).get("completion_tokens", 0),
         }
+
+    @staticmethod
+    def _extract_usage(raw_response: dict[str, object] | None) -> dict[str, int]:
+        if not isinstance(raw_response, dict):
+            return {}
+        usage = raw_response.get("usage")
+        if not isinstance(usage, dict):
+            return {}
+        extracted: dict[str, int] = {}
+        for key in ("prompt_tokens", "completion_tokens"):
+            value = usage.get(key)
+            if isinstance(value, (int, float)):
+                extracted[key] = int(value)
+        return extracted
 
     def _record_client_failure(
         self,

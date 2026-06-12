@@ -48,7 +48,12 @@ from dibble.services.harness.policy import (
 )
 from dibble.services.harness.request_adapter import CurriculumContentRequestAdapter
 from dibble.services.harness.content_library import CurriculumContentLibrary
-from dibble.services.protocols import GeneratedContentStore
+from dibble.services.math_verification import (
+    VERIFICATION_FAILED_EVENT_TYPE,
+    MathVerificationOutcome,
+    MathVerificationService,
+)
+from dibble.services.protocols import AuditStore, GeneratedContentStore
 from dibble.services.runtime_telemetry import log_runtime_event
 from dibble.services.surplus_practice_cache import SurplusPracticeCache
 
@@ -70,6 +75,9 @@ class GenerationEngine:
         surplus_practice_cache: SurplusPracticeCache | None = None,
         cache_ttl_seconds: int = 3600,
         time_provider=monotonic,
+        math_verification_service: MathVerificationService | None = None,
+        audit_store: AuditStore | None = None,
+        verification_retry_attempts: int = 2,
     ) -> None:
         self.retriever = retriever
         self.router = router
@@ -93,6 +101,9 @@ class GenerationEngine:
         self.surplus_practice_cache = surplus_practice_cache
         self.cache_ttl_seconds = max(0, cache_ttl_seconds)
         self.time_provider = time_provider
+        self.math_verification_service = math_verification_service
+        self.audit_store = audit_store
+        self.verification_retry_attempts = max(0, verification_retry_attempts)
 
     def _safe_retrieve(
         self, request: CurriculumContentRequest
@@ -198,10 +209,22 @@ class GenerationEngine:
                 replacement_block_count=len(blocks),
             )
             route.delivery_mode = DeliveryMode.static_fallback
+            verification = MathVerificationOutcome()
+            verification_attempts = 0
         else:
             blocks = self.provider.generate(curriculum_request, route, grounding)
             blocks = normalize_generated_blocks(blocks)
             blocks, surplus_blocks = self._split_surplus(blocks)
+            blocks, verification, verification_attempts = (
+                self._apply_math_verification(
+                    profile=profile,
+                    request=request,
+                    curriculum_request=curriculum_request,
+                    route=route,
+                    grounding=grounding,
+                    blocks=blocks,
+                )
+            )
             moderation = self.moderation_service.moderate_blocks(blocks)
             if moderation.status == "flagged":
                 original_blocks = len(blocks)
@@ -233,6 +256,8 @@ class GenerationEngine:
             generation_latency_ms=int(
                 round((self.time_provider() - started_at) * 1000)
             ),
+            verification=verification,
+            verification_attempts=verification_attempts,
         )
         self._store_generated_content(content_key=content_key, content=content)
         self._cache_surplus(surplus_blocks, blocks, content, profile, request)
@@ -368,6 +393,8 @@ class GenerationEngine:
                 replacement_block_count=len(blocks),
             )
             route.delivery_mode = DeliveryMode.static_fallback
+            verification = MathVerificationOutcome()
+            verification_attempts = 0
             yield GenerationStreamEvent(
                 event="start",
                 student_id=profile.student_id,
@@ -402,6 +429,16 @@ class GenerationEngine:
                 [block_buffers[index] for index in sorted(block_buffers)]
             )
             blocks, surplus_blocks = self._split_surplus(blocks)
+            blocks, verification, verification_attempts = (
+                self._apply_math_verification(
+                    profile=profile,
+                    request=request,
+                    curriculum_request=curriculum_request,
+                    route=route,
+                    grounding=grounding,
+                    blocks=blocks,
+                )
+            )
             moderation = self.moderation_service.moderate_blocks(blocks)
             if moderation.status == "flagged":
                 original_blocks = len(blocks)
@@ -444,6 +481,8 @@ class GenerationEngine:
             generation_latency_ms=int(
                 round((self.time_provider() - started_at) * 1000)
             ),
+            verification=verification,
+            verification_attempts=verification_attempts,
         )
         self._store_generated_content(content_key=content_key, content=content)
         self._cache_surplus(surplus_blocks, blocks, content, profile, request)
@@ -539,8 +578,11 @@ class GenerationEngine:
         moderation: ModerationResult,
         cache_hit: bool,
         generation_latency_ms: int,
+        verification: MathVerificationOutcome | None = None,
+        verification_attempts: int = 0,
     ) -> GeneratedContent:
         provider_descriptor = self._provider_descriptor()
+        resolved_verification = verification or MathVerificationOutcome()
         metadata = GenerationMetadata(
             quality_score=self._quality_score(response, moderation=moderation),
             validation_passed=not response.validation_issues,
@@ -552,7 +594,12 @@ class GenerationEngine:
             prompt_template_version=provider_descriptor.get("prompt_template_version"),
             prompt_template_variant=provider_descriptor.get("prompt_template_variant"),
             generation_latency_ms=max(0, generation_latency_ms),
+            prompt_tokens=int(provider_descriptor.get("prompt_tokens") or 0),
+            completion_tokens=int(provider_descriptor.get("completion_tokens") or 0),
             cache_hit=cache_hit,
+            verification_status=resolved_verification.status,
+            verification_issue_count=len(resolved_verification.issues),
+            verification_attempts=max(0, verification_attempts),
             moderation=moderation,
         )
         generation_id = response.generation_id or str(uuid4())
@@ -773,7 +820,7 @@ class GenerationEngine:
             }
         )
 
-    def _provider_descriptor(self) -> dict[str, str | None]:
+    def _provider_descriptor(self) -> dict[str, object]:
         descriptor = getattr(self.provider, "last_used_descriptor", None)
         if isinstance(descriptor, dict):
             return {
@@ -782,6 +829,8 @@ class GenerationEngine:
                 "prompt_template_name": descriptor.get("prompt_template_name"),
                 "prompt_template_version": descriptor.get("prompt_template_version"),
                 "prompt_template_variant": descriptor.get("prompt_template_variant"),
+                "prompt_tokens": descriptor.get("prompt_tokens"),
+                "completion_tokens": descriptor.get("completion_tokens"),
             }
         return {
             "provider_name": self.provider.__class__.__name__,
@@ -789,6 +838,8 @@ class GenerationEngine:
             "prompt_template_name": None,
             "prompt_template_version": None,
             "prompt_template_variant": None,
+            "prompt_tokens": None,
+            "completion_tokens": None,
         }
 
     def _stream_cached_blocks(self, blocks: list[GeneratedBlock]):
@@ -816,6 +867,111 @@ class GenerationEngine:
             route=route,
             moderation=moderation,
         )
+
+    def _apply_math_verification(
+        self,
+        *,
+        profile: LearnerProfile,
+        request: GenerationRequest,
+        curriculum_request: CurriculumContentRequest,
+        route: AdaptiveRouteDecision,
+        grounding: list[GroundingReference],
+        blocks: list[GeneratedBlock],
+    ) -> tuple[list[GeneratedBlock], MathVerificationOutcome, int]:
+        """Verify practice items; on failure regenerate (never repair) up to
+        the retry budget, then replace with deterministic fallback content.
+        Mutates ``route.delivery_mode`` when the fallback is applied."""
+        if self.math_verification_service is None:
+            return blocks, MathVerificationOutcome(), 0
+        outcome = self.math_verification_service.verify_blocks(blocks)
+        attempts = 1
+        while outcome.status == "failed" and attempts <= self.verification_retry_attempts:
+            self._emit_verification_failed(
+                profile=profile,
+                request=request,
+                outcome=outcome,
+                attempt=attempts,
+                resolution="regenerated",
+            )
+            regenerated = normalize_generated_blocks(
+                self.provider.generate(curriculum_request, route, grounding)
+            )
+            regenerated, _ = self._split_surplus(regenerated)
+            blocks = regenerated
+            outcome = self.math_verification_service.verify_blocks(blocks)
+            attempts += 1
+        if outcome.status == "failed":
+            self._emit_verification_failed(
+                profile=profile,
+                request=request,
+                outcome=outcome,
+                attempt=attempts,
+                resolution="fallback",
+            )
+            blocks = self._verification_fallback_blocks(grounding=grounding)
+            route.delivery_mode = DeliveryMode.static_fallback
+            outcome = MathVerificationOutcome(
+                status="fallback",
+                issues=outcome.issues,
+                checked_block_count=outcome.checked_block_count,
+            )
+        return blocks, outcome, attempts
+
+    def _emit_verification_failed(
+        self,
+        *,
+        profile: LearnerProfile,
+        request: GenerationRequest,
+        outcome: MathVerificationOutcome,
+        attempt: int,
+        resolution: str,
+    ) -> None:
+        if self.audit_store is None:
+            return
+        try:
+            self.audit_store.append(
+                event_type=VERIFICATION_FAILED_EVENT_TYPE,
+                status=resolution,
+                student_id=str(profile.student_id),
+                payload={
+                    "attempt": attempt,
+                    "resolution": resolution,
+                    "issues": list(outcome.issues),
+                    "checked_block_count": outcome.checked_block_count,
+                    "intent": request.intent.value,
+                    "target_kc_ids": list(request.target_kc_ids),
+                    "learning_session_id": request.learning_session_id,
+                },
+            )
+        except Exception:  # noqa: BLE001 - telemetry must not break generation
+            logger.warning("Failed to record verification audit event", exc_info=True)
+
+    def _verification_fallback_blocks(
+        self, *, grounding: list[GroundingReference]
+    ) -> list[GeneratedBlock]:
+        """Deterministic, answer-key-free review content. Never invents an
+        answer that could be wrong in front of a learner."""
+        excerpt = next(
+            (item.excerpt for item in grounding if item.excerpt),
+            None,
+        )
+        topic = next((item.title for item in grounding), "this concept")
+        body_parts = [
+            f"Let's take a careful look at {topic} together before trying more practice.",
+        ]
+        if excerpt:
+            body_parts.append(excerpt)
+        body_parts.append(
+            "Re-read the idea above, then explain it in your own words. "
+            "Your next practice question is being prepared."
+        )
+        return [
+            GeneratedBlock(
+                kind="exposition",
+                title=f"Reviewing {topic}",
+                body="\n\n".join(body_parts),
+            )
+        ]
 
     def _moderation_fallback_blocks(
         self,

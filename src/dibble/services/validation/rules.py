@@ -394,6 +394,62 @@ class SafetyLanguageRule:
         return []
 
 
+# Commands KaTeX can render for the Grades 4-6 band. Anything outside this
+# set is more likely a hallucinated or malformed command than real notation.
+_KNOWN_LATEX_COMMANDS = {
+    "frac", "dfrac", "tfrac", "sqrt", "cdot", "times", "div", "pm",
+    "le", "leq", "ge", "geq", "ne", "neq", "approx", "pi", "degree",
+    "text", "mathrm", "overline", "underline", "left", "right",
+    "angle", "triangle", "circ", "quad", "qquad",
+}
+
+_LATEX_COMMAND_PATTERN = re.compile(r"\\([A-Za-z]+)")
+
+
+@dataclass(slots=True)
+class LatexWellFormednessRule:
+    """Catches malformed LaTeX server-side so it never reaches a learner as a
+    raw render error: unbalanced $/$$ delimiters, unbalanced braces inside
+    math segments, and commands KaTeX would choke on."""
+
+    def validate(
+        self, blocks: list[GeneratedBlock], grounding: list[GroundingReference]
+    ) -> list[str]:
+        issues: list[str] = []
+        for block in blocks:
+            text = _block_text(block)
+            if "$" not in text and "\\" not in text:
+                continue
+            display_count = text.count("$$")
+            inline_count = text.count("$") - display_count * 2
+            if display_count % 2 != 0:
+                issues.append(
+                    f"Block {block.title!r} has an unbalanced display math delimiter ($$)."
+                )
+            if inline_count % 2 != 0:
+                issues.append(
+                    f"Block {block.title!r} has an unbalanced inline math delimiter ($)."
+                )
+            for segment in _math_segments(text):
+                if segment.count("{") != segment.count("}"):
+                    issues.append(
+                        f"Block {block.title!r} has unbalanced braces in a math expression."
+                    )
+                for command in _LATEX_COMMAND_PATTERN.findall(segment):
+                    if command not in _KNOWN_LATEX_COMMANDS:
+                        issues.append(
+                            f"Block {block.title!r} uses an unsupported LaTeX command \\{command}."
+                        )
+        return issues
+
+
+def _math_segments(text: str) -> list[str]:
+    segments: list[str] = []
+    for pattern in (r"\$\$(.+?)\$\$", r"\$([^$]+)\$"):
+        segments.extend(match.group(1) for match in re.finditer(pattern, text, re.S))
+    return segments
+
+
 @dataclass(slots=True)
 class MathSanityRule:
     def validate(
