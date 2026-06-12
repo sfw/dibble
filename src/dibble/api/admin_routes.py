@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from fastapi import APIRouter
 from fastapi import status
 
@@ -15,6 +17,8 @@ from dibble.models.admin import (
     SystemConfigUpdateResponse,
 )
 from dibble.models.observability import HarnessBoundary, OperationalTraceStatus
+from dibble.models.pilot_metrics import PilotMetricsResponse
+from dibble.services.data_rights import LearnerDataExport
 from dibble.models.course import CourseUpsert
 from dibble.models.curriculum_intake import (
     AlignmentEdge,
@@ -64,6 +68,16 @@ def build_admin_router(context: ApiContext) -> APIRouter:
     @router.get("/config", response_model=SystemConfigResponse)
     def get_system_config() -> SystemConfigResponse:
         return context.services.admin_config_service.get_config()
+
+    @router.get("/pilot-metrics", response_model=PilotMetricsResponse)
+    def get_pilot_metrics(days: int = 90, limit: int = 10000) -> PilotMetricsResponse:
+        return context.services.pilot_metrics_service.summarize(days=days, limit=limit)
+
+    @router.get("/learners/{student_id}/export", response_model=LearnerDataExport)
+    def export_learner_data(student_id: UUID) -> LearnerDataExport:
+        return context.services.learner_data_rights_service.export(
+            student_id=student_id
+        )
 
     @router.put("/config", response_model=SystemConfigUpdateResponse)
     def update_system_config(
