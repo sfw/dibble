@@ -7,6 +7,9 @@ ROLE_IMPLICATIONS: dict[str, set[str]] = {
     "learner": {"learner", "viewer"},
     "viewer": {"viewer"},
     "teacher": {"teacher", "editor", "learner", "viewer"},
+    # Homeschool guardian: a teacher over the family unit plus the parent
+    # surfaces (approvals, notifications).
+    "guardian": {"guardian", "teacher", "editor", "learner", "viewer", "parent"},
     "editor": {"editor", "viewer", "teacher", "learner"},
     "parent": {"parent", "viewer"},
     "household_admin": {"household_admin", "parent", "viewer"},
