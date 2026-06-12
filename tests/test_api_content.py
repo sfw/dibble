@@ -1859,7 +1859,11 @@ def test_content_endpoints_write_audit_events(client, student_id):
     assert generate_response.status_code == 200
     assert audit_response.status_code == 200
 
-    events = audit_response.json()
+    events = [
+        event
+        for event in audit_response.json()
+        if event["event_type"] != "learning.baseline.decision"
+    ]
     assert events[0]["event_type"] == "content.warm.predictive"
     assert events[1]["event_type"] == "content.generate"
     assert events[2]["event_type"] == "adaptive.decide"

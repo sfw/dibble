@@ -13,7 +13,8 @@ def test_plugin_loader_supports_custom_router(tmp_path):
 
     services = build_application_services(settings, settings_loader=lambda: settings)
 
-    assert services.router_plugin.__class__.__name__ == "CalibratedRouter"
+    assert services.router_plugin.__class__.__name__ == "BaselineShadowedRouter"
+    assert services.router_plugin.inner.__class__.__name__ == "CalibratedRouter"
     assert (
         services.router_plugin.base_router.__class__.__name__ == "AlwaysReteachRouter"
     )

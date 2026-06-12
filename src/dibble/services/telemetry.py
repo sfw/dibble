@@ -33,7 +33,13 @@ class TelemetryService:
         self.generation_outcome_scorer = GenerationPromptOutcomeScorer()
 
     def snapshot(self) -> TelemetrySnapshot:
-        events = self.audit_store.list(limit=500)
+        # Baseline shadow events are counterfactual instrumentation, not
+        # learning activity — excluding them keeps activity totals stable.
+        events = [
+            event
+            for event in self.audit_store.list(limit=500)
+            if event.event_type != "learning.baseline.decision"
+        ]
         generation_events = [
             event for event in events if event.event_type.startswith("content.generate")
         ]
