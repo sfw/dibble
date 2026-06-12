@@ -113,7 +113,7 @@
       "strand_id": "g5-geometry",
       "grade_level": "5",
       "subject": "mathematics",
-      "description": "Volume measures the space a solid figure occupies in cubic units. A rectangular prism packed with unit cubes has volume equal to the number of cubes in one layer times the number of layers, which gives the formulas V = l x w x h and V = B x h where B is the base area. Volumes of composite figures made of two non-overlapping prisms add. Students distinguish volume from surface area and choose appropriate cubic units for context.",
+      "description": "Volume measures the space a solid figure occupies in cubic units — how much fits inside a box. A rectangular prism (a box shape) packed with unit cubes has volume equal to the number of cubes in one layer times the number of layers, which gives the formulas V = l x w x h and V = B x h where B is the base area. Volumes of composite figures made of two non-overlapping prisms add. Students distinguish volume from surface area and choose appropriate cubic units for context.",
       "sort_order": 1
     },
     {

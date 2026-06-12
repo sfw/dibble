@@ -70,7 +70,7 @@
       "strand_id": "g4-operations",
       "grade_level": "4",
       "subject": "mathematics",
-      "description": "Division shares a total into equal groups or measures how many equal groups fit. It is the inverse of multiplication: 28 divided by 4 asks what number times 4 makes 28. Students divide multi-digit numbers by one-digit divisors using place-value sections and relate quotients and remainders back to the context: the remainder is what is left after the largest possible whole number of equal groups is made, and it must always be smaller than the divisor.",
+      "description": "Division shares a total into equal groups or measures how many equal groups fit. It is the inverse of multiplication: 28 divided by 4 asks what number times 4 makes 28. Students divide multi-digit numbers by one-digit divisors using long division and place-value sections, and relate quotients and remainders back to the context: the remainder is the leftover amount after the largest possible whole number of equal groups is made, and what is left over must always be smaller than the divisor.",
       "sort_order": 3
     },
     {
@@ -88,7 +88,7 @@
       "strand_id": "g4-fractions",
       "grade_level": "4",
       "subject": "mathematics",
-      "description": "A fraction a/b is a copies of the unit fraction 1/b. Adding fractions with the same denominator means joining copies of the same-sized piece, so only the numerators add: 3/8 plus 2/8 is 5 copies of 1/8, or 5/8. The denominator names the size of the piece and does not change when pieces are joined or removed. Students decompose fractions into sums of unit fractions, add and subtract mixed numbers with like denominators, and check answers against visual models.",
+      "description": "A fraction a/b is a copies of the unit fraction 1/b. Adding fractions with the same denominator — the same bottom number — means joining copies of the same-sized piece, so only the numerators (the top numbers) add: 3/8 plus 2/8 is 5 copies of 1/8, or 5/8. The denominator names the size of the piece and does not change when pieces are joined or removed. Students decompose fractions into sums of unit fractions, add and subtract mixed numbers with like denominators, and check answers against visual models.",
       "sort_order": 2
     },
     {
