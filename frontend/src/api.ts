@@ -9,6 +9,10 @@ import type {
   CreateInitialAdminResponse,
   CourseUpsert,
   SystemConfigResponse,
+  PilotMetricsResponse,
+  SessionStartResponse,
+  SessionRecap,
+  DefectReportResponse,
   SystemConfigUpdateResponse,
   SystemConfigValues,
   SectionUpsert,
@@ -759,6 +763,39 @@ export async function postSetupAdmin(
 
 export function getSystemConfig(config: FrontendConfig) {
   return requestJson<SystemConfigResponse>(config, '/api/admin/config', {
+    headers: buildHeaders(config, false),
+  })
+}
+
+export function startLearnerSession(config: FrontendConfig, studentId: string) {
+  return requestJson<SessionStartResponse>(config, `/api/learners/${studentId}/session/start`, {
+    method: 'POST',
+    headers: buildHeaders(config, false),
+  })
+}
+
+export function endLearnerSession(config: FrontendConfig, studentId: string, learningSessionId: string) {
+  return requestJson<SessionRecap>(config, `/api/learners/${studentId}/session/end`, {
+    method: 'POST',
+    headers: buildHeaders(config),
+    body: JSON.stringify({ learning_session_id: learningSessionId }),
+  })
+}
+
+export function reportContentDefect(
+  config: FrontendConfig,
+  studentId: string,
+  payload: { generation_id: string; learning_session_id?: string | null; note?: string | null },
+) {
+  return requestJson<DefectReportResponse>(config, `/api/learners/${studentId}/defect-report`, {
+    method: 'POST',
+    headers: buildHeaders(config),
+    body: JSON.stringify(payload),
+  })
+}
+
+export function getPilotMetrics(config: FrontendConfig, days = 90) {
+  return requestJson<PilotMetricsResponse>(config, `/api/admin/pilot-metrics?days=${days}`, {
     headers: buildHeaders(config, false),
   })
 }

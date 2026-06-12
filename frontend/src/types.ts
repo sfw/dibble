@@ -376,12 +376,21 @@ export interface GroundingReference {
   excerpt?: string | null
 }
 
+export interface BlockVerification {
+  answer_expression?: string | null
+  answer_value?: string | null
+  distractor_values: string[]
+  solution_path_expression?: string | null
+  coverage: 'full' | 'partial'
+}
+
 export interface GeneratedBlock {
   block_id?: string | null
   kind: string
   title: string
   body: string
   interaction?: MultipleChoiceInteraction | null
+  verification?: BlockVerification | null
 }
 
 export interface MultipleChoiceOption {
@@ -418,7 +427,12 @@ export interface GenerationMetadata {
   prompt_template_version?: string | null
   prompt_template_variant?: string | null
   generation_latency_ms: number
+  prompt_tokens?: number
+  completion_tokens?: number
   cache_hit: boolean
+  verification_status?: string
+  verification_issue_count?: number
+  verification_attempts?: number
   moderation: {
     status: string
     stage: string
@@ -1769,4 +1783,108 @@ export interface BulkUserCreateRequest {
 
 export interface BulkUserCreateResponse {
   created: UserCreateResponse[]
+}
+
+export interface LearnerSessionMetrics {
+  sessions_started: number
+  sessions_completed: number
+  completion_rate?: number | null
+  active_days: number
+  day_over_day_return_rate?: number | null
+  week_over_week_return_rate?: number | null
+}
+
+export interface LearnerMasteryMetrics {
+  snapshot_count: number
+  earliest_overall_kc_mastery?: number | null
+  latest_overall_kc_mastery?: number | null
+  kc_mastery_delta?: number | null
+  earliest_overall_lo_mastery?: number | null
+  latest_overall_lo_mastery?: number | null
+  lo_mastery_delta?: number | null
+}
+
+export interface LearnerGenerationMetrics {
+  generation_count: number
+  cache_hits: number
+  average_latency_ms?: number | null
+  total_prompt_tokens: number
+  total_completion_tokens: number
+  verification_failed_count: number
+}
+
+export interface LearnerPilotMetrics {
+  student_id: string
+  sessions: LearnerSessionMetrics
+  mastery: LearnerMasteryMetrics
+  defect_report_count: number
+  intervention_decision_counts: Record<string, number>
+  baseline_agreement_rate?: number | null
+  baseline_decision_count: number
+  generation: LearnerGenerationMetrics
+}
+
+export interface CohortPilotMetrics {
+  learner_count: number
+  sessions_started: number
+  sessions_completed: number
+  completion_rate?: number | null
+  average_kc_mastery_delta?: number | null
+  defect_report_count: number
+  intervention_decision_counts: Record<string, number>
+  generation_count: number
+  cache_hits: number
+  average_latency_ms?: number | null
+  total_prompt_tokens: number
+  total_completion_tokens: number
+  verification_failed_count: number
+}
+
+export interface BaselineDecisionPointSummary {
+  decision_point: string
+  total_decisions: number
+  agreed_decisions: number
+  agreement_rate?: number | null
+}
+
+export interface BaselineAgreementSummary {
+  total_decisions: number
+  agreed_decisions: number
+  agreement_rate?: number | null
+  decision_points: BaselineDecisionPointSummary[]
+  divergences: Array<{
+    decision_point: string
+    student_id?: string | null
+    production_decision: Record<string, unknown>
+    baseline_decision: Record<string, unknown>
+    inputs_digest?: string | null
+    created_at?: string | null
+  }>
+}
+
+export interface PilotMetricsResponse {
+  days: number
+  learners: LearnerPilotMetrics[]
+  cohort: CohortPilotMetrics
+  baseline: BaselineAgreementSummary
+}
+
+export interface SessionStartResponse {
+  learning_session_id: string
+  goal_display: string
+  focus_outcome_title?: string | null
+  started_at: string
+}
+
+export interface SessionRecap {
+  learning_session_id: string
+  completed_activity_count: number
+  smooth_activity_count: number
+  display_recap: string
+  ended_at: string
+}
+
+export interface DefectReportResponse {
+  status: string
+  display_message: string
 }
