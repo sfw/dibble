@@ -19,6 +19,17 @@ cd frontend && npm run build         # type-check + production build (MUST pass 
 cd frontend && npm run lint          # eslint
 ```
 
+## POC adaptive-stack feature freeze (in effect)
+
+The adaptive decision stack is **frozen** until the pilot produces evidence. Any change touching the following services requires **explicit human approval** — bug fixes only, no new calibration layers, profiles, or feedback loops:
+
+- Routing: `calibrated_router.py`, `adaptive_router.py`, `plugins/defaults/router.py`, `router_calibration_signals.py`
+- Calibration / signals: `learner_state_signal.py`, `learner_strategy_signal.py`, `learner_state_prediction_signals.py`, `learner_state_prediction_outcomes.py`
+- Progression: `progression_ownership.py`, `kc_sequence_planner.py`, `progression_outcome_tracker.py`, `progression_outcome_signals.py`, `outcome_driven_adaptation.py`, `within_session_adaptation.py`
+- Mastery: `mastery_quality_gate_signals.py`, `mastery_quality_gate_outcomes.py`, `mastery_snapshot_service.py`, `ordinary_mastery_profiles.py`
+
+Shadow/observability wrappers that **only log** (e.g. baseline counterfactual logging) are allowed, provided they have zero behavioral impact on production decisions.
+
 ## Architecture rules
 
 ### Backend owns logic, frontend owns presentation
