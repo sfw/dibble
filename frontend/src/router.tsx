@@ -29,6 +29,7 @@ import { Reports } from './views/teacher/Reports'
 
 // Staff views
 import { StaffDashboard } from './views/staff/StaffDashboard'
+import { PilotMetrics } from './views/staff/PilotMetrics'
 import { AcademicCatalog } from './views/staff/AcademicCatalog'
 import { CurriculumManager } from './views/staff/CurriculumManager'
 import { RolloutConsole } from './views/staff/RolloutConsole'
@@ -131,6 +132,14 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <StaffDashboard /> },
+      {
+        path: 'pilot',
+        element: (
+          <AuthGuard allowedRoles={['admin']}>
+            <PilotMetrics />
+          </AuthGuard>
+        ),
+      },
       {
         path: 'academics',
         element: (
